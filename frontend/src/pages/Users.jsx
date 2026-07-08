@@ -19,7 +19,7 @@ function normalizeUser(u, rolesList) {
 }
 function normalizeForApi(form) {
   return {
-    userName: form.name,
+    userName: form.email,
     fullName: form.name,
     email: form.email,
     phoneNumber: form.phone ? `967${form.phone}` : '',
