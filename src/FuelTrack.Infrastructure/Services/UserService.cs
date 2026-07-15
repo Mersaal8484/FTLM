@@ -46,7 +46,7 @@ public class UserService : IUserService
     {
         var user = new User
         {
-            UserName = dto.Email,
+            UserName = dto.UserName,
             FullName = dto.FullName,
             Email = dto.Email,
             PhoneNumber = dto.PhoneNumber,

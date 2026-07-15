@@ -1,0 +1,14 @@
+node_modules/
+.npm
+npm-debug.log
+.env
+.git
+.gitignore
+Dockerfile
+.dockerignore
+README.md
+public/robots.txt
+build/
+dist/
+*.md
+*.txt

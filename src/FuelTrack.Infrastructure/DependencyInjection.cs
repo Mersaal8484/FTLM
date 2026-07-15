@@ -56,7 +56,7 @@ public static class DependencyInjection
         services.AddScoped<IGeneratorService, GeneratorService>();
         services.AddScoped<IFuelTankService, FuelTankService>();
         services.AddScoped<IReadingService, ReadingService>();
-        services.AddScoped<IStationReadingService, StationReadingService>();
+        services.AddScoped<ISubStationReadingService, SubStationReadingService>();
         services.AddScoped<IFuelMovementService, FuelMovementService>();
         services.AddScoped<IOilService, OilService>();
         services.AddScoped<IOilTransactionService, OilTransactionService>();

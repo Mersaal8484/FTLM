@@ -1,0 +1,28 @@
+namespace FuelTrack.Application.DTOs.FuelMovements;
+
+public record UpdateFuelMovementDto(
+    int? FuelLookupId,
+    int? TransactionTypeLookupId,
+    DateTime? TransactionDate,
+    double? QuantityLiters,
+    string? Reference,
+    string? SupplierCompany,
+    string? DriverName,
+    string? DriverIdCard,
+    string? TruckNumber,
+    string? InvoiceNumber,
+    DateTime? InvoiceDate,
+    double? InvoiceQuantity,
+    string? WarehouseReceiptNumber,
+    DateTime? WarehouseReceiptDate,
+    double? WarehouseQuantity,
+    int? MeterId,
+    double? PrevMeterVisualReading,
+    double? CurrentMeterVisualReading,
+    double? PrevMeterStandardReading,
+    double? CurrentMeterStandardReading,
+    int? SourceSubStationId,
+    int? DestinationSubStationId,
+    int? CorrectedFromId,
+    string? CorrectionReason,
+    string? Notes);

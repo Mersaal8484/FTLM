@@ -1,0 +1,50 @@
+namespace FuelTrack.Application.DTOs.FuelMovements;
+
+public record FuelMovementDetailDto(
+    int Id,
+    int SubStationId,
+    string SubStationName,
+    int FuelLookupId,
+    string FuelLookupName,
+    int? TransactionTypeLookupId,
+    string? TransactionTypeLookupName,
+    DateTime TransactionDate,
+    double QuantityLiters,
+    string? Reference,
+    // بيانات الوارد
+    string? SupplierCompany,
+    string? DriverName,
+    string? DriverIdCard,
+    string? TruckNumber,
+    string? InvoiceNumber,
+    DateTime? InvoiceDate,
+    double? InvoiceQuantity,
+    string? WarehouseReceiptNumber,
+    DateTime? WarehouseReceiptDate,
+    double? WarehouseQuantity,
+    // قراءات عداد
+    int? MeterId,
+    string? MeterName,
+    double? PrevMeterVisualReading,
+    double? CurrentMeterVisualReading,
+    double? PrevMeterStandardReading,
+    double? CurrentMeterStandardReading,
+    // النقل
+    int? SourceSubStationId,
+    string? SourceSubStationName,
+    int? DestinationSubStationId,
+    string? DestinationSubStationName,
+    // التصحيح
+    int? CorrectedFromId,
+    string? CorrectionReason,
+    // الاعتماد
+    bool IsApproved,
+    int? ApprovedById,
+    string? ApprovedByName,
+    DateTime? ApprovedAt,
+    // التتبع
+    int CreatedBy,
+    int UpdatedBy,
+    DateTime CreatedAt,
+    DateTime UpdatedAt,
+    string? Notes);

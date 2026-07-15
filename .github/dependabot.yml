@@ -1,0 +1,45 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /src
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - nuget
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - npm
+
+  - package-ecosystem: docker
+    directory: /src/FuelTrack.API
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - docker
+
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - docker
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - ci

@@ -1,0 +1,9 @@
+namespace FuelTrack.Application.Interfaces;
+
+public interface IUserScopeFilterService
+{
+    Task<List<int>> GetAccessibleSubStationIdsAsync(int userId);
+    Task<List<int>> GetAccessibleStationIdsAsync(int userId);
+    Task<List<int>> GetAccessibleBranchIdsAsync(int userId);
+    Task<bool> HasAccessToSubStationAsync(int userId, int subStationId);
+}

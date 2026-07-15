@@ -1,0 +1,41 @@
+namespace FuelTrack.Application.DTOs.OilTransactions;
+
+public record OilTransactionDetailDto(
+    int Id,
+    int SubStationId,
+    string SubStationName,
+    int OilLookupId,
+    string OilLookupName,
+    int? OilId,
+    string? OilName,
+    int TransactionTypeLookupId,
+    string TransactionTypeLookupName,
+    DateTime TransactionDate,
+    double QuantityLiters,
+    // بيانات الوارد
+    string? SupplierCompany,
+    string? DriverName,
+    string? DriverIdCard,
+    string? TruckNumber,
+    string? InvoiceNumber,
+    DateTime? InvoiceDate,
+    double? InvoiceQuantity,
+    string? WarehouseReceiptNumber,
+    DateTime? WarehouseReceiptDate,
+    double? WarehouseQuantity,
+    // النقل
+    int? SourceSubStationId,
+    string? SourceSubStationName,
+    int? DestinationSubStationId,
+    string? DestinationSubStationName,
+    // الاعتماد
+    bool IsApproved,
+    int? ApprovedById,
+    string? ApprovedByName,
+    DateTime? ApprovedAt,
+    // ملاحظات
+    string? Notes,
+    int CreatedBy,
+    int UpdatedBy,
+    DateTime CreatedAt,
+    DateTime UpdatedAt);

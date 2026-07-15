@@ -1,0 +1,25 @@
+namespace FuelTrack.Application.DTOs.Readings;
+
+public record ReadingDetailDto(
+    int Id,
+    int GeneratorId,
+    string GeneratorName,
+    DateTime ReadingDate,
+    double PrevRunningHours,
+    double CurrentRunningHours,
+    double PrevEnergyKWh,
+    double CurrentEnergyKWh,
+    int FuelLookupId,
+    string FuelLookupName,
+    decimal StandardFuelRate,
+    int OilLookupId,
+    string? OilLookupName,
+    double? OilUsedLiters,
+    int ReadingStatusLookupId,
+    string? ReadingStatusLookupName,
+    string? RejectionReason,
+    string? Notes,
+    DateTime CreatedAt,
+    DateTime UpdatedAt,
+    int? ControllerId,
+    string? ControllerName);

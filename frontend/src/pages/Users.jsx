@@ -105,7 +105,7 @@ function Users({ t, lang, currentUser }) {
       setSubStations(getValue(subRes, []).filter(s => s.isActive !== false));
       setRoles(getValue(rRes, []));
 
-      const authFailed = [uRes, bRes, sRes, subRes, rRes].some(
+      const authFailed = [uRes, rRes].some(
         r => r.status === 'rejected' && (r.reason?.response?.status === 401 || r.reason?.response?.status === 403)
       );
       if (authFailed) { setAuthError(true); return; }

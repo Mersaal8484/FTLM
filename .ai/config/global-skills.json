@@ -1,0 +1,89 @@
+{
+  "globalSkills": [
+    {
+      "name": "debug",
+      "description": "Debugging specialist for errors and unexpected behavior",
+      "invocation": "automatic",
+      "triggers": ["error", "bug", "fix", "debug", "issue", "fails", "broken", "crash", "exception", "regression"],
+      "priority": 1
+    },
+    {
+      "name": "backend-architect",
+      "description": "Backend API design and architecture",
+      "invocation": "conditional",
+      "triggers": ["api", "endpoint", "controller", "service", "middleware", "architecture", "clean architecture", "dto", "repository"],
+      "priority": 2
+    },
+    {
+      "name": "frontend-developer",
+      "description": "React components and UI implementation",
+      "invocation": "conditional",
+      "triggers": ["react", "component", "ui", "jsx", "tsx", "frontend", "vite", "css", "tailwind", "signalr", "hook", "state"],
+      "priority": 3
+    },
+    {
+      "name": "database-architect",
+      "description": "Database design and optimization",
+      "invocation": "conditional",
+      "triggers": ["database", "migration", "ef core", "entity framework", "sql", "schema", "index", "query", "dbcontext", "linq", "relationship"],
+      "priority": 4
+    },
+    {
+      "name": "devops-deploy",
+      "description": "Docker, CI/CD, deployment",
+      "invocation": "conditional",
+      "triggers": ["docker", "deploy", "ci", "cd", "pipeline", "container", "kubernetes", "build", "release", "publish"],
+      "priority": 5
+    },
+    {
+      "name": "security-auditor",
+      "description": "Security review and hardening",
+      "invocation": "conditional",
+      "triggers": ["security", "auth", "jwt", "token", "permission", "role", "authorize", "vulnerability", "secret", "encryption", "hash"],
+      "priority": 6
+    },
+    {
+      "name": "performance-optimizer",
+      "description": "Performance analysis and optimization",
+      "invocation": "conditional",
+      "triggers": ["performance", "slow", "optimize", "cache", "n+1", "asnotracking", "memory", "cpu", "latency", "throughput", "profiling"],
+      "priority": 7
+    },
+    {
+      "name": "code-reviewer",
+      "description": "Code quality and best practices",
+      "invocation": "manual",
+      "triggers": ["review", "refactor", "cleanup", "smell", "quality", "convention", "pattern", "solid", "dry"],
+      "priority": 8
+    },
+    {
+      "name": "test-engineer",
+      "description": "Testing strategies and implementation",
+      "invocation": "manual",
+      "triggers": ["test", "unit test", "integration test", "mock", "assert", "coverage", "xunit", "nunit", "mstest", "vitest", "playwright"],
+      "priority": 9
+    }
+  ],
+  "invocationRules": {
+    "automatic": "Skill is invoked automatically when trigger conditions match",
+    "manual": "Skill must be explicitly invoked by the user",
+    "conditional": "Skill is invoked based on context analysis of the current task and file types"
+  },
+  "projectContext": {
+    "backend": {
+      "framework": "ASP.NET Core 10",
+      "orm": "Entity Framework Core",
+      "database": "SQL Server",
+      "architecture": "Clean Architecture"
+    },
+    "frontend": {
+      "framework": "React 18",
+      "bundler": "Vite",
+      "realtime": "SignalR"
+    },
+    "testing": {
+      "backend": "xUnit",
+      "frontend": "Vitest"
+    }
+  }
+}
