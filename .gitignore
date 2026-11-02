@@ -21,9 +21,15 @@ Thumbs.db
 
 # Frontend build
 frontend/build/
+frontend/dist/
+
+# Playwright generated output
+**/playwright-report/
+**/test-results/
 
 # Frontend env
 frontend/.env
+.env
 
 # Logs
 *.log
@@ -51,10 +57,8 @@ True
 api-output.txt
 fuel_summary.json
 oil_summary.json
-db_fix_reading_status.sql
+/db_fix_reading_status.sql
 testsprite_tests/
 .e2e/
 
-# K8s secrets (never commit real credentials)
-k8s/base/secrets.yaml
 testsprite_tests\tmp\config.json
