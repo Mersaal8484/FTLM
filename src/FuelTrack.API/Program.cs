@@ -30,6 +30,8 @@ using OpenTelemetry.Trace;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
+    // Hosting diagnostics include the raw query string, including SignalR bearer tokens.
+    .MinimumLevel.Override("Microsoft.AspNetCore.Hosting.Diagnostics", Serilog.Events.LogEventLevel.Warning)
     .WriteTo.Console()
     .CreateLogger();
 
@@ -37,7 +39,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Fail closed until request-to-tenant identity, secret-backed tenant connections,
 // tenant-scoped SignalR and background jobs are integrated and verified together.
-if (builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
+var tenantProofMode = builder.Environment.IsEnvironment("Testing") &&
+    builder.Configuration.GetValue<bool>("MultiTenancy:DisposableProof");
+if (tenantProofMode)
+{
+    var testUrl = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+    var testDatabase = new Npgsql.NpgsqlConnectionStringBuilder(builder.Configuration.GetConnectionString("Platform") ?? "");
+    if (!Uri.TryCreate(testUrl, UriKind.Absolute, out var bindAddress) ||
+        !bindAddress.IsLoopback || !string.Equals(testDatabase.Database, "model_proof", StringComparison.Ordinal))
+        throw new InvalidOperationException("Tenant proof mode requires a loopback listener and the disposable model_proof database.");
+}
+if (builder.Configuration.GetValue<bool>("MultiTenancy:Enabled") && !tenantProofMode)
     throw new InvalidOperationException("Multi-tenant API access is not enabled until tenant isolation is fully integrated.");
 
 builder.Host.UseSerilog();
@@ -435,6 +447,7 @@ if (!string.IsNullOrEmpty(otelEndpoint) && app.Services.GetService<OpenTelemetry
     app.MapPrometheusScrapingEndpoint("/metrics");
 }
 
+if (!tenantProofMode)
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<FuelTrackDbContext>();

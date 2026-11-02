@@ -285,6 +285,11 @@ var testPlan = new SubscriptionPlan(Guid.NewGuid(), "Proof", 0m, "USD");
 platform.Plans.Add(testPlan);
 platform.Subscriptions.Add(new PlatformSubscription(Guid.NewGuid(), provisionTenantId, testPlan.Id, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1)));
 await platform.SaveChangesAsync();
+var apiOtherTenant = await platform.Tenants.SingleAsync(t => t.Id == firstTenantId);
+apiOtherTenant.Activate();
+platform.Subscriptions.Add(new PlatformSubscription(Guid.NewGuid(), firstTenantId, testPlan.Id, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1)));
+await platform.SaveChangesAsync();
+await ApiIsolationProof.RunAsync(adminString, key, provisionTenantId);
 var middlewareConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
 {
     ["ConnectionStrings:TenantDatabase"] = adminString
@@ -425,10 +430,6 @@ using (var authScope = provider.CreateScope())
     if (await controller.LoginWithTwoFactor(new TwoFactorVerifyRequest { TempToken = challengeResponse.TempToken, Code = validCode }) is not UnauthorizedObjectResult)
         throw new InvalidOperationException("2FA endpoint accepted a replayed challenge.");
 }
-var otherTenant = await platform.Tenants.SingleAsync(t => t.Id == firstTenantId);
-otherTenant.Activate();
-platform.Subscriptions.Add(new PlatformSubscription(Guid.NewGuid(), firstTenantId, testPlan.Id, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1)));
-await platform.SaveChangesAsync();
 var realCrossRequest = new DefaultHttpContext();
 realCrossRequest.Request.Host = new HostString("proof.example.test");
 realCrossRequest.Request.Path = "/api/branches";
@@ -548,6 +549,7 @@ catch (InvalidOperationException ex) when (ex.Message == "New encryption key is 
 platform.ChangeTracker.Clear();
 if ((await platform.TenantCredentials.SingleAsync(x => x.TenantId == firstTenantId)).KeyId != "test-key-2")
     throw new InvalidOperationException("Failed key rotation changed the credential.");
+await SignalRIsolationProof.RunAsync();
 Console.WriteLine("PASS: full FuelTrack PostgreSQL model, tenant isolation, encrypted credentials and atomic rotation.");
 
 static FuelTrackDbContext NewContext(string connectionString) => new(new DbContextOptionsBuilder<FuelTrackDbContext>().UseNpgsql(connectionString).Options);

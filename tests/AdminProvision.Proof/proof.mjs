@@ -34,6 +34,10 @@ if (result.response.status !== 302) throw new Error('Tenant registration failed'
 page = await request('/');
 const id = page.html.match(/name="id" value="([0-9a-f-]{36})"/i)?.[1];
 if (!id) throw new Error('Provisioning button not rendered');
+result = await request('/?handler=Provision', { id, adminEmail: 'customer-admin@example.test', adminPassword: 'weak-password', __RequestVerificationToken: token(page.html) });
+const decodedHtml = result.html.replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)));
+if (result.response.status !== 200 || !decodedHtml.includes('يجب أن تتكون كلمة مرور المدير')) throw new Error('Password policy error was not shown');
+page = result;
 for (let attempt = 0; attempt < 2; attempt++) {
   result = await request('/?handler=Provision', { id, adminEmail: 'customer-admin@example.test', adminPassword: 'Tenant-Admin-Password-123!', __RequestVerificationToken: token(page.html) });
   if (result.response.status !== 302) throw new Error('Provisioning or retry failed');

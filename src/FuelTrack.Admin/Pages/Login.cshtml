@@ -1,6 +1,13 @@
 @page "/login"
 @model FuelTrack.Admin.Pages.LoginModel
-<section><h1>دخول إدارة المنصة</h1><p class="error">@Model.Error</p><form method="post">
-<label>اسم المستخدم <input asp-for="Username" autocomplete="username" required /></label>
-<label>كلمة المرور <input asp-for="Password" type="password" autocomplete="current-password" required /></label>
-<button type="submit">دخول</button></form></section>
+<div class="login-layout"><section class="card login-card">
+    <div class="login-icon" aria-hidden="true">F</div>
+    <span class="eyebrow">مرحباً بعودتك</span><h1>دخول إدارة المنصة</h1><p>سجّل الدخول لإدارة المستأجرين والاشتراكات.</p>
+    @if (!string.IsNullOrEmpty(Model.Error)) { <div class="alert alert-error" role="alert">@Model.Error</div> }
+    <form method="post" class="login-form">
+        <label>اسم المستخدم <input asp-for="Username" autocomplete="username" placeholder="أدخل اسم المستخدم" required /></label>
+        <label>كلمة المرور <input asp-for="Password" type="password" autocomplete="current-password" placeholder="أدخل كلمة المرور" required /></label>
+        <button type="submit">تسجيل الدخول <span aria-hidden="true">←</span></button>
+    </form>
+    <div class="login-footer">FuelTrack <span>•</span> لوحة إدارة المنصة</div>
+</section></div>

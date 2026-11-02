@@ -49,6 +49,9 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
+        // Tenant users are created by an administrator, not anonymous self-registration.
+        if (_configuration.GetValue<bool>("MultiTenancy:Enabled"))
+            return NotFound();
         var user = new User
         {
             UserName = request.UserName,

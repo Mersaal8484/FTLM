@@ -1,7 +1,12 @@
 @page
 @model FuelTrack.Admin.Pages.SubscriptionsModel
-<section><h1>الاشتراكات اليدوية</h1><p>تسجيل تجريبي: لم تُربط الاشتراكات بصلاحية الدخول أو الفوترة بعد.</p><p class="error">@Model.Error</p><form method="post">
-<label>المستأجر <select asp-for="TenantId" required><option value="">اختر</option>@foreach(var t in Model.Tenants) { <option value="@t.Id">@t.Name</option> }</select></label>
-<label>الباقة <select asp-for="PlanId" required><option value="">اختر</option>@foreach(var p in Model.Plans) { <option value="@p.Id">@p.Name (@p.Price @p.Currency)</option> }</select></label>
+<div class="page-heading"><div><span class="eyebrow">إدارة المنصة / الاشتراكات</span><h1>الاشتراكات اليدوية</h1><p>سجّل اشتراكات المستأجرين وراجع فتراتها.</p></div></div>
+<div class="alert alert-info">تسجيل تجريبي: لم تُربط الاشتراكات بصلاحية الدخول أو الفوترة بعد.</div>
+@if (!string.IsNullOrEmpty(Model.Error)) { <div class="alert alert-error" role="alert">@Model.Error</div> }
+<section class="card"><div class="card-heading"><div><h2>تسجيل اشتراك</h2><p>اختر المستأجر والباقة وحدد فترة الاشتراك.</p></div><span class="card-icon" aria-hidden="true">＋</span></div>
+<form method="post" class="form-grid subscription-create">
+<label>المستأجر <select asp-for="TenantId" required><option value="">اختر المستأجر</option>@foreach(var t in Model.Tenants) { <option value="@t.Id">@t.Name</option> }</select></label>
+<label>الباقة <select asp-for="PlanId" required><option value="">اختر الباقة</option>@foreach(var p in Model.Plans) { <option value="@p.Id">@p.Name (@p.Price @p.Currency)</option> }</select></label>
 <label>البداية UTC <input asp-for="Start" type="date" required /></label><label>النهاية الحصرية UTC <input asp-for="End" type="date" required /></label><button>تسجيل الاشتراك</button></form></section>
-<section><table><thead><tr><th>المستأجر</th><th>الباقة</th><th>البداية UTC</th><th>النهاية UTC</th></tr></thead><tbody>@foreach(var row in Model.Rows) { <tr><td>@row.Tenant</td><td>@row.Plan</td><td>@row.Start.ToString("yyyy-MM-dd")</td><td>@row.End.ToString("yyyy-MM-dd")</td></tr> }</tbody></table></section>
+<section class="card list-card"><div class="card-heading"><div><h2>سجل الاشتراكات</h2><p>الاشتراكات المسجلة وتواريخها.</p></div></div>
+@if (!Model.Rows.Any()) { <div class="empty-state">لا توجد اشتراكات مسجلة بعد.</div> } else { <div class="table-wrap"><table><thead><tr><th>المستأجر</th><th>الباقة</th><th>البداية UTC</th><th>النهاية UTC</th></tr></thead><tbody>@foreach(var row in Model.Rows) { <tr><td><strong>@row.Tenant</strong></td><td>@row.Plan</td><td>@row.Start.ToString("yyyy-MM-dd")</td><td>@row.End.ToString("yyyy-MM-dd")</td></tr> }</tbody></table></div> }</section>

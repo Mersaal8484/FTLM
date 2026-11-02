@@ -15,7 +15,7 @@ namespace FuelTrack.API.Hubs;
 // this Hub has NO handler for "SendModbusReading". Data from Modbus is LOST.
 // See ENTERPRISE_WORK_PLAN.md#C-03
 [Authorize(AuthenticationSchemes = "SignalR")]
-public class FuelTrackHub(IUserScopeFilterService scopes, IConfiguration configuration, ITenantRequestContext? tenant = null) : Hub
+public class FuelTrackHub(IConfiguration configuration, IServiceProvider services) : Hub
 {
     public override async Task OnConnectedAsync()
     {
@@ -31,7 +31,7 @@ public class FuelTrackHub(IUserScopeFilterService scopes, IConfiguration configu
     public async Task JoinStationGroup(int stationId)
     {
         var userId = CurrentUserId();
-        if (stationId <= 0 || (!IsAdmin() && !await scopes.HasFullAccessToStationAsync(userId, stationId)))
+        if (stationId <= 0 || (!IsAdmin() && !await RequestServices().GetRequiredService<IUserScopeFilterService>().HasFullAccessToStationAsync(userId, stationId)))
             throw new HubException("Access denied.");
         await Groups.AddToGroupAsync(Context.ConnectionId, TenantRealtimeScope.Group(CurrentTenant(), $"station_{stationId}"));
     }
@@ -44,7 +44,7 @@ public class FuelTrackHub(IUserScopeFilterService scopes, IConfiguration configu
     public async Task JoinSubStationGroup(int subStationId)
     {
         var userId = CurrentUserId();
-        if (subStationId <= 0 || (!IsAdmin() && !await scopes.HasAccessToSubStationAsync(userId, subStationId)))
+        if (subStationId <= 0 || (!IsAdmin() && !await RequestServices().GetRequiredService<IUserScopeFilterService>().HasAccessToSubStationAsync(userId, subStationId)))
             throw new HubException("Access denied.");
         await Groups.AddToGroupAsync(Context.ConnectionId, TenantRealtimeScope.Group(CurrentTenant(), $"substation_{subStationId}"));
     }
@@ -64,9 +64,14 @@ public class FuelTrackHub(IUserScopeFilterService scopes, IConfiguration configu
 
     private bool IsAdmin() => Context.User?.IsInRole("Admin") == true || Context.User?.IsInRole("SystemOwner") == true;
 
+    // SignalR creates a new DI scope for each hub invocation. Tenant resolution
+    // belongs to the long-lived HTTP connection, so use that request scope.
+    private IServiceProvider RequestServices() =>
+        (Context.Features is null ? null : Context.GetHttpContext()?.RequestServices) ?? services;
+
     private Guid? CurrentTenant()
     {
-        var id = TenantRealtimeScope.GetTenant(configuration, tenant);
+        var id = TenantRealtimeScope.GetTenant(configuration, RequestServices().GetService<ITenantRequestContext>());
         if (id is null) return null;
         var claims = Context.User?.FindAll("tenant_id").ToArray() ?? [];
         if (claims.Length != 1 || !Guid.TryParse(claims[0].Value, out var claimId) || claimId != id)

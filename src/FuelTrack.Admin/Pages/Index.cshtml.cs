@@ -38,6 +38,14 @@ public sealed class IndexModel(PlatformDbContext db, IServiceProvider services, 
             await provisioner.ProvisionAsync(id, adminEmail, adminPassword, cancellationToken);
             return RedirectToPage();
         }
+        catch (ArgumentException ex) when (ex.ParamName is "adminEmail" or "adminPassword")
+        {
+            Error = ex.ParamName == "adminEmail"
+                ? "أدخل بريداً إلكترونياً صحيحاً لمدير المستأجر."
+                : "يجب أن تتكون كلمة مرور المدير من 12 إلى 128 حرفاً، وتحتوي على حرف كبير وحرف صغير ورقم ورمز خاص.";
+            await OnGetAsync();
+            return Page();
+        }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or Npgsql.NpgsqlException or DbUpdateException or System.Security.Cryptography.CryptographicException or IOException or UnauthorizedAccessException)
         {
             logger.LogWarning("Tenant provisioning failed for {TenantId}", id);

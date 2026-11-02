@@ -1,5 +1,35 @@
 @page
 @model FuelTrack.Admin.Pages.IndexModel
-<section><h1>المستأجرون</h1><p>يُسجّل المستأجر بحالة قيد التجهيز؛ لا يُفعّل وصوله حتى يجهز مخططه.</p><p class="error">@Model.Error</p>
-<form method="post"><label>اسم المستأجر <input asp-for="Name" maxlength="200" required /></label><label>النطاق الفرعي <input asp-for="Host" maxlength="253" placeholder="client.example.com" required /></label><button>إضافة</button></form></section>
-<section>@if (!Model.CanProvision) { <p>تجهيز قواعد المستأجرين غير متاح حتى يُضبط مفتاح التشفير.</p> }<table><thead><tr><th>الاسم</th><th>النطاق</th><th>الحالة</th><th>التجهيز</th></tr></thead><tbody>@foreach (var tenant in Model.Tenants) { <tr><td>@tenant.Name</td><td>@tenant.Host</td><td>@tenant.Status</td><td>@if (Model.CanProvision && tenant.Status == FuelTrack.Domain.MultiTenancy.PlatformTenantStatus.Provisioning) { <form method="post" asp-page-handler="Provision"><input type="hidden" name="id" value="@tenant.Id" /><label>بريد المدير <input type="email" name="adminEmail" maxlength="256" required /></label><label>كلمة مرور المدير <input type="password" name="adminPassword" minlength="12" maxlength="128" autocomplete="new-password" required /></label><button>تجهيز قاعدة البيانات</button></form> }</td></tr> }</tbody></table></section>
+<div class="page-heading">
+    <div><span class="eyebrow">إدارة المنصة / المستأجرون</span><h1>المستأجرون</h1><p>إدارة حسابات المستأجرين وتجهيز قواعد بياناتهم من مكان واحد.</p></div>
+    <div class="heading-count"><span>إجمالي المستأجرين</span><strong>@Model.Tenants.Count</strong></div>
+</div>
+@if (!string.IsNullOrEmpty(Model.Error)) { <div class="alert alert-error" role="alert">@Model.Error</div> }
+<section class="card">
+    <div class="card-heading"><div><h2>إضافة مستأجر</h2><p>أدخل بيانات المستأجر الأساسية للبدء بتجهيزه.</p></div><span class="card-icon" aria-hidden="true">＋</span></div>
+    <form method="post" class="form-grid tenant-create">
+        <label>اسم المستأجر <input asp-for="Name" maxlength="200" placeholder="مثال: شركة الأفق" required /></label>
+        <label>النطاق الفرعي <input asp-for="Host" maxlength="253" placeholder="client.example.com" dir="ltr" required /></label>
+        <button type="submit">إضافة مستأجر <span aria-hidden="true">＋</span></button>
+    </form>
+    <p class="form-note">يُسجّل المستأجر بحالة قيد التجهيز؛ لا يُفعّل وصوله حتى يجهز مخططه.</p>
+</section>
+<section class="card list-card">
+    <div class="card-heading"><div><h2>قائمة المستأجرين</h2><p>تابع حالة التجهيز وبيانات مدير كل مستأجر.</p></div><span class="count-badge">@Model.Tenants.Count مستأجر</span></div>
+    @if (!Model.CanProvision) { <div class="alert alert-info">تجهيز قواعد المستأجرين غير متاح حتى يُضبط مفتاح التشفير.</div> }
+    @if (Model.Tenants.Count == 0) { <div class="empty-state">لا يوجد مستأجرون بعد. أضف أول مستأجر للبدء.</div> }
+    else {
+    <div class="table-wrap"><table><thead><tr><th>المستأجر</th><th>النطاق</th><th>الحالة</th><th>التجهيز</th></tr></thead><tbody>
+    @foreach (var tenant in Model.Tenants) {
+        <tr><td><strong>@tenant.Name</strong></td><td><span class="domain" dir="ltr">@tenant.Host</span></td><td><span class="status-badge" title="@tenant.Status">@(tenant.Status switch { FuelTrack.Domain.MultiTenancy.PlatformTenantStatus.Provisioning => "قيد التجهيز", FuelTrack.Domain.MultiTenancy.PlatformTenantStatus.Active => "نشط", FuelTrack.Domain.MultiTenancy.PlatformTenantStatus.Suspended => "موقوف", _ => "مؤرشف" })</span></td><td>
+        @if (Model.CanProvision && tenant.Status == FuelTrack.Domain.MultiTenancy.PlatformTenantStatus.Provisioning) {
+            <form method="post" asp-page-handler="Provision" class="provision-form">
+                <input type="hidden" name="id" value="@tenant.Id" />
+                <label>بريد المدير <input type="email" name="adminEmail" maxlength="256" placeholder="admin@example.com" dir="ltr" required /></label>
+                <label>كلمة مرور المدير <input type="password" name="adminPassword" minlength="12" maxlength="128" autocomplete="new-password" required /></label>
+                <small>12 حرفاً على الأقل، تشمل حرفاً كبيراً وصغيراً ورقماً ورمزاً خاصاً.</small>
+                <button type="submit">تجهيز قاعدة البيانات</button>
+            </form>
+        }</td></tr>
+    }</tbody></table></div> }
+</section>

@@ -15,10 +15,12 @@ COPY src/FuelTrack.Infrastructure/ src/FuelTrack.Infrastructure/
 COPY src/FuelTrack.Platform/ src/FuelTrack.Platform/
 COPY src/FuelTrack.Admin/ src/FuelTrack.Admin/
 COPY src/FuelTrack.API/ src/FuelTrack.API/
-COPY tests/PostgresModel.Proof/Program.cs tests/PostgresModel.Proof/
+COPY tests/PostgresModel.Proof/Program.cs tests/PostgresModel.Proof/SignalRIsolationProof.cs tests/PostgresModel.Proof/ApiIsolationProof.cs tests/PostgresModel.Proof/
+RUN dotnet publish src/FuelTrack.API/FuelTrack.API.csproj --no-restore -c Release -o /api /p:UseAppHost=false
 RUN dotnet publish tests/PostgresModel.Proof/PostgresModel.Proof.csproj --no-restore -c Release -o /app /p:UseAppHost=false
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=build /app .
+COPY --from=build /api /api
 USER $APP_UID
 ENTRYPOINT ["dotnet", "PostgresModel.Proof.dll"]

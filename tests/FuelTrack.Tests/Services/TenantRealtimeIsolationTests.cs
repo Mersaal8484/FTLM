@@ -5,6 +5,7 @@ using FuelTrack.Application.Interfaces;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Moq;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FuelTrack.Tests.Services;
 
@@ -24,13 +25,14 @@ public sealed class TenantRealtimeIsolationTests
         var scopes = new Mock<IUserScopeFilterService>();
         scopes.Setup(x => x.HasAccessToSubStationAsync(7, 3)).ReturnsAsync(true);
         var groups = new Mock<IGroupManager>();
-        var hub = new FuelTrackHub(scopes.Object, Config(), new Tenant(id)) { Context = caller.Object, Groups = groups.Object };
+        IServiceProvider Services(Guid tenantId) => new ServiceCollection().AddSingleton(scopes.Object).AddSingleton<ITenantRequestContext>(new Tenant(tenantId)).BuildServiceProvider();
+        var hub = new FuelTrackHub(Config(), Services(id)) { Context = caller.Object, Groups = groups.Object };
         await hub.OnConnectedAsync();
         await hub.JoinSubStationGroup(3);
         groups.Verify(x => x.AddToGroupAsync("c", $"tenant:{id:N}:all", It.IsAny<CancellationToken>()), Times.Once);
         groups.Verify(x => x.AddToGroupAsync("c", $"tenant:{id:N}:group:user_7", It.IsAny<CancellationToken>()), Times.Once);
         groups.Verify(x => x.AddToGroupAsync("c", $"tenant:{id:N}:group:substation_3", It.IsAny<CancellationToken>()), Times.Once);
-        var wrong = new FuelTrackHub(scopes.Object, Config(), new Tenant(Guid.NewGuid())) { Context = caller.Object, Groups = groups.Object };
+        var wrong = new FuelTrackHub(Config(), Services(Guid.NewGuid())) { Context = caller.Object, Groups = groups.Object };
         await Assert.ThrowsAsync<HubException>(() => wrong.JoinSubStationGroup(3));
     }
 

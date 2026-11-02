@@ -4,6 +4,7 @@ using FuelTrack.Application.Interfaces;
 using Microsoft.AspNetCore.SignalR;
 using Moq;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FuelTrack.Tests.Services;
 
@@ -20,7 +21,8 @@ public sealed class FuelTrackHubScopeTests
         scopes.Setup(x => x.HasFullAccessToStationAsync(7, It.IsAny<int>())).ReturnsAsync((int _, int id) => id == 2);
         scopes.Setup(x => x.HasAccessToSubStationAsync(7, It.IsAny<int>())).ReturnsAsync((int _, int id) => id == 3);
         var groups = new Mock<IGroupManager>();
-        return (new FuelTrackHub(scopes.Object, new ConfigurationBuilder().Build()) { Context = caller.Object, Groups = groups.Object }, scopes, groups);
+        var services = new ServiceCollection().AddSingleton(scopes.Object).BuildServiceProvider();
+        return (new FuelTrackHub(new ConfigurationBuilder().Build(), services) { Context = caller.Object, Groups = groups.Object }, scopes, groups);
     }
 
     [Fact]
