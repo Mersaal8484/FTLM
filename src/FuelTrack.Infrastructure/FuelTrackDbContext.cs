@@ -70,6 +70,9 @@ namespace FuelTrack.Infrastructure
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            // Filter expressions are provider-specific SQL, not LINQ.
+            var activeFilter = Database.IsNpgsql() ? "\"DeletedAt\" IS NULL" : "[DeletedAt] IS NULL";
+            var approvedFilter = Database.IsNpgsql() ? "\"DeletedAt\" IS NULL AND \"IsApproved\" = TRUE" : "[DeletedAt] IS NULL AND [IsApproved] = 1";
 
             // === Identity table names ===
             modelBuilder.Entity<User>().ToTable("Users");
@@ -570,17 +573,17 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<FuelTransaction>()
                 .HasIndex(ft => new { ft.SubStationId, ft.FuelLookupId, ft.TransactionDate, ft.IsApproved })
                 .HasDatabaseName("IX_FuelTransactions_StockSummary")
-                .HasFilter("[DeletedAt] IS NULL");
+                .HasFilter(activeFilter);
 
             modelBuilder.Entity<DailyReading>()
                 .HasIndex(dr => new { dr.GeneratorId, dr.ReadingDate, dr.FuelLookupId })
                 .HasDatabaseName("IX_DailyReadings_FuelConsumption")
-                .HasFilter("[DeletedAt] IS NULL");
+                .HasFilter(activeFilter);
 
             modelBuilder.Entity<PeriodicInventory>()
                 .HasIndex(pi => new { pi.SubStationId, pi.InventoryDate, pi.IsApproved })
                 .HasDatabaseName("IX_PeriodicInventory_LastApproved")
-                .HasFilter("[DeletedAt] IS NULL AND [IsApproved] = 1");
+                .HasFilter(approvedFilter);
 
             modelBuilder.Entity<PeriodicInventoryFuel>()
                 .HasIndex(pif => new { pif.PeriodicInventoryId, pif.FuelLookupId })
@@ -589,38 +592,38 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<OilTransaction>()
                 .HasIndex(ot => new { ot.SubStationId, ot.OilLookupId, ot.TransactionDate, ot.IsApproved })
                 .HasDatabaseName("IX_OilTransactions_StockSummary")
-                .HasFilter("[DeletedAt] IS NULL");
+                .HasFilter(activeFilter);
 
             // === Phase 3 Performance: Composite & Filtered Indexes for High-Frequency Queries ===
             modelBuilder.Entity<FuelTransaction>()
                 .HasIndex(ft => new { ft.TransactionDate, ft.IsApproved })
                 .HasDatabaseName("IX_FuelTransactions_Date_Approved")
-                .HasFilter("[DeletedAt] IS NULL");
+                .HasFilter(activeFilter);
 
             modelBuilder.Entity<OilTransaction>()
                 .HasIndex(ot => new { ot.TransactionDate, ot.IsApproved })
                 .HasDatabaseName("IX_OilTransactions_Date_Approved")
-                .HasFilter("[DeletedAt] IS NULL");
+                .HasFilter(activeFilter);
 
             modelBuilder.Entity<DailyReading>()
                 .HasIndex(dr => new { dr.GeneratorId, dr.ReadingDate, dr.ReadingStatusLookupId })
                 .HasDatabaseName("IX_DailyReadings_Gen_Date_Status")
-                .HasFilter("[DeletedAt] IS NULL");
+                .HasFilter(activeFilter);
 
             modelBuilder.Entity<SubStationReading>()
                 .HasIndex(sr => new { sr.ReadingDate, sr.ReadingStatusLookupId })
                 .HasDatabaseName("IX_SubStationReadings_Date_Status")
-                .HasFilter("[DeletedAt] IS NULL");
+                .HasFilter(activeFilter);
 
             modelBuilder.Entity<SubStationReading>()
                 .HasIndex(sr => new { sr.SubStationId, sr.ReadingDate, sr.ReadingStatusLookupId })
                 .HasDatabaseName("IX_SubStationReadings_SubStation_Date_Status")
-                .HasFilter("[DeletedAt] IS NULL");
+                .HasFilter(activeFilter);
 
             modelBuilder.Entity<PeriodicInventory>()
                 .HasIndex(pi => new { pi.SubStationId, pi.InventoryDate })
                 .HasDatabaseName("IX_PeriodicInventories_SubStation_Date")
-                .HasFilter("[DeletedAt] IS NULL");
+                .HasFilter(activeFilter);
 
             // === Archive: DailyReadingArchive ===
             modelBuilder.Entity<DailyReadingArchive>()
@@ -670,7 +673,7 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<SparePart>()
                 .HasIndex(sp => sp.PartNumber)
                 .IsUnique()
-                .HasFilter("[DeletedAt] IS NULL");
+                .HasFilter(activeFilter);
 
             // === Warehouse: WarehouseStock ===
             modelBuilder.Entity<WarehouseStock>()
@@ -688,7 +691,7 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<WarehouseStock>()
                 .HasIndex(ws => new { ws.SparePartId, ws.StationId })
                 .IsUnique()
-                .HasFilter("[DeletedAt] IS NULL");
+                .HasFilter(activeFilter);
 
             // === Warehouse: WarehouseSupply ===
             modelBuilder.Entity<WarehouseSupply>()
@@ -881,7 +884,7 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<InstalledPart>()
                 .HasIndex(ip => new { ip.GeneratorId, ip.IsActive })
                 .HasDatabaseName("IX_InstalledPart_Generator_Active")
-                .HasFilter("[DeletedAt] IS NULL");
+                .HasFilter(activeFilter);
 
             // === Maintenance: MaintenanceLog ===
             modelBuilder.Entity<MaintenanceLog>()

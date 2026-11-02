@@ -8,6 +8,7 @@
     <ProjectReference Include="..\FuelTrack.Application\FuelTrack.Application.csproj" />
     <ProjectReference Include="..\FuelTrack.Infrastructure\FuelTrack.Infrastructure.csproj" />
     <ProjectReference Include="..\FuelTrack.Domain\FuelTrack.Domain.csproj" />
+    <ProjectReference Include="..\FuelTrack.Platform\FuelTrack.Platform.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Asp.Versioning.Mvc" Version="8.1.0" />

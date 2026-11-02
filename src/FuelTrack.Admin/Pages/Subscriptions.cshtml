@@ -1,0 +1,7 @@
+@page
+@model FuelTrack.Admin.Pages.SubscriptionsModel
+<section><h1>الاشتراكات اليدوية</h1><p>تسجيل تجريبي: لم تُربط الاشتراكات بصلاحية الدخول أو الفوترة بعد.</p><p class="error">@Model.Error</p><form method="post">
+<label>المستأجر <select asp-for="TenantId" required><option value="">اختر</option>@foreach(var t in Model.Tenants) { <option value="@t.Id">@t.Name</option> }</select></label>
+<label>الباقة <select asp-for="PlanId" required><option value="">اختر</option>@foreach(var p in Model.Plans) { <option value="@p.Id">@p.Name (@p.Price @p.Currency)</option> }</select></label>
+<label>البداية UTC <input asp-for="Start" type="date" required /></label><label>النهاية الحصرية UTC <input asp-for="End" type="date" required /></label><button>تسجيل الاشتراك</button></form></section>
+<section><table><thead><tr><th>المستأجر</th><th>الباقة</th><th>البداية UTC</th><th>النهاية UTC</th></tr></thead><tbody>@foreach(var row in Model.Rows) { <tr><td>@row.Tenant</td><td>@row.Plan</td><td>@row.Start.ToString("yyyy-MM-dd")</td><td>@row.End.ToString("yyyy-MM-dd")</td></tr> }</tbody></table></section>

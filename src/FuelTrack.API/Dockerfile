@@ -5,6 +5,7 @@ COPY src/FuelTrack.API/*.csproj src/FuelTrack.API/
 COPY src/FuelTrack.Application/*.csproj src/FuelTrack.Application/
 COPY src/FuelTrack.Domain/*.csproj src/FuelTrack.Domain/
 COPY src/FuelTrack.Infrastructure/*.csproj src/FuelTrack.Infrastructure/
+COPY src/FuelTrack.Platform/*.csproj src/FuelTrack.Platform/
 ARG NUGET_SOURCE=https://api.nuget.org/v3/index.json
 RUN dotnet restore src/FuelTrack.API/FuelTrack.API.csproj --source "$NUGET_SOURCE"
 

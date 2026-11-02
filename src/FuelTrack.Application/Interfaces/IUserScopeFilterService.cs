@@ -8,4 +8,5 @@ public interface IUserScopeFilterService
     Task<List<int>> GetAccessibleMeterIdsAsync(int userId);
     Task<List<int>> GetUserIdsWithAccessToSubStationAsync(int subStationId);
     Task<bool> HasAccessToSubStationAsync(int userId, int subStationId);
+    Task<bool> HasFullAccessToStationAsync(int userId, int stationId);
 }

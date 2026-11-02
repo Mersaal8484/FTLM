@@ -1,0 +1,4 @@
+@page
+@model FuelTrack.Admin.Pages.PlansModel
+<section><h1>الباقات</h1><p class="error">@Model.Error</p><form method="post"><label>الاسم <input asp-for="Name" maxlength="200" required /></label><label>السعر <input asp-for="Price" type="number" min="0" step="0.01" required /></label><label>العملة <input asp-for="Currency" minlength="3" maxlength="3" placeholder="USD" required /></label><button>إضافة باقة</button></form></section>
+<section><table><thead><tr><th>الباقة</th><th>السعر</th><th>العملة</th></tr></thead><tbody>@foreach (var plan in Model.Plans) { <tr><td>@plan.Name</td><td>@plan.Price</td><td>@plan.Currency</td></tr> }</tbody></table></section>

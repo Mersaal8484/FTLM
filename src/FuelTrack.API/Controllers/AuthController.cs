@@ -85,10 +85,11 @@ public class AuthController : ControllerBase
 
             if (user.TwoFactorEnabled)
             {
+                var challenge = await _authService.BeginTwoFactorAsync(request.UserName, request.Password);
                 return Ok(new TwoFactorLoginChallengeResponse
                 {
                     RequiresTwoFactor = true,
-                    TempToken = request.UserName,
+                    TempToken = challenge,
                     Message = "Two-factor authentication required. Please provide your TOTP code."
                 });
             }
@@ -111,28 +112,8 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var user = await _userManager.FindByNameAsync(request.TempToken);
-            if (user == null || !user.IsActive || !user.TwoFactorEnabled)
-                return Unauthorized(new { msg = "Invalid request" });
-
-            if (string.IsNullOrEmpty(user.TwoFactorSecret))
-                return Unauthorized(new { msg = "2FA not properly configured" });
-
-            if (!_twoFactorService.VerifyCode(user.TwoFactorSecret, request.Code))
-            {
-                if (!string.IsNullOrEmpty(user.TwoFactorBackupCodes) &&
-                    _twoFactorService.VerifyBackupCode(user.TwoFactorBackupCodes, request.Code))
-                {
-                    await _userManager.UpdateAsync(user);
-                }
-                else
-                {
-                    return Unauthorized(new { msg = "Invalid 2FA code" });
-                }
-            }
-
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
-            var response = await _authService.LoginAsync(user.UserName!, "", ipAddress);
+            var response = await _authService.CompleteTwoFactorAsync(request.TempToken ?? "", request.Code, ipAddress);
             SetTokenCookie(response.Token);
             return Ok(response);
         }

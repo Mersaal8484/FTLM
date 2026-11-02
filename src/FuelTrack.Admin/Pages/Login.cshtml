@@ -1,0 +1,6 @@
+@page "/login"
+@model FuelTrack.Admin.Pages.LoginModel
+<section><h1>دخول إدارة المنصة</h1><p class="error">@Model.Error</p><form method="post">
+<label>اسم المستخدم <input asp-for="Username" autocomplete="username" required /></label>
+<label>كلمة المرور <input asp-for="Password" type="password" autocomplete="current-password" required /></label>
+<button type="submit">دخول</button></form></section>

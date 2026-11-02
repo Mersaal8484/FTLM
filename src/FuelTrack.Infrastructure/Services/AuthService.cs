@@ -20,17 +20,24 @@ public class AuthService : IAuthService
     private readonly FuelTrackDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ITenantRequestContext? _tenant;
+    private readonly ITwoFactorService? _twoFactor;
+    private const string TwoFactorMarker = "two-factor-challenge-v1";
 
     public AuthService(
         UserManager<User> userManager,
         FuelTrackDbContext context,
         IConfiguration configuration,
-        IHttpContextAccessor httpContextAccessor)
+        IHttpContextAccessor httpContextAccessor,
+        ITenantRequestContext? tenant = null,
+        ITwoFactorService? twoFactor = null)
     {
         _userManager = userManager;
         _context = context;
         _configuration = configuration;
         _httpContextAccessor = httpContextAccessor;
+        _tenant = tenant;
+        _twoFactor = twoFactor;
     }
 
     public async Task<TokenResponseDto> LoginAsync(string userName, string password, string? ipAddress)
@@ -38,6 +45,9 @@ public class AuthService : IAuthService
         var user = await _userManager.FindByNameAsync(userName);
         if (user == null || !user.IsActive)
             throw new UnauthorizedAccessException("Invalid credentials");
+
+        if (user.TwoFactorEnabled)
+            throw new UnauthorizedAccessException("Two-factor authentication is required");
 
         if (await _userManager.IsLockedOutAsync(user))
             throw new UnauthorizedAccessException("Account is locked due to multiple failed attempts. Try again later.");
@@ -58,6 +68,60 @@ public class AuthService : IAuthService
             throw new UnauthorizedAccessException("Invalid credentials");
         }
 
+        return await IssueAuthenticatedTokenAsync(user, ipAddress);
+    }
+
+    public async Task<string> BeginTwoFactorAsync(string userName, string password)
+    {
+        var user = await _userManager.FindByNameAsync(userName);
+        if (user == null || !user.IsActive || !user.TwoFactorEnabled || string.IsNullOrEmpty(user.TwoFactorSecret) ||
+            string.IsNullOrEmpty(user.SecurityStamp) || await _userManager.IsLockedOutAsync(user))
+            throw new UnauthorizedAccessException("Invalid credentials");
+        if (!await _userManager.CheckPasswordAsync(user, password))
+        {
+            await _userManager.AccessFailedAsync(user);
+            throw new UnauthorizedAccessException("Invalid credentials");
+        }
+        var challenge = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+        _context.RefreshTokens.Add(new RefreshToken
+        {
+            UserId = user.Id,
+            Token = HashToken("two-factor:" + challenge),
+            DeviceInfo = TwoFactorMarker,
+            ReplacedByToken = user.SecurityStamp,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(5),
+        });
+        await _context.SaveChangesAsync();
+        return challenge;
+    }
+
+    public async Task<TokenResponseDto> CompleteTwoFactorAsync(string challenge, string code, string? ipAddress)
+    {
+        if (challenge is null || challenge.Length != 64 || challenge.Any(c => !(c is >= '0' and <= '9' or >= 'a' and <= 'f')) || _twoFactor is null)
+            throw new UnauthorizedAccessException("Invalid two-factor challenge");
+        var hash = HashToken("two-factor:" + challenge);
+        var now = DateTime.UtcNow;
+        var item = await _context.RefreshTokens.AsNoTracking().SingleOrDefaultAsync(t => t.Token == hash && t.DeviceInfo == TwoFactorMarker);
+        if (item is null || item.IsRevoked || item.ExpiresAt <= now)
+            throw new UnauthorizedAccessException("Invalid two-factor challenge");
+        // Exactly one attempt can consume a challenge, including an incorrect code.
+        var consumed = await _context.RefreshTokens.Where(t => t.Id == item.Id && t.DeviceInfo == TwoFactorMarker && !t.IsRevoked && t.ExpiresAt > now)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.IsRevoked, true).SetProperty(t => t.RevokedAt, now));
+        if (consumed != 1) throw new UnauthorizedAccessException("Invalid two-factor challenge");
+        var user = await _userManager.FindByIdAsync(item.UserId.ToString());
+        if (user is null || !user.IsActive || !user.TwoFactorEnabled || string.IsNullOrEmpty(user.TwoFactorSecret) ||
+            user.SecurityStamp != item.ReplacedByToken || await _userManager.IsLockedOutAsync(user))
+            throw new UnauthorizedAccessException("Invalid two-factor code");
+        if (!_twoFactor.VerifyCode(user.TwoFactorSecret, code))
+        {
+            await _userManager.AccessFailedAsync(user);
+            throw new UnauthorizedAccessException("Invalid two-factor code");
+        }
+        return await IssueAuthenticatedTokenAsync(user, ipAddress);
+    }
+
+    private async Task<TokenResponseDto> IssueAuthenticatedTokenAsync(User user, string? ipAddress)
+    {
         await _userManager.ResetAccessFailedCountAsync(user);
 
         _context.LoginAttempts.Add(new LoginAttempt
@@ -94,7 +158,7 @@ public class AuthService : IAuthService
 
         var tokenHash = HashToken(refreshToken);
         var storedToken = await _context.RefreshTokens
-            .FirstOrDefaultAsync(rt => rt.Token == tokenHash);
+            .FirstOrDefaultAsync(rt => rt.Token == tokenHash && rt.DeviceInfo != TwoFactorMarker);
 
         if (storedToken == null)
             throw new UnauthorizedAccessException("Invalid refresh token");
@@ -166,6 +230,7 @@ public class AuthService : IAuthService
             new("sessionId", sessionId),
             new("tokenType", "signalr")
         };
+        AddTenantClaim(claims);
 
         var roles = await _userManager.GetRolesAsync(user);
         claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
@@ -201,6 +266,7 @@ public class AuthService : IAuthService
             new(ClaimTypes.Email, user.Email ?? ""),
             new("fullName", user.FullName)
         };
+        AddTenantClaim(claims);
 
         var roles = await _userManager.GetRolesAsync(user);
         claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
@@ -214,6 +280,14 @@ public class AuthService : IAuthService
         );
 
         return (new JwtSecurityTokenHandler().WriteToken(token), expiresAt);
+    }
+
+    private void AddTenantClaim(List<Claim> claims)
+    {
+        if (!_configuration.GetValue<bool>("MultiTenancy:Enabled")) return;
+        if (_tenant?.TenantId is not Guid tenantId || tenantId == Guid.Empty)
+            throw new InvalidOperationException("A trusted tenant context is required to issue a token.");
+        claims.Add(new Claim("tenant_id", tenantId.ToString("D")));
     }
 
     private static string GenerateRefreshToken()

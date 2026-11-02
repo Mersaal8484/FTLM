@@ -45,16 +45,8 @@ public class UserScopeFilterService : IUserScopeFilterService
             .ToList();
 
         var query = _db.SubStations
-            .Where(ss => ss.DeletedAt == null && ss.IsActive);
-
-        if (directSubStationIds.Count > 0)
-            query = query.Where(ss => directSubStationIds.Contains(ss.Id));
-
-        if (stationIds.Count > 0)
-            query = query.Where(ss => stationIds.Contains(ss.StationId));
-
-        if (branchIds.Count > 0)
-            query = query.Where(ss => branchIds.Contains(ss.Station.BranchId));
+            .Where(ss => ss.DeletedAt == null && ss.IsActive &&
+                (directSubStationIds.Contains(ss.Id) || stationIds.Contains(ss.StationId) || branchIds.Contains(ss.Station.BranchId)));
 
         return await query
             .Select(ss => ss.Id)
@@ -85,18 +77,16 @@ public class UserScopeFilterService : IUserScopeFilterService
             .ToList();
 
         var branchIds = scopes
-            .Where(s => s.BranchId.HasValue && !s.StationId.HasValue)
+            .Where(s => s.BranchId.HasValue && !s.StationId.HasValue && !s.SubStationId.HasValue)
             .Select(s => s.BranchId!.Value)
             .ToList();
 
+        var directSubStationIds = scopes.Where(s => s.SubStationId.HasValue)
+            .Select(s => s.SubStationId!.Value).ToList();
         var query = _db.Stations
-            .Where(s => s.DeletedAt == null && s.IsActive);
-
-        if (stationIds.Count > 0)
-            query = query.Where(s => stationIds.Contains(s.Id));
-
-        if (branchIds.Count > 0)
-            query = query.Where(s => branchIds.Contains(s.BranchId));
+            .Where(s => s.DeletedAt == null && s.IsActive &&
+                (stationIds.Contains(s.Id) || branchIds.Contains(s.BranchId) ||
+                 s.SubStations.Any(ss => directSubStationIds.Contains(ss.Id))));
 
         return await query
             .Select(s => s.Id)
@@ -162,8 +152,8 @@ public class UserScopeFilterService : IUserScopeFilterService
             .Where(s => s.DeletedAt == null && (
                 s.BranchId == null && s.StationId == null && s.SubStationId == null ||
                 s.SubStationId == subStationId ||
-                s.StationId == subStation.StationId ||
-                s.BranchId == subStation.BranchId))
+                (s.SubStationId == null && s.StationId == subStation.StationId) ||
+                (s.SubStationId == null && s.StationId == null && s.BranchId == subStation.BranchId)))
             .Select(s => s.UserId)
             .Distinct()
             .ToListAsync();
@@ -173,5 +163,12 @@ public class UserScopeFilterService : IUserScopeFilterService
     {
         var accessibleIds = await GetAccessibleSubStationIdsAsync(userId);
         return accessibleIds.Contains(subStationId);
+    }
+
+    public async Task<bool> HasFullAccessToStationAsync(int userId, int stationId)
+    {
+        return await _db.Stations.AnyAsync(station => station.Id == stationId && station.DeletedAt == null && station.IsActive &&
+            _db.UserScopes.Any(scope => scope.UserId == userId && scope.DeletedAt == null && scope.SubStationId == null &&
+                (scope.StationId == station.Id || (scope.StationId == null && (scope.BranchId == null || scope.BranchId == station.BranchId)))));
     }
 }

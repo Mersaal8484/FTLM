@@ -30,6 +30,8 @@ frontend/dist/
 # Frontend env
 frontend/.env
 .env
+.env.platform
+.secrets/
 
 # Logs
 *.log

@@ -1,0 +1,12 @@
+.git
+.env
+.env.*
+**/bin
+**/obj
+**/node_modules
+frontend
+docs
+loadtests
+tests/*
+!tests/PostgresModel.Proof/
+!tests/PostgresModel.Proof/**

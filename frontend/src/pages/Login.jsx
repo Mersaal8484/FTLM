@@ -10,6 +10,8 @@ function Login({ onLogin }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [challenge, setChallenge] = useState(null);
+  const [code, setCode] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -18,8 +20,16 @@ function Login({ onLogin }) {
     setLoading(true);
     setError('');
     try {
-      const payload = { userName: form.email, password: form.password };
-      await client.post('/api/auth/login', payload);
+      if (challenge) {
+        await client.post('/api/auth/login/2fa', { tempToken: challenge, code });
+      } else {
+        const response = await client.post('/api/auth/login', { userName: form.email, password: form.password });
+        if (response.data?.requiresTwoFactor && response.data?.tempToken) {
+          setChallenge(response.data.tempToken);
+          setForm(previous => ({ ...previous, password: '' }));
+          return;
+        }
+      }
       
       const meRes = await client.get('/api/auth/me');
       const user = meRes.data;
@@ -28,7 +38,8 @@ function Login({ onLogin }) {
       navigate(user?.mustChangePassword ? '/force-password-change' : from, { replace: true });
     } catch (err) {
       const msg = err.response?.data?.msg;
-      setError(msg || t('auth.invalidCredentials'));
+      setError(challenge ? t('auth.twoFactorRetry') : (msg || t('auth.invalidCredentials')));
+      if (challenge) { setChallenge(null); setCode(''); }
     } finally {
       setLoading(false);
     }
@@ -60,7 +71,7 @@ function Login({ onLogin }) {
         )}
 
         <form onSubmit={handleSubmit}>
-          <div className="form-group" style={{ marginBottom: 16 }}>
+          {!challenge && <><div className="form-group" style={{ marginBottom: 16 }}>
             <label className="form-label">
               {t('common.email')}
             </label>
@@ -104,6 +115,11 @@ function Login({ onLogin }) {
               {t('auth.forgotPassword')}
             </Link>
           </div>
+          </>}
+          {challenge && <div className="form-group" style={{ marginBottom: 24 }}>
+            <label className="form-label" htmlFor="two-factor-code">{t('auth.twoFactorCode')}</label>
+            <input id="two-factor-code" className="form-control" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e => setCode(e.target.value)} required />
+          </div>}
 
           <button
             className="btn btn-primary login-btn"

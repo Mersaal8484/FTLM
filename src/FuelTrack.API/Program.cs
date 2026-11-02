@@ -12,6 +12,8 @@ using FuelTrack.Domain.Models;
 using FuelTrack.Infrastructure;
 using FuelTrack.Infrastructure.Data;
 using FuelTrack.Infrastructure.Services;
+using FuelTrack.Platform;
+using FuelTrack.API.MultiTenancy;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Hangfire;
@@ -33,7 +35,28 @@ Log.Logger = new LoggerConfiguration()
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Fail closed until request-to-tenant identity, secret-backed tenant connections,
+// tenant-scoped SignalR and background jobs are integrated and verified together.
+if (builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
+    throw new InvalidOperationException("Multi-tenant API access is not enabled until tenant isolation is fully integrated.");
+
 builder.Host.UseSerilog();
+
+if (builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
+{
+    var platformConnection = builder.Configuration.GetConnectionString("Platform")
+        ?? throw new InvalidOperationException("Platform connection is required.");
+    var keyDirectory = builder.Configuration["TenantCredentials:KeyDirectory"]
+        ?? throw new InvalidOperationException("Tenant credential key directory is required.");
+    builder.Services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(platformConnection,
+        postgres => postgres.MigrationsHistoryTable("__EFMigrationsHistory", "platform")));
+    builder.Services.AddSingleton<ITenantCredentialKeyProvider>(new FileTenantCredentialKeyProvider(keyDirectory));
+    builder.Services.AddScoped<TenantCredentialReader>();
+    builder.Services.AddScoped<TenantAccessResolver>();
+    builder.Services.AddScoped<TenantRequestContext>();
+    builder.Services.AddScoped<ITenantRequestContext>(sp => sp.GetRequiredService<TenantRequestContext>());
+    builder.Services.AddSingleton<TenantArchivalRunner>();
+}
 
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
@@ -348,6 +371,8 @@ if (app.Environment.IsDevelopment() || enableSwagger)
 }
 
 app.UseAuthentication();
+if (builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
+    app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseAuthorization();
 app.UseMiddleware<PermissionEnforcementMiddleware>();
 

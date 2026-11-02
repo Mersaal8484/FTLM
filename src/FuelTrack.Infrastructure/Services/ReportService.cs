@@ -58,7 +58,7 @@ public class ReportService : IReportService
         dateTo = utcTo;
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
-        bool hasScopeFilter = accessibleIds.Count > 0;
+        bool hasScopeFilter = !_currentUser.HasAnyAdminRole;
 
         var fuelTanks = await _db.FuelTanks
             .Where(ft => ft.DeletedAt == null
@@ -194,7 +194,7 @@ public class ReportService : IReportService
         var lowFuel = tankLevels.Count(t => t.IsLow && !t.IsCritical);
         var criticalFuel = tankLevels.Count(t => t.IsCritical);
         var lowOil = oilTankLevels.Count(t => t.PercentageFull < 30);
-        var staleThreshold = DateTime.Today.AddDays(-3);
+        var staleThreshold = DateTime.UtcNow.Date.AddDays(-3);
         var staleReadings = await _db.DailyReadings
             .Where(r => r.DeletedAt == null && r.ReadingDate < staleThreshold
                 && (!subStationId.HasValue || r.Generator.SubStationId == subStationId.Value)
@@ -204,12 +204,15 @@ public class ReportService : IReportService
         var alerts = new AlertSummary(lowFuel, criticalFuel, lowOil, staleReadings,
             lowFuel + criticalFuel + lowOil + staleReadings);
 
-        var totalBranches = await _db.Branches.CountAsync(b => b.DeletedAt == null);
+        var totalBranches = await _db.Branches.CountAsync(b => b.DeletedAt == null
+            && (!hasScopeFilter || b.Stations.Any(s => s.SubStations.Any(ss => accessibleIds.Contains(ss.Id)))));
         var totalStations = await _db.Stations.CountAsync(s => s.DeletedAt == null
-            && (!branchId.HasValue || s.BranchId == branchId.Value));
+            && (!branchId.HasValue || s.BranchId == branchId.Value)
+            && (!hasScopeFilter || s.SubStations.Any(ss => accessibleIds.Contains(ss.Id))));
         var totalSubStations = await _db.SubStations.CountAsync(ss => ss.DeletedAt == null
             && (!subStationId.HasValue || ss.Id == subStationId.Value)
-            && (!stationId.HasValue || ss.StationId == stationId.Value));
+            && (!stationId.HasValue || ss.StationId == stationId.Value)
+            && (!hasScopeFilter || accessibleIds.Contains(ss.Id)));
         var totalFuelTanks = fuelTanks.Count;
         var totalOilTanks = oils.Count;
 
@@ -218,7 +221,8 @@ public class ReportService : IReportService
             .Where(g => g.DeletedAt == null
                 && (!subStationId.HasValue || g.SubStationId == subStationId.Value)
                 && (!stationId.HasValue || g.SubStation.StationId == stationId.Value)
-                && (!branchId.HasValue || g.SubStation.Station.BranchId == branchId.Value))
+                && (!branchId.HasValue || g.SubStation.Station.BranchId == branchId.Value)
+                && (!hasScopeFilter || accessibleIds.Contains(g.SubStationId)))
             .Select(g => g.StatusLookup != null ? g.StatusLookup.Code : null)
             .ToListAsync();
 
@@ -241,7 +245,7 @@ public class ReportService : IReportService
         (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
-        bool hasScopeFilter = accessibleIds.Count > 0;
+        bool hasScopeFilter = !_currentUser.HasAnyAdminRole;
 
         var fuelTx = await _db.FuelTransactions
             .Where(f => f.DeletedAt == null && f.IsApproved
@@ -365,7 +369,7 @@ public class ReportService : IReportService
         (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
-        bool hasScopeFilter = accessibleIds.Count > 0;
+        bool hasScopeFilter = !_currentUser.HasAnyAdminRole;
 
         var gensQuery = _db.Generators
             .Include(g => g.SubStation).ThenInclude(ss => ss.Station).ThenInclude(s => s.Branch)
@@ -432,7 +436,7 @@ public class ReportService : IReportService
         (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
-        bool hasScopeFilter = accessibleIds.Count > 0;
+        bool hasScopeFilter = !_currentUser.HasAnyAdminRole;
 
         var query = _db.SubStationReadings
             .Where(r => r.DeletedAt == null
@@ -491,7 +495,7 @@ public class ReportService : IReportService
         (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
-        bool hasScopeFilter = accessibleIds.Count > 0;
+        bool hasScopeFilter = !_currentUser.HasAnyAdminRole;
 
         var query = _db.OilTransactions
             .Where(o => o.DeletedAt == null
@@ -544,7 +548,7 @@ public class ReportService : IReportService
         (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
-        bool hasScopeFilter = accessibleIds.Count > 0;
+        bool hasScopeFilter = !_currentUser.HasAnyAdminRole;
 
         var query = _db.PeriodicInventories
             .Include(p => p.SubStation).ThenInclude(ss => ss.Station)
@@ -606,7 +610,7 @@ public class ReportService : IReportService
         (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
-        bool hasScopeFilter = accessibleIds.Count > 0;
+        bool hasScopeFilter = !_currentUser.HasAnyAdminRole;
 
         var subsQuery = _db.SubStations
             .Include(ss => ss.Station).ThenInclude(s => s.Branch)
@@ -705,7 +709,7 @@ public class ReportService : IReportService
         string timeZoneId = "Asia/Riyadh")
     {
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
-        bool hasScopeFilter = accessibleIds.Count > 0;
+        bool hasScopeFilter = !_currentUser.HasAnyAdminRole;
 
         var fuelTanks = await _db.FuelTanks
             .Where(ft => ft.DeletedAt == null
@@ -762,7 +766,7 @@ public class ReportService : IReportService
         (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
-        bool hasScopeFilter = accessibleIds.Count > 0;
+        bool hasScopeFilter = !_currentUser.HasAnyAdminRole;
 
         var query = _db.FuelTransactions
             .Where(f => f.DeletedAt == null

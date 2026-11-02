@@ -20,7 +20,14 @@ public static class DependencyInjection
         services.AddDbContext<FuelTrackDbContext>((sp, options) =>
         {
             var connStr = configuration.GetConnectionString("DefaultConnection") ?? "";
-            if (connStr.Contains(".db", StringComparison.OrdinalIgnoreCase))
+            if (configuration.GetValue<bool>("MultiTenancy:Enabled"))
+            {
+                var tenant = sp.GetService<ITenantRequestContext>();
+                if (tenant?.TenantId is null || string.IsNullOrWhiteSpace(tenant.DatabaseConnection))
+                    throw new InvalidOperationException("A trusted tenant database context is required.");
+                options.UseNpgsql(tenant.DatabaseConnection);
+            }
+            else if (connStr.Contains(".db", StringComparison.OrdinalIgnoreCase))
             {
                 options.UseSqlite(connStr);
             }
@@ -94,7 +101,8 @@ public static class DependencyInjection
         services.AddScoped<IUserScopeFilterService, UserScopeFilterService>();
         services.AddDistributedMemoryCache();
         services.AddMemoryCache();
-        services.AddSingleton<ICacheService, HybridCacheService>();
+        services.AddSingleton<HybridCacheService>();
+        services.AddScoped<ICacheService, TenantAwareCacheService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IEmailService, SmtpEmailService>();
         services.AddSingleton<ISecretsValidator, StartupSecretsValidator>();

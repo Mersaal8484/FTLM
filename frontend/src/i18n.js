@@ -32,6 +32,8 @@ export const appTranslations = {
       },
       auth: {
         invalidCredentials: 'Invalid credentials',
+        twoFactorCode: 'Authenticator code',
+        twoFactorRetry: 'The code was invalid or expired. Sign in again.',
         passwordChangeRequired: 'Password Change Required',
         passwordChangeDescription: 'For account security, set a new password before continuing.',
         fillAllFields: 'Please fill all fields',
@@ -177,6 +179,8 @@ export const appTranslations = {
       },
       auth: {
         invalidCredentials: 'بيانات غير صحيحة',
+        twoFactorCode: 'رمز تطبيق المصادقة',
+        twoFactorRetry: 'الرمز غير صحيح أو منتهي الصلاحية. سجّل الدخول مجدداً.',
         passwordChangeRequired: 'تغيير كلمة المرور مطلوب',
         passwordChangeDescription: 'لأمان حسابك، يجب تعيين كلمة مرور جديدة قبل الدخول إلى النظام.',
         fillAllFields: 'يرجى تعبئة جميع الحقول',
