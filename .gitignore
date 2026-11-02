@@ -31,9 +31,29 @@ frontend/.env
 # Screenshots / test output
 screenshots/
 test_output/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.webp
+*.ico
+*.svg
+*.pdf
 
 # Temp scaffold models
 temp_models/
+.kilo/
+.kilocode/
+.kilo-worktrees/
+.playwright-mcp/
+True
+api-output.txt
+fuel_summary.json
+oil_summary.json
+db_fix_reading_status.sql
+testsprite_tests/
+.e2e/
 
 # K8s secrets (never commit real credentials)
 k8s/base/secrets.yaml
