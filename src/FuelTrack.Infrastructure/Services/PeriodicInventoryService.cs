@@ -1,9 +1,7 @@
-using System.Security.Claims;
 using FuelTrack.Application.DTOs.Efficiency;
 using FuelTrack.Application.DTOs.Inventory;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -12,29 +10,21 @@ namespace FuelTrack.Infrastructure.Services;
 public class PeriodicInventoryService : IPeriodicInventoryService
 {
     private readonly FuelTrackDbContext _db;
-    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserScopeFilterService _scopeFilter;
+    private readonly ICurrentUserService _currentUser;
 
-    public PeriodicInventoryService(FuelTrackDbContext db, IHttpContextAccessor httpContextAccessor, IUserScopeFilterService scopeFilter)
+    public PeriodicInventoryService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser)
     {
         _db = db;
-        _httpContextAccessor = httpContextAccessor;
         _scopeFilter = scopeFilter;
-    }
-
-    private int? GetCurrentUserId()
-    {
-        var claim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        return claim != null && int.TryParse(claim.Value, out var id) ? id : null;
-    }
-
-    private bool IsAdmin()
-    {
-        return _httpContextAccessor.HttpContext?.User.IsInRole("Admin") ?? false;
+        _currentUser = currentUser;
     }
 
     public async Task<PeriodicInventoryDto> CreateAsync(CreatePeriodicInventoryDto dto, int userId)
     {
+        if (!_currentUser.HasAnyAdminRole && !await _scopeFilter.HasAccessToSubStationAsync(userId, dto.SubStationId))
+            throw new UnauthorizedAccessException("You do not have access to this substation.");
+
         var subStation = await _db.SubStations.FindAsync(dto.SubStationId)
             ?? throw new KeyNotFoundException($"SubStation {dto.SubStationId} not found.");
 
@@ -56,37 +46,32 @@ public class PeriodicInventoryService : IPeriodicInventoryService
 
         _db.PeriodicInventories.Add(inventory);
 
-        var useTransaction = _db.Database.IsRelational();
-        IDbContextTransaction? transaction = null;
-        try
+        if (_db.Database.IsRelational())
         {
-            if (useTransaction)
-                transaction = await _db.Database.BeginTransactionAsync();
-
-            await _db.SaveChangesAsync();
-
-            var fuelResults = await AddFuelReadingsAsync(inventory.Id, dto.FuelReadings);
-            var oilResults = await AddOilReadingsAsync(inventory.Id, dto.OilReadings);
-
-            if (transaction != null)
-                await transaction.CommitAsync();
-
-            return BuildDto(inventory, fuelResults, oilResults);
-        }
-        catch
-        {
-            if (transaction != null)
+            var executionStrategy = _db.Database.CreateExecutionStrategy();
+            return await executionStrategy.ExecuteAsync(async () =>
             {
-                await transaction.RollbackAsync();
-                await transaction.DisposeAsync();
-            }
-            throw;
+                await using var transaction = await _db.Database.BeginTransactionAsync();
+                try
+                {
+                    await _db.SaveChangesAsync();
+                    var fuelResults = await AddFuelReadingsAsync(inventory.Id, dto.SubStationId, dto.Year, dto.Month, dto.FuelReadings);
+                    var oilResults = await AddOilReadingsAsync(inventory.Id, dto.OilReadings);
+                    await transaction.CommitAsync();
+                    return BuildDto(inventory, fuelResults, oilResults);
+                }
+                catch
+                {
+                    await transaction.RollbackAsync();
+                    throw;
+                }
+            });
         }
-        finally
-        {
-            if (transaction != null)
-                await transaction.DisposeAsync();
-        }
+
+        await _db.SaveChangesAsync();
+        var fuelResult = await AddFuelReadingsAsync(inventory.Id, dto.SubStationId, dto.Year, dto.Month, dto.FuelReadings);
+        var oilResult = await AddOilReadingsAsync(inventory.Id, dto.OilReadings);
+        return BuildDto(inventory, fuelResult, oilResult);
     }
 
     public async Task<PeriodicInventoryDto?> GetByIdAsync(int id)
@@ -111,24 +96,24 @@ public class PeriodicInventoryService : IPeriodicInventoryService
                 pi.CreatedBy, pi.UpdatedBy,
                 pi.CreatedAt, pi.UpdatedAt,
                 pi.FuelReadings.Select(fr => new FuelReadingResultDto(
-                    fr.Id, null, null,
+                    fr.Id,
                     fr.FuelLookupId, fr.FuelLookup.Name,
-                    0, fr.ActualStockLiters, 0)).ToList(),
+                    fr.ActualStockLiters)).ToList(),
                 pi.OilReadings.Select(or => new OilReadingResultDto(
                     or.Id, or.OilId, or.OilId != null ? or.Oil!.OilLookup!.Name : null,
                     or.OilLookupId, or.OilLookup.Name,
-                    0, or.ActualStockLiters, 0)).ToList()))
+                    or.ActualStockLiters)).ToList()))
             .FirstOrDefaultAsync();
     }
 
     public async Task<List<PeriodicInventoryListDto>> GetBySubStationAsync(int subStationId)
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var userId = GetCurrentUserId();
-            if (userId.HasValue)
+            var currentUserId = _currentUser.UserId;
+            if (currentUserId.HasValue)
             {
-                var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
+                var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
                 if (!accessibleIds.Contains(subStationId))
                     return new List<PeriodicInventoryListDto>();
             }
@@ -149,14 +134,30 @@ public class PeriodicInventoryService : IPeriodicInventoryService
 
     public async Task<PeriodicInventoryDto> UpdateAsync(int id, CreatePeriodicInventoryDto dto, int userId)
     {
+        if (!_currentUser.HasAnyAdminRole && !await _scopeFilter.HasAccessToSubStationAsync(userId, dto.SubStationId))
+            throw new UnauthorizedAccessException("You do not have access to this substation.");
+
         var inventory = await _db.PeriodicInventories
             .Include(pi => pi.FuelReadings)
             .Include(pi => pi.OilReadings)
             .FirstOrDefaultAsync(pi => pi.Id == id && pi.DeletedAt == null)
             ?? throw new KeyNotFoundException($"PeriodicInventory {id} not found");
 
-        if (inventory.IsApproved)
+        if (inventory.IsApproved && dto.IsApproved != false)
             throw new InvalidOperationException("Cannot update an approved periodic inventory.");
+
+        if (dto.IsApproved == true && !inventory.IsApproved)
+        {
+            inventory.IsApproved = true;
+            inventory.ApprovedById = userId;
+            inventory.ApprovedAt = DateTime.UtcNow;
+        }
+        else if (dto.IsApproved == false)
+        {
+            inventory.IsApproved = false;
+            inventory.ApprovedById = null;
+            inventory.ApprovedAt = null;
+        }
 
         await ValidateFuelCapacityAsync(dto.SubStationId, dto.FuelReadings);
 
@@ -172,37 +173,32 @@ public class PeriodicInventoryService : IPeriodicInventoryService
         _db.PeriodicInventoryFuels.RemoveRange(inventory.FuelReadings);
         _db.PeriodicInventoryOils.RemoveRange(inventory.OilReadings);
 
-        var useTransaction = _db.Database.IsRelational();
-        IDbContextTransaction? transaction = null;
-        try
+        if (_db.Database.IsRelational())
         {
-            if (useTransaction)
-                transaction = await _db.Database.BeginTransactionAsync();
-
-            await _db.SaveChangesAsync();
-
-            var fuelResults = await AddFuelReadingsAsync(inventory.Id, dto.FuelReadings);
-            var oilResults = await AddOilReadingsAsync(inventory.Id, dto.OilReadings);
-
-            if (transaction != null)
-                await transaction.CommitAsync();
-
-            return BuildDto(inventory, fuelResults, oilResults);
-        }
-        catch
-        {
-            if (transaction != null)
+            var executionStrategy = _db.Database.CreateExecutionStrategy();
+            return await executionStrategy.ExecuteAsync(async () =>
             {
-                await transaction.RollbackAsync();
-                await transaction.DisposeAsync();
-            }
-            throw;
+                await using var transaction = await _db.Database.BeginTransactionAsync();
+                try
+                {
+                    await _db.SaveChangesAsync();
+                    var fuelResults = await AddFuelReadingsAsync(inventory.Id, dto.SubStationId, dto.Year, dto.Month, dto.FuelReadings);
+                    var oilResults = await AddOilReadingsAsync(inventory.Id, dto.OilReadings);
+                    await transaction.CommitAsync();
+                    return BuildDto(inventory, fuelResults, oilResults);
+                }
+                catch
+                {
+                    await transaction.RollbackAsync();
+                    throw;
+                }
+            });
         }
-        finally
-        {
-            if (transaction != null)
-                await transaction.DisposeAsync();
-        }
+
+        await _db.SaveChangesAsync();
+        var fuelResult = await AddFuelReadingsAsync(inventory.Id, dto.SubStationId, dto.Year, dto.Month, dto.FuelReadings);
+        var oilResult = await AddOilReadingsAsync(inventory.Id, dto.OilReadings);
+        return BuildDto(inventory, fuelResult, oilResult);
     }
 
     public async Task ApproveAsync(int id, int approvedById)
@@ -254,13 +250,13 @@ public class PeriodicInventoryService : IPeriodicInventoryService
 
         var totalEnergy = readings.Sum(r => r.CurrentEnergyKWh - r.PrevEnergyKWh);
         var totalFuel = (double)readings.Sum(r =>
-            r.StandardFuelRate * (decimal)(r.CurrentRunningHours - r.PrevRunningHours));
+            (decimal)(r.CurrentEnergyKWh - r.PrevEnergyKWh) * r.StandardFuelRate);
         var efficiency = totalFuel > 0 ? Math.Round(totalEnergy / totalFuel, 4) : 0;
 
         return new EfficiencyResultDto(totalEnergy, totalFuel, efficiency);
     }
 
-    public async Task<List<PeriodicInventoryListDto>> GetAllAsync()
+    public async Task<List<PeriodicInventoryListDto>> GetAllAsync(string? status = null)
     {
         var query = _db.PeriodicInventories
             .AsNoTracking()
@@ -268,12 +264,17 @@ public class PeriodicInventoryService : IPeriodicInventoryService
             .Include(pi => pi.PeriodTypeLookup)
             .AsQueryable();
 
-        if (!IsAdmin())
+        if (status == "pending")
         {
-            var userId = GetCurrentUserId();
-            if (userId.HasValue)
+            query = query.Where(pi => !pi.IsApproved);
+        }
+
+        if (!_currentUser.HasAnyAdminRole)
+        {
+            var currentUserId = _currentUser.UserId;
+            if (currentUserId.HasValue)
             {
-                var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
+                var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
                 query = query.Where(pi => accessibleIds.Contains(pi.SubStationId));
             }
         }
@@ -288,7 +289,7 @@ public class PeriodicInventoryService : IPeriodicInventoryService
             .ToListAsync();
     }
 
-    private async Task<List<FuelReadingResultDto>> AddFuelReadingsAsync(int inventoryId, List<FuelReadingDto>? readings)
+    private async Task<List<FuelReadingResultDto>> AddFuelReadingsAsync(int inventoryId, int subStationId, int year, int month, List<FuelReadingDto>? readings)
     {
         var results = new List<FuelReadingResultDto>();
         if (readings is null || readings.Count == 0) return results;
@@ -312,9 +313,9 @@ public class PeriodicInventoryService : IPeriodicInventoryService
         {
             fuelLookupNames.TryGetValue(entity.FuelLookupId, out var name);
             results.Add(new FuelReadingResultDto(
-                entity.Id, null, null,
+                entity.Id,
                 entity.FuelLookupId, name,
-                0, entity.ActualStockLiters, 0));
+                entity.ActualStockLiters));
         }
 
         return results;
@@ -332,7 +333,7 @@ public class PeriodicInventoryService : IPeriodicInventoryService
 
         var oilIds = readings.Where(r => r.OilId.HasValue).Select(r => r.OilId!.Value).Distinct().ToList();
         var oilNames = oilIds.Count > 0
-            ? await _db.Oils.Where(o => oilIds.Contains(o.Id)).ToDictionaryAsync(o => o.Id, o => o.OilLookup != null ? o.OilLookup.Name : null)
+            ? await _db.Oils.Where(o => oilIds.Contains(o.Id)).ToDictionaryAsync(o => o.Id, o => o.OilLookup != null ? o.OilLookup!.Name : null)
             : new Dictionary<int, string?>();
 
         var entities = readings.Select(or => new PeriodicInventoryOil
@@ -353,7 +354,7 @@ public class PeriodicInventoryService : IPeriodicInventoryService
             results.Add(new OilReadingResultDto(
                 entity.Id, entity.OilId, oilName,
                 entity.OilLookupId, lookupName,
-                0, entity.ActualStockLiters, 0));
+                entity.ActualStockLiters));
         }
 
         return results;

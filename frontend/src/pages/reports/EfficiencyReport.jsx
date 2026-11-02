@@ -92,7 +92,7 @@ const EfficiencyReport = ({ lang = 'ar' }) => {
             <thead>
               <tr style={{ background: 'var(--color-bg-secondary, #f9fafb)' }}>
                 {[isAr ? 'المحطة الفرعية' : 'Sub Station', isAr ? 'المحطة' : 'Station', isAr ? 'الطاقة المنتجة (كيلوواط ساعة)' : 'Produced (kWh)', isAr ? 'الوقود المستهلك (لتر)' : 'Fuel (L)', isAr ? 'الكفاءة %' : 'Eff %', isAr ? 'الوقود/كيلوواط ساعة' : 'Fuel/kWh', isAr ? 'عامل الحمل' : 'Load Factor'].map((h, i) => (
-                  <th key={i} style={{ padding: '0.75rem', textAlign: i <= 1 ? (dir === 'rtl' ? 'right' : 'left') : 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h}</th>
+                  <th key={i} style={{ padding: '0.75rem', textAlign: i <= 1 ? 'start' : 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -102,7 +102,7 @@ const EfficiencyReport = ({ lang = 'ar' }) => {
                   <td style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--color-text-primary, #111827)' }}>{e.subStationName}</td>
                   <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{e.stationName}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#10b981' }}>{fmt(e.totalEnergyProducedKWh)}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#f59e0b' }}>{fmt(e.totalFuelConsumedLiters)}</td>
+                  <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--warning)' }}>{fmt(e.totalFuelConsumedLiters)}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                     <span style={{
                       display: 'inline-block', padding: '0.125rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600,

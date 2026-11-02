@@ -19,13 +19,22 @@ public static class DependencyInjection
 
         services.AddDbContext<FuelTrackDbContext>((sp, options) =>
         {
-            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"),
-                sqlOptions =>
-                {
-                    sqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
-                    sqlOptions.CommandTimeout(30);
-                });
+            var connStr = configuration.GetConnectionString("DefaultConnection") ?? "";
+            if (connStr.Contains(".db", StringComparison.OrdinalIgnoreCase))
+            {
+                options.UseSqlite(connStr);
+            }
+            else
+            {
+                options.UseSqlServer(connStr,
+                    sqlOptions =>
+                    {
+                        sqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
+                        sqlOptions.CommandTimeout(120);
+                    });
+            }
 
+            options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             options.AddInterceptors(sp.GetRequiredService<SlowQueryInterceptor>());
         });
 
@@ -36,6 +45,11 @@ public static class DependencyInjection
             options.Password.RequireUppercase = true;
             options.Password.RequireNonAlphanumeric = false;
             options.Password.RequiredLength = 8;
+
+            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+            options.Lockout.MaxFailedAccessAttempts = 5;
+            options.Lockout.AllowedForNewUsers = true;
+
             options.User.RequireUniqueEmail = true;
             options.User.AllowedUserNameCharacters =
                 "abcdefghijklmnopqrstuvwxyz" +
@@ -62,11 +76,14 @@ public static class DependencyInjection
         services.AddScoped<IOilTransactionService, OilTransactionService>();
         services.AddScoped<IPeriodicInventoryService, PeriodicInventoryService>();
         services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IStockSummaryService, StockSummaryService>();
         services.AddScoped<ILookupService, LookupService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IWorkflowNotificationService, WorkflowNotificationService>();
+        services.AddScoped<IAlertGeneratorService, AlertGeneratorService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IAnalyticsInsightService, AnalyticsInsightService>();
         services.AddScoped<IEfficiencyService, EfficiencyService>();
@@ -78,9 +95,12 @@ public static class DependencyInjection
         services.AddDistributedMemoryCache();
         services.AddMemoryCache();
         services.AddSingleton<ICacheService, HybridCacheService>();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IEmailService, SmtpEmailService>();
         services.AddSingleton<ISecretsValidator, StartupSecretsValidator>();
         services.AddScoped<ArchiveQueryService>();
+        services.AddScoped<IDataArchivalService, DataArchivalService>();
+        services.AddScoped<IComplianceService, ComplianceService>();
         services.AddScoped<ITwoFactorService, TwoFactorService>();
 
         // Migration lock

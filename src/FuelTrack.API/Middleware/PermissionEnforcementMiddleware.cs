@@ -42,6 +42,15 @@ public static class PermissionMapping
         ["SubStationDashboard"] = "sub_stations",
         ["GeneratorDashboard"] = "generators",
         ["OilDashboard"] = "oil_tanks",
+        ["SpareParts"] = "warehouse",
+        ["WarehouseStock"] = "warehouse",
+        ["WarehouseSupply"] = "warehouse",
+        ["WarehouseTransactions"] = "warehouse",
+        ["WarehouseReports"] = "warehouse",
+        ["DispatchRequest"] = "warehouse",
+        ["WorkPermits"] = "maintenance",
+        ["InstalledParts"] = "maintenance",
+        ["MaintenanceDashboard"] = "maintenance",
     };
 
     private static readonly Dictionary<string, string> MethodToAction = new(StringComparer.OrdinalIgnoreCase)
@@ -54,16 +63,43 @@ public static class PermissionMapping
     };
 
     /// <summary>
+    /// Sub-path actions that represent a privileged approval-style operation and
+    /// are therefore authorized by the module's "approve" permission (granted to
+    /// the user's role) rather than the generic create/update permission.
+    /// </summary>
+    private static readonly HashSet<string> PrivilegedActions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "approve",
+        "reject",
+        "execute",
+        "review",
+    };
+
+    /// <summary>
     /// Resolves the permission key for a given controller and HTTP method.
     /// Returns null if no mapping exists (endpoint doesn't require permission).
     /// </summary>
-    public static string? ResolvePermissionKey(string controllerName, string httpMethod)
+    public static string? ResolvePermissionKey(string controllerName, string httpMethod, string? path = null)
     {
         if (!ControllerToModule.TryGetValue(controllerName, out var moduleKey))
             return null;
 
         if (!MethodToAction.TryGetValue(httpMethod, out var actionKey))
             return null;
+
+        // Privileged sub-actions (e.g. POST /api/fuel-movements/1/approve,
+        // POST /api/rollback/execute, POST /api/readings/1/review) are authorized
+        // by a dedicated "approve" permission granted to the role, not by the
+        // generic create permission.
+        if (path != null)
+        {
+            var segments = path.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var last = segments.Length > 0 ? segments[^1] : string.Empty;
+            if (PrivilegedActions.Contains(last))
+            {
+                actionKey = "approve";
+            }
+        }
 
         return $"{moduleKey}.{actionKey}";
     }
@@ -135,7 +171,7 @@ public class PermissionEnforcementMiddleware
             return;
         }
 
-        var permissionKey = PermissionMapping.ResolvePermissionKey(controllerName, context.Request.Method);
+        var permissionKey = PermissionMapping.ResolvePermissionKey(controllerName, context.Request.Method, path);
         if (permissionKey == null)
         {
             await _next(context);
@@ -183,6 +219,20 @@ public class PermissionEnforcementMiddleware
             path.Equals("/api/substation-readings", StringComparison.OrdinalIgnoreCase))
             return true;
 
+        // Supporting read endpoints for the Site Energy Monitoring (station reading)
+        // entry flow and generator reading entry flow. An operator creating a
+        // station/generator reading needs the linked site meter or controller,
+        // but should not require broad sub_stations/meters/controllers.view.
+        if (method.Equals("GET", StringComparison.OrdinalIgnoreCase))
+        {
+            if (path.StartsWith("/api/sub-stations", StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (path.StartsWith("/api/meters", StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (path.StartsWith("/api/controllers", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
         if (path.StartsWith("/api/generators/my", StringComparison.OrdinalIgnoreCase))
             return true;
 
@@ -219,8 +269,14 @@ public class PermissionEnforcementMiddleware
         if (roleNames.Count == 0)
             return false;
 
-        if (PermissionCache.TryGet(userId, moduleKey, actionKey, out var cached))
-            return cached;
+        var cacheKey = $"perm:{userId}:{moduleKey}:{actionKey}";
+        var cacheService = context.RequestServices.GetService<ICacheService>();
+
+        if (cacheService != null)
+        {
+            var cached = await cacheService.GetAsync<bool?>(cacheKey);
+            if (cached.HasValue) return cached.Value;
+        }
 
         var db = context.RequestServices.GetRequiredService<FuelTrackDbContext>();
 
@@ -234,7 +290,14 @@ public class PermissionEnforcementMiddleware
                 rp.PagePermission.IsActive &&
                 rp.PagePermission.ModuleDefinition.IsActive);
 
-        PermissionCache.Set(userId, moduleKey, actionKey, hasPermission);
+        if (cacheService != null)
+        {
+            await cacheService.SetAsync(cacheKey, hasPermission, TimeSpan.FromMinutes(5));
+        }
+        else
+        {
+            PermissionCache.Set(userId, moduleKey, actionKey, hasPermission);
+        }
 
         return hasPermission;
     }

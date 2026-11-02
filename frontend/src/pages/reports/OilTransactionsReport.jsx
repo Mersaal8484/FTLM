@@ -63,7 +63,7 @@ const OilTransactionsReport = ({ lang = 'ar' }) => {
     <div dir={dir}>
       <div className="pro-header" style={{ marginBottom: '1.5rem' }}>
         <h1 className="pro-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Droplets size={24} color="#f59e0b" />
+          <Droplets size={24} color="var(--warning)" />
           {isAr ? 'تقرير معاملات الزيت' : 'Oil Transactions Report'}
         </h1>
       </div>
@@ -76,7 +76,7 @@ const OilTransactionsReport = ({ lang = 'ar' }) => {
             { label: isAr ? 'إجمالي المعاملات' : 'Total Transactions', value: summary.totalTransactions },
             { label: isAr ? 'الوارد (لتر)' : 'Incoming (L)', value: fmt(summary.totalIncomingLiters), color: '#10b981' },
             { label: isAr ? 'النقل الداخلي (لتر)' : 'Internal Transfer (L)', value: fmt(summary.totalInternalTransferLiters), color: '#3b82f6' },
-            { label: isAr ? 'الاستهلاك (لتر)' : 'Consumption (L)', value: fmt(summary.totalConsumptionLiters), color: '#f59e0b' },
+            { label: isAr ? 'الاستهلاك (لتر)' : 'Consumption (L)', value: fmt(summary.totalConsumptionLiters), color: 'var(--warning)' },
           ].map((s, i) => (
             <div key={i} className="modern-card animate-fade-up" style={{ padding: '1rem', animationDelay: `${i * 0.05}s` }}>
               <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary, #6b7280)', marginBottom: '0.25rem' }}>{s.label}</div>
@@ -92,7 +92,7 @@ const OilTransactionsReport = ({ lang = 'ar' }) => {
             <thead>
               <tr style={{ background: 'var(--color-bg-secondary, #f9fafb)' }}>
                 {[isAr ? 'التاريخ' : 'Date', isAr ? 'المحطة الفرعية' : 'Sub Station', isAr ? 'النوع' : 'Type', isAr ? 'الكمية (لتر)' : 'Qty (L)', isAr ? 'النوع' : 'Txn Type', isAr ? 'الحالة' : 'Status'].map((h, i) => (
-                  <th key={i} style={{ padding: '0.75rem', textAlign: i <= 1 ? (dir === 'rtl' ? 'right' : 'left') : 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h}</th>
+                  <th key={i} style={{ padding: '0.75rem', textAlign: i <= 1 ? 'start' : 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -102,7 +102,7 @@ const OilTransactionsReport = ({ lang = 'ar' }) => {
                   <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{new Date(t.transactionDate).toLocaleDateString(isAr ? 'ar-EG' : 'en-US')}</td>
                   <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{t.subStationName}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-primary, #111827)' }}>{t.oilTypeName || '-'}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#f59e0b' }}>{fmt(t.quantityLiters)}</td>
+                  <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--warning)' }}>{fmt(t.quantityLiters)}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-primary, #111827)' }}>{t.transactionTypeName || '-'}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-primary, #111827)' }}>{t.statusName || '-'}</td>
                 </tr>

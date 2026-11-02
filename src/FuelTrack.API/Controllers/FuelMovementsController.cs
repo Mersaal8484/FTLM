@@ -2,6 +2,7 @@ using FuelTrack.Application.DTOs.FuelMovements;
 using FuelTrack.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
 
 namespace FuelTrack.API.Controllers;
 
@@ -13,15 +14,18 @@ public class FuelMovementsController : BaseApiController
     private readonly IFuelMovementService _service;
     private readonly IRealtimeNotifier _notifier;
     private readonly ISubStationService _subStationService;
+    private readonly IStockSummaryService _stockSummaryService;
 
     public FuelMovementsController(
         IFuelMovementService service,
         IRealtimeNotifier notifier,
-        ISubStationService subStationService)
+        ISubStationService subStationService,
+        IStockSummaryService stockSummaryService)
     {
         _service = service;
         _notifier = notifier;
         _subStationService = subStationService;
+        _stockSummaryService = stockSummaryService;
     }
 
     [HttpPost]
@@ -77,6 +81,14 @@ public class FuelMovementsController : BaseApiController
         return Ok(result);
     }
 
+    [HttpGet("last-by-substation/{subStationId:int}")]
+    public async Task<IActionResult> GetLastBySubStation(int subStationId)
+    {
+        var result = await _service.GetLastBySubStationAsync(subStationId);
+        if (result is null) return Ok(null);
+        return Ok(result);
+    }
+
     [HttpPost("{id:int}/submit")]
     public async Task<IActionResult> Submit(int id)
     {
@@ -87,7 +99,6 @@ public class FuelMovementsController : BaseApiController
     }
 
     [HttpPost("{id:int}/approve")]
-    [Authorize(Policy = "AdminOrManager")]
     public async Task<IActionResult> Approve(int id)
     {
         var userId = GetUserId();
@@ -97,11 +108,10 @@ public class FuelMovementsController : BaseApiController
     }
 
     [HttpPost("{id:int}/reject")]
-    [Authorize(Policy = "AdminOrManager")]
-    public async Task<IActionResult> Reject(int id)
+    public async Task<IActionResult> Reject(int id, [FromBody] FuelTrack.Application.DTOs.Readings.RejectReadingDto? dto = null)
     {
         var userId = GetUserId();
-        var result = await _service.RejectMovementAsync(id, userId);
+        var result = await _service.RejectMovementAsync(id, userId, dto?.RejectionReason);
         await _notifier.NotifyAllAsync("FuelMovementRejected", new { result.Id });
         return Ok(result);
     }
@@ -122,5 +132,51 @@ public class FuelMovementsController : BaseApiController
         await _service.DeleteAsync(id);
         await _notifier.NotifyAllAsync("FuelMovementDeleted", new { Id = id });
         return NoContent();
+    }
+
+    [HttpGet("fuel-stock-summary")]
+    public async Task<IActionResult> GetFuelStockSummary([FromQuery] string from, [FromQuery] string to)
+    {
+        if (!DateTime.TryParseExact(from, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fromDate)
+            || !DateTime.TryParseExact(to, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var toDate))
+        {
+            return BadRequest(new { message = "Invalid date format. Use yyyy-MM-dd.", receivedFrom = from, receivedTo = to });
+        }
+
+        var userId = GetUserId();
+        var result = await _stockSummaryService.GetFuelStockSummaryAsync(fromDate, toDate, userId);
+
+        var etag = Convert.ToBase64String(System.Security.Cryptography.MD5.HashData(
+            System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(result)));
+
+        if (Request.Headers.IfNoneMatch == $"\"{etag}\"")
+            return StatusCode(StatusCodes.Status304NotModified);
+
+        Response.Headers.ETag = $"\"{etag}\"";
+        Response.Headers.CacheControl = "no-store";
+        return Ok(result);
+    }
+
+    [HttpGet("oil-stock-summary")]
+    public async Task<IActionResult> GetOilStockSummary([FromQuery] string from, [FromQuery] string to)
+    {
+        if (!DateTime.TryParseExact(from, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fromDate)
+            || !DateTime.TryParseExact(to, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var toDate))
+        {
+            return BadRequest(new { message = "Invalid date format. Use yyyy-MM-dd.", receivedFrom = from, receivedTo = to });
+        }
+
+        var userId = GetUserId();
+        var result = await _stockSummaryService.GetOilStockSummaryAsync(fromDate, toDate, userId);
+
+        var etag = Convert.ToBase64String(System.Security.Cryptography.MD5.HashData(
+            System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(result)));
+
+        if (Request.Headers.IfNoneMatch == $"\"{etag}\"")
+            return StatusCode(StatusCodes.Status304NotModified);
+
+        Response.Headers.ETag = $"\"{etag}\"";
+        Response.Headers.CacheControl = "no-store";
+        return Ok(result);
     }
 }

@@ -71,11 +71,12 @@ public class ExceptionHandlingMiddleware
 
         if (detail is IEnumerable<FluentValidation.Results.ValidationFailure> failures)
         {
-            var errors = failures
-                .GroupBy(f => f.PropertyName)
-                .ToDictionary(
-                    g => char.ToLowerInvariant(g.Key[0]) + g.Key[1..],
-                    g => g.Select(f => f.ErrorMessage).ToArray());
+            var errors = failures.Select(f => new
+            {
+                field = char.ToLowerInvariant(f.PropertyName[0]) + f.PropertyName[1..],
+                message = f.ErrorMessage,
+                attemptedValue = f.AttemptedValue
+            });
             problem.Extensions["errors"] = errors;
         }
 

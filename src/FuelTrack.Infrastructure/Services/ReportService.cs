@@ -4,7 +4,6 @@ using FuelTrack.Application.Common;
 using FuelTrack.Application.DTOs.Reports;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Services;
@@ -13,122 +12,137 @@ public class ReportService : IReportService
 {
     private readonly FuelTrackDbContext _db;
     private readonly ICacheService _cache;
-    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserScopeFilterService _scopeFilter;
+    private readonly ICurrentUserService _currentUser;
 
-    public ReportService(FuelTrackDbContext db, ICacheService cache, IHttpContextAccessor httpContextAccessor, IUserScopeFilterService scopeFilter)
+    public ReportService(FuelTrackDbContext db, ICacheService cache, ICurrentUserService currentUser, IUserScopeFilterService scopeFilter)
     {
         _db = db;
         _cache = cache;
-        _httpContextAccessor = httpContextAccessor;
+        _currentUser = currentUser;
         _scopeFilter = scopeFilter;
     }
 
-    private int? GetCurrentUserId()
+    private static (DateTime utcFrom, DateTime utcTo) ConvertToUtcRange(DateTime? dateFrom, DateTime? dateTo, string timeZoneId)
     {
-        var claim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        return claim != null && int.TryParse(claim.Value, out var id) ? id : null;
-    }
-
-    private bool IsAdmin()
-    {
-        return _httpContextAccessor.HttpContext?.User.IsInRole("Admin") ?? false;
+        var tz = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        var utcFrom = dateFrom.HasValue
+            ? TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(dateFrom.Value, DateTimeKind.Unspecified), tz)
+            : DateTime.UtcNow.AddDays(-30);
+        var utcTo = dateTo.HasValue
+            ? TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(dateTo.Value.AddDays(1), DateTimeKind.Unspecified), tz)
+            : DateTime.UtcNow;
+        return (utcFrom, utcTo);
     }
 
     private async Task<HashSet<int>> GetAccessibleSubStationIdsAsync()
     {
-        if (IsAdmin()) return new HashSet<int>();
-        var userId = GetCurrentUserId();
+        if (_currentUser.HasAnyAdminRole) return new HashSet<int>();
+        var userId = _currentUser.UserId;
         if (!userId.HasValue) return new HashSet<int>();
         var ids = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
         return new HashSet<int>(ids);
     }
 
-    // ─── Dashboard Stats ──────────────────────────────────────────────────────
-
     public async Task<DashboardStatsResponseDto> GetDashboardStatsAsync(
         int? branchId, int? stationId, int? subStationId,
-        DateTime? dateFrom, DateTime? dateTo)
+        DateTime? dateFrom, DateTime? dateTo, string timeZoneId = "Asia/Riyadh")
     {
-        var cacheKey = $"dashboard:stats:{branchId}:{stationId}:{subStationId}:{dateFrom:yyyyMMdd}:{dateTo:yyyyMMdd}";
+        var (utcFrom, utcTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
+        var userScopeKey = _currentUser.HasAnyAdminRole ? "admin" : $"u{_currentUser.UserId ?? 0}";
+        var cacheKey = $"dashboard:stats:{userScopeKey}:{branchId}:{stationId}:{subStationId}:{utcFrom:yyyyMMdd}:{utcTo:yyyyMMdd}";
         var cached = await _cache.GetAsync<DashboardStatsResponseDto>(cacheKey);
         if (cached is not null) return cached;
 
-        dateFrom ??= DateTime.Today.AddDays(-30);
-        dateTo ??= DateTime.Today;
+        dateFrom = utcFrom;
+        dateTo = utcTo;
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
         bool hasScopeFilter = accessibleIds.Count > 0;
 
         var fuelTanks = await _db.FuelTanks
-            .Include(ft => ft.SubStation).ThenInclude(ss => ss.Station)
-            .Include(ft => ft.FuelLookup)
             .Where(ft => ft.DeletedAt == null
                 && (!subStationId.HasValue || ft.SubStationId == subStationId.Value)
                 && (!stationId.HasValue || ft.SubStation.StationId == stationId.Value)
                 && (!branchId.HasValue || ft.SubStation.Station.BranchId == branchId.Value)
                 && (!hasScopeFilter || accessibleIds.Contains(ft.SubStationId)))
+            .Select(ft => new {
+                ft.Id,
+                ft.Name,
+                SubStationName = ft.SubStation != null ? ft.SubStation.Name : "?",
+                Stock = ft.ActualStockLiters ?? 0,
+                Capacity = ft.CapacityLiters,
+                MinAlert = ft.MinAlertLiters,
+                DeadStock = ft.DeadStockLiters
+            })
             .AsNoTracking().ToListAsync();
 
         var fuelTx = await _db.FuelTransactions
-            .Include(f => f.SubStation).ThenInclude(ss => ss.Station)
-            .Include(f => f.TransactionTypeLookup)
             .Where(f => f.DeletedAt == null && f.IsApproved
                 && f.TransactionDate >= dateFrom.Value && f.TransactionDate <= dateTo.Value
                 && (!subStationId.HasValue || f.SubStationId == subStationId.Value)
                 && (!stationId.HasValue || f.SubStation.StationId == stationId.Value)
                 && (!branchId.HasValue || f.SubStation.Station.BranchId == branchId.Value)
                 && (!hasScopeFilter || accessibleIds.Contains(f.SubStationId)))
+            .Select(f => new {
+                TypeCode = f.TransactionTypeLookup != null ? f.TransactionTypeLookup.Code : null,
+                f.QuantityLiters
+            })
             .AsNoTracking().ToListAsync();
 
-        var totalReceived = fuelTx.Where(f => f.TransactionTypeLookup?.Code == "Purchase").Sum(f => f.QuantityLiters);
-        var totalTransferred = fuelTx.Where(f => f.TransactionTypeLookup?.Code == "TransferOut").Sum(f => f.QuantityLiters);
-        var totalConsumed = fuelTx.Where(f => f.TransactionTypeLookup?.Code == "Consumption").Sum(f => f.QuantityLiters);
+        var totalReceived = fuelTx.Where(f => f.TypeCode == "Purchase").Sum(f => f.QuantityLiters);
+        var totalTransferred = fuelTx.Where(f => f.TypeCode == "TransferOut" || f.TypeCode == "Transfer").Sum(f => f.QuantityLiters);
 
         var tankLevels = fuelTanks.Select(ft =>
         {
-            var stock = ft.ActualStockLiters ?? 0;
-            var pct = ft.CapacityLiters > 0 ? stock / ft.CapacityLiters * 100 : 0;
-            var isLow = ft.MinAlertLiters.HasValue && stock <= ft.MinAlertLiters.Value;
-            var isCritical = ft.DeadStockLiters.HasValue && stock <= ft.DeadStockLiters.Value;
+            var pct = ft.Capacity > 0 ? ft.Stock / ft.Capacity * 100 : 0;
+            var isLow = ft.MinAlert.HasValue && ft.Stock <= ft.MinAlert.Value;
+            var isCritical = ft.DeadStock.HasValue && ft.Stock <= ft.DeadStock.Value;
             return new FuelTankLevelDto(
-                ft.Id, ft.Name, ft.SubStation?.Name ?? "?",
-                stock, ft.CapacityLiters, Math.Round(pct, 1), isLow, isCritical);
+                ft.Id, ft.Name, ft.SubStationName,
+                ft.Stock, ft.Capacity, Math.Round(pct, 1), isLow, isCritical);
         }).ToList();
 
-        var fuel = new FuelSummary(totalReceived, totalTransferred, totalConsumed,
-            totalReceived - totalTransferred - totalConsumed, tankLevels);
-
-        // Energy
         var readings = await _db.DailyReadings
-            .Include(r => r.Generator).ThenInclude(g => g.SubStation).ThenInclude(ss => ss.Station)
             .Where(r => r.DeletedAt == null
+                && r.ReadingStatusLookup != null && r.ReadingStatusLookup.Code == "Approved"
                 && r.ReadingDate >= dateFrom.Value && r.ReadingDate <= dateTo.Value
                 && (!subStationId.HasValue || r.Generator.SubStationId == subStationId.Value)
                 && (!stationId.HasValue || r.Generator.SubStation.StationId == stationId.Value)
                 && (!branchId.HasValue || r.Generator.SubStation.Station.BranchId == branchId.Value)
                 && (!hasScopeFilter || accessibleIds.Contains(r.Generator.SubStationId)))
+            .Select(r => new {
+                EnergyDiff = r.CurrentEnergyKWh - r.PrevEnergyKWh,
+                HoursDiff = r.CurrentRunningHours - r.PrevRunningHours,
+                r.StandardFuelRate
+            })
             .AsNoTracking().ToListAsync();
 
-        var totalProduced = readings.Sum(r => r.CurrentEnergyKWh - r.PrevEnergyKWh);
-        var totalHours = readings.Sum(r => r.CurrentRunningHours - r.PrevRunningHours);
+        var totalProduced = readings.Sum(r => r.EnergyDiff);
+        var totalConsumed = readings.Sum(r => (double)r.StandardFuelRate * r.EnergyDiff);
+        var totalHours = readings.Sum(r => r.HoursDiff);
         var avgLoad = totalHours > 0 ? totalProduced / totalHours : 0;
-        var maxLoad = readings.Any() ? readings.Max(r => (r.CurrentEnergyKWh - r.PrevEnergyKWh) / Math.Max(r.CurrentRunningHours - r.PrevRunningHours, 0.01)) : 0;
+        var maxLoad = readings.Any() ? readings.Max(r => r.EnergyDiff / Math.Max(r.HoursDiff, 0.01)) : 0;
+
+        var fuel = new FuelSummary(totalReceived, totalTransferred, totalConsumed,
+            totalReceived - totalTransferred - totalConsumed, tankLevels);
 
         var stationReadings = await _db.SubStationReadings
-            .Include(r => r.SubStation).ThenInclude(ss => ss.Station)
+            .AsNoTracking()
             .Where(r => r.DeletedAt == null
+                && r.ReadingStatusLookup != null && r.ReadingStatusLookup.Code == "Approved"
                 && r.ReadingDate >= dateFrom.Value && r.ReadingDate <= dateTo.Value
                 && (!subStationId.HasValue || r.SubStationId == subStationId.Value)
                 && (!stationId.HasValue || r.SubStation.StationId == stationId.Value)
                 && (!branchId.HasValue || r.SubStation.Station.BranchId == branchId.Value)
                 && (!hasScopeFilter || accessibleIds.Contains(r.SubStationId)))
-            .AsNoTracking().ToListAsync();
+            .Select(r => r.CurrentExportedEnergyKWh - r.PrevExportedEnergyKWh)
+            .ToListAsync();
 
-        var totalExported = stationReadings.Sum(r => r.CurrentExportedEnergyKWh - r.PrevExportedEnergyKWh);
+        var totalExported = stationReadings.Sum();
         var activeGens = await _db.Generators
-            .Include(g => g.SubStation).ThenInclude(ss => ss.Station)
             .Where(g => g.DeletedAt == null
+                && g.StatusLookup != null && g.StatusLookup.Code == "Online"
                 && (!subStationId.HasValue || g.SubStationId == subStationId.Value)
                 && (!stationId.HasValue || g.SubStation.StationId == stationId.Value)
                 && (!branchId.HasValue || g.SubStation.Station.BranchId == branchId.Value)
@@ -138,42 +152,45 @@ public class ReportService : IReportService
         var energy = new EnergySummary(totalProduced, totalExported, totalProduced - totalExported,
             Math.Round(avgLoad, 1), Math.Round(maxLoad, 1), activeGens);
 
-        // Oil
         var oils = await _db.Oils
-            .Include(o => o.OilLookup).Include(o => o.SubStation).ThenInclude(ss => ss.Station)
             .Where(o => o.DeletedAt == null
                 && (!subStationId.HasValue || o.SubStationId == subStationId.Value)
                 && (!stationId.HasValue || (o.SubStation != null && o.SubStation.StationId == stationId.Value))
                 && (!branchId.HasValue || (o.SubStation != null && o.SubStation.Station.BranchId == branchId.Value))
                 && (!hasScopeFilter || (o.SubStationId.HasValue && accessibleIds.Contains(o.SubStationId.Value))))
+            .Select(o => new {
+                o.Id,
+                OilName = o.OilLookup != null ? o.OilLookup.Name : "?",
+                SubStationName = o.SubStation != null ? o.SubStation.Name : "-",
+                Stock = (double)o.CurrentStock,
+                Min = (double)o.MinStock
+            })
             .AsNoTracking().ToListAsync();
 
         var oilTx = await _db.OilTransactions
-            .Include(o => o.SubStation).ThenInclude(ss => ss.Station)
-            .Include(o => o.TransactionTypeLookup)
             .Where(o => o.DeletedAt == null && o.IsApproved
                 && o.TransactionDate >= dateFrom.Value && o.TransactionDate <= dateTo.Value
                 && (!subStationId.HasValue || o.SubStationId == subStationId.Value)
                 && (!stationId.HasValue || o.SubStation.StationId == stationId.Value)
                 && (!branchId.HasValue || o.SubStation.Station.BranchId == branchId.Value)
                 && (!hasScopeFilter || accessibleIds.Contains(o.SubStationId)))
+            .Select(o => new {
+                TypeCode = o.TransactionTypeLookup != null ? o.TransactionTypeLookup.Code : null,
+                o.QuantityLiters
+            })
             .AsNoTracking().ToListAsync();
 
-        var oilReceived = oilTx.Where(o => o.TransactionTypeLookup?.Code == "Purchase").Sum(o => o.QuantityLiters);
-        var oilConsumed = oilTx.Where(o => o.TransactionTypeLookup?.Code == "Consumption").Sum(o => o.QuantityLiters);
+        var oilReceived = oilTx.Where(o => o.TypeCode == "Purchase").Sum(o => o.QuantityLiters);
+        var oilConsumed = oilTx.Where(o => o.TypeCode == "Consumption").Sum(o => o.QuantityLiters);
 
         var oilTankLevels = oils.Select(o =>
         {
-            var stock = (double)o.CurrentStock;
-            var min = (double)o.MinStock;
-            var pct = min > 0 ? stock / min * 100 : 100;
-            return new OilTankLevelDto(o.Id, o.OilLookup?.Name ?? "?",
-                o.SubStation?.Name ?? "-", stock, min, Math.Round(pct, 1));
+            var pct = o.Min > 0 ? o.Stock / o.Min * 100 : 100;
+            return new OilTankLevelDto(o.Id, o.OilName, o.SubStationName, o.Stock, o.Min, Math.Round(pct, 1));
         }).ToList();
 
         var oilSummary = new OilSummary(oilReceived, oilConsumed, oilTankLevels);
 
-        // Alerts
         var lowFuel = tankLevels.Count(t => t.IsLow && !t.IsCritical);
         var criticalFuel = tankLevels.Count(t => t.IsCritical);
         var lowOil = oilTankLevels.Count(t => t.PercentageFull < 30);
@@ -187,7 +204,6 @@ public class ReportService : IReportService
         var alerts = new AlertSummary(lowFuel, criticalFuel, lowOil, staleReadings,
             lowFuel + criticalFuel + lowOil + staleReadings);
 
-        // System
         var totalBranches = await _db.Branches.CountAsync(b => b.DeletedAt == null);
         var totalStations = await _db.Stations.CountAsync(s => s.DeletedAt == null
             && (!branchId.HasValue || s.BranchId == branchId.Value));
@@ -198,17 +214,17 @@ public class ReportService : IReportService
         var totalOilTanks = oils.Count;
 
         var allGens = await _db.Generators
-            .Include(g => g.SubStation).ThenInclude(ss => ss.Station)
-            .Include(g => g.StatusLookup)
+            .AsNoTracking()
             .Where(g => g.DeletedAt == null
                 && (!subStationId.HasValue || g.SubStationId == subStationId.Value)
                 && (!stationId.HasValue || g.SubStation.StationId == stationId.Value)
                 && (!branchId.HasValue || g.SubStation.Station.BranchId == branchId.Value))
-            .AsNoTracking().ToListAsync();
+            .Select(g => g.StatusLookup != null ? g.StatusLookup.Code : null)
+            .ToListAsync();
 
-        var onlineGens = allGens.Count(g => g.StatusLookup?.Code == "Online" || g.StatusLookup?.Code == "Active");
-        var offlineGens = allGens.Count(g => g.StatusLookup?.Code == "Offline" || g.StatusLookup?.Code == "Inactive");
-        var maintenanceGens = allGens.Count(g => g.StatusLookup?.Code == "Maintenance");
+        var onlineGens = allGens.Count(code => code == "Online" || code == "Active");
+        var offlineGens = allGens.Count(code => code == "Offline" || code == "Inactive");
+        var maintenanceGens = allGens.Count(code => code == "Maintenance");
 
         var system = new SystemSummary(totalBranches, totalStations, totalSubStations,
             allGens.Count, totalFuelTanks, totalOilTanks, onlineGens, offlineGens, maintenanceGens);
@@ -218,55 +234,65 @@ public class ReportService : IReportService
         return result;
     }
 
-    // ─── Fuel & Oil Dashboard ─────────────────────────────────────────────────
-
     public async Task<FuelOilDashboardDto> GetFuelOilDashboardAsync(
         int? branchId, int? stationId, int? subStationId,
-        DateTime? dateFrom, DateTime? dateTo)
+        DateTime? dateFrom, DateTime? dateTo, string timeZoneId = "Asia/Riyadh")
     {
-        dateFrom ??= DateTime.Today.AddDays(-30);
-        dateTo ??= DateTime.Today;
+        (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
         bool hasScopeFilter = accessibleIds.Count > 0;
 
         var fuelTx = await _db.FuelTransactions
-            .Include(f => f.SubStation).ThenInclude(ss => ss.Station)
-            .Include(f => f.FuelLookup)
-            .Include(f => f.TransactionTypeLookup)
             .Where(f => f.DeletedAt == null && f.IsApproved
                 && f.TransactionDate >= dateFrom.Value && f.TransactionDate <= dateTo.Value
                 && (!subStationId.HasValue || f.SubStationId == subStationId.Value)
                 && (!stationId.HasValue || f.SubStation.StationId == stationId.Value)
                 && (!branchId.HasValue || f.SubStation.Station.BranchId == branchId.Value)
                 && (!hasScopeFilter || accessibleIds.Contains(f.SubStationId)))
+            .Select(f => new {
+                f.SubStationId,
+                SubStationName = f.SubStation != null ? f.SubStation.Name : "?",
+                TransactionDate = f.TransactionDate,
+                f.QuantityLiters,
+                TypeCode = f.TransactionTypeLookup != null ? f.TransactionTypeLookup.Code : null
+            })
             .AsNoTracking().ToListAsync();
 
         var oilTx = await _db.OilTransactions
-            .Include(o => o.SubStation).ThenInclude(ss => ss.Station)
-            .Include(o => o.OilLookup)
-            .Include(o => o.TransactionTypeLookup)
             .Where(o => o.DeletedAt == null && o.IsApproved
                 && o.TransactionDate >= dateFrom.Value && o.TransactionDate <= dateTo.Value
                 && (!subStationId.HasValue || o.SubStationId == subStationId.Value)
                 && (!stationId.HasValue || o.SubStation.StationId == stationId.Value)
                 && (!branchId.HasValue || o.SubStation.Station.BranchId == branchId.Value)
                 && (!hasScopeFilter || accessibleIds.Contains(o.SubStationId)))
+            .Select(o => new {
+                o.SubStationId,
+                SubStationName = o.SubStation != null ? o.SubStation.Name : "?",
+                TransactionDate = o.TransactionDate,
+                o.QuantityLiters,
+                TypeCode = o.TransactionTypeLookup != null ? o.TransactionTypeLookup.Code : null
+            })
             .AsNoTracking().ToListAsync();
 
         var readings = await _db.DailyReadings
-            .Include(r => r.Generator).ThenInclude(g => g.SubStation).ThenInclude(ss => ss.Station)
             .Where(r => r.DeletedAt == null
                 && r.ReadingDate >= dateFrom.Value && r.ReadingDate <= dateTo.Value
                 && (!subStationId.HasValue || r.Generator.SubStationId == subStationId.Value)
                 && (!stationId.HasValue || r.Generator.SubStation.StationId == stationId.Value)
                 && (!branchId.HasValue || r.Generator.SubStation.Station.BranchId == branchId.Value)
                 && (!hasScopeFilter || accessibleIds.Contains(r.Generator.SubStationId)))
+            .Select(r => new {
+                r.GeneratorId,
+                SubStationName = r.Generator != null && r.Generator.SubStation != null ? r.Generator.SubStation.Name : "?",
+                ReadingDate = r.ReadingDate,
+                EnergyDiff = r.CurrentEnergyKWh - r.PrevEnergyKWh
+            })
             .AsNoTracking().ToListAsync();
 
-        var totalFuelConsumed = fuelTx.Where(f => f.TransactionTypeLookup?.Code == "Consumption").Sum(f => f.QuantityLiters);
-        var totalOilConsumed = oilTx.Where(o => o.TransactionTypeLookup?.Code == "Consumption").Sum(o => o.QuantityLiters);
-        var totalEnergy = readings.Sum(r => r.CurrentEnergyKWh - r.PrevEnergyKWh);
+        var totalFuelConsumed = fuelTx.Where(f => f.TypeCode == "Consumption").Sum(f => f.QuantityLiters);
+        var totalOilConsumed = oilTx.Where(o => o.TypeCode == "Consumption").Sum(o => o.QuantityLiters);
+        var totalEnergy = readings.Sum(r => r.EnergyDiff);
 
         var activeStations = fuelTx.Select(f => f.SubStationId).Distinct().Count();
         var activeGens = readings.Select(r => r.GeneratorId).Distinct().Count();
@@ -274,18 +300,18 @@ public class ReportService : IReportService
         var summary = new FuelOilSummaryDto(totalFuelConsumed, totalOilConsumed, 0, 0, activeStations, activeGens);
 
         var consumptions = fuelTx
-            .GroupBy(f => new { f.TransactionDate.Date, SubStationName = f.SubStation?.Name ?? "?" })
+            .GroupBy(f => new { f.TransactionDate.Date, SubStationName = f.SubStationName })
             .Select(g =>
             {
                 var date = g.Key.Date;
                 var ssName = g.Key.SubStationName;
                 var fuelLiters = g.Sum(f => f.QuantityLiters);
                 var oilLiters = oilTx
-                    .Where(o => o.SubStation?.Name == ssName && o.TransactionDate.Date == date)
+                    .Where(o => o.SubStationName == ssName && o.TransactionDate.Date == date)
                     .Sum(o => o.QuantityLiters);
                 var energyForDate = readings
-                    .Where(r => r.Generator.SubStation?.Name == ssName && r.ReadingDate.Date == date)
-                    .Sum(r => r.CurrentEnergyKWh - r.PrevEnergyKWh);
+                    .Where(r => r.SubStationName == ssName && r.ReadingDate.Date == date)
+                    .Sum(r => r.EnergyDiff);
                 var eff = fuelLiters > 0 ? energyForDate / fuelLiters * 0.3 : 0;
                 return new FuelOilConsumptionDto(date, ssName, fuelLiters, oilLiters, Math.Round(eff, 1));
             })
@@ -296,7 +322,7 @@ public class ReportService : IReportService
             .Select(g =>
             {
                 var date = g.Key;
-                var energy = g.Sum(r => r.CurrentEnergyKWh - r.PrevEnergyKWh);
+                var energy = g.Sum(r => r.EnergyDiff);
                 var fuel = fuelTx.Where(f => f.TransactionDate.Date == date).Sum(f => f.QuantityLiters);
                 var oil = oilTx.Where(o => o.TransactionDate.Date == date).Sum(o => o.QuantityLiters);
                 return new FuelOilTrendDto(date, fuel, oil, energy);
@@ -305,35 +331,38 @@ public class ReportService : IReportService
 
         var alertList = new List<FuelOilAlertDto>();
         var tanks = await _db.FuelTanks
-            .Include(ft => ft.SubStation)
             .Where(ft => ft.DeletedAt == null
                 && (!subStationId.HasValue || ft.SubStationId == subStationId.Value)
                 && (!hasScopeFilter || accessibleIds.Contains(ft.SubStationId)))
+            .Select(ft => new {
+                ft.Name,
+                SubStationName = ft.SubStation != null ? ft.SubStation.Name : "?",
+                Stock = ft.ActualStockLiters ?? 0,
+                MinAlert = ft.MinAlertLiters,
+                DeadStock = ft.DeadStockLiters
+            })
             .AsNoTracking().ToListAsync();
 
         foreach (var tank in tanks)
         {
-            var stock = tank.ActualStockLiters ?? 0;
-            if (tank.MinAlertLiters.HasValue && stock <= tank.MinAlertLiters.Value)
+            var stock = tank.Stock;
+            if (tank.MinAlert.HasValue && stock <= tank.MinAlert.Value)
             {
-                alertList.Add(new FuelOilAlertDto("Fuel", stock <= (tank.DeadStockLiters ?? 0) ? "Critical" : "Warning",
-                    $"Tank '{tank.Name}' at {tank.SubStation?.Name}: {stock:F0}L remaining",
-                    tank.SubStation?.Name ?? "?", null));
+                alertList.Add(new FuelOilAlertDto("Fuel", stock <= (tank.DeadStock ?? 0) ? "Critical" : "Warning",
+                    $"Tank '{tank.Name}' at {tank.SubStationName}: {stock:F0}L remaining",
+                    tank.SubStationName, null));
             }
         }
 
         return new FuelOilDashboardDto(summary, consumptions, trends, alertList);
     }
 
-    // ─── Generators Report ────────────────────────────────────────────────────
-
     public async Task<GeneratorsReportDto> GetGeneratorsReportAsync(
         int? branchId, int? stationId, int? subStationId,
         DateTime? dateFrom, DateTime? dateTo,
-        int page, int pageSize)
+        int page, int pageSize, string timeZoneId = "Asia/Riyadh")
     {
-        dateFrom ??= DateTime.Today.AddDays(-30);
-        dateTo ??= DateTime.Today;
+        (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
         bool hasScopeFilter = accessibleIds.Count > 0;
@@ -358,7 +387,9 @@ public class ReportService : IReportService
         var genIds = gens.Select(g => g.Id).ToList();
         var readings = await _db.DailyReadings
             .Include(r => r.Generator)
+            .Include(r => r.ReadingStatusLookup)
             .Where(r => r.DeletedAt == null && genIds.Contains(r.GeneratorId)
+                && r.ReadingStatusLookup.Code == "Approved"
                 && r.ReadingDate >= dateFrom.Value && r.ReadingDate <= dateTo.Value)
             .AsNoTracking().ToListAsync();
 
@@ -393,24 +424,19 @@ public class ReportService : IReportService
         return new GeneratorsReportDto(items, summary);
     }
 
-    // ─── Station Readings Report ──────────────────────────────────────────────
-
     public async Task<StationReadingsReportDto> GetStationReadingsReportAsync(
         int? branchId, int? stationId, int? subStationId,
         DateTime? dateFrom, DateTime? dateTo,
-        int page, int pageSize)
+        int page, int pageSize, string timeZoneId = "Asia/Riyadh")
     {
-        dateFrom ??= DateTime.Today.AddDays(-30);
-        dateTo ??= DateTime.Today;
+        (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
         bool hasScopeFilter = accessibleIds.Count > 0;
 
         var query = _db.SubStationReadings
-            .Include(r => r.SubStation).ThenInclude(ss => ss.Station).ThenInclude(s => s.Branch)
-            .Include(r => r.Meter)
-            .Include(r => r.ReadingStatusLookup)
             .Where(r => r.DeletedAt == null
+                && r.ReadingStatusLookup.Code == "Approved"
                 && r.ReadingDate >= dateFrom.Value && r.ReadingDate <= dateTo.Value
                 && (!subStationId.HasValue || r.SubStationId == subStationId.Value)
                 && (!stationId.HasValue || r.SubStation.StationId == stationId.Value)
@@ -426,98 +452,48 @@ public class ReportService : IReportService
             .Select(r => new StationReadingReportItemDto(
                 r.Id, r.ReadingDate, r.SubStation!.Name,
                 r.SubStation.Station!.Name, r.SubStation.Station.Branch!.Name,
-                r.Meter!.Code,
+                r.Meter != null ? r.Meter.Name : "",
                 r.PrevExportedEnergyKWh, r.CurrentExportedEnergyKWh,
                 r.CurrentExportedEnergyKWh - r.PrevExportedEnergyKWh,
                 r.ReadingStatusLookup!.Name))
             .ToListAsync();
 
-        var allReadings = await query.ToListAsync();
-        var verified = allReadings.Count(r => r.ReadingStatusLookup?.Code == "Verified" || r.ReadingStatusLookup?.Code == "Approved");
-        var pending = allReadings.Count(r => r.ReadingStatusLookup?.Code == "Pending");
-        var rejected = allReadings.Count(r => r.ReadingStatusLookup?.Code == "Rejected");
-        var totalEnergy = allReadings.Sum(r => r.CurrentExportedEnergyKWh - r.PrevExportedEnergyKWh);
+        var summaryData = await query
+            .Select(r => new {
+                StatusCode = r.ReadingStatusLookup != null ? r.ReadingStatusLookup.Code : null,
+                EnergyDiff = r.CurrentExportedEnergyKWh - r.PrevExportedEnergyKWh
+            })
+            .ToListAsync();
+
+        var verified = summaryData.Count(r => r.StatusCode == "Verified" || r.StatusCode == "Approved");
+        var pending = summaryData.Count(r => r.StatusCode == "Pending");
+        var rejected = summaryData.Count(r => r.StatusCode == "Rejected");
+        var totalEnergy = summaryData.Sum(r => r.EnergyDiff);
 
         var summary = new StationReadingReportSummaryDto(totalCount, verified, pending, rejected, totalEnergy);
         return new StationReadingsReportDto(items, summary);
     }
 
-    // ─── Fuel Transactions Report ─────────────────────────────────────────────
-
     public async Task<FuelTransactionsReportDto> GetFuelTransactionsReportAsync(
         int? branchId, int? stationId, int? subStationId,
         DateTime? dateFrom, DateTime? dateTo,
-        int page, int pageSize)
+        int page, int pageSize, string timeZoneId = "Asia/Riyadh",
+        string? transactionTypeCode = null)
     {
-        dateFrom ??= DateTime.Today.AddDays(-30);
-        dateTo ??= DateTime.Today;
-
-        var accessibleIds = await GetAccessibleSubStationIdsAsync();
-        bool hasScopeFilter = accessibleIds.Count > 0;
-
-        var query = _db.FuelTransactions
-            .Include(f => f.SubStation).ThenInclude(ss => ss.Station)
-            .Include(f => f.FuelLookup)
-            .Include(f => f.TransactionTypeLookup)
-            .Include(f => f.SourceSubStation)
-            .Include(f => f.DestinationSubStation)
-            .Where(f => f.DeletedAt == null
-                && f.TransactionDate >= dateFrom.Value && f.TransactionDate <= dateTo.Value
-                && (!subStationId.HasValue || f.SubStationId == subStationId.Value)
-                && (!stationId.HasValue || f.SubStation.StationId == stationId.Value)
-                && (!branchId.HasValue || f.SubStation.Station.BranchId == branchId.Value)
-                && (!hasScopeFilter || accessibleIds.Contains(f.SubStationId)))
-            .AsNoTracking();
-
-        var totalCount = await query.CountAsync();
-        var items = await query
-            .OrderByDescending(f => f.TransactionDate)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(f => new FuelTransactionReportItemDto(
-                f.Id, f.TransactionDate, f.SubStation!.Name, f.SubStation.Station!.Name,
-                f.FuelLookup!.Name, f.QuantityLiters,
-                f.TransactionTypeLookup!.Name,
-                f.DriverName, f.SupplierCompany, f.TruckNumber,
-                f.SourceSubStation != null ? f.SourceSubStation.Name : null,
-                f.DestinationSubStation != null ? f.DestinationSubStation.Name : null,
-                f.IsApproved ? "Approved" : "Draft", f.Notes))
-            .ToListAsync();
-
-        var allTx = await query.ToListAsync();
-        var incoming = allTx.Where(f => f.TransactionTypeLookup?.Code == "Purchase");
-        var transfer = allTx.Where(f => f.TransactionTypeLookup?.Code == "TransferOut");
-        var consumption = allTx.Where(f => f.TransactionTypeLookup?.Code == "Consumption");
-
-        var summary = new FuelTransactionReportSummaryDto(
-            totalCount,
-            incoming.Sum(f => f.QuantityLiters),
-            transfer.Sum(f => f.QuantityLiters),
-            consumption.Sum(f => f.QuantityLiters),
-            incoming.Count(), transfer.Count(), consumption.Count());
-
-        return new FuelTransactionsReportDto(items, summary);
+        return await GetFuelTransactionsReportInternalAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId, transactionTypeCode);
     }
-
-    // ─── Oil Transactions Report ──────────────────────────────────────────────
 
     public async Task<OilTransactionsReportDto> GetOilTransactionsReportAsync(
         int? branchId, int? stationId, int? subStationId,
         DateTime? dateFrom, DateTime? dateTo,
-        int page, int pageSize)
+        int page, int pageSize, string timeZoneId = "Asia/Riyadh")
     {
-        dateFrom ??= DateTime.Today.AddDays(-30);
-        dateTo ??= DateTime.Today;
+        (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
         bool hasScopeFilter = accessibleIds.Count > 0;
 
         var query = _db.OilTransactions
-            .Include(o => o.SubStation).ThenInclude(ss => ss.Station)
-            .Include(o => o.OilLookup)
-            .Include(o => o.TransactionTypeLookup)
-            .Include(o => o.SourceSubStation)
-            .Include(o => o.DestinationSubStation)
             .Where(o => o.DeletedAt == null
                 && o.TransactionDate >= dateFrom.Value && o.TransactionDate <= dateTo.Value
                 && (!subStationId.HasValue || o.SubStationId == subStationId.Value)
@@ -535,36 +511,37 @@ public class ReportService : IReportService
                 o.Id, o.TransactionDate, o.SubStation!.Name, o.SubStation.Station!.Name,
                 o.OilLookup!.Name, o.QuantityLiters,
                 o.TransactionTypeLookup!.Name,
-                o.SupplierCompany, o.DriverName,
-                o.SourceSubStation != null ? o.SourceSubStation.Name : null,
-                o.DestinationSubStation != null ? o.DestinationSubStation.Name : null,
+                o.SupplierCompany,
                 o.IsApproved ? "Approved" : "Draft", o.Notes))
             .ToListAsync();
 
-        var allTx = await query.ToListAsync();
-        var incoming = allTx.Where(o => o.TransactionTypeLookup?.Code == "Purchase");
-        var transfer = allTx.Where(o => o.TransactionTypeLookup?.Code == "TransferOut");
-        var consumption = allTx.Where(o => o.TransactionTypeLookup?.Code == "Consumption");
+        var allTxSummary = await query
+            .Select(o => new {
+                TypeCode = o.TransactionTypeLookup != null ? o.TransactionTypeLookup.Code : null,
+                o.QuantityLiters
+            })
+            .ToListAsync();
+
+        var incoming = allTxSummary.Where(o => o.TypeCode == "Purchase").ToList();
+        var transfer = allTxSummary.Where(o => o.TypeCode == "TransferOut" || o.TypeCode == "Transfer").ToList();
+        var consumption = allTxSummary.Where(o => o.TypeCode == "Consumption").ToList();
 
         var summary = new OilTransactionReportSummaryDto(
             totalCount,
             incoming.Sum(o => o.QuantityLiters),
             transfer.Sum(o => o.QuantityLiters),
             consumption.Sum(o => o.QuantityLiters),
-            incoming.Count(), transfer.Count(), consumption.Count());
+            incoming.Count, transfer.Count, consumption.Count);
 
         return new OilTransactionsReportDto(items, summary);
     }
 
-    // ─── Periodic Inventory Report ────────────────────────────────────────────
-
     public async Task<PeriodicInventoryReportDto> GetPeriodicInventoryReportAsync(
         int? branchId, int? stationId, int? subStationId,
         DateTime? dateFrom, DateTime? dateTo,
-        int page, int pageSize)
+        int page, int pageSize, string timeZoneId = "Asia/Riyadh")
     {
-        dateFrom ??= DateTime.Today.AddMonths(-6);
-        dateTo ??= DateTime.Today;
+        (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
         bool hasScopeFilter = accessibleIds.Count > 0;
@@ -601,11 +578,18 @@ public class ReportService : IReportService
                 p.IsApproved ? "Approved" : "Draft");
         }).ToList();
 
-        var allItems = await query.ToListAsync();
-        var verified = allItems.Count(p => p.IsApproved);
-        var pending = allItems.Count - verified;
-        var totalFuelReceived = allItems.Sum(p => p.FuelReadings.Sum(fr => fr.ActualStockLiters));
-        var totalOilReceived = allItems.Sum(p => p.OilReadings.Sum(or => or.ActualStockLiters));
+        var allItemsSummary = await query
+            .Select(p => new {
+                p.IsApproved,
+                FuelStock = p.FuelReadings.Sum(fr => (double?)fr.ActualStockLiters) ?? 0,
+                OilStock = p.OilReadings.Sum(or => (double?)or.ActualStockLiters) ?? 0
+            })
+            .ToListAsync();
+
+        var verified = allItemsSummary.Count(p => p.IsApproved);
+        var pending = allItemsSummary.Count - verified;
+        var totalFuelReceived = allItemsSummary.Sum(p => p.FuelStock);
+        var totalOilReceived = allItemsSummary.Sum(p => p.OilStock);
 
         var summary = new PeriodicInventoryReportSummaryDto(
             totalCount, verified, pending,
@@ -614,15 +598,12 @@ public class ReportService : IReportService
         return new PeriodicInventoryReportDto(mappedItems, summary);
     }
 
-    // ─── Efficiency Report ────────────────────────────────────────────────────
-
     public async Task<EfficiencyReportDto> GetEfficiencyReportAsync(
         int? branchId, int? stationId, int? subStationId,
         DateTime? dateFrom, DateTime? dateTo,
-        int page, int pageSize)
+        int page, int pageSize, string timeZoneId = "Asia/Riyadh")
     {
-        dateFrom ??= DateTime.Today.AddDays(-30);
-        dateTo ??= DateTime.Today;
+        (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
         bool hasScopeFilter = accessibleIds.Count > 0;
@@ -646,13 +627,17 @@ public class ReportService : IReportService
         var subIds = subs.Select(ss => ss.Id).ToList();
         var readings = await _db.DailyReadings
             .Include(r => r.Generator)
+            .Include(r => r.ReadingStatusLookup)
             .Where(r => r.DeletedAt == null && subIds.Contains(r.Generator.SubStationId)
+                && r.ReadingStatusLookup.Code == "Approved"
                 && r.ReadingDate >= dateFrom.Value && r.ReadingDate <= dateTo.Value)
             .AsNoTracking().ToListAsync();
 
         var stationReadings = await _db.SubStationReadings
             .Include(r => r.SubStation)
+            .Include(r => r.ReadingStatusLookup)
             .Where(r => r.DeletedAt == null && subIds.Contains(r.SubStationId)
+                && r.ReadingStatusLookup.Code == "Approved"
                 && r.ReadingDate >= dateFrom.Value && r.ReadingDate <= dateTo.Value)
             .AsNoTracking().ToListAsync();
 
@@ -685,5 +670,145 @@ public class ReportService : IReportService
             Math.Round(avgEff, 1), mostEff, leastEff);
 
         return new EfficiencyReportDto(items, summary);
+    }
+
+    public async Task<FuelTransactionsReportDto> GetFuelIncomingReportAsync(
+        int? branchId, int? stationId, int? subStationId,
+        DateTime? dateFrom, DateTime? dateTo,
+        int page, int pageSize, string timeZoneId = "Asia/Riyadh")
+    {
+        var result = await GetFuelTransactionsReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId, "Purchase");
+        return result;
+    }
+
+    public async Task<FuelTransactionsReportDto> GetFuelTransferReportAsync(
+        int? branchId, int? stationId, int? subStationId,
+        DateTime? dateFrom, DateTime? dateTo,
+        int page, int pageSize, string timeZoneId = "Asia/Riyadh")
+    {
+        var result = await GetFuelTransactionsReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId, "TransferOut");
+        return result;
+    }
+
+    public async Task<FuelTransactionsReportDto> GetFuelLossReportAsync(
+        int? branchId, int? stationId, int? subStationId,
+        DateTime? dateFrom, DateTime? dateTo,
+        int page, int pageSize, string timeZoneId = "Asia/Riyadh")
+    {
+        var result = await GetFuelTransactionsReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId, "Consumption");
+        return result;
+    }
+
+    public async Task<InventorySummaryDto> GetInventorySummaryAsync(
+        int? branchId, int? stationId, int? subStationId,
+        DateTime? dateFrom, DateTime? dateTo,
+        string timeZoneId = "Asia/Riyadh")
+    {
+        var accessibleIds = await GetAccessibleSubStationIdsAsync();
+        bool hasScopeFilter = accessibleIds.Count > 0;
+
+        var fuelTanks = await _db.FuelTanks
+            .Where(ft => ft.DeletedAt == null
+                && (!subStationId.HasValue || ft.SubStationId == subStationId.Value)
+                && (!stationId.HasValue || ft.SubStation.StationId == stationId.Value)
+                && (!branchId.HasValue || ft.SubStation.Station.BranchId == branchId.Value)
+                && (!hasScopeFilter || accessibleIds.Contains(ft.SubStationId)))
+            .Select(ft => new {
+                ActualStockLiters = ft.ActualStockLiters ?? 0,
+                ft.MinAlertLiters
+            })
+            .AsNoTracking().ToListAsync();
+
+        var oils = await _db.Oils
+            .Where(o => o.DeletedAt == null
+                && (!subStationId.HasValue || o.SubStationId == subStationId.Value)
+                && (!stationId.HasValue || (o.SubStation != null && o.SubStation.StationId == stationId.Value))
+                && (!branchId.HasValue || (o.SubStation != null && o.SubStation.Station.BranchId == branchId.Value))
+                && (!hasScopeFilter || (o.SubStationId.HasValue && accessibleIds.Contains(o.SubStationId.Value))))
+            .Select(o => new {
+                CurrentStock = (double)o.CurrentStock,
+                MinStock = (double)o.MinStock
+            })
+            .AsNoTracking().ToListAsync();
+
+        var gens = await _db.Generators
+            .AsNoTracking()
+            .Where(g => g.DeletedAt == null
+                && (!subStationId.HasValue || g.SubStationId == subStationId.Value)
+                && (!stationId.HasValue || g.SubStation.StationId == stationId.Value)
+                && (!branchId.HasValue || g.SubStation.Station.BranchId == branchId.Value)
+                && (!hasScopeFilter || accessibleIds.Contains(g.SubStationId)))
+            .Select(g => g.StatusLookup != null ? g.StatusLookup.Code : null)
+            .ToListAsync();
+
+        var lowFuel = fuelTanks.Count(t => t.MinAlertLiters.HasValue && t.ActualStockLiters <= t.MinAlertLiters.Value);
+        var lowOil = oils.Count(o => o.CurrentStock <= o.MinStock);
+
+        return new InventorySummaryDto(
+            fuelTanks.Count, oils.Count,
+            fuelTanks.Sum(t => t.ActualStockLiters),
+            oils.Sum(o => o.CurrentStock),
+            lowFuel, lowOil,
+            gens.Count(code => code == "Online" || code == "Active"),
+            gens.Count);
+    }
+
+    private async Task<FuelTransactionsReportDto> GetFuelTransactionsReportInternalAsync(
+        int? branchId, int? stationId, int? subStationId,
+        DateTime? dateFrom, DateTime? dateTo,
+        int page, int pageSize, string timeZoneId,
+        string? transactionTypeCode)
+    {
+        (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
+
+        var accessibleIds = await GetAccessibleSubStationIdsAsync();
+        bool hasScopeFilter = accessibleIds.Count > 0;
+
+        var query = _db.FuelTransactions
+            .Where(f => f.DeletedAt == null
+                && f.TransactionDate >= dateFrom.Value && f.TransactionDate <= dateTo.Value
+                && (!subStationId.HasValue || f.SubStationId == subStationId.Value)
+                && (!stationId.HasValue || f.SubStation.StationId == stationId.Value)
+                && (!branchId.HasValue || f.SubStation.Station.BranchId == branchId.Value)
+                && (!hasScopeFilter || accessibleIds.Contains(f.SubStationId) ||
+                    (f.DestinationSubStationId.HasValue && accessibleIds.Contains(f.DestinationSubStationId.Value)))
+                && (transactionTypeCode == null || f.TransactionTypeLookup!.Code == transactionTypeCode ||
+                    (transactionTypeCode == "TransferOut" && f.TransactionTypeLookup!.Code == "Transfer")))
+            .AsNoTracking();
+
+        var totalCount = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(f => f.TransactionDate)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(f => new FuelTransactionReportItemDto(
+                f.Id, f.TransactionDate, f.SubStation!.Name, f.SubStation.Station!.Name,
+                f.FuelLookup!.Name, f.QuantityLiters,
+                f.TransactionTypeLookup!.Name,
+                f.DriverName, f.SupplierCompany, f.TruckNumber,
+                f.SourceSubStation != null ? f.SourceSubStation.Name : null,
+                f.DestinationSubStation != null ? f.DestinationSubStation.Name : null,
+                f.IsApproved ? "Approved" : "Draft", f.Notes))
+            .ToListAsync();
+
+        var allTxSummary = await query
+            .Select(f => new {
+                TypeCode = f.TransactionTypeLookup != null ? f.TransactionTypeLookup.Code : null,
+                f.QuantityLiters
+            })
+            .ToListAsync();
+
+        var incoming = allTxSummary.Where(f => f.TypeCode == "Purchase").ToList();
+        var transfer = allTxSummary.Where(f => f.TypeCode == "TransferOut" || f.TypeCode == "Transfer").ToList();
+        var consumption = allTxSummary.Where(f => f.TypeCode == "Consumption").ToList();
+
+        var summary = new FuelTransactionReportSummaryDto(
+            totalCount,
+            incoming.Sum(f => f.QuantityLiters),
+            transfer.Sum(f => f.QuantityLiters),
+            consumption.Sum(f => f.QuantityLiters),
+            incoming.Count, transfer.Count, consumption.Count);
+
+        return new FuelTransactionsReportDto(items, summary);
     }
 }

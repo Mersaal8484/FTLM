@@ -9,23 +9,20 @@ import usePermissions from './permissions/usePermissions';
 import useAuthStore from './store/authStore';
 import useUiStore from './store/uiStore';
 import Toast from './components/Toast';
+import socket from './socket';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Login = lazy(() => import('./pages/Login'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ForceChangePassword = lazy(() => import('./pages/ForceChangePassword'));
 const Generators = lazy(() => import('./pages/Generators'));
+const ActiveGenerators = lazy(() => import('./pages/ActiveGenerators'));
 const TanksManagement = lazy(() => import('./pages/TanksManagement'));
 const OilInventory = lazy(() => import('./pages/OilInventory'));
 const LocationsManagement = lazy(() => import('./pages/LocationsManagement'));
 const MetersManagement = lazy(() => import('./pages/MetersManagement'));
 const Users = lazy(() => import('./pages/Users'));
-const EfficiencyReport = lazy(() => import('./pages/reports/EfficiencyReport'));
-const FuelTransactionsReport = lazy(() => import('./pages/reports/FuelTransactionsReport'));
-const OilTransactionsReport = lazy(() => import('./pages/reports/OilTransactionsReport'));
-const StationReadingsReport = lazy(() => import('./pages/reports/StationReadingsReport'));
-const PeriodicInventoryReport = lazy(() => import('./pages/reports/PeriodicInventoryReport'));
-const GeneratorsReport = lazy(() => import('./pages/reports/GeneratorsReport'));
+const Reports = lazy(() => import('./pages/Reports'));
 const Controllers = lazy(() => import('./pages/Controllers'));
 const RolesManagement = lazy(() => import('./pages/RolesManagement'));
 const AuditLogs = lazy(() => import('./pages/AuditLogs'));
@@ -34,11 +31,23 @@ const MyGenerators = lazy(() => import('./pages/MyGenerators'));
 const AddReading = lazy(() => import('./pages/AddReading'));
 const AddOilToGenerator = lazy(() => import('./pages/AddOilToGenerator'));
 const FuelMovements = lazy(() => import('./pages/FuelMovements'));
+const MovementLogs = lazy(() => import('./pages/MovementLogs'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const PeriodicInventoryPage = lazy(() => import('./pages/PeriodicInventoryPage'));
 const ReviewChanges = lazy(() => import('./pages/ReviewChanges'));
 const SubStationReading = lazy(() => import('./pages/SubStationReading'));
 const RollbackApproval = lazy(() => import('./pages/RollbackApproval'));
+const GeneratorsOverview = lazy(() => import('./pages/GeneratorsOverview'));
+const FuelStockPage = lazy(() => import('./pages/FuelStockPage'));
+const OilStockPage = lazy(() => import('./pages/OilStockPage'));
+const WarehouseParts = lazy(() => import('./pages/WarehouseParts'));
+const WarehouseStock = lazy(() => import('./pages/WarehouseStock'));
+const WarehouseSupply = lazy(() => import('./pages/WarehouseSupply'));
+const WarehouseDispatch = lazy(() => import('./pages/WarehouseDispatch'));
+const WarehouseReports = lazy(() => import('./pages/WarehouseReports'));
+const WorkPermits = lazy(() => import('./pages/WorkPermits'));
+const InstalledParts = lazy(() => import('./pages/InstalledParts'));
+const MaintenanceDashboard = lazy(() => import('./pages/MaintenanceDashboard'));
 
 
 
@@ -95,7 +104,7 @@ const Protected = ({
     }
   }
 
-  return children;
+  return <ErrorBoundary name={module || 'protected'}>{children}</ErrorBoundary>;
 };
 
 const ExplicitProtected = ({
@@ -117,7 +126,7 @@ const ExplicitProtected = ({
     return <Navigate to={firstAllowedHomePath(can, canExplicit)} replace />;
   }
 
-  return children;
+  return <ErrorBoundary name={module || 'explicit-protected'}>{children}</ErrorBoundary>;
 };
 
 const OilSetupProtected = ({
@@ -137,7 +146,7 @@ const OilSetupProtected = ({
     return <Navigate to={firstAllowedHomePath(can)} replace />;
   }
 
-  return children;
+  return <ErrorBoundary name="oil-setup">{children}</ErrorBoundary>;
 };
 
 function App() {
@@ -151,6 +160,9 @@ function App() {
 
   useEffect(() => {
     i18n.changeLanguage(lang);
+    // Sync document direction + lang attribute on every lang change
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.lang = lang;
   }, [lang, i18n]);
 
   useEffect(() => {
@@ -190,6 +202,26 @@ function App() {
     return () => clearInterval(interval);
   }, [isAuthenticated, setUnreadCount]);
 
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    const refreshUnreadCount = async () => {
+      try {
+        const res = await client.get('/api/notifications');
+        setUnreadCount(res.data.unreadCount || 0);
+      } catch {}
+    };
+    const onCreated = () => refreshUnreadCount();
+    const onRead = () => refreshUnreadCount();
+    socket.on('NotificationCreated', onCreated);
+    socket.on('NotificationRead', onRead);
+    socket.on('AllNotificationsRead', onRead);
+    return () => {
+      socket.off('NotificationCreated', onCreated);
+      socket.off('NotificationRead', onRead);
+      socket.off('AllNotificationsRead', onRead);
+    };
+  }, [isAuthenticated, setUnreadCount]);
+
   const handleLogin = (userData) => {
     login(userData);
   };
@@ -226,10 +258,10 @@ function App() {
                     ? <AuthBootScreen />
                     : isAuthenticated
                       ? <Navigate to={passwordChangeRequired ? '/force-password-change' : '/'} replace />
-                      : <Login onLogin={handleLogin} lang={lang} t={t} />
+                      : <ErrorBoundary name="login"><Login onLogin={handleLogin} lang={lang} t={t} /></ErrorBoundary>
                 }
               />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/forgot-password" element={<ErrorBoundary name="forgot-password"><ForgotPassword /></ErrorBoundary>} />
               <Route
                 path="/force-password-change"
                 element={
@@ -237,7 +269,7 @@ function App() {
                     ? <AuthBootScreen />
                     : isAuthenticated
                       ? (passwordChangeRequired
-                        ? <ForceChangePassword lang={lang} onPasswordChanged={handlePasswordChanged} onLogout={logout} />
+                        ? <ErrorBoundary name="force-password-change"><ForceChangePassword lang={lang} onPasswordChanged={handlePasswordChanged} onLogout={logout} /></ErrorBoundary>
                         : <Navigate to="/" replace />)
                       : <Navigate to="/login" replace />
                 }
@@ -253,6 +285,20 @@ function App() {
               <Route path="/locations" element={<Protected module="settings" action="manage"><LocationsManagement lang={lang} /></Protected>} />
               <Route path="/meters" element={<Protected module="settings" action="manage"><MetersManagement lang={lang} /></Protected>} />
               <Route path="/generators" element={<ExplicitProtected module="generators" action="view"><Generators lang={lang} t={t} currentUser={user} /></ExplicitProtected>} />
+               <Route path="/generators/active" element={<Protected module="generators" action="view"><ActiveGenerators lang={lang} t={t} currentUser={user} /></Protected>} />
+              <Route path="/generators/overview" element={<Protected module="generators" action="view"><GeneratorsOverview lang={lang} /></Protected>} />
+              <Route path="/stock/fuel" element={<Protected module="inventory"><FuelStockPage lang={lang} /></Protected>} />
+              <Route path="/stock/oil" element={<Protected module="oil"><OilStockPage lang={lang} /></Protected>} />
+              {/* Warehouse */}
+              <Route path="/warehouse/parts" element={<Protected module="warehouse"><WarehouseParts lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/warehouse/stock" element={<Protected module="warehouse"><WarehouseStock lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/warehouse/supply" element={<Protected module="warehouse"><WarehouseSupply lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/warehouse/dispatch" element={<Protected module="warehouse"><WarehouseDispatch lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/warehouse/reports" element={<Protected module="warehouse"><WarehouseReports lang={lang} /></Protected>} />
+              {/* Maintenance */}
+              <Route path="/maintenance" element={<Protected module="maintenance"><MaintenanceDashboard lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/maintenance/permits" element={<Protected module="maintenance"><WorkPermits lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/maintenance/installed-parts" element={<Protected module="maintenance"><InstalledParts lang={lang} currentUser={user} /></Protected>} />
               <Route path="/setup-oils" element={<OilSetupProtected><SetupOils t={t} lang={lang} /></OilSetupProtected>} />
               <Route path="/tanks" element={<Protected module="tanks"><TanksManagement t={t} lang={lang} currentUser={user} /></Protected>} />
               <Route path="/oils" element={<ExplicitProtected module="oil"><OilInventory t={t} lang={lang} currentUser={user} /></ExplicitProtected>} />
@@ -262,13 +308,7 @@ function App() {
               <Route path="/audits" element={<Protected module="audits"><AuditLogs lang={lang} /></Protected>} />
               <Route path="/rollback" element={<Protected module="settings" action="manage"><RollbackApproval lang={lang} user={user} /></Protected>} />
               {/* Reports */}
-              <Route path="/reports" element={<Protected module="reports"><Navigate to="/reports/station-readings" replace /></Protected>} />
-              <Route path="/reports/station-readings" element={<Protected module="reports"><StationReadingsReport lang={lang} /></Protected>} />
-              <Route path="/reports/fuel-transactions" element={<Protected module="reports"><FuelTransactionsReport lang={lang} /></Protected>} />
-              <Route path="/reports/oil-transactions" element={<Protected module="reports"><OilTransactionsReport lang={lang} /></Protected>} />
-              <Route path="/reports/generators" element={<Protected module="reports"><GeneratorsReport lang={lang} /></Protected>} />
-              <Route path="/reports/efficiency" element={<Protected module="reports"><EfficiencyReport lang={lang} /></Protected>} />
-              <Route path="/reports/periodic-inventory" element={<Protected module="reports"><PeriodicInventoryReport lang={lang} /></Protected>} />
+              <Route path="/reports/*" element={<Protected module="reports"><Reports lang={lang} /></Protected>} />
 
               {/* Operators */}
               <Route path="/my-generators" element={<Protected><MyGenerators lang={lang} currentUser={user} /></Protected>} />
@@ -278,6 +318,7 @@ function App() {
 
               {/* Fuel Manager */}
               <Route path="/fuel-movements" element={<Protected module="fuel_movements"><FuelMovements lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/movement-logs" element={<Protected module="fuel_movements"><MovementLogs lang={lang} /></Protected>} />
 
               {/* Supervisor */}
               <Route path="/inventory" element={<Protected module="inventory"><PeriodicInventoryPage lang={lang} currentUser={user} /></Protected>} />

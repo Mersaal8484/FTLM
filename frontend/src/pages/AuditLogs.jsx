@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import PropTypes from 'prop-types';
 import client from '../api/client';
-import { Shield, Search, Calendar, Download, Filter, X } from 'lucide-react';
+import { Shield, Calendar, Download, Filter, X } from 'lucide-react';
 import Pagination from '../components/Pagination';
+import { PageHeader, Button, FormField, Input } from '../components/ui';
 
 const METHOD_COLORS = {
-  GET: 'var(--secondary)', POST: 'var(--primary)',
-  PUT: 'var(--warning)', PATCH: 'var(--warning)',
-  DELETE: 'var(--danger)'
+  GET: 'var(--secondary)',
+  POST: 'var(--primary)',
+  PUT: 'var(--warning)',
+  PATCH: 'var(--warning)',
+  DELETE: 'var(--danger)',
 };
 
 function AuditLogs({ lang }) {
@@ -42,10 +46,14 @@ function AuditLogs({ lang }) {
     } catch (err) {
       setError(err.response?.data?.msg || (ar ? 'فشل تحميل سجل التدقيق' : 'Failed to load audit log'));
       setAudits([]);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, [page, limit, search, entityName, fromDate, toDate, ar]);
 
-  useEffect(() => { fetchAudits(); }, [fetchAudits]);
+  useEffect(() => {
+    fetchAudits();
+  }, [fetchAudits]);
 
   const handleExport = async () => {
     try {
@@ -60,11 +68,16 @@ function AuditLogs({ lang }) {
       a.download = 'audit-log.csv';
       a.click();
       window.URL.revokeObjectURL(url);
-    } catch { }
+    } catch {}
   };
 
   const clearFilters = () => {
-    setSearch(''); setMethodFilter(''); setEntityName(''); setFromDate(''); setToDate(''); setPage(1);
+    setSearch('');
+    setMethodFilter('');
+    setEntityName('');
+    setFromDate('');
+    setToDate('');
+    setPage(1);
   };
 
   const hasFilters = search || methodFilter || entityName || fromDate || toDate;
@@ -72,98 +85,131 @@ function AuditLogs({ lang }) {
   const formatTime = (ts) => {
     const d = new Date(ts);
     return d.toLocaleString(ar ? 'ar-YE' : 'en-US', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit'
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
     });
   };
 
   return (
     <div>
-      <div className="page-header">
-        <div className="page-header-row">
-          <div>
-            <h1 style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <Shield size={28} style={{ color: 'var(--primary)' }} />
-              {ar ? 'سجل التدقيق' : 'Audit Log'}
-            </h1>
-            <p>{ar ? 'سجل جميع العمليات والتغييرات في النظام' : 'Track all system operations and changes'}</p>
-          </div>
+      <PageHeader
+        title={
+          <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Shield size={28} style={{ color: 'var(--primary)' }} />
+            {ar ? 'سجل التدقيق' : 'Audit Log'}
+          </span>
+        }
+        subtitle={ar ? 'سجل جميع العمليات والتغييرات في النظام لضمان الامتثال' : 'Track all system operations, access history & compliance events'}
+        actions={
           <div style={{ display: 'flex', gap: 10 }}>
-            <button className="btn btn-ghost" onClick={() => setShowFilters(o => !o)}>
-              <Filter size={14} /> {ar ? 'تصفية' : 'Filters'}
-            </button>
-            <button className="btn btn-ghost" onClick={handleExport}>
-              <Download size={14} /> {ar ? 'تصدير' : 'Export'}
-            </button>
+            <Button
+              variant={showFilters ? 'primary' : 'outline'}
+              size="sm"
+              icon={Filter}
+              onClick={() => setShowFilters((o) => !o)}
+            >
+              {ar ? 'تصفية' : 'Filters'}
+            </Button>
+            <Button variant="outline" size="sm" icon={Download} onClick={handleExport}>
+              {ar ? 'تصدير' : 'Export'}
+            </Button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      {error && <div className="alert alert-danger" style={{ marginBottom: 16, padding: 12, fontSize: 13 }}>{error}</div>}
+      {error && <div className="alert alert-danger" style={{ marginBottom: 16 }}>{error}</div>}
 
+      {/* Filter bar */}
       {showFilters && (
-        <div className="glass-card" style={{ padding: 16, marginBottom: 20 }}>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
-            <div className="search-bar" style={{ flex: 1, minWidth: 160 }}>
-              <Search size={16} />
-              <input className="form-control" placeholder={ar ? 'بحث عن إجراء...' : 'Search action...'}
-                value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
-            </div>
-            <div>
-              <label className="form-label" style={{ marginBottom: 4, fontSize: 11 }}>
-                {ar ? 'الطريقة' : 'Method'}
-              </label>
-              <select className="form-select" value={methodFilter}
-                onChange={e => { setMethodFilter(e.target.value); setPage(1); }}
-                style={{ width: 120 }}>
+        <div className="section-card" style={{ marginBottom: 16, padding: '14px 18px' }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <FormField label={ar ? 'بحث بالإجراء' : 'Search Action'} style={{ flex: 1, minWidth: 160 }}>
+              <Input
+                placeholder={ar ? 'بحث بالإجراء...' : 'Filter by action...'}
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </FormField>
+            <FormField label={ar ? 'الطريقة' : 'Method'} style={{ minWidth: 110 }}>
+              <select
+                className="form-select"
+                value={methodFilter}
+                onChange={(e) => {
+                  setMethodFilter(e.target.value);
+                  setPage(1);
+                }}
+                style={{ width: 110 }}
+              >
                 <option value="">{ar ? 'الكل' : 'All'}</option>
-                {['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map(m => (
-                  <option key={m} value={m}>{m}</option>
+                {['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
                 ))}
               </select>
-            </div>
-            <div>
-              <label className="form-label" style={{ marginBottom: 4, fontSize: 11 }}>
-                {ar ? 'الكيان' : 'Entity'}
-              </label>
-              <input className="form-control" placeholder={ar ? 'اسم الكيان...' : 'Entity name...'}
-                value={entityName} onChange={e => { setEntityName(e.target.value); setPage(1); }}
-                style={{ width: 140 }} />
-            </div>
-            <div>
-              <label className="form-label" style={{ marginBottom: 4, fontSize: 11 }}>
-                {ar ? 'من تاريخ' : 'From'}
-              </label>
-              <input type="date" className="form-control" value={fromDate}
-                onChange={e => { setFromDate(e.target.value); setPage(1); }} style={{ width: 150 }} />
-            </div>
-            <div>
-              <label className="form-label" style={{ marginBottom: 4, fontSize: 11 }}>
-                {ar ? 'إلى تاريخ' : 'To'}
-              </label>
-              <input type="date" className="form-control" value={toDate}
-                onChange={e => { setToDate(e.target.value); setPage(1); }} style={{ width: 150 }} />
-            </div>
+            </FormField>
+            <FormField label={ar ? 'الكيان' : 'Entity'} style={{ minWidth: 140 }}>
+              <Input
+                placeholder={ar ? 'اسم الكيان...' : 'Entity name...'}
+                value={entityName}
+                onChange={(e) => {
+                  setEntityName(e.target.value);
+                  setPage(1);
+                }}
+                style={{ width: 140 }}
+              />
+            </FormField>
+            <FormField label={ar ? 'من تاريخ' : 'From'} style={{ minWidth: 150 }}>
+              <Input
+                type="date"
+                value={fromDate}
+                onChange={(e) => {
+                  setFromDate(e.target.value);
+                  setPage(1);
+                }}
+                style={{ width: 150 }}
+              />
+            </FormField>
+            <FormField label={ar ? 'إلى تاريخ' : 'To'} style={{ minWidth: 150 }}>
+              <Input
+                type="date"
+                value={toDate}
+                onChange={(e) => {
+                  setToDate(e.target.value);
+                  setPage(1);
+                }}
+                style={{ width: 150 }}
+              />
+            </FormField>
             {hasFilters && (
-              <button className="btn btn-sm btn-ghost" onClick={clearFilters} style={{ marginBottom: 0 }}>
-                <X size={14} /> {ar ? 'مسح' : 'Clear'}
-              </button>
+              <Button variant="ghost" size="sm" icon={X} onClick={clearFilters}>
+                {ar ? 'مسح' : 'Clear'}
+              </Button>
             )}
           </div>
         </div>
       )}
 
-      <div className="glass-card" style={{ overflow: 'hidden' }}>
+      <div className="section-card" style={{ overflow: 'hidden' }}>
         {loading ? (
-          <div className="spinner-wrap"><div className="ft-spinner" /></div>
+          <div className="spinner-wrap">
+            <div className="ft-spinner" />
+          </div>
         ) : audits.length === 0 ? (
-          <div className="empty-state">
-            <Shield size={48} />
+          <div className="empty-state" style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <Shield size={48} style={{ color: 'var(--text-faint)', marginBottom: 12 }} />
             <h3>{ar ? 'لا توجد سجلات تدقيق' : 'No audit records found'}</h3>
           </div>
         ) : (
           <div className="table-wrap" style={{ overflowX: 'auto' }}>
-            <table className="ft-table">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>{ar ? 'الوقت' : 'Timestamp'}</th>
@@ -175,7 +221,7 @@ function AuditLogs({ lang }) {
                 </tr>
               </thead>
               <tbody>
-                {audits.map(a => (
+                {audits.map((a) => (
                   <tr key={a.id}>
                     <td style={{ fontSize: 12, whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -183,21 +229,41 @@ function AuditLogs({ lang }) {
                         {formatTime(a.timestamp)}
                       </span>
                     </td>
-                    <td style={{ fontSize: 13 }}>{a.action}</td>
+                    <td style={{ fontSize: 13, fontWeight: 600 }}>{a.action}</td>
                     <td>
-                      <span className="badge" style={{
-                        background: `${METHOD_COLORS[a.method] || 'var(--text-faint)'}20`,
-                        color: METHOD_COLORS[a.method] || 'var(--text-faint)',
-                        fontSize: 10
-                      }}>
+                      <span
+                        className="badge"
+                        style={{
+                          background: `${METHOD_COLORS[a.method] || 'var(--text-faint)'}20`,
+                          color: METHOD_COLORS[a.method] || 'var(--text-faint)',
+                          fontSize: 10,
+                        }}
+                      >
                         {a.method}
                       </span>
                     </td>
-                    <td style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <td
+                      style={{
+                        fontSize: 12,
+                        color: 'var(--text-muted)',
+                        maxWidth: 250,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       {a.resource}
                     </td>
                     <td>
-                      <span className={`badge ${a.statusCode >= 400 ? 'badge-danger' : a.statusCode >= 300 ? 'badge-warning' : 'badge-success'}`}>
+                      <span
+                        className={`badge ${
+                          a.statusCode >= 400
+                            ? 'badge-danger'
+                            : a.statusCode >= 300
+                            ? 'badge-warning'
+                            : 'badge-success'
+                        }`}
+                      >
                         {a.statusCode}
                       </span>
                     </td>
@@ -211,13 +277,23 @@ function AuditLogs({ lang }) {
 
         {totalPages > 1 && (
           <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)' }}>
-            <Pagination page={page} totalPages={totalPages} total={total} pageSize={limit} lang={lang}
-              onPageChange={setPage} />
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              pageSize={limit}
+              lang={lang}
+              onPageChange={setPage}
+            />
           </div>
         )}
       </div>
     </div>
   );
 }
+
+AuditLogs.propTypes = {
+  lang: PropTypes.string,
+};
 
 export default AuditLogs;

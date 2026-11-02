@@ -1,9 +1,7 @@
-using System.Security.Claims;
 using FuelTrack.Application;
 using FuelTrack.Application.DTOs.FuelMovements;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Services;
@@ -11,30 +9,20 @@ namespace FuelTrack.Infrastructure.Services;
 public class FuelMovementService : IFuelMovementService
 {
     private readonly FuelTrackDbContext _db;
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ICurrentUserService _currentUser;
     private readonly IUserScopeFilterService _scopeFilter;
 
-    public FuelMovementService(FuelTrackDbContext db, IHttpContextAccessor httpContextAccessor, IUserScopeFilterService scopeFilter)
+    public FuelMovementService(FuelTrackDbContext db, ICurrentUserService currentUser, IUserScopeFilterService scopeFilter)
     {
         _db = db;
-        _httpContextAccessor = httpContextAccessor;
+        _currentUser = currentUser;
         _scopeFilter = scopeFilter;
-    }
-
-    private int? GetCurrentUserId()
-    {
-        var claim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        return claim != null && int.TryParse(claim.Value, out var id) ? id : null;
-    }
-
-    private bool IsAdmin()
-    {
-        return _httpContextAccessor.HttpContext?.User.IsInRole("Admin") ?? false;
     }
 
     public async Task<FuelMovementDetailDto> CreateAsync(CreateFuelMovementDto dto, int userId)
     {
-        // R4+R5: Validate tank capacity for inbound transactions
+        await ValidateTransactionTypeAsync(dto.TransactionTypeLookupId);
+
         var transactionTypeCode = await GetTransactionTypeCodeAsync(dto.TransactionTypeLookupId);
         if (IsInboundTransaction(transactionTypeCode))
         {
@@ -56,9 +44,6 @@ public class FuelMovementService : IFuelMovementService
             InvoiceNumber = dto.InvoiceNumber,
             InvoiceDate = dto.InvoiceDate,
             InvoiceQuantity = dto.InvoiceQuantity,
-            WarehouseReceiptNumber = dto.WarehouseReceiptNumber,
-            WarehouseReceiptDate = dto.WarehouseReceiptDate,
-            WarehouseQuantity = dto.WarehouseQuantity,
             MeterId = dto.MeterId,
             PrevMeterVisualReading = dto.PrevMeterVisualReading,
             CurrentMeterVisualReading = dto.CurrentMeterVisualReading,
@@ -88,7 +73,11 @@ public class FuelMovementService : IFuelMovementService
             ?? throw new KeyNotFoundException($"FuelTransaction {id} not found");
 
         if (dto.FuelLookupId.HasValue) movement.FuelLookupId = dto.FuelLookupId.Value;
-        if (dto.TransactionTypeLookupId.HasValue) movement.TransactionTypeLookupId = dto.TransactionTypeLookupId;
+        if (dto.TransactionTypeLookupId.HasValue)
+        {
+            await ValidateTransactionTypeAsync(dto.TransactionTypeLookupId.Value);
+            movement.TransactionTypeLookupId = dto.TransactionTypeLookupId.Value;
+        }
         if (dto.TransactionDate.HasValue) movement.TransactionDate = dto.TransactionDate.Value;
         if (dto.QuantityLiters.HasValue) movement.QuantityLiters = dto.QuantityLiters.Value;
         if (dto.Reference is not null) movement.Reference = dto.Reference;
@@ -97,11 +86,8 @@ public class FuelMovementService : IFuelMovementService
         if (dto.DriverIdCard is not null) movement.DriverIdCard = dto.DriverIdCard;
         if (dto.TruckNumber is not null) movement.TruckNumber = dto.TruckNumber;
         if (dto.InvoiceNumber is not null) movement.InvoiceNumber = dto.InvoiceNumber;
-        if (dto.InvoiceDate.HasValue) movement.InvoiceDate = dto.InvoiceDate;
-        if (dto.InvoiceQuantity.HasValue) movement.InvoiceQuantity = dto.InvoiceQuantity;
-        if (dto.WarehouseReceiptNumber is not null) movement.WarehouseReceiptNumber = dto.WarehouseReceiptNumber;
-        if (dto.WarehouseReceiptDate.HasValue) movement.WarehouseReceiptDate = dto.WarehouseReceiptDate;
-        if (dto.WarehouseQuantity.HasValue) movement.WarehouseQuantity = dto.WarehouseQuantity;
+        if (dto.InvoiceDate.HasValue) movement.InvoiceDate = dto.InvoiceDate.Value;
+        if (dto.InvoiceQuantity.HasValue) movement.InvoiceQuantity = dto.InvoiceQuantity.Value;
         if (dto.MeterId.HasValue) movement.MeterId = dto.MeterId;
         if (dto.PrevMeterVisualReading.HasValue) movement.PrevMeterVisualReading = dto.PrevMeterVisualReading;
         if (dto.CurrentMeterVisualReading.HasValue) movement.CurrentMeterVisualReading = dto.CurrentMeterVisualReading;
@@ -166,9 +152,6 @@ public class FuelMovementService : IFuelMovementService
                 m.InvoiceNumber,
                 m.InvoiceDate,
                 m.InvoiceQuantity,
-                m.WarehouseReceiptNumber,
-                m.WarehouseReceiptDate,
-                m.WarehouseQuantity,
                 m.MeterId,
                 m.Meter != null ? m.Meter.Name : null,
                 m.PrevMeterVisualReading,
@@ -200,19 +183,22 @@ public class FuelMovementService : IFuelMovementService
             .Include(m => m.FuelLookup)
             .Include(m => m.TransactionTypeLookup)
             .Include(m => m.SubStation)
+            .Include(m => m.SourceSubStation)
+            .Include(m => m.DestinationSubStation)
             .Include(m => m.ApprovedBy)
             .Where(m => m.DeletedAt == null)
             .AsQueryable();
 
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.UserId;
             if (userId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
                 if (accessibleIds.Count == 0)
                     return new List<FuelMovementListDto>();
-                query = query.Where(m => accessibleIds.Contains(m.SubStationId));
+                query = query.Where(m => accessibleIds.Contains(m.SubStationId) ||
+                    (m.DestinationSubStationId.HasValue && accessibleIds.Contains(m.DestinationSubStationId.Value)));
             }
         }
 
@@ -232,7 +218,13 @@ public class FuelMovementService : IFuelMovementService
                 m.IsApproved,
                 m.ApprovedBy != null ? m.ApprovedBy.FullName : null,
                 m.ApprovedAt,
-                m.CreatedAt))
+                m.CreatedAt,
+                m.SourceSubStation != null ? m.SourceSubStation.Name : null,
+                m.DestinationSubStation != null ? m.DestinationSubStation.Name : null,
+                m.InvoiceQuantity,
+                m.InvoiceNumber,
+                m.CorrectedFromId,
+                m.CorrectionReason))
             .ToListAsync();
     }
 
@@ -243,18 +235,21 @@ public class FuelMovementService : IFuelMovementService
             .Include(m => m.FuelLookup)
             .Include(m => m.TransactionTypeLookup)
             .Include(m => m.SubStation)
+            .Include(m => m.SourceSubStation)
+            .Include(m => m.DestinationSubStation)
             .Include(m => m.ApprovedBy)
             .Where(m => m.DeletedAt == null);
 
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.UserId;
             if (userId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
                 if (accessibleIds.Count == 0)
                     return new PagedResult<FuelMovementListDto> { Items = new List<FuelMovementListDto>(), TotalCount = 0, Page = page, PageSize = pageSize };
-                query = query.Where(m => accessibleIds.Contains(m.SubStationId));
+                query = query.Where(m => accessibleIds.Contains(m.SubStationId) ||
+                    (m.DestinationSubStationId.HasValue && accessibleIds.Contains(m.DestinationSubStationId.Value)));
             }
         }
 
@@ -279,7 +274,13 @@ public class FuelMovementService : IFuelMovementService
                 m.IsApproved,
                 m.ApprovedBy != null ? m.ApprovedBy.FullName : null,
                 m.ApprovedAt,
-                m.CreatedAt))
+                m.CreatedAt,
+                m.SourceSubStation != null ? m.SourceSubStation.Name : null,
+                m.DestinationSubStation != null ? m.DestinationSubStation.Name : null,
+                m.InvoiceQuantity,
+                m.InvoiceNumber,
+                m.CorrectedFromId,
+                m.CorrectionReason))
             .ToListAsync();
 
         return new PagedResult<FuelMovementListDto>
@@ -293,9 +294,9 @@ public class FuelMovementService : IFuelMovementService
 
     public async Task<List<FuelMovementListDto>> GetBySubStationAsync(int subStationId)
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.UserId;
             if (userId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
@@ -309,6 +310,8 @@ public class FuelMovementService : IFuelMovementService
             .Include(m => m.FuelLookup)
             .Include(m => m.TransactionTypeLookup)
             .Include(m => m.SubStation)
+            .Include(m => m.SourceSubStation)
+            .Include(m => m.DestinationSubStation)
             .Include(m => m.ApprovedBy)
             .Where(m => m.DeletedAt == null && m.SubStationId == subStationId)
             .OrderByDescending(m => m.TransactionDate)
@@ -326,15 +329,21 @@ public class FuelMovementService : IFuelMovementService
                 m.IsApproved,
                 m.ApprovedBy != null ? m.ApprovedBy.FullName : null,
                 m.ApprovedAt,
-                m.CreatedAt))
+                m.CreatedAt,
+                m.SourceSubStation != null ? m.SourceSubStation.Name : null,
+                m.DestinationSubStation != null ? m.DestinationSubStation.Name : null,
+                m.InvoiceQuantity,
+                m.InvoiceNumber,
+                m.CorrectedFromId,
+                m.CorrectionReason))
             .ToListAsync();
     }
 
     public async Task<PagedResult<FuelMovementListDto>> GetPagedBySubStationAsync(int subStationId, int page, int pageSize, string? search = null, string? status = null)
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.UserId;
             if (userId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
@@ -348,6 +357,8 @@ public class FuelMovementService : IFuelMovementService
             .Include(m => m.FuelLookup)
             .Include(m => m.TransactionTypeLookup)
             .Include(m => m.SubStation)
+            .Include(m => m.SourceSubStation)
+            .Include(m => m.DestinationSubStation)
             .Include(m => m.ApprovedBy)
             .Where(m => m.DeletedAt == null && m.SubStationId == subStationId);
 
@@ -371,7 +382,13 @@ public class FuelMovementService : IFuelMovementService
                 m.IsApproved,
                 m.ApprovedBy != null ? m.ApprovedBy.FullName : null,
                 m.ApprovedAt,
-                m.CreatedAt))
+                m.CreatedAt,
+                m.SourceSubStation != null ? m.SourceSubStation.Name : null,
+                m.DestinationSubStation != null ? m.DestinationSubStation.Name : null,
+                m.InvoiceQuantity,
+                m.InvoiceNumber,
+                m.CorrectedFromId,
+                m.CorrectionReason))
             .ToListAsync();
 
         return new PagedResult<FuelMovementListDto>
@@ -393,9 +410,9 @@ public class FuelMovementService : IFuelMovementService
         if (subStationId == 0)
             return new List<FuelMovementListDto>();
 
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.UserId;
             if (userId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
@@ -409,6 +426,8 @@ public class FuelMovementService : IFuelMovementService
             .Include(m => m.FuelLookup)
             .Include(m => m.TransactionTypeLookup)
             .Include(m => m.SubStation)
+            .Include(m => m.SourceSubStation)
+            .Include(m => m.DestinationSubStation)
             .Include(m => m.ApprovedBy)
             .Where(m => m.DeletedAt == null &&
                 (m.SourceSubStationId == subStationId ||
@@ -429,15 +448,21 @@ public class FuelMovementService : IFuelMovementService
                 m.IsApproved,
                 m.ApprovedBy != null ? m.ApprovedBy.FullName : null,
                 m.ApprovedAt,
-                m.CreatedAt))
+                m.CreatedAt,
+                m.SourceSubStation != null ? m.SourceSubStation.Name : null,
+                m.DestinationSubStation != null ? m.DestinationSubStation.Name : null,
+                m.InvoiceQuantity,
+                m.InvoiceNumber,
+                m.CorrectedFromId,
+                m.CorrectionReason))
             .ToListAsync();
     }
 
     public async Task<PagedResult<FuelMovementListDto>> GetPagedByFuelTankAsync(int fuelTankId, int page, int pageSize, string? search = null, string? status = null)
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.UserId;
             if (userId.HasValue)
             {
                 var tankSubStationId = await _db.FuelTanks
@@ -458,6 +483,8 @@ public class FuelMovementService : IFuelMovementService
             .Include(m => m.FuelLookup)
             .Include(m => m.TransactionTypeLookup)
             .Include(m => m.SubStation)
+            .Include(m => m.SourceSubStation)
+            .Include(m => m.DestinationSubStation)
             .Include(m => m.ApprovedBy)
             .Where(m => m.DeletedAt == null && m.MeterId == fuelTankId);
 
@@ -481,7 +508,13 @@ public class FuelMovementService : IFuelMovementService
                 m.IsApproved,
                 m.ApprovedBy != null ? m.ApprovedBy.FullName : null,
                 m.ApprovedAt,
-                m.CreatedAt))
+                m.CreatedAt,
+                m.SourceSubStation != null ? m.SourceSubStation.Name : null,
+                m.DestinationSubStation != null ? m.DestinationSubStation.Name : null,
+                m.InvoiceQuantity,
+                m.InvoiceNumber,
+                m.CorrectedFromId,
+                m.CorrectionReason))
             .ToListAsync();
 
         return new PagedResult<FuelMovementListDto>
@@ -520,7 +553,7 @@ public class FuelMovementService : IFuelMovementService
             ?? throw new InvalidOperationException("Failed to retrieve approved transaction.");
     }
 
-    public async Task<FuelMovementDetailDto> RejectMovementAsync(int id, int authorizedBy)
+    public async Task<FuelMovementDetailDto> RejectMovementAsync(int id, int authorizedBy, string? rejectionReason = null)
     {
         var movement = await _db.FuelTransactions.FindAsync(id)
             ?? throw new KeyNotFoundException($"FuelTransaction {id} not found");
@@ -528,6 +561,7 @@ public class FuelMovementService : IFuelMovementService
         movement.IsApproved = false;
         movement.ApprovedById = authorizedBy;
         movement.ApprovedAt = DateTime.UtcNow;
+        movement.Notes = string.IsNullOrEmpty(rejectionReason) ? movement.Notes : $"{movement.Notes}\nRejection Reason: {rejectionReason}".Trim();
         movement.UpdatedAt = DateTime.UtcNow;
         movement.UpdatedBy = authorizedBy;
 
@@ -549,6 +583,72 @@ public class FuelMovementService : IFuelMovementService
         await _db.SaveChangesAsync();
     }
 
+    public async Task<FuelMovementDetailDto?> GetLastBySubStationAsync(int subStationId)
+    {
+        if (!_currentUser.HasAnyAdminRole)
+        {
+            var userId = _currentUser.UserId;
+            if (userId.HasValue)
+            {
+                var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
+                if (!accessibleIds.Contains(subStationId))
+                    return null;
+            }
+        }
+
+        return await _db.FuelTransactions
+            .AsNoTracking()
+            .Include(m => m.FuelLookup)
+            .Include(m => m.TransactionTypeLookup)
+            .Include(m => m.SubStation)
+            .Include(m => m.SourceSubStation)
+            .Include(m => m.DestinationSubStation)
+            .Include(m => m.Meter)
+            .Include(m => m.ApprovedBy)
+            .Where(m => m.DeletedAt == null && m.SubStationId == subStationId)
+            .OrderByDescending(m => m.TransactionDate)
+            .Select(m => new FuelMovementDetailDto(
+                m.Id,
+                m.SubStationId,
+                m.SubStation != null ? m.SubStation.Name : "—",
+                m.FuelLookupId,
+                m.FuelLookup != null ? m.FuelLookup.Name : "—",
+                m.TransactionTypeLookupId,
+                m.TransactionTypeLookup != null ? m.TransactionTypeLookup.Name : null,
+                m.TransactionDate,
+                m.QuantityLiters,
+                m.Reference,
+                m.SupplierCompany,
+                m.DriverName,
+                m.DriverIdCard,
+                m.TruckNumber,
+                m.InvoiceNumber,
+                m.InvoiceDate,
+                m.InvoiceQuantity,
+                m.MeterId,
+                m.Meter != null ? m.Meter.Name : null,
+                m.PrevMeterVisualReading,
+                m.CurrentMeterVisualReading,
+                m.PrevMeterStandardReading,
+                m.CurrentMeterStandardReading,
+                m.SourceSubStationId,
+                m.SourceSubStation != null ? m.SourceSubStation.Name : null,
+                m.DestinationSubStationId,
+                m.DestinationSubStation != null ? m.DestinationSubStation.Name : null,
+                m.CorrectedFromId,
+                m.CorrectionReason,
+                m.IsApproved,
+                m.ApprovedById,
+                m.ApprovedBy != null ? m.ApprovedBy.FullName : null,
+                m.ApprovedAt,
+                m.CreatedBy,
+                m.UpdatedBy,
+                m.CreatedAt,
+                m.UpdatedAt,
+                m.Notes))
+            .FirstOrDefaultAsync();
+    }
+
     private static void ApplyFilters(ref IQueryable<FuelTransaction> query, string? search, string? status)
     {
         if (!string.IsNullOrWhiteSpace(search))
@@ -558,6 +658,31 @@ public class FuelMovementService : IFuelMovementService
         {
             bool approved = status.Equals("Approved", StringComparison.OrdinalIgnoreCase);
             query = query.Where(m => m.IsApproved == approved);
+        }
+    }
+
+    /// <summary>
+    /// Allowed transaction type codes for fuel movements.
+    /// </summary>
+    private static readonly HashSet<string> AllowedTransactionTypeCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Purchase", "Transfer", "Loss", "Consumption"
+    };
+
+    /// <summary>
+    /// Validates that the transaction type is one of the allowed codes.
+    /// </summary>
+    private async Task ValidateTransactionTypeAsync(int? transactionTypeLookupId)
+    {
+        if (!transactionTypeLookupId.HasValue)
+            throw new InvalidOperationException("Transaction type is required.");
+
+        var code = await GetTransactionTypeCodeAsync(transactionTypeLookupId.Value);
+        if (code is null || !AllowedTransactionTypeCodes.Contains(code))
+        {
+            var allowed = string.Join(", ", AllowedTransactionTypeCodes);
+            throw new InvalidOperationException(
+                $"Invalid transaction type ID {transactionTypeLookupId.Value}. Allowed types: {allowed}.");
         }
     }
 

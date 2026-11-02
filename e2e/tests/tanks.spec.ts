@@ -7,7 +7,7 @@ import { rand, gotoPage, assertSelectFromApi, assertCascade, ensureHierarchy, se
  * Branch → Station → SubStation cascade (all DB-driven), and edit.
  */
 const tankModal = (page: any) =>
-  page.locator('div.glass-card', { has: page.getByRole('button', { name: /Save Tank|حفظ الخزان/i }) }).last();
+  page.locator('.modal-overlay').last();
 
 test.describe('Tank Setup', () => {
   test('loads without errors', async ({ page }) => {

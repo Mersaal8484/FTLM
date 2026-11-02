@@ -40,7 +40,7 @@ public class NotificationsController : BaseApiController
     {
         var userId = GetUserId();
         await _service.MarkAsReadAsync(id, userId);
-        await _notifier.NotifyAllAsync("NotificationRead", new { id });
+        await _notifier.NotifyUserAsync(userId.ToString(), "NotificationRead", new { id });
         return NoContent();
     }
 
@@ -49,7 +49,7 @@ public class NotificationsController : BaseApiController
     {
         var userId = GetUserId();
         await _service.MarkAllAsReadAsync(userId);
-        await _notifier.NotifyAllAsync("AllNotificationsRead", new { });
+        await _notifier.NotifyUserAsync(userId.ToString(), "AllNotificationsRead", new { });
         return NoContent();
     }
 
@@ -58,7 +58,6 @@ public class NotificationsController : BaseApiController
     {
         var userId = GetUserId();
         var result = await _service.CreateAsync(dto, userId);
-        await _notifier.NotifyAllAsync("NotificationCreated", new { id = result.Id, result.Title });
         return CreatedAtAction(nameof(GetAll), null, result);
     }
 

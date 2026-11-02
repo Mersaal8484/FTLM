@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace FuelTrack.API.Controllers;
 
-[Authorize(Roles = "Admin")]
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class RollbackController : BaseApiController

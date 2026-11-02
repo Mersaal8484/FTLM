@@ -292,6 +292,30 @@ public class RoleService : IRoleService
             await _context.SaveChangesAsync();
         }
 
+        var existingSystemOwner = await _roleManager.FindByNameAsync("SystemOwner");
+        if (existingSystemOwner == null)
+        {
+            var systemOwnerRole = new Role
+            {
+                Name = "SystemOwner",
+                Key = "systemowner",
+                Description = "System owner with full unrestricted access (bypasses all scope and permission checks)",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            await _roleManager.CreateAsync(systemOwnerRole);
+
+            var ownerPerms = allPermissions.Select(pp => new RolePermission
+            {
+                RoleId = systemOwnerRole.Id,
+                PagePermissionId = pp.Id,
+                IsGranted = true
+            }).ToList();
+            _context.RolePermissions.AddRange(ownerPerms);
+            await _context.SaveChangesAsync();
+        }
+
         var existingOperator = await _roleManager.FindByNameAsync("Operator");
         var viewOnlyPerms = allPermissions
             .Where(pp => pp.ActionKey == "view" || pp.ActionKey == "read")

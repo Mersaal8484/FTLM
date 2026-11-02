@@ -22,6 +22,9 @@ Thumbs.db
 # Frontend build
 frontend/build/
 
+# Frontend env
+frontend/.env
+
 # Logs
 *.log
 
@@ -34,3 +37,4 @@ temp_models/
 
 # K8s secrets (never commit real credentials)
 k8s/base/secrets.yaml
+testsprite_tests\tmp\config.json

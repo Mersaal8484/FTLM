@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  Plus, Search, Edit2, Trash2, Cpu, X,
+  Plus, Search, Edit2, Trash2, Cpu, X, Save,
   Wifi, WifiOff, AlertCircle, CheckCircle,
   Activity, RefreshCw, Settings, Zap, Clock, Shield, Unlink
 } from 'lucide-react';
 import client from '../api/client';
 import socket from '../socket';
+import ConfirmModal from '../components/ConfirmModal';
+import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 
 const CONTROLLER_MODELS = [
   { value: 'DSE8610', label: 'DSE 8610' },
@@ -34,6 +36,7 @@ const INIT_FORM = {
   ipAddress: '', port: 502, modbusUnitId: 1,
   registerType: 'FC03', autoConnect: true,
   energyReading: 0, energyUnit: 'kWh', operatingHours: 0,
+  isActive: true,
 };
 
 function ConnBadge({ status, ar }) {
@@ -62,6 +65,7 @@ function Controllers({ lang, t }) {
   const [editId,     setEditId]     = useState(null);
   const [form,       setForm]       = useState(INIT_FORM);
   const [activeTab,  setActiveTab]  = useState('basic');
+  const [confirmModal, setConfirmModal] = useState({ open: false, id: null, action: null });
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -107,6 +111,7 @@ function Controllers({ lang, t }) {
       registerType: item.registerType || 'FC03', autoConnect: item.autoConnect ?? true,
       energyReading: item.energyReading ?? 0, energyUnit: item.energyUnit || 'kWh',
       operatingHours: item.operatingHours ?? 0,
+      isActive: item.isActive !== false,
     });
     setEditId(item.id); setActiveTab('basic'); setError(null); setShowModal(true);
   };
@@ -136,6 +141,7 @@ function Controllers({ lang, t }) {
         firmwareVersion: null, energyReading: Number(form.energyReading) || 0,
         operatingHours: Number(form.operatingHours) || 0, registerType: form.registerType || 'FC03',
         autoConnect: form.autoConnect, energyUnit: form.energyUnit || 'kWh',
+        isActive: form.isActive,
       };
       if (editId) await client.put(`/api/controllers/${editId}`, payload);
       else        await client.post('/api/controllers', payload);
@@ -146,7 +152,11 @@ function Controllers({ lang, t }) {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm(ar ? 'هل تريد حذف هذه الشاشة؟' : 'Delete this controller?')) return;
+    setConfirmModal({ open: true, id, action: 'delete' });
+  };
+  const confirmDelete = async () => {
+    const id = confirmModal.id;
+    setConfirmModal({ open: false, id: null, action: null });
     try { await client.delete(`/api/controllers/${id}`); await load(); }
     catch (err) {
       if (err.response?.status === 404) setItems(prev => prev.filter(i => i.id !== id));
@@ -182,7 +192,6 @@ function Controllers({ lang, t }) {
   const withErrors = items.filter(i => i.connectionStatus === 'error').length;
   const linked     = items.filter(i => i.generatorId).length;
 
-  // Track which generators are already linked to OTHER controllers
   const linkedGeneratorIds = useMemo(() => {
     const map = {};
     items.forEach(i => {
@@ -194,7 +203,11 @@ function Controllers({ lang, t }) {
   }, [items, editId]);
 
   const handleUnlink = async (controllerId) => {
-    if (!window.confirm(ar ? 'هل تريد إلغاء ارتباط المولد؟' : 'Unlink generator from this controller?')) return;
+    setConfirmModal({ open: true, id: controllerId, action: 'unlink' });
+  };
+  const confirmUnlink = async () => {
+    const controllerId = confirmModal.id;
+    setConfirmModal({ open: false, id: null, action: null });
     try {
       await client.patch(`/api/controllers/${controllerId}/assign-generator`, { generatorId: null });
       await load();
@@ -211,25 +224,18 @@ function Controllers({ lang, t }) {
 
   return (
     <div>
-      {/* ── Header ── */}
-      <div className="page-header">
-        <div className="page-header-row">
-          <div>
-            <h1>{ar ? 'شاشات التحكم' : 'Generator Controllers'}</h1>
-            <p>{ar ? 'إدارة شاشات التحكم وإعدادات Modbus TCP للربط التلقائي' : 'Manage controllers and Modbus TCP settings for auto-connect'}</p>
-          </div>
+      <PageHeader
+        title={ar ? 'شاشات التحكم' : 'Generator Controllers'}
+        subtitle={ar ? 'إدارة شاشات التحكم وإعدادات Modbus TCP للربط التلقائي' : 'Manage controllers and Modbus TCP settings for auto-connect'}
+        actions={
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-ghost" onClick={load}>
-              <RefreshCw size={15} />
-            </button>
-            <button className="btn btn-primary" onClick={openAdd}>
-              <Plus size={16} /> {ar ? 'إضافة شاشة' : 'Add Screen'}
-            </button>
+            <Button variant="ghost" size="sm" icon={RefreshCw} onClick={load} />
+            <Button icon={Plus} onClick={openAdd}>{ar ? 'إضافة شاشة' : 'Add Screen'}</Button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      {/* ── KPI Cards ── */}
+      {/* KPI Cards */}
       <div className="kpi-grid">
         {[
           { label: ar ? 'الإجمالي'     : 'Total',   value: total,      icon: <Cpu size={20} />,        colorClass: 'primary' },
@@ -249,7 +255,7 @@ function Controllers({ lang, t }) {
         ))}
       </div>
 
-      {/* ── Search ── */}
+      {/* Search */}
       <div style={{ marginBottom: 20 }}>
         <div className="search-bar" style={{ maxWidth: 400 }}>
           <Search size={16} />
@@ -259,11 +265,11 @@ function Controllers({ lang, t }) {
         </div>
       </div>
 
-      {/* ── Cards ── */}
+      {/* Cards */}
       {loading ? (
         <div className="spinner-wrap"><div className="ft-spinner" /></div>
       ) : error && !showModal ? (
-        <div className="alert alert-danger">{error}</div>
+        <div className="alert-inline alert-inline-danger">{error}</div>
       ) : filtered.length === 0 ? (
         <div className="empty-state"><Cpu size={48} /><h3>{t.noData}</h3></div>
       ) : (
@@ -281,9 +287,10 @@ function Controllers({ lang, t }) {
                       <div className="ctrl-card-sn">SN: {item.serialNumber}</div>
                     )}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <ConnBadge status={item.connectionStatus || 'unknown'} ar={ar} />
-                  </div>
+                    <div className="ctrl-card-badge-stack">
+                      <span className={`status-badge ${item.isActive !== false ? 'status-active' : 'status-inactive'}`}>{item.isActive !== false ? (ar ? 'نشط' : 'Active') : (ar ? 'غير نشط' : 'Inactive')}</span>
+                      <ConnBadge status={item.connectionStatus || 'unknown'} ar={ar} />
+                    </div>
                 </div>
 
                 {/* Card body */}
@@ -302,47 +309,30 @@ function Controllers({ lang, t }) {
                   )}
 
                   {/* Stats grid */}
-                  <div className="ctrl-card-stats">
-                    {/* IP */}
-                    <div className="ctrl-stat">
-                      <div className="ctrl-stat-label">IP</div>
-                      <div className="ctrl-stat-value" style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                        {item.ipAddress ? `${item.ipAddress}:${item.port || 502}` : '—'}
+                   <div className="ctrl-card-stats">
+                      {/* Energy */}
+                      <div className="ctrl-stat">
+                        <div className="ctrl-stat-label">{ar ? 'الطاقة' : 'Energy'}</div>
+                        <div className="ctrl-stat-value">
+                          {item.energyReading > 0
+                            ? <>{item.energyReading.toLocaleString()} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.energyUnit || 'kWh'}</span></>
+                            : '—'}
+                        </div>
+                      </div>
+                      {/* Hours */}
+                      <div className="ctrl-stat">
+                        <div className="ctrl-stat-label">{ar ? 'الساعات' : 'Hours'}</div>
+                        <div className="ctrl-stat-value">
+                          {item.operatingHours > 0
+                            ? <>{item.operatingHours.toLocaleString()} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{ar ? 'ساعة' : 'hrs'}</span></>
+                            : '—'}
+                        </div>
                       </div>
                     </div>
-                    {/* Unit ID */}
-                    <div className="ctrl-stat">
-                      <div className="ctrl-stat-label">Unit ID</div>
-                      <div className="ctrl-stat-value">{item.modbusUnitId ?? 1}</div>
-                    </div>
-                    {/* Energy */}
-                    <div className="ctrl-stat">
-                      <div className="ctrl-stat-label">{ar ? 'الطاقة' : 'Energy'}</div>
-                      <div className="ctrl-stat-value">
-                        {item.energyReading > 0
-                          ? <>{item.energyReading.toLocaleString()} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.energyUnit || 'kWh'}</span></>
-                          : '—'}
-                      </div>
-                    </div>
-                    {/* Hours */}
-                    <div className="ctrl-stat">
-                      <div className="ctrl-stat-label">{ar ? 'الساعات' : 'Hours'}</div>
-                      <div className="ctrl-stat-value">
-                        {item.operatingHours > 0
-                          ? <>{item.operatingHours.toLocaleString()} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{ar ? 'ساعة' : 'hrs'}</span></>
-                          : '—'}
-                      </div>
-                    </div>
-                  </div>
 
                   {/* Test result */}
                   {tr && (
-                    <div style={{
-                      padding: '7px 10px', borderRadius: 7, marginTop: 10, fontSize: 12,
-                      background: tr.ok ? 'var(--secondary-glow)' : 'var(--danger-glow)',
-                      color: tr.ok ? 'var(--secondary)' : 'var(--danger)',
-                      display: 'flex', alignItems: 'flex-start', gap: 6,
-                    }}>
+                    <div className={`ctrl-test-result ${tr.ok ? 'ok' : 'err'}`}>
                       {tr.ok
                         ? <CheckCircle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
                         : <AlertCircle  size={13} style={{ flexShrink: 0, marginTop: 1 }} />}
@@ -354,27 +344,22 @@ function Controllers({ lang, t }) {
                 {/* Card footer */}
                 <div className="ctrl-card-footer">
                   {item.ipAddress && (
-                    <button className="btn btn-sm btn-ghost"
-                      onClick={() => handleTest(item)} disabled={testing === item.id}>
-                      {testing === item.id
-                        ? <><span className="ft-spinner" style={{ width: 12, height: 12 }} /></>
-                        : <Wifi size={13} />}
+                    <Button variant="ghost" size="sm" icon={testing === item.id ? null : Wifi} onClick={() => handleTest(item)} disabled={testing === item.id}>
+                      {testing === item.id ? <span className="ft-spinner" style={{ width: 12, height: 12 }} /> : null}
                       {ar ? 'اختبار' : 'Test'}
-                    </button>
+                    </Button>
                   )}
                   {item.generatorId && (
-                    <button className="btn btn-sm btn-ghost"
-                      onClick={() => handleUnlink(item.id)}
-                      style={{ color: 'var(--danger)' }}>
-                       <Unlink size={13} /> {ar ? 'إلغاء الارتباط' : 'Unlink'}
-                    </button>
+                    <Button variant="ghost" size="sm" icon={Unlink} onClick={() => handleUnlink(item.id)} style={{ color: 'var(--danger)' }}>
+                      {ar ? 'إلغاء الارتباط' : 'Unlink'}
+                    </Button>
                   )}
-                  <button className="btn btn-sm btn-ghost" onClick={() => openEdit(item)}>
-                    <Edit2 size={13} /> {t.edit}
-                  </button>
-                  <button className="btn btn-sm btn-danger" onClick={() => handleDelete(item.id)}>
-                    <Trash2 size={13} /> {t.delete}
-                  </button>
+                  <Button variant="ghost" size="sm" icon={Edit2} onClick={() => openEdit(item)}>
+                    {t.edit}
+                  </Button>
+                  <Button variant="danger" size="sm" icon={Trash2} onClick={() => handleDelete(item.id)}>
+                    {t.delete}
+                  </Button>
                 </div>
               </div>
             );
@@ -384,218 +369,227 @@ function Controllers({ lang, t }) {
 
       {/* ══════════════ Modal ══════════════ */}
       {showModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && closeModal()}>
-          <div className="ctrl-modal-box">
-
-            {/* Header */}
-            <div className="ctrl-modal-header">
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
-                {editId
-                  ? (ar ? 'تعديل بيانات الشاشة' : 'Edit Controller')
-                  : (ar ? 'إضافة شاشة جديدة' : 'Add New Controller')}
-              </div>
-              <button className="modal-close" onClick={closeModal}><X size={18} /></button>
-            </div>
-
-            {/* Body */}
-            <div className="ctrl-modal-body">
-              {error && <div className="alert alert-danger" style={{ marginBottom: 16 }}>{error}</div>}
-
-              {/* Tab bar */}
-              <div className="ctrl-tab-bar">
-                {TABS.map(tab => (
-                  <button key={tab.key} className={`ctrl-tab-btn ${activeTab === tab.key ? 'active' : ''}`}
-                    onClick={() => setActiveTab(tab.key)}>
-                    {tab.icon}
-                    {ar ? tab.label_ar : tab.label_en}
-                  </button>
-                ))}
-              </div>
-
-              {/* Tab 1 — Basic Info */}
-              <div className={`ctrl-tab-content ${activeTab === 'basic' ? 'active' : ''}`}>
-                <div className="ctrl-tab-section-title">{ar ? 'معلومات الجهاز' : 'Device Information'}</div>
-
-                {/* Manufacturer — read-only */}
-                <div className="ctrl-readonly-field" style={{ marginBottom: 16 }}>
-                  <div>
-                    <div className="ctrl-readonly-label">{ar ? 'الشركة المصنعة' : 'Manufacturer'}</div>
-                  </div>
-                  <div className="ctrl-readonly-value">Deep Sea Electronics</div>
-                </div>
-
-                {/* Model */}
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'الموديل *' : 'Model *'}</label>
-                  <select className="form-select" value={form.controllerType}
-                    onChange={e => fld('controllerType', e.target.value)}>
-                    {CONTROLLER_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                  </select>
-                </div>
-
-                {/* Serial number */}
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'الرقم التسلسلي *' : 'Serial Number *'}</label>
-                  <input className="form-control" value={form.serialNumber}
-                    onChange={e => fld('serialNumber', e.target.value)}
-                    placeholder="e.g. DSE-8610-001" />
-                </div>
-
-                <div className="ctrl-tab-divider" />
-                <div className="ctrl-tab-section-title">{ar ? 'المولد المرتبط' : 'Assigned Generator'}</div>
-
-                <div className="form-group">
-                  <select className="form-select" value={form.generatorId}
-                    onChange={e => fld('generatorId', e.target.value)}>
-                    <option value="">{ar ? '— غير مرتبطة —' : '— Not linked —'}</option>
-                    {generators.map(g => {
-                      const linkedToOther = linkedGeneratorIds[g.id];
-                      return (
-                        <option key={g.id} value={g.id} disabled={!!linkedToOther}>
-                          {g.name} {linkedToOther ? (ar ? '(مرتبطة بشاشة أخرى)' : '(Linked to another)') : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  {form.generatorId && linkedGeneratorIds[Number(form.generatorId)] && (
-                    <div style={{ color: 'var(--danger)', fontSize: 12, marginTop: 4 }}>
-                      {ar ? 'هذا المولد مرتبطة بشاشة أخرى بالفعل' : 'This generator is already linked to another controller'}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Tab 2 — Connection */}
-              <div className={`ctrl-tab-content ${activeTab === 'connection' ? 'active' : ''}`}>
-                <div style={{
-                  background: 'var(--card-2)', border: '1px solid var(--border)',
-                  borderRadius: 10, padding: '10px 14px', marginBottom: 20, fontSize: 13,
-                  color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8,
-                }}>
-                  <Shield size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                  <span>
-                    <span style={{ fontWeight: 600, color: 'var(--primary)' }}>Modbus TCP</span>
-                    {ar ? ' — تأكد من تفعيل Modbus في إعدادات الشاشة' : ' — Enable Modbus in controller settings'}
-                  </span>
-                </div>
-
-                <div className="ctrl-tab-section-title">{ar ? 'عنوان الشبكة' : 'Network Address'}</div>
-
-                <div className="form-row" style={{ marginBottom: 16 }}>
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'عنوان IP' : 'IP Address'}</label>
-                    <input className="form-control" type="text" dir="ltr"
-                      value={form.ipAddress}
-                      onChange={e => fld('ipAddress', e.target.value.trim())}
-                      placeholder="192.168.1.100" />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'المنفذ' : 'Port'}</label>
-                    <input className="form-control" type="number"
-                      value={form.port}
-                      onChange={e => fld('port', parseInt(e.target.value, 10) || 502)}
-                      min={1} max={65535} />
-                  </div>
-                </div>
-
-                <div className="ctrl-tab-divider" />
-                <div className="ctrl-tab-section-title">{ar ? 'إعدادات Modbus' : 'Modbus Settings'}</div>
-
-                <div className="form-group">
-                  <label className="form-label">
-                    Unit ID
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>
-                      ({ar ? 'عادةً 1' : 'usually 1'})
-                    </span>
-                  </label>
-                  <input className="form-control" type="number"
-                    value={form.modbusUnitId}
-                    onChange={e => fld('modbusUnitId', parseInt(e.target.value, 10) || 1)}
-                    min={1} max={247} />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'نوع السجلات' : 'Register Type'}</label>
-                  <select className="form-select" value={form.registerType}
-                    onChange={e => fld('registerType', e.target.value)}>
-                    {REGISTER_TYPES.map(r => (
-                      <option key={r.value} value={r.value}>{ar ? r.label_ar : r.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="ctrl-tab-divider" />
-                <div className="ctrl-tab-section-title">{ar ? 'الاتصال التلقائي' : 'Auto-Connect'}</div>
-
-                <div className="ctrl-toggle-wrap">
-                  <div>
-                    <div className="ctrl-toggle-label">{ar ? 'تفعيل الاتصال التلقائي' : 'Enable Auto-connect'}</div>
-                    <div className="ctrl-toggle-sub">
-                      {ar ? 'الخدمة ستتصل تلقائياً بالشاشة عبر Modbus TCP' : 'Service will auto-connect via Modbus TCP'}
-                    </div>
-                  </div>
-                  <button type="button" className={`ctrl-toggle ${form.autoConnect ? 'on' : ''}`}
-                    onClick={() => fld('autoConnect', !form.autoConnect)} />
-                </div>
-              </div>
-
-              {/* Tab 3 — Readings */}
-              <div className={`ctrl-tab-content ${activeTab === 'readings' ? 'active' : ''}`}>
-                <div style={{
-                  background: 'var(--card-2)', border: '1px solid var(--border)',
-                  borderRadius: 10, padding: '10px 14px', marginBottom: 20, fontSize: 13,
-                  color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8,
-                }}>
-                  <Clock size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                  {ar
-                    ? 'أدخل القراءات اليدوية من العداد. يتم تحديثها يدوياً عند قراءة العداد.'
-                    : 'Enter manual meter readings. Updated manually when reading the meter.'}
-                </div>
-
-                <div className="ctrl-tab-section-title">{ar ? 'قراءة عداد الطاقة' : 'Energy Reading'}</div>
-
-                <div className="form-row" style={{ marginBottom: 16 }}>
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'القراءة الحالية' : 'Current Reading'}</label>
-                    <input className="form-control" type="number" step="0.01"
-                      value={form.energyReading}
-                      onChange={e => fld('energyReading', parseFloat(e.target.value) || 0)}
-                      placeholder="0" />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'الوحدة' : 'Unit'}</label>
-                    <select className="form-select" value={form.energyUnit}
-                      onChange={e => fld('energyUnit', e.target.value)}>
-                      {ENERGY_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="ctrl-tab-divider" />
-                <div className="ctrl-tab-section-title">{ar ? 'ساعات التشغيل' : 'Operating Hours'}</div>
-
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'ساعات التشغيل الكلية' : 'Total Operating Hours'}</label>
-                  <input className="form-control" type="number" step="0.01"
-                    value={form.operatingHours}
-                    onChange={e => fld('operatingHours', parseFloat(e.target.value) || 0)}
-                    placeholder="0" />
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="ctrl-modal-footer">
-              <button className="btn btn-ghost" onClick={closeModal}>{ar ? 'إلغاء' : 'Cancel'}</button>
-              <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
+        <Modal
+          open={showModal}
+          onClose={closeModal}
+          title={editId ? (ar ? 'تعديل بيانات الشاشة' : 'Edit Controller') : (ar ? 'إضافة شاشة جديدة' : 'Add New Controller')}
+          maxWidth={640}
+          footer={
+            <>
+              <Button variant="ghost" onClick={closeModal}>{ar ? 'إلغاء' : 'Cancel'}</Button>
+              <Button variant="primary" onClick={handleSubmit} disabled={saving} icon={Save}>
                 {saving
-                  ? <><span className="ft-spinner" style={{ width: 14, height: 14 }} /> {ar ? 'جاري الحفظ...' : 'Saving...'}</>
-                  : (editId ? (ar ? 'تحديث الشاشة' : 'Update Screen') : (ar ? 'إضافة شاشة' : 'Add Screen'))}
+                  ? ar ? 'جاري الحفظ...' : 'Saving...'
+                  : editId ? (ar ? 'تحديث الشاشة' : 'Update Screen') : (ar ? 'إضافة شاشة' : 'Add Screen')}
+              </Button>
+            </>
+          }
+        >
+          {error && <div className="alert-inline alert-inline-danger" style={{ marginBottom: 16 }}>{error}</div>}
+
+          {/* Tab bar */}
+          <div className="ctrl-tab-bar">
+            {TABS.map(tab => (
+              <button key={tab.key} className={`ctrl-tab-btn ${activeTab === tab.key ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.key)}>
+                {tab.icon}
+                {ar ? tab.label_ar : tab.label_en}
               </button>
+            ))}
+          </div>
+
+          {/* Tab 1 — Basic Info */}
+          <div className={`ctrl-tab-content ${activeTab === 'basic' ? 'active' : ''}`}>
+             <div className="ctrl-tab-section-title">{ar ? 'معلومات الجهاز' : 'Device Information'}</div>
+
+            {/* Manufacturer — read-only */}
+            <div className="ctrl-readonly-field" style={{ marginBottom: 16 }}>
+              <div>
+                <div className="ctrl-readonly-label">{ar ? 'الشركة المصنعة' : 'Manufacturer'}</div>
+              </div>
+              <div className="ctrl-readonly-value">Deep Sea Electronics</div>
+            </div>
+
+            {/* Model */}
+            <FormField label={ar ? 'الموديل *' : 'Model *'} required>
+              <select className="form-select" value={form.controllerType}
+                onChange={e => fld('controllerType', e.target.value)}>
+                {CONTROLLER_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </FormField>
+
+            {/* Serial number */}
+            <FormField label={ar ? 'الرقم التسلسلي *' : 'Serial Number *'} required error={!form.serialNumber.trim() ? (ar ? 'الرقم التسلسلي مطلوب' : 'Serial number is required') : null}>
+              <Input value={form.serialNumber}
+                onChange={e => fld('serialNumber', e.target.value)}
+                placeholder="e.g. DSE-8610-001" />
+            </FormField>
+
+            <div className="ctrl-tab-divider" />
+            <div className="ctrl-tab-section-title">{ar ? 'الحالة' : 'Status'}</div>
+
+            <div className="ctrl-toggle-wrap">
+              <div>
+                <div className="ctrl-toggle-label">{ar ? 'نشط' : 'Active'}</div>
+                <div className="ctrl-toggle-sub">
+                  {ar ? 'ظهر الشاشة في قائمة المراقبة' : 'Visible in monitoring list'}
+                </div>
+              </div>
+              <label className="ctrl-toggle">
+                <input type="checkbox" checked={form.isActive}
+                  onChange={e => fld('isActive', e.target.checked)} />
+                <span className="slider"></span>
+              </label>
+            </div>
+
+            <div className="ctrl-tab-divider" />
+            <div className="ctrl-tab-section-title">{ar ? 'المولد المرتبط' : 'Assigned Generator'}</div>
+
+            <FormField label={ar ? 'المولد المرتبط' : 'Assigned Generator'}>
+              <select className="form-select" value={form.generatorId}
+                onChange={e => fld('generatorId', e.target.value)}>
+                <option value="">{ar ? '— غير مرتبطة —' : '— Not linked —'}</option>
+                {generators.map(g => {
+                  const linkedToOther = linkedGeneratorIds[g.id];
+                  return (
+                    <option key={g.id} value={g.id} disabled={!!linkedToOther}>
+                      {g.name} {linkedToOther ? (ar ? '(مرتبطة بشاشة أخرى)' : '(Linked to another)') : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </FormField>
+             {form.generatorId && linkedGeneratorIds[Number(form.generatorId)] && (
+               <div className="form-help" style={{ color: 'var(--danger)', marginTop: 6 }}>
+                 {ar ? 'هذا المولد مرتبطة بشاشة أخرى بالفعل' : 'This generator is already linked to another controller'}
+               </div>
+             )}
+          </div>
+
+          {/* Tab 2 — Connection */}
+          <div className={`ctrl-tab-content ${activeTab === 'connection' ? 'active' : ''}`}>
+            <div className="ctrl-infobox">
+              <Shield size={15} />
+              <span>
+                <span className="ctrl-infobox-strong">Modbus TCP</span>
+                {ar ? ' — تأكد من تفعيل Modbus في إعدادات الشاشة' : ' — Enable Modbus in controller settings'}
+              </span>
+            </div>
+
+            <div className="ctrl-tab-section-title">{ar ? 'عنوان الشبكة' : 'Network Address'}</div>
+
+            <div className="form-row" style={{ marginBottom: 16 }}>
+              <FormField label={ar ? 'عنوان IP' : 'IP Address'} error={form.ipAddress && !/^(\d{1,3}\.){3}\d{1,3}$/.test(form.ipAddress.trim()) ? (ar ? 'صيغة IP غير صحيحة' : 'Invalid IP format') : null}>
+                <Input dir="ltr" value={form.ipAddress}
+                  onChange={e => fld('ipAddress', e.target.value.trim())}
+                  placeholder="192.168.1.100" />
+              </FormField>
+              <FormField label={ar ? 'المنفذ' : 'Port'}>
+                <Input type="number" value={form.port}
+                  onChange={e => fld('port', parseInt(e.target.value, 10) || 502)}
+                  min={1} max={65535} />
+              </FormField>
+            </div>
+
+            <div className="ctrl-tab-divider" />
+            <div className="ctrl-tab-section-title">{ar ? 'إعدادات Modbus' : 'Modbus Settings'}</div>
+
+            <FormField label={
+              <span>
+                Unit ID
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginInlineStart: 6 }}>
+                  ({ar ? 'عادةً 1' : 'usually 1'})
+                </span>
+              </span>
+            }>
+              <Input type="number" value={form.modbusUnitId}
+                onChange={e => fld('modbusUnitId', parseInt(e.target.value, 10) || 1)}
+                min={1} max={247} />
+            </FormField>
+
+            <FormField label={ar ? 'نوع السجلات' : 'Register Type'}>
+              <select className="form-select" value={form.registerType}
+                onChange={e => fld('registerType', e.target.value)}>
+                {REGISTER_TYPES.map(r => (
+                  <option key={r.value} value={r.value}>{ar ? r.label_ar : r.label}</option>
+                ))}
+              </select>
+            </FormField>
+
+            <div className="ctrl-tab-divider" />
+            <div className="ctrl-tab-section-title">{ar ? 'الاتصال التلقائي' : 'Auto-Connect'}</div>
+
+            <div className="ctrl-toggle-wrap">
+              <div>
+                <div className="ctrl-toggle-label">{ar ? 'تفعيل الاتصال التلقائي' : 'Enable Auto-connect'}</div>
+                <div className="ctrl-toggle-sub">
+                  {ar ? 'الخدمة ستتصل تلقائياً بالشاشة عبر Modbus TCP' : 'Service will auto-connect via Modbus TCP'}
+                </div>
+              </div>
+              <label className="ctrl-toggle">
+                <input type="checkbox" checked={form.autoConnect}
+                  onChange={e => fld('autoConnect', e.target.checked)} />
+                <span className="slider"></span>
+              </label>
             </div>
           </div>
-        </div>
+
+          {/* Tab 3 — Readings */}
+          <div className={`ctrl-tab-content ${activeTab === 'readings' ? 'active' : ''}`}>
+            <div className="ctrl-infobox">
+              <Clock size={15} />
+              {ar
+                ? 'أدخل القراءات اليدوية من العداد. يتم تحديثها يدوياً عند قراءة العداد.'
+                : 'Enter manual meter readings. Updated manually when reading the meter.'}
+            </div>
+
+            <div className="ctrl-tab-section-title">{ar ? 'قراءة عداد الطاقة' : 'Energy Reading'}</div>
+
+            <div className="form-row" style={{ marginBottom: 16 }}>
+              <FormField label={ar ? 'القراءة الحالية' : 'Current Reading'}>
+                <Input type="number" step="0.01" value={form.energyReading}
+                  onChange={e => fld('energyReading', parseFloat(e.target.value) || 0)}
+                  placeholder="0" />
+              </FormField>
+              <FormField label={ar ? 'الوحدة' : 'Unit'}>
+                <select className="form-select" value={form.energyUnit}
+                  onChange={e => fld('energyUnit', e.target.value)}>
+                  {ENERGY_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                </select>
+              </FormField>
+            </div>
+
+            <div className="ctrl-tab-divider" />
+            <div className="ctrl-tab-section-title">{ar ? 'ساعات التشغيل' : 'Operating Hours'}</div>
+
+            <FormField label={ar ? 'ساعات التشغيل الكلية' : 'Total Operating Hours'}>
+              <Input type="number" step="0.01" value={form.operatingHours}
+                onChange={e => fld('operatingHours', parseFloat(e.target.value) || 0)}
+                placeholder="0" />
+            </FormField>
+          </div>
+        </Modal>
       )}
+
+      <ConfirmModal
+        open={confirmModal.open}
+        title={ar ? 'تأكيد الحذف' : 'Confirm Delete'}
+        message={ar ? 'هل تريد حذف هذه الشاشة؟' : 'Delete this controller?'}
+        confirmText={ar ? 'حذف' : 'Delete'}
+        cancelText={ar ? 'إلغاء' : 'Cancel'}
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmModal({ open: false, id: null, action: null })}
+      />
+      <ConfirmModal
+        open={confirmModal.open && confirmModal.action === 'unlink'}
+        title={ar ? 'تأكيد إلغاء الارتباط' : 'Confirm Unlink'}
+        message={ar ? 'هل تريد إلغاء ارتباط المولد بهذه الشاشة؟' : 'Unlink generator from this controller?'}
+        confirmText={ar ? 'إلغاء الارتباط' : 'Unlink'}
+        cancelText={ar ? 'إلغاء' : 'Cancel'}
+        onConfirm={confirmUnlink}
+        onCancel={() => setConfirmModal({ open: false, id: null, action: null })}
+      />
     </div>
   );
 }

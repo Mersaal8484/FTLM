@@ -43,9 +43,10 @@ export default function Pagination({ page, totalPages, total, pageSize: _pageSiz
         disabled={page <= 1}
         onClick={() => onPageChange(1)}
         title={ar ? 'الأولى' : 'First'}
+        aria-label={ar ? 'الصفحة الأولى' : 'First page'}
         style={{ padding: '6px 8px' }}
       >
-        <ChevronsLeft size={14} />
+        <ChevronsLeft size={14} style={{ transform: ar ? 'scaleX(-1)' : 'none' }} />
       </button>
 
       {/* Prev */}
@@ -54,9 +55,10 @@ export default function Pagination({ page, totalPages, total, pageSize: _pageSiz
         disabled={page <= 1}
         onClick={() => onPageChange(page - 1)}
         title={ar ? 'السابقة' : 'Previous'}
+        aria-label={ar ? 'الصفحة السابقة' : 'Previous page'}
         style={{ padding: '6px 8px' }}
       >
-        <ChevronLeft size={14} />
+        <ChevronLeft size={14} style={{ transform: ar ? 'scaleX(-1)' : 'none' }} />
       </button>
 
       {/* Page number buttons */}
@@ -89,9 +91,10 @@ export default function Pagination({ page, totalPages, total, pageSize: _pageSiz
         disabled={page >= totalPages}
         onClick={() => onPageChange(page + 1)}
         title={ar ? 'التالية' : 'Next'}
+        aria-label={ar ? 'الصفحة التالية' : 'Next page'}
         style={{ padding: '6px 8px' }}
       >
-        <ChevronRight size={14} />
+        <ChevronRight size={14} style={{ transform: ar ? 'scaleX(-1)' : 'none' }} />
       </button>
 
       {/* Last */}
@@ -100,9 +103,10 @@ export default function Pagination({ page, totalPages, total, pageSize: _pageSiz
         disabled={page >= totalPages}
         onClick={() => onPageChange(totalPages)}
         title={ar ? 'الأخيرة' : 'Last'}
+        aria-label={ar ? 'الصفحة الأخيرة' : 'Last page'}
         style={{ padding: '6px 8px' }}
       >
-        <ChevronsRight size={14} />
+        <ChevronsRight size={14} style={{ transform: ar ? 'scaleX(-1)' : 'none' }} />
       </button>
     </div>
   );

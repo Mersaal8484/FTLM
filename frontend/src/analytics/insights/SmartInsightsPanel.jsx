@@ -17,7 +17,7 @@ export default function SmartInsightsPanel({ lang, insights = [], forecasts = []
       {forecasts.map((fc, i) => (
         <div key={`fc-${i}`} style={{ padding: '8px 12px', marginBottom: 8, background: 'var(--card)', borderRadius: 8, border: '1px solid var(--border)' }}>
           <span style={{ fontWeight: 500 }}>{fc.title || fc.label}</span>
-          {fc.value !== undefined && <span style={{ marginLeft: 8, opacity: 0.7 }}>{fc.value}</span>}
+          {fc.value !== undefined && <span style={{ marginInlineStart: 8, opacity: 0.7 }}>{fc.value}</span>}
         </div>
       ))}
     </div>

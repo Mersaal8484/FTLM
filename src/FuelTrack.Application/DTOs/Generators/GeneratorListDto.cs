@@ -21,4 +21,7 @@ public record GeneratorListDto(
     int? OwnershipTypeLookupId,
     string? OwnershipTypeLookupName,
     int? StatusLookupId,
-    string? StatusLookupName);
+    string? StatusLookupName,
+    bool IsActive,
+    string? ControllerName,
+    string? ControllerCode);

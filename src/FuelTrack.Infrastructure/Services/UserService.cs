@@ -269,3 +269,4 @@ public class UserService : IUserService
         user.Id, user.UserName!, user.FullName, user.Email,
         user.PhoneNumber, user.IsActive, user.CreatedAt, roles);
 }
+

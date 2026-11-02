@@ -20,13 +20,24 @@ public class CleanupExpiredRefreshTokensJob
 
         var now = DateTime.UtcNow;
 
-        var revokedDeleted = await _db.RefreshTokens
+        var revokedTokens = await _db.RefreshTokens
             .Where(rt => rt.IsRevoked && rt.RevokedAt != null && rt.RevokedAt < now.AddDays(-30))
-            .ExecuteDeleteAsync(ct);
+            .ToListAsync(ct);
 
-        var expiredDeleted = await _db.RefreshTokens
+        var expiredTokens = await _db.RefreshTokens
             .Where(rt => rt.ExpiresAt < now.AddDays(-7))
-            .ExecuteDeleteAsync(ct);
+            .ToListAsync(ct);
+
+        var revokedDeleted = revokedTokens.Count;
+        var expiredDeleted = expiredTokens.Count;
+
+        if (revokedDeleted > 0)
+            _db.RefreshTokens.RemoveRange(revokedTokens);
+        if (expiredDeleted > 0)
+            _db.RefreshTokens.RemoveRange(expiredTokens);
+
+        if (revokedDeleted > 0 || expiredDeleted > 0)
+            await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("[JOB] Removed {Revoked} revoked (>30d) and {Expired} expired (>7d) refresh tokens",
             revokedDeleted, expiredDeleted);

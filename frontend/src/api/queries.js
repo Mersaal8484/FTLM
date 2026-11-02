@@ -496,3 +496,195 @@ export const useChangePassword = () =>
     mutationFn: (data) =>
       client.post('/api/auth/change-password', data).then((r) => r.data),
   });
+
+// ── Query Keys: Warehouse & Maintenance ──
+
+export const sparePartKeys = {
+  all: ['spareParts'],
+  lists: () => [...sparePartKeys.all, 'list'],
+  detail: (id) => [...sparePartKeys.all, 'detail', id],
+  byCategory: (cat) => [...sparePartKeys.all, 'category', cat],
+};
+
+export const warehouseStockKeys = {
+  all: ['warehouseStock'],
+  lists: () => [...warehouseStockKeys.all, 'list'],
+  byStation: (stationId) => [...warehouseStockKeys.all, 'station', stationId],
+};
+
+export const supplyKeys = {
+  all: ['supplies'],
+  lists: () => [...supplyKeys.all, 'list'],
+  detail: (id) => [...supplyKeys.all, 'detail', id],
+};
+
+export const dispatchKeys = {
+  all: ['dispatches'],
+  lists: () => [...dispatchKeys.all, 'list'],
+  detail: (id) => [...dispatchKeys.all, 'detail', id],
+};
+
+export const workPermitKeys = {
+  all: ['workPermits'],
+  lists: () => [...workPermitKeys.all, 'list'],
+  detail: (id) => [...workPermitKeys.all, 'detail', id],
+};
+
+export const installedPartKeys = {
+  all: ['installedParts'],
+  lists: () => [...installedPartKeys.all, 'list'],
+  byGenerator: (genId) => [...installedPartKeys.all, 'generator', genId],
+};
+
+// ── Queries: Warehouse & Maintenance ──
+
+export const useSpareParts = (params) =>
+  useQuery({
+    queryKey: [...sparePartKeys.lists(), params],
+    queryFn: () => client.get('/api/spare-parts', { params }).then((r) => r.data),
+  });
+
+export const useWarehouseStock = (params) =>
+  useQuery({
+    queryKey: [...warehouseStockKeys.lists(), params],
+    queryFn: () => client.get('/api/warehouse/stock', { params }).then((r) => r.data),
+  });
+
+export const useSupplies = (params) =>
+  useQuery({
+    queryKey: [...supplyKeys.lists(), params],
+    queryFn: () => client.get('/api/warehouse/supply', { params }).then((r) => r.data),
+  });
+
+export const useDispatches = (params) =>
+  useQuery({
+    queryKey: [...dispatchKeys.lists(), params],
+    queryFn: () => client.get('/api/warehouse/dispatch', { params }).then((r) => r.data),
+  });
+
+export const useWorkPermits = (params) =>
+  useQuery({
+    queryKey: [...workPermitKeys.lists(), params],
+    queryFn: () => client.get('/api/work-permits', { params }).then((r) => r.data),
+  });
+
+export const useInstalledParts = (params) =>
+  useQuery({
+    queryKey: [...installedPartKeys.lists(), params],
+    queryFn: () => client.get('/api/installed-parts', { params }).then((r) => r.data),
+  });
+
+export const useMaintenanceDashboard = () =>
+  useQuery({
+    queryKey: ['maintenance', 'dashboard'],
+    queryFn: () => client.get('/api/maintenance/dashboard').then((r) => r.data),
+  });
+
+// ── Mutations: Warehouse & Maintenance ──
+
+export const useCreateSparePart = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => client.post('/api/spare-parts', data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: sparePartKeys.all }),
+  });
+};
+
+export const useUpdateSparePart = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }) => client.put(`/api/spare-parts/${id}`, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: sparePartKeys.all }),
+  });
+};
+
+export const useDeleteSparePart = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => client.delete(`/api/spare-parts/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: sparePartKeys.all }),
+  });
+};
+
+export const useCreateSupply = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => client.post('/api/warehouse/supply', data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: supplyKeys.all });
+      qc.invalidateQueries({ queryKey: warehouseStockKeys.all });
+    },
+  });
+};
+
+export const useConfirmSupply = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => client.post(`/api/warehouse/supply/${id}/confirm`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: supplyKeys.all }),
+  });
+};
+
+export const useCreateDispatch = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => client.post('/api/warehouse/dispatch', data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: dispatchKeys.all }),
+  });
+};
+
+export const useApproveDispatch = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }) => client.post(`/api/warehouse/dispatch/${id}/approve`, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: dispatchKeys.all }),
+  });
+};
+
+export const useExecuteDispatch = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => client.post(`/api/warehouse/dispatch/${id}/execute`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: dispatchKeys.all }),
+  });
+};
+
+export const useCreateWorkPermit = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => client.post('/api/work-permits', data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: workPermitKeys.all }),
+  });
+};
+
+export const useUpdateWorkPermit = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }) => client.put(`/api/work-permits/${id}`, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: workPermitKeys.all }),
+  });
+};
+
+export const useDeleteWorkPermit = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => client.delete(`/api/work-permits/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: workPermitKeys.all }),
+  });
+};
+
+export const useCreateInstalledPart = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => client.post('/api/installed-parts', data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: installedPartKeys.all }),
+  });
+};
+
+export const useRemoveInstalledPart = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }) => client.post(`/api/installed-parts/${id}/remove`, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: installedPartKeys.all }),
+  });
+};

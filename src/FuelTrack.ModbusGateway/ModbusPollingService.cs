@@ -1,3 +1,5 @@
+using System.Net.Http;
+using System.Net.Http.Json;
 using System.Net.Sockets;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Configuration;
@@ -88,6 +90,7 @@ public class ModbusPollingService : BackgroundService
             var port = device.GetValue<int>("Port", 502);
             var deviceId = device.GetValue<byte>("DeviceId", 1);
             var registerAddress = device.GetValue<ushort>("RegisterAddress", 0);
+            var generatorId = device.GetValue<int?>("GeneratorId");
             
             if (string.IsNullOrEmpty(ip)) continue;
 
@@ -98,10 +101,7 @@ public class ModbusPollingService : BackgroundService
                 
                 master.Transport.ReadTimeout = 2000;
                 
-                // Example: Reading Holding Registers (Function Code 3)
                 ushort[] registers = master.ReadHoldingRegisters(deviceId, registerAddress, 2);
-                
-                // Mock reading interpretation (for a float spanning 2 registers)
                 float value = InterpretFloat(registers);
 
                 _logger.LogInformation("Device {Ip}:{Port} Unit {Id} => Register {Reg} Value: {Val}", 
@@ -117,11 +117,45 @@ public class ModbusPollingService : BackgroundService
                         Timestamp = DateTime.UtcNow
                     }, cancellationToken);
                 }
+
+                if (generatorId.HasValue)
+                {
+                    await SaveReadingToApiAsync(generatorId.Value, value, cancellationToken);
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning("Failed to read from device {Ip}:{Port}. Error: {Message}", ip, port, ex.Message);
             }
+        }
+    }
+
+    private async Task SaveReadingToApiAsync(int generatorId, float fuelValue, CancellationToken ct)
+    {
+        try
+        {
+            var apiUrl = _configuration["ApiUrl"] ?? "http://localhost:5248";
+            var apiKey = _configuration["ModbusGateway:ApiKey"];
+
+            using var httpClient = new HttpClient();
+            if (!string.IsNullOrEmpty(apiKey))
+            {
+                httpClient.DefaultRequestHeaders.Add("X-Modbus-Key", apiKey);
+            }
+
+            var payload = new
+            {
+                GeneratorId = generatorId,
+                FuelLevelLiters = fuelValue,
+                ReadingTimestamp = DateTime.UtcNow
+            };
+
+            var response = await httpClient.PostAsJsonAsync($"{apiUrl}/api/readings/modbus", payload, ct);
+            response.EnsureSuccessStatusCode();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to save Modbus reading to API for generator {GeneratorId}", generatorId);
         }
     }
 

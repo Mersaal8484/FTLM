@@ -4,22 +4,29 @@ import client from '../api/client';
 import {
   LayoutDashboard, Zap, Database, Droplet, MapPin, Users,
   BarChart2, LogOut, Bell, ClipboardCheck, Truck,
-  PackageSearch, ChevronDown, Settings, Cpu, ShieldCheck, Gauge, Key, X, Lock, Sun, Moon, ScrollText, Menu, Undo2
+  PackageSearch, ChevronDown, Settings, Cpu, ShieldCheck, Gauge, Key, X, Lock, Sun, Moon, ScrollText, Menu, Undo2, FileText, Wrench, PackageCheck, Boxes
 } from 'lucide-react';
 import usePermissions from '../permissions/usePermissions';
+import useUiStore from '../store/uiStore';
+
 
 function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onLogout }) {
   const navigate = useNavigate();
   const ar = lang === 'ar';
+  const { setLang } = useUiStore();
+
   const roleKey = currentUser?.role || 'operator';
   const userRoles = (currentUser?.roles || []).map(r => (typeof r === 'string' ? r.toLowerCase() : ''));
   const hasRole = (name) => userRoles.includes(name);
   const { can, canExplicit } = usePermissions(currentUser);
+  
   const [setupOpen, setSetupOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
+  const [notificationPreview, setNotificationPreview] = useState([]);
   
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -28,10 +35,12 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
   const [pwdSuccess, setPwdSuccess] = useState('');
   
   const menuRef = useRef(null);
-
   const closeMobile = () => setMobileOpen(false);
 
-  useEffect(() => { document.body.style.overflow = mobileOpen ? 'hidden' : ''; return () => { document.body.style.overflow = ''; }; }, [mobileOpen]);
+  useEffect(() => { 
+    document.body.style.overflow = mobileOpen ? 'hidden' : ''; 
+    return () => { document.body.style.overflow = ''; }; 
+  }, [mobileOpen]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -63,15 +72,39 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
     }
   };
 
+  const openNotifications = async () => {
+    setNotificationMenuOpen(open => !open);
+    try {
+      const res = await client.get('/api/notifications');
+      setNotificationPreview((res.data.notifications || []).slice(0, 5));
+    } catch {}
+  };
+
+  const markPreviewRead = async (id) => {
+    try {
+      await client.patch(`/api/notifications/${id}/read`);
+      setNotificationPreview(items => items.map(item => item.id === id ? { ...item, isRead: true } : item));
+    } catch {}
+  };
+
   const mainNav = [
     { to: '/', icon: LayoutDashboard, label: ar ? 'لوحة التحكم' : 'Dashboard', show: can('dashboard') },
     { to: '/my-generators', icon: Zap, label: ar ? 'مولداتي' : 'My Generators', show: hasRole('operator') || roleKey === 'operator' },
-    { to: '/generators', icon: Zap, label: ar ? 'المولدات' : 'Generators', show: canExplicit('generators', 'view') },
-    { to: '/tanks', icon: Database, label: ar ? 'الخزانات' : 'Fuel Tanks', show: can('tanks') },
-    { to: '/oils', icon: Droplet, label: ar ? 'مخزون الزيوت' : 'Oil Inventory', show: canExplicit('oil', 'view') },
+    { to: '/generators/overview', icon: Zap, label: ar ? 'عرض المولدات' : 'Generators Overview', show: canExplicit('generators', 'view') },
+    { to: '/stock/fuel', icon: Database, label: ar ? 'مخزون الوقود' : 'Fuel Stock', show: can('inventory') },
+    { to: '/stock/oil', icon: Droplet, label: ar ? 'مخزون الزيوت' : 'Oil Stock', show: canExplicit('oil', 'view') },
     { to: '/fuel-movements', icon: Truck, label: ar ? 'حركات الوقود/الزيت' : 'Fuel & Oil Movements', show: can('fuel_movements') },
+    { to: '/movement-logs', icon: FileText, label: ar ? 'سجل الحركات العام' : 'Movement Logs', show: can('fuel_movements') },
     { to: '/inventory', icon: PackageSearch, label: ar ? 'الجرد الدوري' : 'Periodic Inventory', show: can('inventory') },
-    { to: '/review-changes', icon: ClipboardCheck, label: ar ? 'مراجعة التعديلات' : 'Review Changes', show: can('fuel_movements', 'approve') || can('readings', 'approve') || can('inventory', 'approve') },
+    { to: '/review-changes', icon: ClipboardCheck, label: ar ? 'اعتماد القراءات' : 'Review Readings', show: can('fuel_movements', 'approve') || can('readings', 'approve') || can('inventory', 'approve') },
+    { to: '/warehouse/dispatch', icon: PackageCheck, label: ar ? 'طلبات الصرف' : 'Dispatch Requests', show: can('warehouse') },
+    { to: '/warehouse/supply', icon: Boxes, label: ar ? 'توريد المخازن' : 'Warehouse Supply', show: can('warehouse') },
+    { to: '/maintenance', icon: Wrench, label: ar ? 'لوحة الصيانة' : 'Maintenance', show: can('maintenance') },
+    { to: '/maintenance/permits', icon: FileText, label: ar ? 'تصاريح العمل' : 'Work Permits', show: can('maintenance') },
+    { to: '/warehouse/parts', icon: PackageSearch, label: ar ? 'كتالوج القطع' : 'Parts Catalog', show: can('warehouse') },
+    { to: '/warehouse/stock', icon: PackageSearch, label: ar ? 'المخزون الفعلي' : 'Warehouse Stock', show: can('warehouse') },
+    { to: '/warehouse/reports', icon: BarChart2, label: ar ? 'تقارير المخازن' : 'Warehouse Reports', show: can('warehouse') },
+    { to: '/maintenance/installed-parts', icon: Wrench, label: ar ? 'القطع المركبة' : 'Installed Parts', show: can('maintenance') },
   ].filter(item => item.show);
 
   const reportsNav = [
@@ -83,7 +116,6 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
     { to: '/reports/periodic-inventory', icon: PackageSearch, label: ar ? 'تقرير الجرد الدوري' : 'Periodic Inventory', show: can('reports') },
   ].filter(item => item.show);
 
-  // System Setup navigation items - filtered by permissions or role
   const setupNav = [
     { to: '/locations', icon: MapPin, label: ar ? 'المحافظات والمحطات' : 'Locations & Stations', show: can('settings', 'manage') },
     { to: '/generators', icon: Zap, label: ar ? 'إعداد المولدات' : 'Setup Generators', show: can('settings', 'manage') },
@@ -104,190 +136,198 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
     fuel_manager: ar ? 'مسؤول الوقود' : 'Fuel Manager',
   };
 
-  const roleColors = {
-    admin: 'var(--primary)',
-    operator: 'var(--secondary)',
-    supervisor: 'var(--warning)',
-    fuel_manager: 'hsl(25,90%,55%)',
-  };
-
   return (
     <>
       <button className="mobile-menu-toggle" onClick={() => setMobileOpen(o => !o)} aria-label={ar ? 'القائمة' : 'Menu'}>
         <Menu size={20} />
       </button>
       <div className={`mobile-sidebar-overlay${mobileOpen ? ' open' : ''}`} onClick={closeMobile} />
-    <aside className={`sidebar${mobileOpen ? ' open' : ''}`}>
-      <div className="sidebar-logo" style={{ cursor: 'pointer', marginBottom: 15 }} onClick={() => { navigate('/'); closeMobile(); }}>
-        <img
-          src="/pec-logo.png"
-          alt="PEC"
-          onError={e => { e.target.style.display = 'none'; }}
-          style={{ width: 42, height: 42, objectFit: 'contain', borderRadius: 8, flexShrink: 0 }}
-        />
-        <div className="sidebar-logo-text">
-          <span className="sidebar-logo-name">Fuel & Energy Tracking</span>
-          <span className="sidebar-logo-sub">{ar ? 'نظام تتبع الوقود والطاقة' : 'Fuel & Energy Tracking'}</span>
-        </div>
-      </div>
-
-      {currentUser && (
-        <div className="sidebar-user-section" ref={menuRef} style={{ position: 'relative', padding: '0 15px', marginBottom: 20 }}>
-          <div 
-            className="sidebar-user" 
-            style={{ cursor: 'pointer', padding: '10px 12px', background: 'var(--card-2)', borderRadius: 12, border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.2s', ...(userMenuOpen ? {background: 'var(--card)', borderColor: 'var(--border-hover)'} : {}) }}
-            onClick={() => setUserMenuOpen(!userMenuOpen)}
-          >
-            <div className="sidebar-user-avatar" style={{ width: 34, height: 34, borderRadius: '50%', background: `linear-gradient(135deg, ${roleColors[roleKey] || 'var(--primary)'}, var(--secondary))`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-              {currentUser.name?.[0]?.toUpperCase() || 'U'}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="sidebar-user-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-                {currentUser.name}
-              </div>
-              <div className="sidebar-user-role" style={{ color: roleColors[roleKey] || 'var(--primary)', fontSize: 11, fontWeight: 600 }}>
-                {roleLabels[roleKey] || roleKey}
-              </div>
-            </div>
-            <ChevronDown size={14} style={{ transform: userMenuOpen ? 'rotate(180deg)' : 'none', transition: '0.2s', color: 'var(--text-muted)' }} />
+      <aside className={`sidebar${mobileOpen ? ' open' : ''}`}>
+        <div className="sidebar-logo" onClick={() => { navigate('/'); closeMobile(); }} style={{ cursor: 'pointer' }}>
+          <div className="sidebar-logo-icon">
+             <img src="/pec-logo.png" alt="PEC" onError={e => e.target.style.display = 'none'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
-          
-          {userMenuOpen && (
-            <div className="user-dropdown-menu" style={{ 
-              position: 'absolute', top: '100%', left: 15, right: 15, marginTop: 8, 
-              background: 'var(--card)', border: '1px solid var(--border)', 
-              borderRadius: 12, padding: '8px', zIndex: 100,
-              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
-              animation: 'fadeIn 0.2s ease forwards'
-            }}>
-              <button 
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 13, fontWeight: 500, borderRadius: 8, cursor: 'pointer', transition: '0.2s' }}
-                onMouseOver={e => e.currentTarget.style.background = 'var(--card-2)'}
-                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-                onClick={() => { setPasswordModalOpen(true); setUserMenuOpen(false); }}
-              >
-                <Key size={14} style={{ color: 'var(--primary)' }} />
-                <span>{ar ? 'تغيير كلمة المرور' : 'Change Password'}</span>
-              </button>
-              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-              <button 
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', color: 'var(--danger)', fontSize: 13, fontWeight: 500, borderRadius: 8, cursor: 'pointer', transition: '0.2s' }}
-                onMouseOver={e => e.currentTarget.style.background = 'var(--danger-glow)'}
-                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-                onClick={onLogout}
-              >
-                <LogOut size={14} />
-                <span>{ar ? 'تسجيل الخروج' : 'Logout'}</span>
-              </button>
+          <div className="sidebar-logo-text" style={{ flex: 1 }}>
+            <div className="sidebar-logo-name">FuelTrack</div>
+            <div className="sidebar-logo-sub">{ar ? 'نظام تتبع الوقود والطاقة' : 'Energy Tracking'}</div>
+          </div>
+        </div>
+
+        {currentUser && (
+          <div className="sidebar-user-section" ref={menuRef} style={{ position: 'relative', padding: '16px 12px 8px' }}>
+            <div className="sidebar-user" onClick={() => setUserMenuOpen(!userMenuOpen)} style={{ cursor: 'pointer' }}>
+              <div className="sidebar-user-avatar">
+                {currentUser.name?.[0]?.toUpperCase() || 'U'}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="sidebar-user-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {currentUser.name}
+                </div>
+                <div className="sidebar-user-role">
+                  {roleLabels[roleKey] || roleKey}
+                </div>
+              </div>
+              <ChevronDown size={14} style={{ transform: userMenuOpen ? 'rotate(180deg)' : 'none', transition: '0.2s', color: 'var(--text-muted)' }} />
+            </div>
+            
+            {userMenuOpen && (
+              <div className="user-dropdown-menu" style={{ 
+                position: 'absolute', top: '100%', insetInline: 12, marginTop: 4, 
+                background: 'var(--surface)', border: '1px solid var(--border-strong)', 
+                borderRadius: 'var(--radius)', padding: '6px', zIndex: 100,
+                boxShadow: 'var(--shadow-md)', animation: 'fadeIn 0.15s ease'
+              }}>
+                <button 
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 'var(--text-md)', fontWeight: 500, borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'var(--transition)' }}
+                  onMouseOver={e => e.currentTarget.style.background = 'var(--surface-2)'}
+                  onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                  onClick={() => { setPasswordModalOpen(true); setUserMenuOpen(false); }}
+                >
+                  <Key size={16} className="text-muted" />
+                  <span>{ar ? 'تغيير كلمة المرور' : 'Change Password'}</span>
+                </button>
+                <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                <button 
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', color: 'var(--danger)', fontSize: 'var(--text-md)', fontWeight: 500, borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'var(--transition)' }}
+                  onMouseOver={e => e.currentTarget.style.background = 'var(--danger-subtle)'}
+                  onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                  onClick={onLogout}
+                >
+                  <LogOut size={16} />
+                  <span>{ar ? 'تسجيل الخروج' : 'Logout'}</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        <nav className="sidebar-nav">
+          {can('alerts') && (
+            <div style={{ position: 'relative' }}>
+              <div className="nav-item">
+                <Bell size={18} strokeWidth={1.8} />
+                <NavLink to="/notifications" onClick={closeMobile} style={{ flex: 1, color: 'inherit', textDecoration: 'none' }}>
+                  {ar ? 'الإشعارات' : 'Notifications'}
+                </NavLink>
+                {unreadCount > 0 && <span className="badge badge-danger" style={{ padding: '2px 6px' }}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
+                <button onClick={openNotifications} aria-label={ar ? 'فتح الإشعارات السريعة' : 'Open notification preview'} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', display: 'flex', padding: 2 }}>
+                  <ChevronDown size={14} style={{ transform: notificationMenuOpen ? 'rotate(180deg)' : 'none', transition: 'var(--transition)' }} />
+                </button>
+              </div>
+              {notificationMenuOpen && (
+                <div role="menu" style={{ position: 'absolute', insetInline: 6, top: '100%', zIndex: 120, background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
+                  {notificationPreview.length === 0 ? (
+                    <div style={{ padding: 14, fontSize: 12, color: 'var(--text-muted)' }}>{ar ? 'لا توجد إشعارات حديثة' : 'No recent notifications'}</div>
+                  ) : notificationPreview.map(notification => (
+                    <button key={notification.id} role="menuitem" onClick={() => { if (!notification.isRead) markPreviewRead(notification.id); navigate('/notifications'); closeMobile(); }} style={{ width: '100%', textAlign: 'start', padding: '10px 12px', border: 0, borderBottom: '1px solid var(--border)', background: notification.isRead ? 'transparent' : 'var(--surface-2)', color: 'var(--text)', cursor: 'pointer' }}>
+                      <div style={{ fontWeight: notification.isRead ? 500 : 700, fontSize: 12 }}>{notification.title}</div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{notification.message}</div>
+                    </button>
+                  ))}
+                  <NavLink to="/notifications" onClick={() => { setNotificationMenuOpen(false); closeMobile(); }} style={{ display: 'block', padding: 10, textAlign: 'center', color: 'var(--primary)', fontSize: 12, textDecoration: 'none' }}>{ar ? 'عرض كل الإشعارات' : 'View all notifications'}</NavLink>
+                </div>
+              )}
             </div>
           )}
+
+          <div className="sidebar-section-title">{ar ? 'القائمة الرئيسية' : 'Main Menu'}</div>
+          {mainNav.map(({ to, icon: Icon, label }) => (
+            <NavLink key={to} to={to} end={to === '/'} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <Icon size={18} strokeWidth={1.8} />
+              <span>{label}</span>
+            </NavLink>
+          ))}
+
+          {reportsNav.length > 0 && (
+            <>
+              <button className="nav-item" onClick={() => setReportsOpen(o => !o)}>
+                <BarChart2 size={18} strokeWidth={1.8} />
+                <span style={{ flex: 1, textAlign: 'start' }}>{ar ? 'التقارير' : 'Reports'}</span>
+                <ChevronDown size={14} style={{ transform: reportsOpen ? 'rotate(180deg)' : 'none', transition: 'var(--transition)' }} />
+              </button>
+              {reportsOpen && (
+                <div style={{ paddingInlineStart: 12 }}>
+                  {reportsNav.map(({ to, icon: Icon, label }) => (
+                    <NavLink key={to} to={to} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} style={{ padding: '8px 14px' }}>
+                      <Icon size={16} strokeWidth={1.8} className="text-muted" />
+                      <span style={{ fontSize: 'var(--text-sm)' }}>{label}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {setupNav.length > 0 && (
+            <>
+              <button className="nav-item" onClick={() => setSetupOpen(o => !o)}>
+                <Settings size={18} strokeWidth={1.8} />
+                <span style={{ flex: 1, textAlign: 'start' }}>{ar ? 'إعداد النظام' : 'System Setup'}</span>
+                <ChevronDown size={14} style={{ transform: setupOpen ? 'rotate(180deg)' : 'none', transition: 'var(--transition)' }} />
+              </button>
+              {setupOpen && (
+                <div style={{ paddingInlineStart: 12 }}>
+                  {setupNav.map(({ to, icon: Icon, label }) => (
+                    <NavLink key={to} to={to} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} style={{ padding: '8px 14px' }}>
+                      <Icon size={16} strokeWidth={1.8} className="text-muted" />
+                      <span style={{ fontSize: 'var(--text-sm)' }}>{label}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </nav>
+
+        <div className="sidebar-footer">
+          <button className="theme-toggle-btn" onClick={onToggleTheme}>
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            <span style={{ flex: 1, textAlign: 'start' }}>{ar ? (theme === 'dark' ? 'الوضع الفاتح' : 'الوضع الداكن') : (theme === 'dark' ? 'Light Mode' : 'Dark Mode')}</span>
+          </button>
+          <button className="lang-toggle-btn" onClick={() => setLang(ar ? 'en' : 'ar')}
+            title={ar ? 'Switch to English' : 'التبديل إلى العربية'}
+            style={{ marginTop: 2 }}
+          >
+            <span style={{ fontSize: 16, lineHeight: 1 }}>{ar ? '🇬🇧' : '🇸🇦'}</span>
+            <span style={{ flex: 1, textAlign: 'start' }}>{ar ? 'English' : 'عربي'}</span>
+          </button>
         </div>
-      )}
 
-      <nav className="sidebar-nav">
-        {can('alerts') && (
-          <NavLink to="/notifications" onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} style={{ position: 'relative' }}>
-            <Bell size={18} strokeWidth={1.8} />
-            <span>{ar ? 'الإشعارات' : 'Notifications'}</span>
-            {unreadCount > 0 && (
-              <span style={{ marginRight: ar ? 0 : 'auto', marginLeft: ar ? 'auto' : 0, background: 'var(--danger)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, minWidth: 20, textAlign: 'center' }}>
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
-          </NavLink>
-        )}
-
-        <div className="sidebar-section-title">{ar ? 'القائمة الرئيسية' : 'Main Menu'}</div>
-        {mainNav.map(({ to, icon: Icon, label }) => (
-          <NavLink key={to} to={to} end={to === '/'} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-            <Icon size={18} strokeWidth={1.8} />
-            <span>{label}</span>
-          </NavLink>
-        ))}
-
-        {reportsNav.length > 0 && (
-          <>
-            <button className="nav-item" style={{ marginTop: 8 }} onClick={() => setReportsOpen(o => !o)}>
-              <BarChart2 size={18} strokeWidth={1.8} />
-              <span style={{ flex: 1 }}>{ar ? 'التقارير' : 'Reports'}</span>
-              <ChevronDown size={14} style={{ transform: reportsOpen ? 'rotate(180deg)' : 'none', transition: '0.2s', flexShrink: 0 }} />
-            </button>
-            {reportsOpen && (
-              <div style={{ paddingRight: ar ? 0 : 8, paddingLeft: ar ? 8 : 0 }}>
-                {reportsNav.map(({ to, icon: Icon, label }) => (
-                  <NavLink key={to} to={to} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} style={{ fontSize: 13 }}>
-                    <Icon size={15} strokeWidth={1.8} />
-                    <span>{label}</span>
-                  </NavLink>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {setupNav.length > 0 && (
-          <>
-            <button className="nav-item" style={{ marginTop: 8 }} onClick={() => setSetupOpen(o => !o)}>
-              <Settings size={18} strokeWidth={1.8} />
-              <span style={{ flex: 1 }}>{ar ? 'إعداد النظام' : 'System Setup'}</span>
-              <ChevronDown size={14} style={{ transform: setupOpen ? 'rotate(180deg)' : 'none', transition: '0.2s', flexShrink: 0 }} />
-            </button>
-            {setupOpen && (
-              <div style={{ paddingRight: ar ? 0 : 8, paddingLeft: ar ? 8 : 0 }}>
-                {setupNav.map(({ to, icon: Icon, label }) => (
-                  <NavLink key={to} to={to} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} style={{ fontSize: 13 }}>
-                    <Icon size={15} strokeWidth={1.8} />
-                    <span>{label}</span>
-                  </NavLink>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </nav>
-
-      <div className="sidebar-footer">
-        <button className="lang-toggle-btn" onClick={onToggleTheme} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          <span>{ar ? (theme === 'dark' ? 'الوضع النهاري' : 'الوضع الليلي') : (theme === 'dark' ? 'Light Mode' : 'Dark Mode')}</span>
-        </button>
-      </div>
-
-      {passwordModalOpen && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setPasswordModalOpen(false)} style={{ zIndex: 9999 }}>
-          <div className="modal-box" style={{ maxWidth: 400 }}>
-            <div className="modal-header">
-              <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Lock size={18} style={{ color: 'var(--primary)' }} />
-                {ar ? 'تغيير كلمة المرور' : 'Change Password'}
-              </div>
-              <button className="modal-close" onClick={() => setPasswordModalOpen(false)}><X size={18} /></button>
-            </div>
-            <div className="modal-body">
-              {pwdError && <div className="alert alert-danger" style={{ marginBottom: 15, padding: 10, fontSize: 13 }}>{pwdError}</div>}
-              {pwdSuccess && <div className="alert alert-success" style={{ marginBottom: 15, padding: 10, fontSize: 13, background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }}>{pwdSuccess}</div>}
-              
-              <form onSubmit={handleChangePassword}>
-                <div className="form-group" style={{ marginBottom: 15 }}>
-                  <label className="form-label" style={{ fontSize: 13, marginBottom: 8 }}>{ar ? 'كلمة المرور الحالية' : 'Current Password'}</label>
-                  <input type="password" className="form-control" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
+        {passwordModalOpen && (
+          <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setPasswordModalOpen(false)}>
+            <div className="modal-box">
+              <div className="modal-header">
+                <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Lock size={20} style={{ color: 'var(--primary)' }} />
+                  {ar ? 'تغيير كلمة المرور' : 'Change Password'}
                 </div>
-                <div className="form-group" style={{ marginBottom: 20 }}>
-                  <label className="form-label" style={{ fontSize: 13, marginBottom: 8 }}>{ar ? 'كلمة المرور الجديدة' : 'New Password'}</label>
-                  <input type="password" className="form-control" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={7} />
-                  <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 6 }}>
-                    {ar ? 'يجب أن تتضمن حرفًا ورقمًا ورمزًا.' : 'Must include a letter, number, and symbol.'}
+                <button className="modal-close" aria-label="Close" onClick={() => setPasswordModalOpen(false)}><X size={20} /></button>
+              </div>
+              <div className="modal-body">
+                {pwdError && <div className="form-error" role="alert" style={{ marginBottom: 16 }}>{pwdError}</div>}
+                {pwdSuccess && <div className="text-success" style={{ marginBottom: 16, fontWeight: 500 }}>{pwdSuccess}</div>}
+                
+                <form onSubmit={handleChangePassword}>
+                  <div className="form-group">
+                    <label className="form-label">{ar ? 'كلمة المرور الحالية' : 'Current Password'}</label>
+                    <input type="password" className="form-control" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
                   </div>
-                </div>
-                <button type="submit" className="btn btn-primary" style={{ width: '100%', height: 42, display: 'flex', justifyContent: 'center' }} disabled={pwdLoading}>
-                  {pwdLoading ? <div className="ft-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> : (ar ? 'تأكيد التغيير' : 'Confirm Change')}
-                </button>
-              </form>
+                  <div className="form-group" style={{ marginBottom: 24 }}>
+                    <label className="form-label">{ar ? 'كلمة المرور الجديدة' : 'New Password'}</label>
+                    <input type="password" className="form-control" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={7} />
+                    <div className="form-help">
+                      {ar ? 'يجب أن تتضمن حرفًا ورقمًا ورمزًا.' : 'Must include a letter, number, and symbol.'}
+                    </div>
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={pwdLoading}>
+                    {pwdLoading ? <div className="ft-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} /> : (ar ? 'تأكيد التغيير' : 'Confirm Change')}
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </aside>
+        )}
+      </aside>
     </>
   );
 }

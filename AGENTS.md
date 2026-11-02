@@ -150,3 +150,198 @@
 - `src/FuelTrack.Infrastructure/FuelTrack.Infrastructure.csproj` — MailKit 4.10.0→4.17.0; removed `Microsoft.Extensions.Caching.Memory`
 - `docs/SYSTEM_PROMPT.md` — Updated build/test counts, Known Issues, Next Steps
 - `AGENTS.md` — This section
+
+---
+
+## Summary — Session 2026-08-21 (Phase 2 & Phase 3 Implementations)
+
+### Phase 2: Frontend Architecture & UI Component Library
+- **UI Component Library**: Created `frontend/src/components/ui/` (`Button`, `PageHeader`, `Modal`, `DataTable`, `FormField`, `index.js`).
+- **Custom Query Hooks**: Created `useDashboardData`, `useGeneratorsData`, and `useFuelMovementsData` with TanStack Query.
+- **i18n Localization**: Fully localized `FuelMovements.jsx` (tabs, form, actions, status) in Arabic and English via `i18n.js`.
+- **Type Safety**: Integrated `prop-types` across all shared UI components.
+- **Pages Integrated**: `FuelMovements.jsx` and `Generators.jsx` now use `PageHeader`.
+
+### Phase 3: Database Performance & Query Optimization
+- **ReportService Projections**: Refactored `GetDashboardStatsAsync`, `GetFuelOilDashboardAsync`, `GetStationReadingsReportAsync`, `GetOilTransactionsReportAsync`, `GetPeriodicInventoryReportAsync`, `GetInventorySummaryAsync`, and `GetFuelTransactionsReportInternalAsync` to use lightweight `.Select()` projections.
+- **Double-Query Elimination**: Replaced in-memory full entity scans with in-database aggregation for all report summaries.
+- **Performance Indexes Migration**: Added `20260821200000_AddPerformanceIndexes.cs` covering composite & filtered indexes for high-frequency ledger queries (`FuelTransactions`, `OilTransactions`, `DailyReadings`, `SubStationReadings`, `PeriodicInventories`).
+
+### Phase 4: Enterprise Hardening, Security & System Resilience
+- **Hangfire Dashboard Security**: Enforced role authorization (`SystemOwner` / `Admin`) via `HangfireAllowAdminFilter`.
+- **Database Maintenance & Statistics**: Optimized `DatabaseMaintenanceJob` to run `EXEC sp_updatestats` safely with relational database guards and clean expired refresh tokens.
+- **Auth Flow Standardization**: Refactored `ForgotPassword.jsx` and `ForceChangePassword.jsx` to strictly use design system tokens (`.login-page`, `.login-card`, `.form-control`, `.login-btn`).
+
+### Phase 5: Enterprise Compliance, Data Retention & Disaster Recovery
+- **Data Archival Service & Jobs**: Implemented `IDataArchivalService` and `DataArchivalService` for automated archiving of `AuditLogs` (>90 days) and `DailyReadings` (>365 days). Registered monthly Hangfire recurring job `DataArchivalJob`.
+- **Disaster Recovery & Backup Strategy**: Created comprehensive DR runbook `docs/DISASTER_RECOVERY_AND_BACKUP_PLAN.md` with SLA definitions (RPO: 15m, RTO: 1h, 99.9% availability) and `scripts/backup-database.sql`.
+- **Unit Tests**: Added `DataArchivalServiceTests.cs` (3 tests).
+
+### Verification
+- **Backend Tests**: 257 passed, 10 skipped, **0 failed** (Duration: 24s).
+- **Backend Build**: 0 errors, 14 warnings.
+- **Frontend Build**: 1982 modules transformed in 7.14s, 0 errors.
+
+---
+
+## Summary — Session 2026-08-21 (Phase 6: Frontend Unification, Compliance & SLA Metrics)
+
+### Goal
+- [x] Unify core frontend pages with shared UI components (`PageHeader`, `Button`, `DataTable`, `Modal`)
+- [x] Integrate TanStack Query hook `useDashboardData` and build `usePeriodicInventoryData`
+- [x] Implement enterprise data compliance & privacy service (`ComplianceService`, `ComplianceController`)
+- [x] Enhance Prometheus SLA gauges (Uptime, Database Latency, Archival Counter) in `FuelTrackMetrics`
+- [x] Add comprehensive unit tests and verify end-to-end build integrity
+
+### What Was Built
+1. **Frontend Modernization & Integration**:
+   - `frontend/src/pages/Dashboard.jsx`: Refactored to use `useDashboardData` (TanStack Query), `PageHeader`, `Button`, and standardized HSL theme variables.
+   - `frontend/src/pages/PeriodicInventoryPage.jsx`: Integrated `PageHeader` and `Button` from the UI component library.
+   - `frontend/src/pages/LocationsManagement.jsx`: Integrated `PageHeader` and `Button` and aligned color tokens.
+   - `frontend/src/hooks/usePeriodicInventoryData.js`: Created TanStack Query hook with mutation invalidation.
+2. **Enterprise Compliance & GDPR Rights**:
+   - `IComplianceService.cs` & `ComplianceService.cs`: Implemented `ExportUserDataAsync`, `AnonymizeUserPersonalDataAsync`, and `GetComplianceAuditSummaryAsync`.
+   - `ComplianceController.cs`: Added endpoints `GET /api/compliance/export-user/{id}`, `POST /api/compliance/anonymize-user/{id}`, and `GET /api/compliance/audit-summary` (restricted to Admin/SystemOwner).
+   - Registered `IComplianceService` in `DependencyInjection.cs`.
+3. **Observability & SLA Metrics**:
+   - `FuelTrackMetrics.cs`: Added `fueltrack.system.uptime_seconds` gauge, `fueltrack.db.query_duration_ms` histogram, and `fueltrack.archival.records_archived` counter.
+4. **Testing & Verification**:
+   - `ComplianceServiceTests.cs`: Added 4 unit tests covering user data exports, personal data anonymization, and compliance audit summaries.
+   - Total backend tests: **261 passed, 0 failed**, 10 skipped (in-memory view constraints).
+   - Frontend build: **1983 modules transformed in 7.95s**, 0 errors.
+
+---
+
+## Summary — Session 2026-08-21 (Phase 7: Frontend Page Decomposition & Bundle Optimization)
+
+### Goal
+- [x] Optimize Vite bundle splitting via `manualChunks` in `vite.config.js`
+- [x] Decompose `Reports.jsx` by extracting sub-tabs (`FuelIncomingReportTab.jsx`, `FuelTransferReportTab.jsx`, `FuelLossReportTab.jsx`)
+- [x] Standardize `AuditLogs.jsx` with `PageHeader`, `Button`, and design system tokens
+- [x] Verify frontend builds and backend test suite integrity
+
+### What Was Built
+1. **Vite Bundle Optimization (`vite.config.js`)**:
+   - Configured `manualChunks` to split heavy libraries:
+     - `vendor-core` (React, React-Router, Zustand, i18next)
+     - `vendor-query` (@tanstack/react-query)
+     - `vendor-charts` (chart.js, react-chartjs-2)
+     - `vendor-icons` (lucide-react)
+     - `vendor-canvas` (html2canvas)
+     - `vendor-xlsx` (xlsx-js-style)
+   - Results: `Dashboard` reduced from 186kB to **20.6kB**, `Reports` reduced from 1.39MB to **512kB**.
+2. **Modular Report Sub-Components (`frontend/src/components/Reports/`)**:
+   - Created `FuelIncomingReportTab.jsx`, `FuelTransferReportTab.jsx`, and `FuelLossReportTab.jsx` with full PropTypes and design tokens.
+3. **AuditLogs Modernization (`frontend/src/pages/AuditLogs.jsx`)**:
+   - Standardized with `PageHeader`, `Button`, and method badges.
+4. **Verification**:
+   - Frontend Build: 1983 modules transformed in **6.81s**, 0 errors.
+   - Backend Tests: **261 passed, 0 failed**, 10 skipped (Duration: 23s).
+
+---
+
+## Summary — Session 2026-08-21 (Phase 8: Data Protection & Security Hardening)
+
+### Goal
+- [x] Harden production secret validation for 256-bit AES data encryption key (`DataEncryption:Key`)
+- [x] Protect administrative & metric endpoints (Hangfire authorization filter, Prometheus endpoint & production Swagger protection)
+- [x] Add comprehensive security unit tests (`StartupSecretsValidatorTests.cs`)
+- [x] Verify complete system test suite and frontend build
+
+### What Was Built
+1. **Production Secret Hardening (`StartupSecretsValidator.cs`)**:
+   - Added validation for `DataEncryption:Key` checking for 32-byte production key and placeholder rejection.
+2. **Security & Validation Tests (`StartupSecretsValidatorTests.cs`)**:
+   - Added unit tests for production secrets validation, placeholder detection, and CORS wildcard protection.
+3. **Verification**:
+   - Total Backend Tests: **264 passed, 0 failed**, 10 skipped (Duration: 23s).
+   - Frontend Build: 1983 modules transformed in **6.81s**, 0 errors.
+
+---
+
+## Summary — Session 2026-08-21 (Phase 9: Frontend Unit Test Coverage for UI Component Library)
+
+### Goal
+- [x] Add Vitest unit tests for all 4 shared UI components (`Button`, `Modal`, `PageHeader`, `FormField`)
+- [x] Fix all test assertions to match actual component implementations
+- [x] Achieve 100% pass rate on new component tests
+
+### What Was Built
+1. **UI Component Tests (`frontend/src/components/ui/`)**:
+   - `Button.test.jsx`: 5 tests — renders text, variant CSS class, size inline-style, click handling, loading spinner disable, icon rendering.
+   - `Modal.test.jsx`: 3 tests — closed state renders nothing, open state renders title/body/footer, close button callback.
+   - `PageHeader.test.jsx`: 3 tests — title/subtitle rendering, badge slot, actions slot.
+   - `FormField.test.jsx`: 3 tests — label with required star, error message display, hint text display.
+2. **Key Discoveries Fixed in Tests**:
+   - `Button` size uses inline styles (not CSS classes) — assertions updated to check `btn.style.height`.
+   - `FormField` helper text uses `hint` prop (not `helper`) — prop corrected.
+   - `Modal` close button uses `aria-label="Close modal"` — query updated to `getByRole('button', { name: /Close modal/i })`.
+3. **Verification**:
+   - Frontend UI Tests: **14 passed, 0 failed** (Duration: 2.39s).
+   - Backend Tests: **264 passed, 0 failed**, 10 skipped (pre-existing).
+
+---
+
+## Summary — Session 2026-08-21 (Phase 10: Unified Design System Implementation)
+
+### Goal
+- [x] Audit `docs/system_audit_report.md` Section 10 and implement all design system unification tasks
+- [x] Add `--purple` and `--purple-subtle` CSS design tokens to `styles.css`
+- [x] Replace all hardcoded hex colors with CSS Variables across frontend pages
+- [x] Verify frontend build integrity
+
+### What Was Audited & Found Already Complete
+- `Login.jsx` — already uses `.login-page`, `.login-card`, `.login-btn` CSS classes ✅
+- `Dashboard.jsx` — no hardcoded hex colors found ✅
+- `FuelMovements.jsx` — no hardcoded hex colors found ✅
+- `components/ui/` — Component Library (Button, Modal, DataTable, FormField, PageHeader) already exists ✅
+- `ErrorBoundary` — wraps every Route in `App.jsx` ✅
+- Dashboard cache key — already includes `userScopeKey` (`u{userId}` or `admin`) ✅
+- `react-bootstrap` — not present in `package.json` ✅
+- `--card-bg` CSS variable — defined at line 52 as `var(--surface)` ✅
+
+### What Was Built
+
+#### CSS Design Tokens (`styles.css`)
+- Added `--purple: hsl(262, 83%, 63%)` and `--purple-subtle: hsla(262, 83%, 63%, 0.12)` under "Extended Semantic" section
+
+#### Hardcoded Color Fixes
+
+**`TanksManagement.jsx`:**
+- `getFillColor()` — `#ef4444` → `var(--danger)`, `#f59e0b` → `var(--warning)`, `#10b981` → `var(--success)`
+- Summary KPI cards — `#10b981` → `var(--success)`, `#8b5cf6` → `var(--purple)`, `#f59e0b` → `var(--warning)`
+- "Inactive" badge — `rgba(239,68,68,0.12)`/`#ef4444` → `var(--danger-subtle)`/`var(--danger)`
+- Form error block — `rgba(239,68,68,0.08)`/`#ef4444` → `var(--danger-subtle)`/`var(--danger)`
+- Dead stock label — `#64748b` → `var(--text-muted)`
+- Station badge count — `color: '#fff'` → `color: 'var(--text)'`
+- Delete button — `color: '#fff'` → `color: 'var(--text)'`
+
+**`StockInventory.jsx`:**
+- `alertCfg` object — all hardcoded `#ef4444`/`#10b981`/`#ef444415`/`#10b98115` → `var(--danger)`/`var(--success)`/`var(--danger-subtle)`/`var(--success-subtle)`
+- `transferIn` cell color — `#10b981` → `var(--success)`
+- Fill progress bar — `#ef4444`/`#10b981` → `var(--danger)`/`var(--success)`
+- Actual Stock KPI card — `#10b981`/`rgba(16,185,129,0.12)` → `var(--success)`/`var(--success-subtle)`
+- Branch button color — `color: '#fff'` → `color: 'var(--text)'`
+- Table header "Received" — `#10b981` → `var(--success)`
+
+**`WorkPermits.jsx`:**
+- "Completed" KPI card — `#10b981`/`rgba(16,185,129,0.12)` → `var(--success)`/`var(--success-subtle)`
+
+**`SetupOils.jsx`:**
+- `stockColor` logic — `#ef4444` → `var(--danger)`, `#10b981` → `var(--success)`
+- Station badge count — `color: '#fff'` → `color: 'var(--text)'`
+- Delete button — `color: '#fff'` → `color: 'var(--text)'`
+
+### Verification
+- **Frontend Build**: ✓ built in **6.57s**, 0 errors
+- **Tests**: Frontend UI component tests all pass (14/14).
+
+### Files Changed This Session
+- `frontend/src/styles.css` — Added `--purple` + `--purple-subtle` design tokens
+- `frontend/src/pages/TanksManagement.jsx` — 7 color fixes
+- `frontend/src/pages/StockInventory.jsx` — 6 color fixes
+- `frontend/src/pages/WorkPermits.jsx` — 1 color fix
+- `frontend/src/pages/SetupOils.jsx` — 3 color fixes
+- `AGENTS.md` — This summary
+
+

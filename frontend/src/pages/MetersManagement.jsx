@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Gauge, Pencil, Plus, Save, Trash2, X, Search, RefreshCw, Zap, Fuel, Radio, MapPin } from 'lucide-react';
 import client from '../api/client';
+import ConfirmModal from '../components/ConfirmModal';
+import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 
 const METER_ICON_MAP = {
   'GeneratorMeter': { icon: <Zap size={13} />,    color: 'var(--primary)',   colorVar: 'primary' },
@@ -91,11 +93,9 @@ function MetersManagement({ lang }) {
     else if (typeCode === 'ExportEnergy') tab = 'energy';
     setActiveTab(tab);
 
-    const station = stations.find(s => s.id === item.stationId);
-
     setEditItem(item);
     setForm({
-      branchId: station?.branchId ?? '',
+      branchId: item.branchId ?? '',
       stationId: item.stationId ?? '',
       subStationId: item.subStationId ?? '',
       generatorId: item.generatorId ?? '',
@@ -202,35 +202,26 @@ function MetersManagement({ lang }) {
   const fuelCount   = fuelLookup ? meters.filter(m => m.meterType === fuelLookup.name).length : 0;
   const gridCount   = gridLookup ? meters.filter(m => m.meterType === gridLookup.name).length : 0;
 
-  const inp = (val, onChange, placeholder = '', type = 'text') => (
-    <input type={type} value={val} onChange={e => onChange(e.target.value)} className="form-control" placeholder={placeholder} />
-  );
-  const sel = (val, onChange, options) => (
-    <select value={val} onChange={e => onChange(e.target.value)} className="form-select">
-      <option value="">- {ar ? 'اختر' : 'Select'} -</option>
-      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-    </select>
-  );
+  const tabs = [
+    { key: 'fuel',      label: ar ? 'عداد الوقود' : 'Fuel Meter',     icon: <Fuel size={14} />  },
+    { key: 'generator', label: ar ? 'عداد المولدات' : 'Gen Meter',    icon: <Zap size={14} />   },
+    { key: 'energy',    label: ar ? 'عداد الطاقة' : 'Energy Meter',   icon: <Radio size={14} /> },
+  ];
 
   return (
     <div>
-      {/* ── Header ── */}
-      <div className="page-header">
-        <div className="page-header-row">
-          <div>
-            <h1>{ar ? 'العدادات' : 'Meters'}</h1>
-            <p>{ar ? 'إدارة العدادات المرتبطة بالمواقع والمولدات' : 'Manage meters linked to sites and generators'}</p>
-          </div>
+      <PageHeader
+        title={ar ? 'العدادات' : 'Meters'}
+        subtitle={ar ? 'إدارة العدادات المرتبطة بالمواقع والمولدات' : 'Manage meters linked to sites and generators'}
+        actions={
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-ghost" onClick={fetchAll}><RefreshCw size={15} /></button>
-            <button className="btn btn-primary" onClick={openAdd}>
-              <Plus size={16} /> {ar ? 'جديد' : 'New'}
-            </button>
+            <Button variant="ghost" size="sm" icon={RefreshCw} onClick={fetchAll} />
+            <Button icon={Plus} onClick={openAdd}>{ar ? 'جديد' : 'New'}</Button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      {/* ── KPI Cards ── */}
+      {/* KPI Cards */}
       <div className="kpi-grid">
         {[
           { label: ar ? 'الإجمالي' : 'Total',           value: total,     icon: <Gauge size={20} />,  colorClass: 'primary' },
@@ -245,26 +236,24 @@ function MetersManagement({ lang }) {
         ))}
       </div>
 
-      {/* ── Search ── */}
+      {/* Search */}
       <div style={{ marginBottom: 20 }}>
         <div className="search-bar" style={{ maxWidth: 400 }}>
           <Search size={16} />
-          <input className="form-control"
-            placeholder={ar ? 'بحث بالاسم، الرقم التسلسلي، أو الموقع...' : 'Search name, serial, or site...'}
-            value={search} onChange={e => setSearch(e.target.value)} />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={ar ? 'بحث بالاسم، الرقم التسلسلي، أو الموقع...' : 'Search name, serial, or site...'} />
         </div>
       </div>
 
-      {/* ── Error banner ── */}
+      {/* Error banner */}
       {error && (
-        <div className="glass-card" style={{ marginBottom: 16, borderColor: 'var(--danger)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--danger)' }}>
+        <div className="section-card" style={{ marginBottom: 16, borderColor: 'var(--danger)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--danger)' }}>
           <AlertCircle size={16} />
-          <span style={{ fontSize: 13 }}>{error}</span>
-          <button onClick={() => setError('')} style={{ marginRight: 'auto', background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer' }}><X size={14} /></button>
+          <span style={{ fontSize: 13, flex: 1 }}>{error}</span>
+          <button onClick={() => setError('')} style={{ marginInlineEnd: 'auto', background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer' }}><X size={14} /></button>
         </div>
       )}
 
-      {/* ── Cards ── */}
+      {/* Cards */}
       {loading ? (
         <div className="spinner-wrap"><div className="ft-spinner" /></div>
       ) : filtered.length === 0 ? (
@@ -273,191 +262,196 @@ function MetersManagement({ lang }) {
         <div className="grid-auto">
            {filtered.map((meter, i) => {
              const typeCode = meterTypes.find(mt => mt.name === meter.meterType)?.code;
+             const cfg = METER_ICON_MAP[typeCode] || METER_DEFAULT_ICON;
+             const linkedGen = meter.generatorId ? generators.find(g => String(g.id) === String(meter.generatorId)) : null;
              return (
-              <div key={meter.id} className="ctrl-card" style={{
-                borderColor: meter.isActive ? 'var(--success)' : 'var(--danger)',
-                borderWidth: 2,
-              }}>
-                <div className="ctrl-card-body">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <MeterTypeBadge type={meter.meterType} code={typeCode} />
-                    <span className={meter.isActive ? 'status-badge status-active' : 'status-badge status-inactive'}>
-                      {meter.isActive ? (ar ? 'نشط' : 'Active') : (ar ? 'غير نشط' : 'Inactive')}
+              <div key={meter.id} className="meter-card">
+                {/* Card Header */}
+                <div className="meter-card-header">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, background: `${cfg.color}18`, color: cfg.color, flexShrink: 0 }}>
+                      {cfg.icon}
                     </span>
-                  </div>
-
-                  <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-                    <MapPin size={11} />
-                    {locationName(meter)}
-                  </div>
-
-                  <div className="ctrl-card-stats">
-                    <div className="ctrl-stat">
-                       <div className="ctrl-stat-label">{ar ? 'القراءة العياري' : 'Std Rdg'}</div>
-                      <div className="ctrl-stat-value">{meter.energyReading ?? 0}</div>
-                    </div>
-                    {typeCode !== 'ExportEnergy' && (
-                      <div className="ctrl-stat">
-                        <div className="ctrl-stat-label">{ar ? 'القراءة المشاهد' : 'Run Rdg'}</div>
-                        <div className="ctrl-stat-value">{meter.hoursReading ?? 0}</div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="meter-name" style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {meter.name || (ar ? 'عداد بدون اسم' : 'Unnamed Meter')}
                       </div>
-                    )}
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {meter.serialNumber || '-'}
+                      </div>
+                    </div>
                   </div>
+                  <span className={`status-badge ${meter.isActive !== false ? 'status-active' : 'status-inactive'}`}>
+                    {meter.isActive !== false ? (ar ? 'نشط' : 'Active') : (ar ? 'غير نشط' : 'Inactive')}
+                  </span>
                 </div>
 
-                <div className="ctrl-card-footer">
-                  <button className="btn btn-sm btn-ghost" onClick={() => openEdit(meter)}>
+                {/* Card Body */}
+                <div className="meter-card-body">
+                  {/* Location */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                    <MapPin size={10} />
+                    <span>{locationName(meter)}</span>
+                  </div>
+                  {linkedGen && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                      <Zap size={10} />
+                      <span>{linkedGen.name}</span>
+                    </div>
+                  )}
+
+                   {/* Stats Grid */}
+                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 8px', fontSize: 11 }}>
+                     <div className="meter-stat">
+                       <div className="meter-stat-label">{ar ? 'طاقة' : 'Energy'}</div>
+                       <div className="meter-stat-value">{Number(meter.energyReading || 0).toLocaleString()} kWh</div>
+                     </div>
+                     {typeCode !== 'ExportEnergy' && (
+                       <div className="meter-stat">
+                         <div className="meter-stat-label">{ar ? 'ساعات' : 'Hours'}</div>
+                         <div className="meter-stat-value">{Number(meter.hoursReading || 0).toLocaleString()} h</div>
+                       </div>
+                     )}
+                     {typeCode === 'ExportEnergy' && (
+                       <div className="meter-stat">
+                         <div className="meter-stat-label">{ar ? 'نوع العداد' : 'Meter Type'}</div>
+                         <div className="meter-stat-value" style={{ color: cfg.color, fontWeight: 600 }}>{meter.meterType || '—'}</div>
+                       </div>
+                     )}
+                   </div>
+                </div>
+
+                {/* Card Footer */}
+                <div className="meter-card-footer">
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(meter)}>
                     <Pencil size={13} /> {ar ? 'تعديل' : 'Edit'}
-                  </button>
-                  <button className="btn btn-sm btn-danger" onClick={() => setDeleteConfirm(meter)}>
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={() => setDeleteConfirm(meter)}>
                     <Trash2 size={13} /> {ar ? 'حذف' : 'Delete'}
-                  </button>
+                  </Button>
                 </div>
               </div>
             );
-          })}
+           })}
         </div>
       )}
 
       {/* ══════════════ Form Modal ══════════════ */}
       {showForm && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && resetForm()}>
-          <div className="ctrl-modal-box" style={{ maxWidth: 520 }}>
-            {/* Header */}
-            <div className="ctrl-modal-header">
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                {editItem ? <Pencil size={16} /> : <Plus size={16} />}
-                {editItem ? (ar ? 'تعديل العداد' : 'Edit Meter') : (ar ? 'عداد جديد' : 'New Meter')}
-              </div>
-              <button className="modal-close" onClick={resetForm}><X size={18} /></button>
+        <Modal
+          open={showForm}
+          onClose={resetForm}
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {editItem ? <Pencil size={18} style={{ color: 'var(--primary)' }} /> : <Plus size={18} style={{ color: 'var(--primary)' }} />}
+              {editItem ? (ar ? 'تعديل العداد' : 'Edit Meter') : (ar ? 'عداد جديد' : 'New Meter')}
             </div>
-
-            {/* Body */}
-            <div className="ctrl-modal-body">
-              {/* Tab bar */}
-              <div style={{ display: 'flex', gap: 2, marginBottom: 16, background: 'var(--bg)', borderRadius: 10, padding: 3 }}>
-                {[
-                  { key: 'fuel',      label: ar ? 'عداد الوقود' : 'Fuel Meter',     icon: <Fuel size={14} />  },
-                  { key: 'generator', label: ar ? 'عداد المولدات' : 'Gen Meter',    icon: <Zap size={14} />   },
-                  { key: 'energy',    label: ar ? 'عداد الطاقة' : 'Energy Meter',   icon: <Radio size={14} /> },
-                ].map(t => (
-                  <button key={t.key} type="button" onClick={() => switchTab(t.key)} style={{
-                    flex: 1, padding: '8px 6px', borderRadius: 8, border: 'none',
-                    background: activeTab === t.key ? 'var(--card)' : 'transparent',
-                    color: activeTab === t.key ? 'var(--text)' : 'var(--text-muted)',
-                    cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                    transition: 'all 0.2s',
-                  }}>
-                    {t.icon}{t.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Location */}
-              <div className="ctrl-tab-section-title">{ar ? 'الموقع' : 'Location'}</div>
-
-              <>
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'المحافظة *' : 'Governorate *'}</label>
-                  {sel(form.branchId, v => fld('branchId', v), branchOptions)}
-                </div>
-                {form.branchId && (
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'المحطة *' : 'Station *'}</label>
-                    {sel(form.stationId, v => fld('stationId', v), filteredStations.map(s => ({ value: s.id, label: s.name })))}
-                  </div>
-                )}
-                {form.stationId && (
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'الموقع/الفرع *' : 'Site / Branch *'}</label>
-                    {sel(form.subStationId, v => fld('subStationId', v), filteredSubStations.map(ss => ({ value: ss.id, label: ss.name })))}
-                  </div>
-                )}
-                {activeTab === 'generator' && form.subStationId && (
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'المولد *' : 'Generator *'}</label>
-                    {sel(form.generatorId, v => fld('generatorId', v), filteredGenerators.map(g => ({ value: g.id, label: g.name })))}
-                  </div>
-                )}
-              </>
-
-              <div className="ctrl-tab-divider" />
-              <div className="ctrl-tab-section-title">{ar ? 'بيانات العداد' : 'Meter Details'}</div>
-
-              <div className="form-group">
-                <label className="form-label">{ar ? 'اسم العداد *' : 'Meter Name *'}</label>
-                {inp(form.meterName, v => fld('meterName', v))}
-              </div>
-              <div className="form-group">
-                <label className="form-label">{ar ? 'الرقم التسلسلي *' : 'Serial Number *'}</label>
-                {inp(form.serialNumber, v => fld('serialNumber', v))}
-              </div>
-
-              <div className="ctrl-tab-divider" />
-              <div className="ctrl-tab-section-title">{ar ? 'القراءات' : 'Readings'}</div>
-
-              {activeTab !== 'energy' ? (
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'قراءة العياري' : 'Standard Reading'}</label>
-                    {inp(form.energyReading, v => fld('energyReading', v), '0', 'number')}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'قراءة المشاهد' : 'Running Reading'}</label>
-                    {inp(form.hoursReading, v => fld('hoursReading', v), '0', 'number')}
-                  </div>
-                </div>
-              ) : (
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'قراءة الطاقة' : 'Reading'}</label>
-                  {inp(form.energyReading, v => fld('energyReading', v), '0', 'number')}
-                </div>
-              )}
-
-              <div className="form-group" style={{ marginTop: 12 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={form.isActive !== false} onChange={e => fld('isActive', e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }} />
-                  <span style={{ fontSize: 13, color: 'var(--text)' }}>{ar ? 'العداد نشط' : 'Active Meter'}</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="ctrl-modal-footer">
-              <button className="btn btn-ghost" onClick={resetForm}>{ar ? 'إلغاء' : 'Cancel'}</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? <><span className="ft-spinner" style={{ width: 14, height: 14 }} /> {ar ? 'جاري الحفظ...' : 'Saving...'}</> : <><Save size={14} /> {ar ? 'حفظ العداد' : 'Save Meter'}</>}
+          }
+          maxWidth={520}
+          footer={
+            <>
+              <Button variant="ghost" onClick={resetForm}>{ar ? 'إلغاء' : 'Cancel'}</Button>
+              <Button variant="primary" onClick={handleSave} disabled={saving} icon={Save}>
+                {saving ? <><span className="ft-spinner" style={{ width: 14, height: 14 }} /> {ar ? 'جاري الحفظ...' : 'Saving...'}</> : <>{ar ? 'حفظ العداد' : 'Save Meter'}</>}
+              </Button>
+            </>
+          }
+        >
+          {/* Tab bar */}
+          <div style={{ display: 'flex', gap: 2, marginBottom: 16, background: 'var(--bg)', borderRadius: 10, padding: 3 }}>
+            {tabs.map(t => (
+              <button key={t.key} type="button" onClick={() => switchTab(t.key)} style={{
+                flex: 1, padding: '8px 6px', borderRadius: 8, border: 'none',
+                background: activeTab === t.key ? 'var(--card)' : 'transparent',
+                color: activeTab === t.key ? 'var(--text)' : 'var(--text-muted)',
+                cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                transition: 'all 0.2s',
+              }}>
+                {t.icon}{t.label}
               </button>
-            </div>
+            ))}
           </div>
-        </div>
+
+          {/* Location */}
+          <div className="form-section-header">{ar ? 'الموقع' : 'Location'}</div>
+
+          <FormField label={ar ? 'المحافظة *' : 'Governorate *'} required error={!form.subStationId && form.meterName ? (ar ? 'الرجاء اختيار المحطة والموقع' : 'Please select station and sub-station') : null}>
+            <select className="form-select" value={form.branchId} onChange={e => fld('branchId', e.target.value)}>
+              <option value="">— {ar ? 'اختر' : 'Select'} —</option>
+              {branchOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+            </select>
+          </FormField>
+          {form.branchId && (
+            <FormField label={ar ? 'المحطة *' : 'Station *'}>
+              <select className="form-select" value={form.stationId} onChange={e => fld('stationId', e.target.value)}>
+                <option value="">— {ar ? 'اختر' : 'Select'} —</option>
+                {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </FormField>
+          )}
+          {form.stationId && (
+            <FormField label={ar ? 'الموقع/الفرع *' : 'Site / Branch *'}>
+              <select className="form-select" value={form.subStationId} onChange={e => fld('subStationId', e.target.value)}>
+                <option value="">— {ar ? 'اختر' : 'Select'} —</option>
+                {filteredSubStations.map(ss => <option key={ss.id} value={ss.id}>{ss.name}</option>)}
+              </select>
+            </FormField>
+          )}
+          {activeTab === 'generator' && form.subStationId && (
+            <FormField label={ar ? 'المولد *' : 'Generator *'}>
+              <select className="form-select" value={form.generatorId} onChange={e => fld('generatorId', e.target.value)}>
+                <option value="">— {ar ? 'اختر' : 'Select'} —</option>
+                {filteredGenerators.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </FormField>
+          )}
+
+          <div className="form-section-header">{ar ? 'بيانات العداد' : 'Meter Details'}</div>
+
+          <FormField label={ar ? 'اسم العداد *' : 'Meter Name *'} required error={!form.meterName ? (ar ? 'الرجاء تعبئة اسم العداد' : 'Meter name is required') : null}>
+            <Input value={form.meterName} onChange={e => fld('meterName', e.target.value)} />
+          </FormField>
+          <FormField label={ar ? 'الرقم التسلسلي *' : 'Serial Number *'} required error={!form.serialNumber ? (ar ? 'الرقم التسلسلي مطلوب' : 'Serial number is required') : null}>
+            <Input value={form.serialNumber} onChange={e => fld('serialNumber', e.target.value)} />
+          </FormField>
+
+          <div className="form-section-header">{ar ? 'القراءات' : 'Readings'}</div>
+
+          {activeTab !== 'energy' ? (
+            <div className="form-row">
+              <FormField label={ar ? 'قراءة العياري' : 'Standard Reading'}>
+                <Input type="number" value={form.energyReading} onChange={e => fld('energyReading', e.target.value)} placeholder="0" />
+              </FormField>
+              <FormField label={ar ? 'قراءة المشاهد' : 'Running Reading'}>
+                <Input type="number" value={form.hoursReading} onChange={e => fld('hoursReading', e.target.value)} placeholder="0" />
+              </FormField>
+            </div>
+          ) : (
+            <FormField label={ar ? 'قراءة الطاقة' : 'Reading'}>
+              <Input type="number" value={form.energyReading} onChange={e => fld('energyReading', e.target.value)} placeholder="0" />
+            </FormField>
+          )}
+
+          <div className="form-group" style={{ marginTop: 12 }}>
+            <label className="checkbox-label">
+              <input type="checkbox" checked={form.isActive !== false} onChange={e => fld('isActive', e.target.checked)} />
+              <span>{ar ? 'العداد نشط' : 'Active Meter'}</span>
+            </label>
+          </div>
+        </Modal>
       )}
 
-      {/* ══════════════ Delete Confirm ══════════════ */}
-      {deleteConfirm && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setDeleteConfirm(null)}>
-          <div className="ctrl-modal-box" style={{ maxWidth: 380 }}>
-            <div className="ctrl-modal-header">
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertCircle size={18} /> {ar ? 'تأكيد الحذف' : 'Confirm Delete'}
-              </div>
-              <button className="modal-close" onClick={() => setDeleteConfirm(null)}><X size={18} /></button>
-            </div>
-            <div className="ctrl-modal-body" style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 0 }}>
-                {ar ? `هل أنت متأكد من حذف العداد "${deleteConfirm.name}"؟` : `Delete meter "${deleteConfirm.name}"?`}
-              </p>
-            </div>
-            <div className="ctrl-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setDeleteConfirm(null)}>{ar ? 'إلغاء' : 'Cancel'}</button>
-              <button className="btn btn-danger" onClick={handleDelete}>
-                <Trash2 size={13} /> {ar ? 'حذف' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        open={!!deleteConfirm}
+        title={ar ? 'تأكيد الحذف' : 'Confirm Delete'}
+        message={ar ? `هل أنت متأكد من حذف العداد "${deleteConfirm?.name}"؟` : `Delete meter "${deleteConfirm?.name}"?`}
+        confirmText={ar ? 'حذف' : 'Delete'}
+        cancelText={ar ? 'إلغاء' : 'Cancel'}
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirm(null)}
+      />
     </div>
   );
 }

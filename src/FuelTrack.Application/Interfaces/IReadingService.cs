@@ -11,6 +11,8 @@ public interface IReadingService
     Task<ReadingDetailDto> ReviewAsync(int id, int userId);
     Task DeleteAsync(int id);
     Task<ReadingDetailDto?> GetByIdAsync(int id);
-    Task<PagedResult<ReadingListDto>> ListAsync(ReadingFilterDto filter, int? userId = null, bool isAdmin = false);
+    Task<PagedResult<ReadingListDto>> ListAsync(ReadingFilterDto filter, int? userId = null, bool isAdmin = false, CancellationToken ct = default);
+    Task<List<PendingReadingDto>> GetPendingAsync(CancellationToken ct = default);
     Task<ReadingConsumptionDto> GetConsumptionAsync(int id);
+    Task<ReadingDetailDto> SaveModbusReadingAsync(int generatorId, float fuelLevelLiters, DateTime readingTimestamp);
 }

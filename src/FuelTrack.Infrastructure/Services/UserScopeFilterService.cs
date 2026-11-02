@@ -1,5 +1,4 @@
 using FuelTrack.Application.Interfaces;
-using FuelTrack.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Services;
@@ -30,33 +29,37 @@ public class UserScopeFilterService : IUserScopeFilterService
                 .ToListAsync();
         }
 
-        var subStationIds = new HashSet<int>();
+        var directSubStationIds = scopes
+            .Where(s => s.SubStationId.HasValue)
+            .Select(s => s.SubStationId!.Value)
+            .ToList();
 
-        foreach (var scope in scopes)
-        {
-            if (scope.SubStationId.HasValue)
-            {
-                subStationIds.Add(scope.SubStationId.Value);
-            }
-            else if (scope.StationId.HasValue)
-            {
-                var ids = await _db.SubStations
-                    .Where(ss => ss.StationId == scope.StationId.Value && ss.DeletedAt == null && ss.IsActive)
-                    .Select(ss => ss.Id)
-                    .ToListAsync();
-                foreach (var id in ids) subStationIds.Add(id);
-            }
-            else if (scope.BranchId.HasValue)
-            {
-                var ids = await _db.SubStations
-                    .Where(ss => ss.Station.BranchId == scope.BranchId.Value && ss.DeletedAt == null && ss.IsActive)
-                    .Select(ss => ss.Id)
-                    .ToListAsync();
-                foreach (var id in ids) subStationIds.Add(id);
-            }
-        }
+        var stationIds = scopes
+            .Where(s => s.StationId.HasValue && !s.SubStationId.HasValue)
+            .Select(s => s.StationId!.Value)
+            .ToList();
 
-        return subStationIds.ToList();
+        var branchIds = scopes
+            .Where(s => s.BranchId.HasValue && !s.StationId.HasValue && !s.SubStationId.HasValue)
+            .Select(s => s.BranchId!.Value)
+            .ToList();
+
+        var query = _db.SubStations
+            .Where(ss => ss.DeletedAt == null && ss.IsActive);
+
+        if (directSubStationIds.Count > 0)
+            query = query.Where(ss => directSubStationIds.Contains(ss.Id));
+
+        if (stationIds.Count > 0)
+            query = query.Where(ss => stationIds.Contains(ss.StationId));
+
+        if (branchIds.Count > 0)
+            query = query.Where(ss => branchIds.Contains(ss.Station.BranchId));
+
+        return await query
+            .Select(ss => ss.Id)
+            .Distinct()
+            .ToListAsync();
     }
 
     public async Task<List<int>> GetAccessibleStationIdsAsync(int userId)
@@ -76,25 +79,29 @@ public class UserScopeFilterService : IUserScopeFilterService
                 .ToListAsync();
         }
 
-        var stationIds = new HashSet<int>();
+        var stationIds = scopes
+            .Where(s => s.StationId.HasValue)
+            .Select(s => s.StationId!.Value)
+            .ToList();
 
-        foreach (var scope in scopes)
-        {
-            if (scope.StationId.HasValue)
-            {
-                stationIds.Add(scope.StationId.Value);
-            }
-            else if (scope.BranchId.HasValue)
-            {
-                var ids = await _db.Stations
-                    .Where(s => s.BranchId == scope.BranchId.Value && s.DeletedAt == null && s.IsActive)
-                    .Select(s => s.Id)
-                    .ToListAsync();
-                foreach (var id in ids) stationIds.Add(id);
-            }
-        }
+        var branchIds = scopes
+            .Where(s => s.BranchId.HasValue && !s.StationId.HasValue)
+            .Select(s => s.BranchId!.Value)
+            .ToList();
 
-        return stationIds.ToList();
+        var query = _db.Stations
+            .Where(s => s.DeletedAt == null && s.IsActive);
+
+        if (stationIds.Count > 0)
+            query = query.Where(s => stationIds.Contains(s.Id));
+
+        if (branchIds.Count > 0)
+            query = query.Where(s => branchIds.Contains(s.BranchId));
+
+        return await query
+            .Select(s => s.Id)
+            .Distinct()
+            .ToListAsync();
     }
 
     public async Task<List<int>> GetAccessibleBranchIdsAsync(int userId)
@@ -114,15 +121,52 @@ public class UserScopeFilterService : IUserScopeFilterService
                 .ToListAsync();
         }
 
-        var branchIds = new HashSet<int>();
+        var branchIds = scopes
+            .Where(s => s.BranchId.HasValue)
+            .Select(s => s.BranchId!.Value)
+            .ToList();
 
-        foreach (var scope in scopes)
-        {
-            if (scope.BranchId.HasValue)
-                branchIds.Add(scope.BranchId.Value);
-        }
+        if (branchIds.Count == 0)
+            return new List<int>();
 
-        return branchIds.ToList();
+        return await _db.Branches
+            .Where(b => b.DeletedAt == null && b.IsActive && branchIds.Contains(b.Id))
+            .Select(b => b.Id)
+            .Distinct()
+            .ToListAsync();
+    }
+
+    public async Task<List<int>> GetAccessibleMeterIdsAsync(int userId)
+    {
+        var accessibleSubStationIds = await GetAccessibleSubStationIdsAsync(userId);
+        if (accessibleSubStationIds.Count == 0)
+            return new List<int>();
+
+        return await _db.Meters
+            .Where(m => m.SubStationId.HasValue && accessibleSubStationIds.Contains(m.SubStationId.Value))
+            .Select(m => m.Id)
+            .ToListAsync();
+    }
+
+    public async Task<List<int>> GetUserIdsWithAccessToSubStationAsync(int subStationId)
+    {
+        var subStation = await _db.SubStations
+            .Where(ss => ss.Id == subStationId)
+            .Select(ss => new { ss.StationId, ss.Station.BranchId })
+            .FirstOrDefaultAsync();
+
+        if (subStation == null)
+            return new List<int>();
+
+        return await _db.UserScopes
+            .Where(s => s.DeletedAt == null && (
+                s.BranchId == null && s.StationId == null && s.SubStationId == null ||
+                s.SubStationId == subStationId ||
+                s.StationId == subStation.StationId ||
+                s.BranchId == subStation.BranchId))
+            .Select(s => s.UserId)
+            .Distinct()
+            .ToListAsync();
     }
 
     public async Task<bool> HasAccessToSubStationAsync(int userId, int subStationId)

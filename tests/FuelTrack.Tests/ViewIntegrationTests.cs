@@ -244,7 +244,7 @@ public class ViewIntegrationTests
             TransactionTypeLookupId = transactionTypeLookup.Id,
             TransactionDate = DateTime.UtcNow,
             QuantityLiters = 500,
-            InvoiceNumber = "INV-O-001"
+            Reference = "INV-O-001"
         });
         await context.SaveChangesAsync();
     }

@@ -47,6 +47,7 @@ public class ControllerService : IControllerService
             RegisterType = dto.RegisterType,
             AutoConnect = dto.AutoConnect,
             EnergyUnit = dto.EnergyUnit,
+            IsActive = dto.IsActive,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
@@ -117,6 +118,7 @@ public class ControllerService : IControllerService
         controller.RegisterType = dto.RegisterType;
         controller.AutoConnect = dto.AutoConnect;
         controller.EnergyUnit = dto.EnergyUnit;
+        controller.IsActive = dto.IsActive;
         controller.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
@@ -132,13 +134,15 @@ public class ControllerService : IControllerService
     {
         return await _db.Controllers
             .Include(c => c.Generator)
+            .Where(c => c.DeletedAt == null)
             .OrderBy(c => c.Name)
             .Select(c => new ControllerListDto(
                 c.Id, c.Name, c.Code, c.ControllerType, c.ConnectionStatus,
                 c.Generator == null ? null : c.Generator.Name,
                 c.GeneratorId, c.SerialNumber, c.IpAddress, c.Port, c.ModbusUnitId,
                 c.EnergyReading, c.OperatingHours,
-                c.RegisterType, c.AutoConnect, c.EnergyUnit))
+                c.RegisterType, c.AutoConnect, c.EnergyUnit,
+                c.IsActive))
             .ToListAsync();
     }
 
@@ -146,7 +150,9 @@ public class ControllerService : IControllerService
     {
         var controller = await _db.Controllers.FindAsync(id)
             ?? throw new KeyNotFoundException($"Controller {id} not found.");
-        _db.Controllers.Remove(controller);
+        controller.IsActive = false;
+        controller.DeletedAt = DateTime.UtcNow;
+        controller.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
     }
 
@@ -219,13 +225,14 @@ public class ControllerService : IControllerService
     {
         return await _db.Controllers
             .Include(c => c.Generator)
-            .Where(c => c.Id == id)
+            .Where(c => c.Id == id && c.DeletedAt == null)
             .Select(c => new ControllerDetailDto(
                 c.Id, c.GeneratorId, c.Generator == null ? null : c.Generator.Name,
                 c.Name, c.Code, c.ControllerType, c.IpAddress,
                 c.Port, c.ModbusUnitId, c.SerialNumber, c.FirmwareVersion,
                 c.ConnectionStatus, c.EnergyReading, c.OperatingHours,
                 c.RegisterType, c.AutoConnect, c.EnergyUnit,
+                c.IsActive,
                 c.CreatedAt, c.UpdatedAt))
             .FirstOrDefaultAsync();
     }

@@ -19,6 +19,5 @@ public class CreateFuelMovementDtoValidator : AbstractValidator<CreateFuelMoveme
         RuleFor(x => x.DriverIdCard).MaximumLength(50).When(x => x.DriverIdCard is not null);
         RuleFor(x => x.TruckNumber).MaximumLength(50).When(x => x.TruckNumber is not null);
         RuleFor(x => x.InvoiceNumber).MaximumLength(100).When(x => x.InvoiceNumber is not null);
-        RuleFor(x => x.WarehouseReceiptNumber).MaximumLength(100).When(x => x.WarehouseReceiptNumber is not null);
     }
 }

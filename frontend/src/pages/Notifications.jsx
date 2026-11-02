@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import client from '../api/client';
 import { Bell, CheckCheck, Trash2, AlertTriangle, Info, AlertCircle, Zap, Database, Droplet } from 'lucide-react';
 import useAuthStore from '../store/authStore';
+import useToastStore from '../store/toastStore';
+import { useNavigate } from 'react-router-dom';
+import socket from '../socket';
 
 const typeConfig = {
   fuel_low:            { icon: Database, color: 'var(--danger)',  label: 'وقود منخفض' },
@@ -12,6 +15,8 @@ const typeConfig = {
   inventory_submitted: { icon: Bell,     color: 'var(--primary)', label: 'جرد دوري مقدم' },
   high_loss:           { icon: AlertTriangle, color: 'var(--danger)', label: 'فاقد مرتفع' },
   supply_approved:     { icon: CheckCheck, color: 'var(--secondary)', label: 'توريد موافق عليه' },
+  part_replacement_due: { icon: AlertTriangle, color: 'var(--warning)', label: 'قطعة غيار تقترب من موعد الاستبدال' },
+  part_replacement_overdue: { icon: AlertTriangle, color: 'var(--danger)', label: 'قطعة غيار تجاوزت موعد الاستبدال' },
   system:              { icon: Info,     color: 'var(--primary)', label: 'إشعار نظام' },
 };
 
@@ -25,23 +30,45 @@ export const getNotificationId = (notification) => notification?.id || notificat
 
 function Notifications({ lang, onRead }) {
   const currentUser = useAuthStore((s) => s.user);
+  const navigate = useNavigate();
   const ar = lang === 'ar';
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all'); // all | unread | danger | warning
+  const showToast = useToastStore((s) => s.showToast);
 
   const fetchNotifs = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await client.get('/api/notifications');
       setNotifications(res.data.notifications || []);
       setUnreadCount(res.data.unreadCount || 0);
-    } catch {}
-    finally { setLoading(false); }
+    } catch (err) {
+      setError(err.response?.data?.msg || (ar ? 'فشل تحميل الإشعارات' : 'Failed to load notifications'));
+      showToast(err.response?.data?.msg || (ar ? 'فشل تحميل الإشعارات' : 'Failed to load notifications'), 'error');
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchNotifs(); }, []);
+
+  useEffect(() => {
+    const onCreated = (notification) => {
+      setNotifications(prev => [notification, ...prev.filter(n => getNotificationId(n) !== getNotificationId(notification))]);
+      setUnreadCount(count => count + 1);
+    };
+    const onRead = ({ id }) => setNotifications(prev => prev.map(n => getNotificationId(n) === id ? { ...n, isRead: true } : n));
+    socket.on('NotificationCreated', onCreated);
+    socket.on('NotificationRead', onRead);
+    socket.on('AllNotificationsRead', fetchNotifs);
+    return () => {
+      socket.off('NotificationCreated', onCreated);
+      socket.off('NotificationRead', onRead);
+      socket.off('AllNotificationsRead', fetchNotifs);
+    };
+  }, []);
 
   const userId = currentUser?.id;
 
@@ -49,7 +76,7 @@ function Notifications({ lang, onRead }) {
     if (!id) return;
     try {
       await client.patch(`/api/notifications/${id}/read`);
-      setNotifications(prev => prev.map(n => getNotificationId(n) === id ? { ...n, readBy: [...(n.readBy || []), userId] } : n));
+      setNotifications(prev => prev.map(n => getNotificationId(n) === id ? { ...n, isRead: true } : n));
       setUnreadCount(c => Math.max(0, c - 1));
       onRead?.();
     } catch (err) {
@@ -77,7 +104,17 @@ function Notifications({ lang, onRead }) {
     setNotifications(prev => prev.filter(n => getNotificationId(n) !== id));
   };
 
-  const isUnread = (n) => !n.readBy?.includes(userId);
+  const isUnread = (n) => !n.isRead;
+
+  const openRelatedEntity = (notification) => {
+    const routes = {
+      FuelTank: '/tanks',
+      Oil: '/oils',
+      InstalledPart: '/maintenance/installed-parts',
+    };
+    const route = routes[notification.relatedEntityType];
+    if (route) navigate(route);
+  };
 
   const filtered = notifications.filter(n => {
     if (filter === 'unread') return isUnread(n);
@@ -162,8 +199,15 @@ function Notifications({ lang, onRead }) {
       </div>
 
       {/* List */}
-      <div className="glass-card">
-        {loading ? (
+      <div className="section-card">
+        {error && (
+          <div className="empty-state">
+            <AlertTriangle size={48} style={{ color: 'var(--danger)' }} />
+            <h3>{error}</h3>
+            <button className="btn btn-sm" onClick={fetchNotifs}>{ar ? 'إعادة المحاولة' : 'Retry'}</button>
+          </div>
+        )}
+        {!error && loading ? (
           <div className="spinner-wrap"><div className="ft-spinner" /></div>
         ) : filtered.length === 0 ? (
           <div className="empty-state">
@@ -173,7 +217,7 @@ function Notifications({ lang, onRead }) {
         ) : (
           <div>
             {filtered.map((notif, idx) => {
-              const cfg = typeConfig[notif.type] || typeConfig.system;
+              const cfg = typeConfig[notif.notificationType] || typeConfig.system;
               const Icon = cfg.icon;
               const unread = isUnread(notif);
               const sStyle = severityStyle[notif.severity] || severityStyle.info;
@@ -218,11 +262,16 @@ function Notifications({ lang, onRead }) {
                     <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 6 }}>
                       {formatTime(notif.createdAt)}
                       {notif.relatedStation && (
-                        <span style={{ marginRight: ar ? 0 : 8, marginLeft: ar ? 8 : 0 }}>
+                         <span style={{ marginInlineStart: 8 }}>
                           · {notif.relatedStation.name}
                         </span>
                       )}
                     </div>
+                    {notif.relatedEntityType && (
+                      <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); openRelatedEntity(notif); }} style={{ marginTop: 8 }}>
+                        {ar ? 'فتح العنصر المرتبط' : 'Open related item'}
+                      </button>
+                    )}
                   </div>
 
                   {/* Delete */}

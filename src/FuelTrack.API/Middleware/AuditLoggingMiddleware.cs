@@ -16,7 +16,50 @@ public class AuditLoggingMiddleware
     {
         "FuelTransactions", "OilTransactions", "DailyReadings", "SubStationReadings",
         "PeriodicInventories", "Generators", "FuelTanks", "OilTanks", "Meters",
-        "SubStations", "Stations", "Users", "Roles", "Lookups"
+        "SubStations", "Stations", "Users", "Roles", "Lookups", "AnalyticsInsights",
+        "Controllers", "Notifications", "Oils"
+    };
+
+    private static readonly Dictionary<string, string> RouteEntityMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["fuel-movements"] = "FuelTransactions",
+        ["oil-transactions"] = "OilTransactions",
+        ["readings"] = "DailyReadings",
+        ["substation-readings"] = "SubStationReadings",
+        ["inventory"] = "PeriodicInventories",
+        ["generators"] = "Generators",
+        ["fuel-tanks"] = "FuelTanks",
+        ["oils"] = "Oils",
+        ["meters"] = "Meters",
+        ["sub-stations"] = "SubStations",
+        ["stations"] = "Stations",
+        ["users"] = "Users",
+        ["roles"] = "Roles",
+        ["lookups"] = "Lookups",
+        ["analytics"] = "AnalyticsInsights",
+        ["controllers"] = "Controllers",
+        ["notifications"] = "Notifications"
+    };
+
+    private static readonly Dictionary<string, Type> EntityTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Users"] = typeof(User),
+        ["Roles"] = typeof(Role),
+        ["Stations"] = typeof(Station),
+        ["SubStations"] = typeof(SubStation),
+        ["Generators"] = typeof(Generator),
+        ["FuelTanks"] = typeof(FuelTank),
+        ["Meters"] = typeof(Meter),
+        ["Lookups"] = typeof(Lookup),
+        ["DailyReadings"] = typeof(DailyReading),
+        ["FuelTransactions"] = typeof(FuelTransaction),
+        ["OilTransactions"] = typeof(OilTransaction),
+        ["PeriodicInventories"] = typeof(PeriodicInventory),
+        ["SubStationReadings"] = typeof(SubStationReading),
+        ["AnalyticsInsights"] = typeof(AnalyticsInsight),
+        ["Controllers"] = typeof(Controller),
+        ["Notifications"] = typeof(Notification),
+        ["Oils"] = typeof(Oil)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -58,6 +101,7 @@ public class AuditLoggingMiddleware
             _ => method
         };
 
+        var entityId = ExtractEntityIdFromPath(path);
         string? bodyBefore = null;
         string? bodyAfter = null;
 
@@ -93,7 +137,7 @@ public class AuditLoggingMiddleware
 
             if (context.Response.StatusCode is >= 200 and < 300)
             {
-                _ = SaveAuditLogAsync(userId, action, entityName, bodyBefore, bodyAfter, context.Connection.RemoteIpAddress?.ToString());
+                _ = SaveAuditLogAsync(userId, action, entityName, entityId, bodyBefore, bodyAfter, context.Connection.RemoteIpAddress?.ToString());
             }
         }
         catch (Exception ex)
@@ -114,9 +158,32 @@ public class AuditLoggingMiddleware
         for (var i = 0; i < segments.Length; i++)
         {
             if (segments[i].Equals("api", StringComparison.OrdinalIgnoreCase) && i + 1 < segments.Length)
-                return segments[i + 1];
+            {
+                var segment = segments[i + 1];
+                if (RouteEntityMap.TryGetValue(segment, out var entityName))
+                    return entityName;
+
+                if (i + 2 < segments.Length)
+                {
+                    var compound = segment + "/" + segments[i + 2];
+                    if (RouteEntityMap.TryGetValue(compound, out var compoundEntityName))
+                        return compoundEntityName;
+                }
+                return null;
+            }
         }
         return null;
+    }
+
+    private static int ExtractEntityIdFromPath(string path)
+    {
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        for (int i = segments.Length - 1; i >= 0; i--)
+        {
+            if (int.TryParse(segments[i], out var id))
+                return id;
+        }
+        return 0;
     }
 
     private static int GetUserId(HttpContext context)
@@ -137,17 +204,11 @@ public class AuditLoggingMiddleware
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<FuelTrackDbContext>();
 
-            switch (entityName)
-            {
-                case "Users":
-                    var user = await db.Users.FindAsync(entityId);
-                    return user is not null ? JsonSerializer.Serialize(user, JsonOptions) : null;
-                case "Roles":
-                    var role = await db.Roles.FindAsync(entityId);
-                    return role is not null ? JsonSerializer.Serialize(role, JsonOptions) : null;
-                default:
-                    return null;
-            }
+            if (!EntityTypes.TryGetValue(entityName, out var entityType))
+                return null;
+
+            var entity = await db.FindAsync(entityType, entityId);
+            return entity is not null ? JsonSerializer.Serialize(entity, JsonOptions) : null;
         }
         catch (Exception ex)
         {
@@ -156,7 +217,7 @@ public class AuditLoggingMiddleware
         }
     }
 
-    private async Task SaveAuditLogAsync(int userId, string action, string entityName, string? oldValues, string? newValues, string? ip)
+    private async Task SaveAuditLogAsync(int userId, string action, string entityName, int entityId, string? oldValues, string? newValues, string? ip)
     {
         try
         {
@@ -168,7 +229,7 @@ public class AuditLoggingMiddleware
                 UserId = userId,
                 Action = action,
                 EntityName = entityName,
-                EntityId = 0,
+                EntityId = entityId,
                 OldValues = oldValues?.Length > 4000 ? oldValues[..4000] : oldValues,
                 NewValues = newValues?.Length > 4000 ? newValues[..4000] : newValues,
                 IpAddress = ip,

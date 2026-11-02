@@ -19,9 +19,6 @@ namespace FuelTrack.Domain.Models
         public string? InvoiceNumber { get; set; }
         public DateTime? InvoiceDate { get; set; }
         public double? InvoiceQuantity { get; set; }
-        public string? WarehouseReceiptNumber { get; set; }
-        public DateTime? WarehouseReceiptDate { get; set; }
-        public double? WarehouseQuantity { get; set; }
         
         // قراءات عداد سحب الوقود في الموقع عند الاستلام
         public int? MeterId { get; set; }

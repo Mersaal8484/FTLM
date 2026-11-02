@@ -5,5 +5,6 @@ public record ReadingFilterDto(
     DateTime? DateFrom,
     DateTime? DateTo,
     int? ReadingStatusLookupId,
+    string? Status,
     int Page = 1,
     int PageSize = 10);

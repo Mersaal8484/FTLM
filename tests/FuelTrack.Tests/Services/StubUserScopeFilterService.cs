@@ -13,6 +13,12 @@ public class StubUserScopeFilterService : IUserScopeFilterService
     public Task<List<int>> GetAccessibleBranchIdsAsync(int userId)
         => Task.FromResult(new List<int>());
 
+    public Task<List<int>> GetAccessibleMeterIdsAsync(int userId)
+        => Task.FromResult(new List<int>());
+
+    public Task<List<int>> GetUserIdsWithAccessToSubStationAsync(int subStationId)
+        => Task.FromResult(new List<int>());
+
     public Task<bool> HasAccessToSubStationAsync(int userId, int subStationId)
         => Task.FromResult(true);
 }

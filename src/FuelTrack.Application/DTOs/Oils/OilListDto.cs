@@ -9,7 +9,8 @@ public record OilListDto(
     int? StationId,
     string? StationName,
     int? SubStationId,
-    string? SubStationName)
+    string? SubStationName,
+    bool IsActive)
 {
     public string Name => OilLookupName;
 }

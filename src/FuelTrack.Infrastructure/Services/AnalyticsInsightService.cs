@@ -202,3 +202,4 @@ public class AnalyticsInsightService : IAnalyticsInsightService
         return await query.ToDictionaryAsync(g => g.Id);
     }
 }
+

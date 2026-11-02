@@ -40,6 +40,8 @@ async function fetchTokenAndStart() {
   }
 }
 
-fetchTokenAndStart();
+if (import.meta.env.MODE !== 'test') {
+  fetchTokenAndStart();
+}
 
 export default connection;

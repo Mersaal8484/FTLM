@@ -16,4 +16,5 @@ public record ControllerListDto(
     double OperatingHours,
     string? RegisterType,
     bool AutoConnect,
-    string? EnergyUnit);
+    string? EnergyUnit,
+    bool IsActive);

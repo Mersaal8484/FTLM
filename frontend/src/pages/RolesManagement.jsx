@@ -8,6 +8,7 @@ import usePermissions from '../permissions/usePermissions';
 import useAuthStore from '../store/authStore';
 import useToastStore from '../store/toastStore';
 import PermissionMatrix from '../components/roles/PermissionMatrix';
+import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 
 const PROTECTED_KEYS = new Set(['admin']);
 
@@ -277,17 +278,25 @@ export default function RolesManagement({ lang }) {
 
   return (
     <div className="page-container">
-      <header className="page-header" style={{ justifyContent: 'flex-end' }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto' }}>
-          <span className="text-sm text-muted" style={{ marginLeft: 4 }}>
-            {ar ? 'إجمالي الصلاحيات المحددة:' : 'Total Permissions:'} <span style={{ fontWeight: 600 }}>{totalPermissions}</span>
+      <PageHeader
+        title={
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Shield size={24} style={{ color: 'var(--primary)' }} />
+            {ar ? 'إدارة الأدوار' : 'Roles Management'}
           </span>
-          <button className="btn btn-primary" onClick={handleAddRole} disabled={!can('roles', 'create')} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={16} />
-            {ar ? 'إضافة دور' : 'Add Role'}
-          </button>
-        </div>
-      </header>
+        }
+        subtitle={ar ? 'إدارة الأدوار والصلاحيات' : 'Manage roles and permissions'}
+        actions={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span className="text-sm text-muted" style={{ marginInlineStart: 4 }}>
+              {ar ? 'إجمالي الصلاحيات المحددة:' : 'Total Permissions:'} <span style={{ fontWeight: 600 }}>{totalPermissions}</span>
+            </span>
+            <Button icon={Plus} onClick={handleAddRole} disabled={!can('roles', 'create')}>
+              {ar ? 'إضافة دور' : 'Add Role'}
+            </Button>
+          </div>
+        }
+      />
 
       <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
         <div style={{ flex: '0 0 320px', maxWidth: 320 }}>
@@ -385,90 +394,82 @@ export default function RolesManagement({ lang }) {
       </div>
 
       {showModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
-          <div className="modal-box">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 600 }}>
-              {saveTarget
-                ? (ar ? 'تعديل الدور' : 'Edit Role')
-                : (ar ? 'إضافة دور جديد' : 'Add New Role')}
-            </h2>
-            <button className="btn btn-ghost btn-sm" onClick={() => setShowModal(false)} style={{ padding: 4 }}>
-              <X size={18} />
-            </button>
-          </div>
-          <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
-            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
-              <div>
-                <label className="form-label">{ar ? 'الاسم بالعربية' : 'Name (Arabic)'}</label>
-                <input className="form-control" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
-              </div>
-              <div>
-                <label className="form-label">{ar ? 'الاسم بالإنجليزية' : 'Name (English)'}</label>
-                <input className="form-control" value={form.nameEn} onChange={e => setForm({...form, nameEn: e.target.value})} />
-              </div>
-              <div>
-                <label className="form-label">{ar ? 'المفتاح' : 'Key'}</label>
-                <input className="form-control" value={form.key} onChange={e => setForm({...form, key: e.target.value})} placeholder={ar ? 'سيتم إنشاؤه تلقائياً' : 'auto-generated'} />
-              </div>
-              <div>
-                <label className="form-label">{ar ? 'الحالة' : 'Status'}</label>
-                <select className="form-control" value={form.isActive ? 'active' : 'inactive'} onChange={e => setForm({...form, isActive: e.target.value === 'active'})}>
-                  <option value="active">{ar ? 'نشط' : 'Active'}</option>
-                  <option value="inactive">{ar ? 'غير نشط' : 'Inactive'}</option>
-                </select>
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label className="form-label">{ar ? 'الوصف بالعربية' : 'Description (Arabic)'}</label>
-                <input className="form-control" value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label className="form-label">{ar ? 'الوصف بالإنجليزية' : 'Description (English)'}</label>
-                <input className="form-control" value={form.descriptionEn} onChange={e => setForm({...form, descriptionEn: e.target.value})} />
-              </div>
-            </div>
-
-            <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>
-                {ar ? 'إلغاء' : 'Cancel'}
-              </button>
-              <button type="submit" className="btn btn-primary" disabled={isSaving || !can('roles', 'edit')} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Modal
+          open={showModal}
+          onClose={() => setShowModal(false)}
+          title={saveTarget ? (ar ? 'تعديل الدور' : 'Edit Role') : (ar ? 'إضافة دور جديد' : 'Add New Role')}
+          maxWidth={600}
+          footer={
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <Button variant="ghost" onClick={() => setShowModal(false)}>{ar ? 'إلغاء' : 'Cancel'}</Button>
+              <Button variant="primary" onClick={handleSave} disabled={isSaving || !can('roles', 'edit')}>
                 {isSaving ? <div className="ft-spinner" style={{ width: 14, height: 14 }} /> : <Save size={14} />}
                 {isSaving
                   ? (ar ? 'جاري الحفظ...' : 'Saving...')
                   : (saveTarget ? (ar ? 'تحديث' : 'Update') : (ar ? 'إنشاء' : 'Create'))}
-              </button>
+              </Button>
+            </div>
+          }
+        >
+          <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+              <FormField label={ar ? 'الاسم بالعربية' : 'Name (Arabic)'} required>
+                <Input value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
+              </FormField>
+              <FormField label={ar ? 'الاسم بالإنجليزية' : 'Name (English)'}>
+                <Input value={form.nameEn} onChange={e => setForm({...form, nameEn: e.target.value})} />
+              </FormField>
+              <FormField label={ar ? 'المفتاح' : 'Key'}>
+                <Input value={form.key} onChange={e => setForm({...form, key: e.target.value})} placeholder={ar ? 'سيتم إنشاؤه تلقائياً' : 'auto-generated'} />
+              </FormField>
+              <FormField label={ar ? 'الحالة' : 'Status'}>
+                <select className="form-select" value={form.isActive ? 'active' : 'inactive'} onChange={e => setForm({...form, isActive: e.target.value === 'active'})}>
+                  <option value="active">{ar ? 'نشط' : 'Active'}</option>
+                  <option value="inactive">{ar ? 'غير نشط' : 'Inactive'}</option>
+                </select>
+              </FormField>
+              <div style={{ gridColumn: 'span 2' }}>
+                <FormField label={ar ? 'الوصف بالعربية' : 'Description (Arabic)'}>
+                  <Input value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
+                </FormField>
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <FormField label={ar ? 'الوصف بالإنجليزية' : 'Description (English)'}>
+                  <Input value={form.descriptionEn} onChange={e => setForm({...form, descriptionEn: e.target.value})} />
+                </FormField>
+              </div>
             </div>
           </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {confirmDeleteRole && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setConfirmDeleteRole(null)}>
-          <div className="modal-box">
+        <Modal
+          open={!!confirmDeleteRole}
+          onClose={() => setConfirmDeleteRole(null)}
+          title={ar ? 'حذف الدور' : 'Delete Role'}
+          maxWidth={500}
+          footer={
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <Button variant="ghost" onClick={() => setConfirmDeleteRole(null)} style={{ padding: '8px 20px' }}>
+                {ar ? 'إلغاء' : 'Cancel'}
+              </Button>
+              <Button variant="danger" onClick={confirmDelete} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 20px' }}>
+                <Trash2 size={14} />
+                {ar ? 'حذف' : 'Delete'}
+              </Button>
+            </div>
+          }
+        >
           <div style={{ textAlign: 'center', padding: 20 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>
-              {ar ? 'حذف الدور' : 'Delete Role'}
-            </h3>
             <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>
               {ar ? 'هل أنت متأكد من حذف الدور' : 'Are you sure you want to delete the role'}
             </p>
             <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 20 }}>
               "{confirmDeleteRole.name}"?
             </p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              <button className="btn btn-ghost" onClick={() => setConfirmDeleteRole(null)} style={{ padding: '8px 20px' }}>
-                {ar ? 'إلغاء' : 'Cancel'}
-              </button>
-              <button className="btn btn-danger" onClick={confirmDelete} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 20px' }}>
-                <Trash2 size={14} />
-                {ar ? 'حذف' : 'Delete'}
-              </button>
-            </div>
           </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

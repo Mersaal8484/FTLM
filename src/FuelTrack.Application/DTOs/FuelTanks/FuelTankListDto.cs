@@ -14,4 +14,5 @@ public record FuelTankListDto(
     double? ActualStockLiters,
     bool HasMeter,
     double? MeterReading,
-    double? MeterReadingActual);
+    double? MeterReadingActual,
+    bool IsActive);

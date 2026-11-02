@@ -40,6 +40,10 @@ test.describe('Generator Screens Setup', () => {
 
     const after = asArray(await apiGet(page, '/api/controllers')).length;
     expect(after, 'a controller should be persisted via API').toBeGreaterThan(before);
+
+    // Reload the page so React shows the newly created card.
+    await gotoPage(page, '/controllers');
+    await page.locator('.ctrl-card').first().waitFor({ state: 'visible' });
   });
 
   test('edit a screen', async ({ page }) => {

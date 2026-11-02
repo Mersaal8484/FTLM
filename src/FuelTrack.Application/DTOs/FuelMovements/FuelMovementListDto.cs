@@ -14,4 +14,10 @@ public record FuelMovementListDto(
     bool IsApproved,
     string? ApprovedByName,
     DateTime? ApprovedAt,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string? SourceSubStationName,
+    string? DestinationSubStationName,
+    double? InvoiceQuantity,
+    string? InvoiceNumber,
+    int? CorrectedFromId,
+    string? CorrectionReason);

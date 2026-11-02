@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using FuelTrack.Application.Common;
 using Microsoft.Extensions.Caching.Distributed;
@@ -11,6 +12,7 @@ public class HybridCacheService : ICacheService
     private readonly IMemoryCache _memory;
     private readonly IDistributedCache _distributed;
     private readonly ILogger<HybridCacheService> _logger;
+    private readonly ConcurrentDictionary<string, bool> _trackedKeys = new();
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -28,7 +30,7 @@ public class HybridCacheService : ICacheService
         _logger = logger;
     }
 
-    public async Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class
+    public async Task<T?> GetAsync<T>(string key, CancellationToken ct = default)
     {
         if (_memory.TryGetValue(key, out T? memValue) && memValue is not null)
         {
@@ -46,6 +48,7 @@ public class HybridCacheService : ICacheService
                 {
                     _logger.LogDebug("Cache HIT (distributed): {Key}", key);
                     _memory.Set(key, value, TimeSpan.FromMinutes(2));
+                    _trackedKeys.TryAdd(key, true);
                     return value;
                 }
             }
@@ -56,13 +59,14 @@ public class HybridCacheService : ICacheService
         }
 
         _logger.LogDebug("Cache MISS: {Key}", key);
-        return null;
+        return default;
     }
 
-    public async Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default) where T : class
+    public async Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default)
     {
         var ttl = expiry ?? TimeSpan.FromMinutes(5);
 
+        _trackedKeys.TryAdd(key, true);
         _memory.Set(key, value, ttl);
 
         try
@@ -81,6 +85,7 @@ public class HybridCacheService : ICacheService
 
     public async Task RemoveAsync(string key, CancellationToken ct = default)
     {
+        _trackedKeys.TryRemove(key, out _);
         _memory.Remove(key);
 
         try
@@ -97,22 +102,22 @@ public class HybridCacheService : ICacheService
     {
         _logger.LogInformation("Cache purge prefix: {Prefix}", prefix);
 
-        if (_memory is MemoryCache memCache)
+        var toRemove = _trackedKeys.Keys
+            .Where(k => k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        foreach (var key in toRemove)
         {
-            var field = typeof(MemoryCache).GetField("_entries", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (field?.GetValue(memCache) is System.Collections.IDictionary entries)
+            _memory.Remove(key);
+            _trackedKeys.TryRemove(key, out _);
+            try
             {
-                var keysToRemove = new List<object>();
-                foreach (System.Collections.DictionaryEntry entry in entries)
-                {
-                    if (entry.Key.ToString()?.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) == true)
-                        keysToRemove.Add(entry.Key);
-                }
-                foreach (var k in keysToRemove)
-                    entries.Remove(k);
+                await _distributed.RemoveAsync(key, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Cache remove failed: {Key}", key);
             }
         }
-
-        await Task.CompletedTask;
     }
 }

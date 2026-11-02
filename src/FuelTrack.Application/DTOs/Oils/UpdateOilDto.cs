@@ -5,4 +5,5 @@ public record UpdateOilDto(
     decimal? CurrentStock,
     decimal? MinStock,
     int? StationId,
-    int? SubStationId);
+    int? SubStationId,
+    bool? IsActive);

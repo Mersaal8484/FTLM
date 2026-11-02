@@ -12,12 +12,14 @@ public class ReadingService : IReadingService
     private readonly FuelTrackDbContext _db;
     private readonly IUserScopeFilterService _scopeFilter;
     private readonly ILogger<ReadingService> _logger;
+    private readonly ICurrentUserService _currentUser;
 
-    public ReadingService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ILogger<ReadingService> logger)
+    public ReadingService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ILogger<ReadingService> logger, ICurrentUserService currentUser)
     {
         _db = db;
         _scopeFilter = scopeFilter;
         _logger = logger;
+        _currentUser = currentUser;
     }
 
     private async Task<int> ResolveFuelLookupIdAsync(int provided, int subStationId)
@@ -287,7 +289,7 @@ public class ReadingService : IReadingService
         return await MapToDetailAsync(id);
     }
 
-    public async Task<PagedResult<ReadingListDto>> ListAsync(ReadingFilterDto filter, int? userId = null, bool isAdmin = false)
+    public async Task<PagedResult<ReadingListDto>> ListAsync(ReadingFilterDto filter, int? userId = null, bool isAdmin = false, CancellationToken ct = default)
     {
         var query = _db.DailyReadings
             .Include(dr => dr.Generator)
@@ -324,6 +326,18 @@ public class ReadingService : IReadingService
         if (filter.ReadingStatusLookupId.HasValue)
             query = query.Where(dr => dr.ReadingStatusLookupId == filter.ReadingStatusLookupId.Value);
 
+        // Support status filtering by code (e.g. status=pending) for the Review Changes page.
+        if (!string.IsNullOrEmpty(filter.Status))
+        {
+            var draftStatusId = await _db.Lookups
+                .Where(l => l.Category != null && l.Category.Name == "ReadingStatus" && l.Code == "Draft")
+                .Select(l => l.Id)
+                .FirstOrDefaultAsync(ct);
+
+            if (filter.Status.Equals("pending", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(dr => dr.ReadingStatusLookupId == draftStatusId);
+        }
+
         var totalCount = await query.CountAsync();
 
         var items = await query
@@ -353,6 +367,62 @@ public class ReadingService : IReadingService
             Page = filter.Page,
             PageSize = filter.PageSize,
         };
+    }
+
+    public async Task<List<PendingReadingDto>> GetPendingAsync(CancellationToken ct = default)
+    {
+        var query = _db.DailyReadings
+            .Include(dr => dr.Generator)
+                .ThenInclude(g => g.SubStation)
+                    .ThenInclude(ss => ss.Station)
+            .Include(dr => dr.OilLookup)
+            .Include(dr => dr.ReadingStatusLookup)
+            .AsQueryable();
+
+        if (!_currentUser.HasAnyAdminRole)
+        {
+            var userId = _currentUser.UserId;
+            if (userId.HasValue)
+            {
+                var accessibleSubStationIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
+                if (accessibleSubStationIds.Count == 0)
+                    return new List<PendingReadingDto>();
+
+                var accessibleGeneratorIds = await _db.Generators
+                    .Where(g => accessibleSubStationIds.Contains(g.SubStationId))
+                    .Select(g => g.Id)
+                    .ToListAsync();
+                query = query.Where(dr => accessibleGeneratorIds.Contains(dr.GeneratorId));
+            }
+        }
+
+        var draftLookupId = await _db.Lookups
+            .Where(l => l.Category != null && l.Category.Name == "ReadingStatus" && l.Code == "Draft")
+            .Select(l => l.Id)
+            .FirstOrDefaultAsync(ct);
+
+        if (draftLookupId == 0)
+            return new List<PendingReadingDto>();
+
+        query = query.Where(dr => dr.ReadingStatusLookupId == draftLookupId);
+
+        var readings = await query
+            .OrderByDescending(dr => dr.ReadingDate)
+            .Select(dr => new PendingReadingDto(
+                dr.Id,
+                dr.Generator.Name,
+                dr.Generator.SubStation.Station.Name,
+                dr.Generator.SubStation.Name,
+                dr.ReadingDate,
+                dr.PrevEnergyKWh,
+                dr.CurrentEnergyKWh,
+                CalculateFuelConsumption(dr.CurrentEnergyKWh, dr.PrevEnergyKWh, (double)dr.StandardFuelRate),
+                dr.OilUsedLiters,
+                dr.OilLookup.Name,
+                dr.CreatedBy != 0 ? _db.Users.Where(u => u.Id == dr.CreatedBy).Select(u => u.FullName).FirstOrDefault() : null))
+            .ToListAsync(ct);
+
+        return readings;
     }
 
     public async Task<ReadingConsumptionDto> GetConsumptionAsync(int id)
@@ -390,7 +460,7 @@ public class ReadingService : IReadingService
     private static double CalculateFuelConsumption(double currentKWh, double prevKWh, double standardRate)
     {
         var delta = currentKWh - prevKWh;
-        return standardRate > 0 ? delta / standardRate : 0;
+        return standardRate > 0 ? Math.Round(delta * standardRate, 2) : 0;
     }
 
     private async Task<ReadingDetailDto?> MapToDetailAsync(int id)
@@ -422,10 +492,39 @@ public class ReadingService : IReadingService
                 dr.RejectionReason,
                 dr.Notes,
                 dr.CreatedAt,
-                dr.UpdatedAt,
-                dr.ControllerId,
-                dr.Controller != null ? dr.Controller.Name : null
-            ))
-            .FirstOrDefaultAsync();
+        dr.UpdatedAt,
+        dr.ControllerId,
+        dr.Controller != null ? dr.Controller.Name : null
+    ))
+    .FirstOrDefaultAsync();
+    }
+
+    public async Task<ReadingDetailDto> SaveModbusReadingAsync(int generatorId, float fuelLevelLiters, DateTime readingTimestamp)
+    {
+        var generator = await _db.Generators.FindAsync(generatorId)
+            ?? throw new KeyNotFoundException($"Generator {generatorId} not found.");
+
+        var fuelLookupId = await ResolveFuelLookupIdAsync(0, generator.SubStationId);
+        var oilLookupId = await ResolveOilLookupIdAsync(0, generator.SubStationId);
+        var draftLookupId = await GetLookupIdAsync("ReadingStatus", "Draft");
+
+        var reading = new DailyReading
+        {
+            GeneratorId = generatorId,
+            ReadingDate = readingTimestamp,
+            FuelLookupId = fuelLookupId,
+            StandardFuelRate = 0,
+            OilLookupId = oilLookupId,
+            OilUsedLiters = 0,
+            ReadingStatusLookupId = draftLookupId,
+            Notes = $"Modbus fuel level: {fuelLevelLiters:N2} L"
+        };
+
+        _db.DailyReadings.Add(reading);
+        await _db.SaveChangesAsync();
+
+        return await GetByIdAsync(reading.Id)
+            ?? throw new InvalidOperationException("Failed to retrieve saved Modbus reading.");
     }
 }
+

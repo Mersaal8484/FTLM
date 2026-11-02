@@ -14,6 +14,14 @@ namespace FuelTrack.API.Hubs;
 [Authorize(AuthenticationSchemes = "SignalR")]
 public class FuelTrackHub : Hub
 {
+    public override async Task OnConnectedAsync()
+    {
+        var userId = Context.UserIdentifier;
+        if (!string.IsNullOrWhiteSpace(userId))
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"user_{userId}");
+        await base.OnConnectedAsync();
+    }
+
     public async Task JoinStationGroup(int stationId)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, $"station_{stationId}");

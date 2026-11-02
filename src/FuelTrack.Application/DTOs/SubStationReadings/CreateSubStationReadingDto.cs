@@ -1,7 +1,7 @@
 namespace FuelTrack.Application.DTOs.SubStationReadings;
 
 public record CreateSubStationReadingDto(
-    int SubStationId,
+    int? SubStationId,
     int? MeterId,
     DateTime ReadingDate,
     double PrevExportedEnergyKWh,

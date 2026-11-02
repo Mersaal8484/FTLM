@@ -23,13 +23,9 @@ public record PeriodicInventoryDto(
 
 public record FuelReadingResultDto(
     int Id,
-    int? FuelTankId,
-    string? FuelTankCode,
     int FuelLookupId,
     string? FuelLookupName,
-    double ExpectedQtyLiters,
-    double ActualQtyLiters,
-    double DifferenceLiters);
+    double ActualStockLiters);
 
 public record OilReadingResultDto(
     int Id,
@@ -37,6 +33,4 @@ public record OilReadingResultDto(
     string? OilName,
     int OilLookupId,
     string? OilLookupName,
-    double ExpectedQtyLiters,
-    double ActualQtyLiters,
-    double DifferenceLiters);
+    double ActualStockLiters);

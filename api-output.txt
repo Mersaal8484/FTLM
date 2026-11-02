@@ -1,0 +1,289 @@
+﻿C:\Users\User\Desktop\FuelTrack-Rebuild\src\FuelTrack.Application\FuelTrack.Application.csproj : warning NU1903: Package 'AutoMapper' 12.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x [C:\Users\User\Desktop\FuelTrack-Rebuild\src\FuelTrack.API\FuelTrack.API.csproj]
+C:\Users\User\Desktop\FuelTrack-Rebuild\src\FuelTrack.Infrastructure\FuelTrack.Infrastructure.csproj : warning NU1903: Package 'AutoMapper' 12.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x [C:\Users\User\Desktop\FuelTrack-Rebuild\src\FuelTrack.API\FuelTrack.API.csproj]
+C:\Users\User\Desktop\FuelTrack-Rebuild\src\FuelTrack.API\FuelTrack.API.csproj : warning NU1903: Package 'AutoMapper' 12.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x
+C:\Users\User\Desktop\FuelTrack-Rebuild\src\FuelTrack.API\FuelTrack.API.csproj : warning NU1903: Package 'AutoMapper' 12.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x
+C:\Users\User\Desktop\FuelTrack-Rebuild\src\FuelTrack.Infrastructure\FuelTrack.Infrastructure.csproj : warning NU1903: Package 'AutoMapper' 12.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x
+C:\Users\User\Desktop\FuelTrack-Rebuild\src\FuelTrack.Application\FuelTrack.Application.csproj : warning NU1903: Package 'AutoMapper' 12.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x
+[20:31:47 INF] Start installing Hangfire SQL objects...
+[20:31:48 INF] Hangfire SQL objects installed.
+[20:31:50 WRN] Entity 'PeriodicInventory' has a global query filter defined and is the required end of a relationship with the entity 'PeriodicInventoryFuel'. This may lead to unexpected results when the required entity is filtered out. Either configure the navigation as optional, or define matching query filters for both entities in the navigation. See https://go.microsoft.com/fwlink/?linkid=2131316 for more information.
+[20:31:50 WRN] Entity 'PeriodicInventory' has a global query filter defined and is the required end of a relationship with the entity 'PeriodicInventoryOil'. This may lead to unexpected results when the required entity is filtered out. Either configure the navigation as optional, or define matching query filters for both entities in the navigation. See https://go.microsoft.com/fwlink/?linkid=2131316 for more information.
+[20:31:50 WRN] Entity 'PagePermission' has a global query filter defined and is the required end of a relationship with the entity 'RolePermission'. This may lead to unexpected results when the required entity is filtered out. Either configure the navigation as optional, or define matching query filters for both entities in the navigation. See https://go.microsoft.com/fwlink/?linkid=2131316 for more information.
+[20:31:50 WRN] The foreign key property 'DispatchRequestItem.SparePartId1' was created in shadow state because a conflicting property with the simple name 'SparePartId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+[20:31:50 WRN] The foreign key property 'InstalledPart.SparePartId1' was created in shadow state because a conflicting property with the simple name 'SparePartId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+[20:31:50 WRN] The foreign key property 'WarehouseSupplyItem.SparePartId1' was created in shadow state because a conflicting property with the simple name 'SparePartId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+[20:31:50 WRN] No store type was specified for the decimal property 'StandardFuelRate' on entity type 'DailyReadingArchive'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+[20:31:50 WRN] No store type was specified for the decimal property 'ApprovedQuantity' on entity type 'DispatchRequestItem'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+[20:31:50 WRN] No store type was specified for the decimal property 'IssuedQuantity' on entity type 'DispatchRequestItem'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+[20:31:50 WRN] No store type was specified for the decimal property 'RequestedQuantity' on entity type 'DispatchRequestItem'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+[20:31:50 WRN] No store type was specified for the decimal property 'CurrentStock' on entity type 'Oil'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+[20:31:50 WRN] No store type was specified for the decimal property 'MinStock' on entity type 'Oil'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+[20:31:50 WRN] No store type was specified for the decimal property 'TotalAmount' on entity type 'WarehouseSupply'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+[20:31:50 WRN] No store type was specified for the decimal property 'Quantity' on entity type 'WarehouseSupplyItem'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+[Startup] SQL warm-up OK on attempt 1
+[20:31:50 INF] Applying EF Core migrations...
+[20:31:52 INF] Executed DbCommand (16ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT 1
+[20:31:52 INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+[20:31:52 INF] Executed DbCommand (88ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+[20:31:52 INF] Executed DbCommand (515ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+[20:31:52 INF] Executed DbCommand (22ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT 1
+[20:31:52 INF] Executed DbCommand (47ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+[20:31:52 INF] Executed DbCommand (33ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+[20:31:52 INF] No migrations were applied. The database is already up to date.
+[20:31:52 INF] Executed DbCommand (4ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+[20:31:52 INF] EF Core migrations completed successfully
+[20:31:58 INF] Executed DbCommand (66ms) [Parameters=[@keys1='?' (Size = 100), @keys2='?' (Size = 100), @keys3='?' (Size = 100), @keys4='?' (Size = 100), @keys5='?' (Size = 100), @keys6='?' (Size = 100), @keys7='?' (Size = 100), @keys8='?' (Size = 100), @keys9='?' (Size = 100), @keys10='?' (Size = 100), @keys11='?' (Size = 100), @keys12='?' (Size = 100), @keys13='?' (Size = 100), @keys14='?' (Size = 100), @keys15='?' (Size = 100), @keys16='?' (Size = 100), @keys17='?' (Size = 100), @keys18='?' (Size = 100), @keys19='?' (Size = 100), @keys20='?' (Size = 100), @keys21='?' (Size = 100), @keys22='?' (Size = 100), @keys23='?' (Size = 100), @keys24='?' (Size = 100), @keys25='?' (Size = 100), @keys26='?' (Size = 100), @keys27='?' (Size = 100), @keys28='?' (Size = 100), @keys29='?' (Size = 100), @keys30='?' (Size = 100)], CommandType='Text', CommandTimeout='30']
+SELECT [m].[Id], [m].[CustomActions], [m].[Icon], [m].[IsActive], [m].[IsVisible], [m].[Key], [m].[NameAr], [m].[NameEn], [m].[ParentKey], [m].[Route], [m].[ScopeType], [m].[SortOrder], [m].[SupportsAuditLog], [m].[SupportsGlobalSearch], [m].[Template]
+FROM [ModuleDefinitions] AS [m]
+WHERE [m].[IsActive] = CAST(1 AS bit) AND [m].[Key] IN (@keys1, @keys2, @keys3, @keys4, @keys5, @keys6, @keys7, @keys8, @keys9, @keys10, @keys11, @keys12, @keys13, @keys14, @keys15, @keys16, @keys17, @keys18, @keys19, @keys20, @keys21, @keys22, @keys23, @keys24, @keys25, @keys26, @keys27, @keys28, @keys29, @keys30)
+[20:31:58 INF] Executed DbCommand (94ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT [m].[Id], [m].[CustomActions], [m].[Icon], [m].[IsActive], [m].[IsVisible], [m].[Key], [m].[NameAr], [m].[NameEn], [m].[ParentKey], [m].[Route], [m].[ScopeType], [m].[SortOrder], [m].[SupportsAuditLog], [m].[SupportsGlobalSearch], [m].[Template]
+FROM [ModuleDefinitions] AS [m]
+WHERE [m].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (41ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (2ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (2ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (2ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (3ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:31:58 INF] Executed DbCommand (1ms) [Parameters=[@module_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder]
+FROM [PagePermissions] AS [p]
+WHERE [p].[IsActive] = CAST(1 AS bit) AND [p].[ModuleDefinitionId] = @module_Id AND [p].[IsActive] = CAST(1 AS bit)
+[20:32:01 INF] User profile is available. Using 'C:\Users\User\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+[20:32:01 INF] Executed DbCommand (21ms) [Parameters=[@normalizedName='?' (Size = 256)], CommandType='Text', CommandTimeout='30']
+SELECT TOP(1) [r].[Id], [r].[ConcurrencyStamp], [r].[CreatedAt], [r].[CreatedBy], [r].[DeletedAt], [r].[Description], [r].[IsActive], [r].[Key], [r].[Name], [r].[NormalizedName], [r].[UpdatedAt], [r].[UpdatedBy]
+FROM [Roles] AS [r]
+WHERE [r].[DeletedAt] IS NULL AND [r].[NormalizedName] = @normalizedName
+[20:32:02 INF] Executed DbCommand (14ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT [p].[Id], [p].[ActionKey], [p].[IsActive], [p].[ModuleDefinitionId], [p].[NameAr], [p].[NameEn], [p].[SortOrder], [m0].[Id], [m0].[CustomActions], [m0].[Icon], [m0].[IsActive], [m0].[IsVisible], [m0].[Key], [m0].[NameAr], [m0].[NameEn], [m0].[ParentKey], [m0].[Route], [m0].[ScopeType], [m0].[SortOrder], [m0].[SupportsAuditLog], [m0].[SupportsGlobalSearch], [m0].[Template]
+FROM [PagePermissions] AS [p]
+INNER JOIN (
+    SELECT [m].[Id], [m].[CustomActions], [m].[Icon], [m].[IsActive], [m].[IsVisible], [m].[Key], [m].[NameAr], [m].[NameEn], [m].[ParentKey], [m].[Route], [m].[ScopeType], [m].[SortOrder], [m].[SupportsAuditLog], [m].[SupportsGlobalSearch], [m].[Template]
+    FROM [ModuleDefinitions] AS [m]
+    WHERE [m].[IsActive] = CAST(1 AS bit)
+) AS [m0] ON [p].[ModuleDefinitionId] = [m0].[Id]
+WHERE [p].[IsActive] = CAST(1 AS bit)
+[20:32:02 INF] Executed DbCommand (8ms) [Parameters=[@normalizedName='?' (Size = 256)], CommandType='Text', CommandTimeout='30']
+SELECT TOP(1) [r].[Id], [r].[ConcurrencyStamp], [r].[CreatedAt], [r].[CreatedBy], [r].[DeletedAt], [r].[Description], [r].[IsActive], [r].[Key], [r].[Name], [r].[NormalizedName], [r].[UpdatedAt], [r].[UpdatedBy]
+FROM [Roles] AS [r]
+WHERE [r].[DeletedAt] IS NULL AND [r].[NormalizedName] = @normalizedName
+[20:32:02 INF] Executed DbCommand (1ms) [Parameters=[@normalizedName='?' (Size = 256)], CommandType='Text', CommandTimeout='30']
+SELECT TOP(1) [r].[Id], [r].[ConcurrencyStamp], [r].[CreatedAt], [r].[CreatedBy], [r].[DeletedAt], [r].[Description], [r].[IsActive], [r].[Key], [r].[Name], [r].[NormalizedName], [r].[UpdatedAt], [r].[UpdatedBy]
+FROM [Roles] AS [r]
+WHERE [r].[DeletedAt] IS NULL AND [r].[NormalizedName] = @normalizedName
+[20:32:02 INF] Executed DbCommand (57ms) [Parameters=[@normalizedEmail='?' (Size = 256)], CommandType='Text', CommandTimeout='30']
+SELECT TOP(2) [u].[Id], [u].[AccessFailedCount], [u].[ConcurrencyStamp], [u].[CreatedAt], [u].[CreatedBy], [u].[DeletedAt], [u].[Email], [u].[EmailConfirmed], [u].[FullName], [u].[IsActive], [u].[LockoutEnabled], [u].[LockoutEnd], [u].[NormalizedEmail], [u].[NormalizedUserName], [u].[PasswordHash], [u].[PhoneNumber], [u].[PhoneNumberConfirmed], [u].[SecurityStamp], [u].[TwoFactorBackupCodes], [u].[TwoFactorEnabled], [u].[TwoFactorSecret], [u].[UpdatedAt], [u].[UpdatedBy], [u].[UserName]
+FROM [Users] AS [u]
+WHERE [u].[DeletedAt] IS NULL AND [u].[NormalizedEmail] = @normalizedEmail
+[20:32:02 INF] Executed DbCommand (21ms) [Parameters=[@normalizedRoleName='?' (Size = 256)], CommandType='Text', CommandTimeout='30']
+SELECT TOP(2) [r].[Id], [r].[ConcurrencyStamp], [r].[CreatedAt], [r].[CreatedBy], [r].[DeletedAt], [r].[Description], [r].[IsActive], [r].[Key], [r].[Name], [r].[NormalizedName], [r].[UpdatedAt], [r].[UpdatedBy]
+FROM [Roles] AS [r]
+WHERE [r].[DeletedAt] IS NULL AND [r].[NormalizedName] = @normalizedRoleName
+[20:32:02 INF] Executed DbCommand (68ms) [Parameters=[@p='?' (DbType = Int32), @p1='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT TOP(1) [u].[UserId], [u].[RoleId]
+FROM [UserRoles] AS [u]
+WHERE [u].[UserId] = @p AND [u].[RoleId] = @p1
+[20:32:02 INF] Executed DbCommand (19ms) [Parameters=[@adminUser_Id='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [UserScopes] AS [u]
+        WHERE [u].[DeletedAt] IS NULL AND [u].[UserId] = @adminUser_Id) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+[20:32:05 ERR] Hosting failed to start
+System.IO.IOException: Failed to bind to address http://127.0.0.1:5000: address already in use.
+ ---> Microsoft.AspNetCore.Connections.AddressInUseException: Only one usage of each socket address (protocol/network address/port) is normally permitted.
+ ---> System.Net.Sockets.SocketException (10048): Only one usage of each socket address (protocol/network address/port) is normally permitted.
+   at System.Net.Sockets.Socket.UpdateStatusAfterSocketErrorAndThrowException(SocketError error, Boolean disconnectOnFailure, String callerName)
+   at System.Net.Sockets.Socket.DoBind(EndPoint endPointSnapshot, SocketAddress socketAddress)
+   at System.Net.Sockets.Socket.Bind(EndPoint localEP)
+   at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketTransportOptions.CreateDefaultBoundListenSocket(EndPoint endpoint)
+   at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketConnectionListener.Bind()
+   --- End of inner exception stack trace ---
+   at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketConnectionListener.Bind()
+   at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketTransportFactory.BindAsync(EndPoint endpoint, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure.TransportManager.BindAsync(EndPoint endPoint, ConnectionDelegate connectionDelegate, EndpointConfig endpointConfig, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.<>c__DisplayClass28_0`1.<<StartAsync>g__OnBind|0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.BindEndpointAsync(ListenOptions endpoint, AddressBindContext context, CancellationToken cancellationToken)
+   --- End of inner exception stack trace ---
+   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.BindEndpointAsync(ListenOptions endpoint, AddressBindContext context, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.LocalhostListenOptions.BindAsync(AddressBindContext context, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.AddressesStrategy.BindAsync(AddressBindContext context, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.BindAsync(CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.StartAsync[TContext](IHttpApplication`1 application, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Hosting.GenericWebHostService.StartAsync(CancellationToken cancellationToken)
+   at Microsoft.Extensions.Hosting.Internal.Host.<StartAsync>b__14_1(IHostedService service, CancellationToken token)
+   at Microsoft.Extensions.Hosting.Internal.Host.ForeachService[T](IEnumerable`1 services, CancellationToken token, Boolean concurrent, Boolean abortOnFirstException, List`1 exceptions, Func`3 operation)
+dotnet : Unhandled exception. System.IO.IOException: Failed to bind to address http://127.0.0.1:5000: address already 
+in use.
+    + CategoryInfo          : NotSpecified: (Unhandled excep...already in use.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ ---> Microsoft.AspNetCore.Connections.AddressInUseException: Only one usage of each socket address (protocol/network 
+address/port) is normally permitted.
+ ---> System.Net.Sockets.SocketException (10048): Only one usage of each socket address (protocol/network 
+address/port) is normally permitted.
+   at System.Net.Sockets.Socket.UpdateStatusAfterSocketErrorAndThrowException(SocketError error, Boolean 
+disconnectOnFailure, String callerName)
+   at System.Net.Sockets.Socket.DoBind(EndPoint endPointSnapshot, SocketAddress socketAddress)
+   at System.Net.Sockets.Socket.Bind(EndPoint localEP)
+   at 
+Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketTransportOptions.CreateDefaultBoundListenSocket(EndPoint 
+endpoint)
+   at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketConnectionListener.Bind()
+   --- End of inner exception stack trace ---
+   at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketConnectionListener.Bind()
+   at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketTransportFactory.BindAsync(EndPoint endpoint, 
+CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure.TransportManager.BindAsync(EndPoint endPoint, 
+ConnectionDelegate connectionDelegate, EndpointConfig endpointConfig, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.<>c__DisplayClass28_0`1.<<StartAsync>g__OnBind|0>d.Mov
+eNext()
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.BindEndpointAsync(ListenOptions endpoint, 
+AddressBindContext context, CancellationToken cancellationToken)
+   --- End of inner exception stack trace ---
+   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.BindEndpointAsync(ListenOptions endpoint, 
+AddressBindContext context, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.LocalhostListenOptions.BindAsync(AddressBindContext context, 
+CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.AddressesStrategy.BindAsync(AddressBindContext 
+context, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.BindAsync(CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.StartAsync[TContext](IHttpApplication`1 application, 
+CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Hosting.GenericWebHostService.StartAsync(CancellationToken cancellationToken)
+   at Microsoft.Extensions.Hosting.Internal.Host.<StartAsync>b__14_1(IHostedService service, CancellationToken token)
+   at Microsoft.Extensions.Hosting.Internal.Host.ForeachService[T](IEnumerable`1 services, CancellationToken token, 
+Boolean concurrent, Boolean abortOnFirstException, List`1 exceptions, Func`3 operation)
+   at Microsoft.Extensions.Hosting.Internal.Host.StartAsync(CancellationToken cancellationToken)
+   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.RunAsync(IHost host, CancellationToken token)
+   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.RunAsync(IHost host, CancellationToken token)
+   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.Run(IHost host)
+   at Program.<Main>$(String[] args) in C:\Users\User\Desktop\FuelTrack-Rebuild\src\FuelTrack.API\Program.cs:line 518
+   at Program.<Main>(String[] args)

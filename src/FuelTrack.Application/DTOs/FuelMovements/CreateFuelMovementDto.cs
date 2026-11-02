@@ -15,9 +15,6 @@ public record CreateFuelMovementDto(
     string? InvoiceNumber,
     DateTime? InvoiceDate,
     double? InvoiceQuantity,
-    string? WarehouseReceiptNumber,
-    DateTime? WarehouseReceiptDate,
-    double? WarehouseQuantity,
     // قراءات عداد
     int? MeterId,
     double? PrevMeterVisualReading,

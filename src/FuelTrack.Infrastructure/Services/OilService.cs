@@ -1,9 +1,7 @@
-using System.Security.Claims;
-using FuelTrack.Application.DTOs.OilTransactions;
 using FuelTrack.Application.DTOs.Oils;
+using FuelTrack.Application.DTOs.OilTransactions;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Services;
@@ -12,62 +10,52 @@ public class OilService : IOilService
 {
     private readonly FuelTrackDbContext _db;
     private readonly IUserScopeFilterService _scopeFilter;
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ICurrentUserService _currentUser;
 
-    public OilService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, IHttpContextAccessor httpContextAccessor)
+    public OilService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser)
     {
         _db = db;
         _scopeFilter = scopeFilter;
-        _httpContextAccessor = httpContextAccessor;
-    }
-
-    private int? GetCurrentUserId()
-    {
-        var claim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        return claim != null && int.TryParse(claim.Value, out var id) ? id : null;
-    }
-
-    private bool IsAdmin()
-    {
-        return _httpContextAccessor.HttpContext?.User.IsInRole("Admin") ?? false;
+        _currentUser = currentUser;
     }
 
     public async Task<OilDetailDto?> GetByIdAsync(int id, CancellationToken ct = default)
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = _currentUser.UserId;
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
                 if (accessibleIds.Count == 0)
                     return null;
-                return await _db.Set<Oil>()
-                    .Include(o => o.OilLookup)
-                    .Include(o => o.Station)
-                    .Include(o => o.SubStation)
-                    .Where(o => o.Id == id && o.IsActive && o.SubStationId.HasValue && accessibleIds.Contains(o.SubStationId.Value))
-                    .Select(o => new OilDetailDto(
-                        o.Id,
-                        o.OilLookupId,
-                        o.OilLookup.Name,
-                        o.CurrentStock,
-                        o.MinStock,
-                        o.StationId,
-                        o.Station != null ? o.Station.Name : null,
-                        o.SubStationId,
-                        o.SubStation != null ? o.SubStation.Name : null,
-                        o.CreatedAt,
-                        o.UpdatedAt))
-                    .FirstOrDefaultAsync(ct);
-            }
+                 return await _db.Set<Oil>()
+                     .Include(o => o.OilLookup)
+                     .Include(o => o.Station)
+                     .Include(o => o.SubStation)
+                     .Where(o => o.DeletedAt == null && o.Id == id && o.SubStationId.HasValue && accessibleIds.Contains(o.SubStationId.Value))
+                     .Select(o => new OilDetailDto(
+                         o.Id,
+                         o.OilLookupId,
+                         o.OilLookup.Name,
+                         o.CurrentStock,
+                         o.MinStock,
+                         o.StationId,
+                         o.Station != null ? o.Station.Name : null,
+                         o.SubStationId,
+                         o.SubStation != null ? o.SubStation.Name : null,
+                         o.IsActive,
+                         o.CreatedAt,
+                         o.UpdatedAt))
+                     .FirstOrDefaultAsync(ct);
+             }
         }
 
         return await _db.Set<Oil>()
             .Include(o => o.OilLookup)
             .Include(o => o.Station)
             .Include(o => o.SubStation)
-            .Where(o => o.Id == id && o.IsActive)
+            .Where(o => o.DeletedAt == null && o.Id == id)
             .Select(o => new OilDetailDto(
                 o.Id,
                 o.OilLookupId,
@@ -78,6 +66,7 @@ public class OilService : IOilService
                 o.Station != null ? o.Station.Name : null,
                 o.SubStationId,
                 o.SubStation != null ? o.SubStation.Name : null,
+                o.IsActive,
                 o.CreatedAt,
                 o.UpdatedAt))
             .FirstOrDefaultAsync(ct);
@@ -85,9 +74,9 @@ public class OilService : IOilService
 
     public async Task<List<OilListDto>> GetAllAsync(CancellationToken ct = default)
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = _currentUser.UserId;
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -97,7 +86,7 @@ public class OilService : IOilService
                     .Include(o => o.OilLookup)
                     .Include(o => o.Station)
                     .Include(o => o.SubStation)
-                    .Where(o => o.IsActive && o.SubStationId.HasValue && accessibleIds.Contains(o.SubStationId.Value))
+                    .Where(o => o.DeletedAt == null && o.SubStationId.HasValue && accessibleIds.Contains(o.SubStationId.Value))
                     .OrderBy(o => o.OilLookup.Name)
                     .Select(o => new OilListDto(
                         o.Id,
@@ -108,7 +97,8 @@ public class OilService : IOilService
                         o.StationId,
                         o.Station != null ? o.Station.Name : null,
                         o.SubStationId,
-                        o.SubStation != null ? o.SubStation.Name : null))
+                        o.SubStation != null ? o.SubStation.Name : null,
+                        o.IsActive))
                     .ToListAsync(ct);
             }
         }
@@ -117,7 +107,7 @@ public class OilService : IOilService
             .Include(o => o.OilLookup)
             .Include(o => o.Station)
             .Include(o => o.SubStation)
-            .Where(o => o.IsActive)
+            .Where(o => o.DeletedAt == null)
             .OrderBy(o => o.OilLookup.Name)
             .Select(o => new OilListDto(
                 o.Id,
@@ -128,15 +118,16 @@ public class OilService : IOilService
                 o.StationId,
                 o.Station != null ? o.Station.Name : null,
                 o.SubStationId,
-                o.SubStation != null ? o.SubStation.Name : null))
+                o.SubStation != null ? o.SubStation.Name : null,
+                o.IsActive))
             .ToListAsync(ct);
     }
 
     public async Task<List<OilListDto>> GetAllByStationAsync(int stationId, CancellationToken ct = default)
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = _currentUser.UserId;
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -146,7 +137,7 @@ public class OilService : IOilService
                     .Include(o => o.OilLookup)
                     .Include(o => o.Station)
                     .Include(o => o.SubStation)
-                    .Where(o => o.IsActive && o.StationId == stationId && o.SubStationId.HasValue && accessibleIds.Contains(o.SubStationId.Value))
+                    .Where(o => o.DeletedAt == null && o.StationId == stationId && o.SubStationId.HasValue && accessibleIds.Contains(o.SubStationId.Value))
                     .OrderBy(o => o.OilLookup.Name)
                     .Select(o => new OilListDto(
                         o.Id,
@@ -157,7 +148,8 @@ public class OilService : IOilService
                         o.StationId,
                         o.Station != null ? o.Station.Name : null,
                         o.SubStationId,
-                        o.SubStation != null ? o.SubStation.Name : null))
+                        o.SubStation != null ? o.SubStation.Name : null,
+                        o.IsActive))
                     .ToListAsync(ct);
             }
         }
@@ -166,7 +158,7 @@ public class OilService : IOilService
             .Include(o => o.OilLookup)
             .Include(o => o.Station)
             .Include(o => o.SubStation)
-            .Where(o => o.IsActive && o.StationId == stationId)
+            .Where(o => o.DeletedAt == null && o.StationId == stationId)
             .OrderBy(o => o.OilLookup.Name)
             .Select(o => new OilListDto(
                 o.Id,
@@ -177,15 +169,16 @@ public class OilService : IOilService
                 o.StationId,
                 o.Station != null ? o.Station.Name : null,
                 o.SubStationId,
-                o.SubStation != null ? o.SubStation.Name : null))
+                o.SubStation != null ? o.SubStation.Name : null,
+                o.IsActive))
             .ToListAsync(ct);
     }
 
     public async Task<List<OilListDto>> GetAllBySubStationAsync(int subStationId, CancellationToken ct = default)
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = _currentUser.UserId;
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -195,7 +188,7 @@ public class OilService : IOilService
                     .Include(o => o.OilLookup)
                     .Include(o => o.Station)
                     .Include(o => o.SubStation)
-                    .Where(o => o.IsActive && o.SubStationId == subStationId && accessibleIds.Contains(subStationId))
+                    .Where(o => o.DeletedAt == null && o.SubStationId == subStationId && accessibleIds.Contains(subStationId))
                     .OrderBy(o => o.OilLookup.Name)
                     .Select(o => new OilListDto(
                         o.Id,
@@ -206,7 +199,8 @@ public class OilService : IOilService
                         o.StationId,
                         o.Station != null ? o.Station.Name : null,
                         o.SubStationId,
-                        o.SubStation != null ? o.SubStation.Name : null))
+                        o.SubStation != null ? o.SubStation.Name : null,
+                        o.IsActive))
                     .ToListAsync(ct);
             }
         }
@@ -215,7 +209,7 @@ public class OilService : IOilService
             .Include(o => o.OilLookup)
             .Include(o => o.Station)
             .Include(o => o.SubStation)
-            .Where(o => o.IsActive && o.SubStationId == subStationId)
+            .Where(o => o.DeletedAt == null && o.SubStationId == subStationId)
             .OrderBy(o => o.OilLookup.Name)
             .Select(o => new OilListDto(
                 o.Id,
@@ -226,7 +220,8 @@ public class OilService : IOilService
                 o.StationId,
                 o.Station != null ? o.Station.Name : null,
                 o.SubStationId,
-                o.SubStation != null ? o.SubStation.Name : null))
+                o.SubStation != null ? o.SubStation.Name : null,
+                o.IsActive))
             .ToListAsync(ct);
     }
 
@@ -237,16 +232,14 @@ public class OilService : IOilService
 
         var oil = await _db.Oils
             .Include(o => o.OilLookup)
-            .FirstOrDefaultAsync(o => o.Id == dto.OilId && o.IsActive, ct)
+            .FirstOrDefaultAsync(o => o.Id == dto.OilId && o.DeletedAt == null, ct)
             ?? throw new KeyNotFoundException($"Oil {dto.OilId} not found.");
 
         if (oil.CurrentStock < (decimal)dto.Quantity)
             throw new InvalidOperationException($"Insufficient oil stock. Available: {oil.CurrentStock}, Requested: {dto.Quantity}");
 
-        // Find oil lookup type for this oil
         var oilLookupId = oil.OilLookupId;
 
-        // Find or create the "وارد" transaction type lookup
         var txTypeCategory = await _db.LookupCategories.FirstOrDefaultAsync(c => c.Name == "OilTransactionType", ct);
         if (txTypeCategory == null)
             throw new InvalidOperationException("OilTransactionType category not found.");
@@ -255,12 +248,10 @@ public class OilService : IOilService
         if (inboundTxType == null)
             throw new InvalidOperationException("وارد transaction type not found.");
 
-        // Create the transaction
         var tx = new OilTransaction
         {
             SubStationId = generator.SubStationId,
             OilLookupId = oilLookupId,
-            OilId = dto.OilId,
             TransactionTypeLookupId = inboundTxType.Id,
             TransactionDate = DateTime.UtcNow,
             QuantityLiters = dto.Quantity,
@@ -273,30 +264,27 @@ public class OilService : IOilService
 
         _db.OilTransactions.Add(tx);
 
-        // Deduct stock
         oil.CurrentStock -= (decimal)dto.Quantity;
         oil.UpdatedAt = DateTime.UtcNow;
         oil.UpdatedBy = userId;
 
         await _db.SaveChangesAsync(ct);
 
-        // Return the detail
         return new OilTransactionDetailDto(
             tx.Id,
             tx.SubStationId, generator.SubStationId.ToString(),
             oilLookupId, oil.OilLookup?.Name ?? "",
-            tx.OilId, oil.OilLookup?.Name,
-            inboundTxType.Id, inboundTxType.Name,
+            tx.TransactionTypeLookupId, inboundTxType.Name,
             tx.TransactionDate, tx.QuantityLiters,
+            tx.Reference,
+            tx.SupplierCompany,
             null, null, null, null,
-            null, null, null,
-            null, null, null,
-            null, null,
-            null, null,
             false,
             null, null,
             null,
             tx.Notes,
+            tx.CorrectedFromId,
+            tx.CorrectionReason,
             tx.CreatedBy, tx.UpdatedBy,
             tx.CreatedAt, tx.UpdatedAt);
     }
@@ -314,6 +302,7 @@ public class OilService : IOilService
             MinStock = dto.MinStock,
             StationId = dto.StationId,
             SubStationId = dto.SubStationId,
+            IsActive = dto.IsActive,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = userId,
             UpdatedAt = DateTime.UtcNow,
@@ -337,7 +326,8 @@ public class OilService : IOilService
             oil.StationId,
             null,
             oil.SubStationId,
-            null);
+            null,
+            oil.IsActive);
     }
 
     public async Task<OilDetailDto> UpdateAsync(int id, UpdateOilDto dto, int userId, CancellationToken ct = default)
@@ -346,7 +336,7 @@ public class OilService : IOilService
             .Include(o => o.OilLookup)
             .Include(o => o.Station)
             .Include(o => o.SubStation)
-            .FirstOrDefaultAsync(o => o.Id == id && o.IsActive, ct)
+            .FirstOrDefaultAsync(o => o.Id == id && o.DeletedAt == null, ct)
             ?? throw new KeyNotFoundException($"Oil with id {id} not found");
 
         if (dto.OilLookupId.HasValue)
@@ -360,6 +350,7 @@ public class OilService : IOilService
         if (dto.MinStock.HasValue) oil.MinStock = dto.MinStock.Value;
         if (dto.StationId is not null) oil.StationId = dto.StationId;
         if (dto.SubStationId is not null) oil.SubStationId = dto.SubStationId;
+        if (dto.IsActive.HasValue) oil.IsActive = dto.IsActive.Value;
 
         oil.UpdatedAt = DateTime.UtcNow;
         oil.UpdatedBy = userId;
@@ -376,6 +367,7 @@ public class OilService : IOilService
             oil.Station?.Name,
             oil.SubStationId,
             oil.SubStation?.Name,
+            oil.IsActive,
             oil.CreatedAt,
             oil.UpdatedAt);
     }
@@ -387,6 +379,7 @@ public class OilService : IOilService
             ?? throw new KeyNotFoundException($"Oil with id {id} not found");
 
         oil.IsActive = false;
+        oil.DeletedAt = DateTime.UtcNow;
         oil.UpdatedAt = DateTime.UtcNow;
         oil.UpdatedBy = userId;
 

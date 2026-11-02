@@ -94,28 +94,14 @@ function ForgotPassword() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      width: '100vw',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'var(--bg, #0f1117)',
-      margin: 0,
-      padding: 20,
-      boxSizing: 'border-box',
-      position: 'fixed',
-      top: 0,
-      left: 0,
-    }}>
-      <div style={cardStyle}>
+    <div className="login-page">
+      <div className="login-card" style={{ maxWidth: 440 }}>
         {/* Logo */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+        <div className="login-logo">
           <img
             src="/pec-logo.png"
             alt="PEC"
             onError={e => { e.target.style.display = 'none'; }}
-            style={{ width: 80, height: 80, objectFit: 'contain' }}
           />
         </div>
 
@@ -126,61 +112,35 @@ function ForgotPassword() {
             height: 52,
             borderRadius: 14,
             background: step === 'done'
-              ? 'rgba(34, 197, 94, 0.12)'
-              : 'rgba(245, 158, 11, 0.12)',
-            color: step === 'done' ? '#22c55e' : '#f59e0b',
+              ? 'rgba(16, 185, 129, 0.15)'
+              : 'rgba(245, 158, 11, 0.15)',
+            color: step === 'done' ? 'var(--success)' : 'var(--warning)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-            {step === 'done' ? <CheckCircle size={24} /> : <KeyRound size={24} />}
+            {step === 'done' ? <CheckCircle size={26} /> : <KeyRound size={26} />}
           </div>
         </div>
 
         {/* Title */}
-        <h1 style={{
-          textAlign: 'center', fontSize: 22, fontWeight: 700,
-          color: 'var(--text, #fff)', margin: '0 0 8px',
-        }}>
+        <h1 className="login-title" style={{ fontSize: '1.4rem' }}>
           {step === 'done' ? t('auth.resetPasswordSuccess') : t('auth.forgotPasswordTitle')}
         </h1>
-        <p style={{
-          textAlign: 'center', fontSize: 13,
-          color: 'var(--text-muted, rgba(255,255,255,0.5))',
-          margin: '0 0 24px',
-          lineHeight: 1.6,
-        }}>
+        <p className="login-desc" style={{ marginBottom: 20 }}>
           {step === 'request' && t('auth.forgotPasswordDesc')}
           {step === 'reset' && t('auth.forgotPasswordResetDesc')}
           {step === 'done' && t('auth.forgotPasswordDoneDesc')}
         </p>
 
         {error && (
-          <div style={{
-            padding: '10px 14px',
-            borderRadius: 8,
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.2)',
-            color: '#ef4444',
-            fontSize: 13,
-            marginBottom: 16,
-            textAlign: 'center',
-          }}>
+          <div className="alert-inline alert-inline-danger" style={{ marginBottom: 16 }}>
             {error}
           </div>
         )}
 
         {success && step === 'reset' && (
-          <div style={{
-            padding: '10px 14px',
-            borderRadius: 8,
-            background: 'rgba(34, 197, 94, 0.1)',
-            border: '1px solid rgba(34, 197, 94, 0.2)',
-            color: '#22c55e',
-            fontSize: 13,
-            marginBottom: 16,
-            textAlign: 'center',
-          }}>
+          <div className="alert-inline alert-inline-success" style={{ marginBottom: 16 }}>
             {success}
           </div>
         )}
@@ -188,10 +148,10 @@ function ForgotPassword() {
         {/* Step: Request reset */}
         {step === 'request' && (
           <form onSubmit={handleRequest}>
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>{t('common.email')}</label>
+            <div className="form-group" style={{ marginBottom: 20 }}>
+              <label className="form-label">{t('common.email')}</label>
               <input
-                style={inputStyle}
+                className="form-control"
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
@@ -203,17 +163,16 @@ function ForgotPassword() {
             <button
               type="submit"
               disabled={loading}
-              style={{
-                width: '100%', padding: '12px', fontSize: 15, fontWeight: 600,
-                background: 'var(--primary, #3b82f6)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 10,
-                cursor: loading ? 'wait' : 'pointer',
-                opacity: loading ? 0.7 : 1,
-              }}
+              className="btn btn-primary login-btn"
             >
-              {loading ? t('common.sending') : t('auth.sendResetCode')}
+              {loading ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <span className="ft-spinner" style={{ width: 16, height: 16 }} />
+                  {t('common.sending')}
+                </span>
+              ) : (
+                t('auth.sendResetCode')
+              )}
             </button>
           </form>
         )}
@@ -221,10 +180,10 @@ function ForgotPassword() {
         {/* Step: Reset password */}
         {step === 'reset' && (
           <form onSubmit={handleReset}>
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>{t('auth.resetCode')}</label>
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label className="form-label">{t('auth.resetCode')}</label>
               <input
-                style={inputStyle}
+                className="form-control"
                 type="text"
                 value={token}
                 onChange={e => setToken(e.target.value)}
@@ -233,10 +192,10 @@ function ForgotPassword() {
                 autoFocus
               />
             </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>{t('common.newPassword')}</label>
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label className="form-label">{t('common.newPassword')}</label>
               <input
-                style={inputStyle}
+                className="form-control"
                 type="password"
                 value={newPassword}
                 onChange={e => setNewPassword(e.target.value)}
@@ -245,10 +204,10 @@ function ForgotPassword() {
                 required
               />
             </div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>{t('common.confirmNewPassword')}</label>
+            <div className="form-group" style={{ marginBottom: 20 }}>
+              <label className="form-label">{t('common.confirmNewPassword')}</label>
               <input
-                style={inputStyle}
+                className="form-control"
                 type="password"
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
@@ -260,17 +219,16 @@ function ForgotPassword() {
             <button
               type="submit"
               disabled={loading}
-              style={{
-                width: '100%', padding: '12px', fontSize: 15, fontWeight: 600,
-                background: 'var(--primary, #3b82f6)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 10,
-                cursor: loading ? 'wait' : 'pointer',
-                opacity: loading ? 0.7 : 1,
-              }}
+              className="btn btn-primary login-btn"
             >
-              {loading ? t('common.saving') : t('auth.resetPassword')}
+              {loading ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <span className="ft-spinner" style={{ width: 16, height: 16 }} />
+                  {t('common.saving')}
+                </span>
+              ) : (
+                t('auth.resetPassword')
+              )}
             </button>
           </form>
         )}
@@ -279,14 +237,7 @@ function ForgotPassword() {
         {step === 'done' && (
           <button
             onClick={() => navigate('/login')}
-            style={{
-              width: '100%', padding: '12px', fontSize: 15, fontWeight: 600,
-              background: 'var(--primary, #3b82f6)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 10,
-              cursor: 'pointer',
-            }}
+            className="btn btn-primary login-btn"
           >
             {t('common.login')}
           </button>
@@ -297,7 +248,7 @@ function ForgotPassword() {
           <Link
             to="/login"
             style={{
-              color: 'var(--text-muted, rgba(255,255,255,0.5))',
+              color: 'var(--text-muted)',
               fontSize: 13,
               textDecoration: 'none',
               display: 'inline-flex',

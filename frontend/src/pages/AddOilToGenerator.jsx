@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import client from '../api/client';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Droplet, ArrowRight, CheckCircle, AlertCircle, ClipboardList, ChevronLeft } from 'lucide-react';
+import { Droplet, ArrowRight, CheckCircle, AlertCircle, ClipboardList, ChevronLeft, Save } from 'lucide-react';
+import client from '../api/client';
+import { PageHeader, Button, FormField, Input } from '../components/ui';
 
 function AddOilToGenerator({ lang }) {
   const ar = lang === 'ar';
@@ -26,22 +27,20 @@ function AddOilToGenerator({ lang }) {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState(null); // { type: 'success'|'error', msg }
+  const [status, setStatus] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // ✅ جلب بيانات المولد أولاً للحصول على الموقع
         const [genRes, txRes] = await Promise.all([
           client.get(`/api/generators/my/${generatorId}`),
-          client.get(`/api/oils/transactions/generator/${generatorId}`),
+          client.get(`/api/oil-transactions/generator/${generatorId}`),
         ]);
         const gen = genRes.data;
         setGenerator(gen);
         setTransactions(txRes.data);
 
-        // ✅ جلب الزيوت الخاصة بموقع المولد فقط
         const stationId = gen?.stationId;
         const oilsRes = await client.get('/api/oils', {
           params: stationId ? { stationId } : {}
@@ -75,11 +74,10 @@ function AddOilToGenerator({ lang }) {
       setQuantity('');
       setNotes('');
       setSelectedOil('');
-      // ✅ تحديث الزيوت مع الفلترة بالموقع
       const stationId = generator?.stationId;
       const [oilsRes, txRes] = await Promise.all([
         client.get('/api/oils', { params: stationId ? { stationId } : {} }),
-        client.get(`/api/oils/transactions/generator/${generatorId}`),
+        client.get(`/api/oil-transactions/generator/${generatorId}`),
       ]);
       setOils(oilsRes.data);
       setTransactions(txRes.data);
@@ -99,39 +97,21 @@ function AddOilToGenerator({ lang }) {
 
   return (
     <div>
-      {/* Page Header */}
-      <div className="page-header">
-        <div className="page-header-row">
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <button
-                className="btn btn-ghost btn-sm btn-icon"
-                onClick={() => navigate('/my-generators')}
-                style={{ padding: '5px 8px' }}
-              >
-                <ChevronLeft size={16} style={{ transform: ar ? 'rotate(180deg)' : 'none' }} />
-              </button>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {ar ? 'المولدات' : 'Generators'}
-              </span>
-              <ArrowRight size={12} style={{ color: 'var(--text-faint)', transform: ar ? 'rotate(180deg)' : 'none' }} />
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {ar ? 'إضافة زيت' : 'Add Oil'}
-              </span>
-            </div>
-            <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Droplet size={22} style={{ color: 'var(--warning)' }} />
-              {ar ? 'إضافة زيت للمولد' : 'Add Oil to Generator'}
-            </h1>
-            {generator && (
-              <p style={{ marginTop: 4 }}>
-                <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{generator.name}</span>
-                {generator.location && <span style={{ color: 'var(--text-muted)' }}> — {generator.location}</span>}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title={
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Button variant="ghost" size="sm" icon={ChevronLeft} onClick={() => navigate('/my-generators')} style={{ transform: ar ? 'rotate(180deg)' : 'none' }} />
+            <Droplet size={22} style={{ color: 'var(--warning)' }} />
+            {ar ? 'إضافة زيت للمولد' : 'Add Oil to Generator'}
+          </span>
+        }
+        subtitle={generator ? (
+          <span>
+            <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{generator.name}</span>
+            {generator.location && <span style={{ color: 'var(--text-muted)' }}> — {generator.location}</span>}
+          </span>
+        ) : undefined}
+      />
 
       {loading ? (
         <div className="spinner-wrap"><div className="ft-spinner" /></div>
@@ -140,17 +120,17 @@ function AddOilToGenerator({ lang }) {
 
           {/* ── Left: Form ── */}
           <div>
-            <div className="glass-card">
-              <div className="glass-card-header">
+            <div className="section-card">
+              <div className="section-card-header">
                 <div>
-                  <div className="glass-card-title">{ar ? 'سجل إضافة الزيت' : 'Oil Addition Form'}</div>
-                  <div className="glass-card-sub">{ar ? 'يرجى ملء البيانات بدقة' : 'Please fill in details carefully'}</div>
+                  <div className="section-card-title">{ar ? 'سجل إضافة الزيت' : 'Oil Addition Form'}</div>
+                  <div className="section-card-sub">{ar ? 'يرجى ملء البيانات بدقة' : 'Please fill in details carefully'}</div>
                 </div>
               </div>
-              <div className="glass-card-body">
+              <div className="section-card-body">
                 {/* Status Alert */}
                 {status && (
-                  <div className={`alert ${status.type === 'success' ? 'alert-success' : 'alert-danger'}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div className={`alert ${status.type === 'success' ? 'alert-success' : 'alert-danger'}`} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                     {status.type === 'success'
                       ? <CheckCircle size={15} />
                       : <AlertCircle size={15} />
@@ -160,15 +140,8 @@ function AddOilToGenerator({ lang }) {
                 )}
 
                 <form onSubmit={handleSubmit}>
-                  {/* Oil Type */}
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'نوع الزيت *' : 'Oil Type *'}</label>
-                    <select
-                      className="form-select"
-                      value={selectedOil}
-                      onChange={e => setSelectedOil(e.target.value)}
-                      required
-                    >
+                  <FormField label={ar ? 'نوع الزيت *' : 'Oil Type *'} required>
+                    <select className="form-select" value={selectedOil} onChange={e => setSelectedOil(e.target.value)} required>
                       <option value="">{ar ? '— اختر نوع الزيت —' : '— Select Oil Type —'}</option>
                       {oils.map(oil => (
                         <option key={oil.id || oil._id} value={oil.id || oil._id} disabled={oil.currentStock <= 0}>
@@ -177,22 +150,18 @@ function AddOilToGenerator({ lang }) {
                         </option>
                       ))}
                     </select>
-                  </div>
+                  </FormField>
 
                   {/* Selected Oil Info */}
                   {selectedOilData && (
-                    <div style={{
-                      background: 'var(--card-2)', borderRadius: 10, padding: '12px 14px',
-                      marginBottom: 16, display: 'flex', justifyContent: 'space-between',
-                      border: '1px solid var(--border)',
-                    }}>
+                    <div className="glass-card" style={{ padding: '12px 14px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', border: '1px solid var(--border)', background: 'var(--card-2)' }}>
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                           {ar ? 'المخزون المتاح' : 'Available Stock'}
                         </div>
                         <div style={{ fontSize: 20, fontWeight: 800, color: selectedOilData.currentStock <= selectedOilData.minStock ? 'var(--danger)' : 'var(--secondary)' }}>
                           {selectedOilData.currentStock}
-                          <span style={{ fontSize: 12, fontWeight: 400, marginRight: 4, color: 'var(--text-muted)' }}>
+                          <span style={{ fontSize: 12, fontWeight: 400, marginInlineEnd: 4, color: 'var(--text-muted)' }}>
                             {ar ? 'لتر' : 'L'}
                           </span>
                         </div>
@@ -203,7 +172,7 @@ function AddOilToGenerator({ lang }) {
                         </div>
                         <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-muted)' }}>
                           {selectedOilData.minStock}
-                          <span style={{ fontSize: 12, fontWeight: 400, marginRight: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 400, marginInlineEnd: 4 }}>
                             {ar ? 'لتر' : 'L'}
                           </span>
                         </div>
@@ -211,51 +180,24 @@ function AddOilToGenerator({ lang }) {
                     </div>
                   )}
 
-                  {/* Quantity */}
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'الكمية المضافة (لتر) *' : 'Quantity Added (L) *'}</label>
-                    <input
-                      className="form-control"
-                      type="number" step="0.1" min="0.1"
-                      placeholder={ar ? 'أدخل الكمية...' : 'Enter quantity...'}
-                      value={quantity}
-                      onChange={e => setQuantity(sanitizeNumeric(e.target.value))}
-                      required
-                    />
-                    {selectedOilData && quantity && parseFloat(quantity) > selectedOilData.currentStock && (
-                      <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <AlertCircle size={11} />
-                        {ar ? 'الكمية تتجاوز المخزون المتاح' : 'Quantity exceeds available stock'}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Notes */}
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'ملاحظات' : 'Notes'}</label>
-                    <textarea
-                      className="form-control"
-                      rows={3}
-                      placeholder={ar ? 'أي ملاحظات إضافية...' : 'Any additional notes...'}
-                      value={notes}
-                      onChange={e => setNotes(e.target.value)}
-                      style={{ resize: 'vertical', fontFamily: 'inherit' }}
-                    />
-                  </div>
-
-                  {/* Submit */}
-                  <button
-                    className="btn btn-primary"
-                    type="submit"
-                    disabled={saving || !selectedOil || !quantity}
-                    style={{ width: '100%', padding: '11px', fontSize: 14 }}
+                  <FormField
+                    label={ar ? 'الكمية المضافة (لتر) *' : 'Quantity Added (L) *'}
+                    error={selectedOilData && quantity && parseFloat(quantity) > selectedOilData.currentStock ? (ar ? 'الكمية تتجاوز المخزون المتاح' : 'Quantity exceeds available stock') : null}
                   >
+                    <Input type="number" step="0.1" min="0.1" placeholder={ar ? 'أدخل الكمية...' : 'Enter quantity...'} value={quantity} onChange={e => setQuantity(sanitizeNumeric(e.target.value))} required />
+                  </FormField>
+
+                  <FormField label={ar ? 'ملاحظات' : 'Notes'}>
+                    <textarea className="form-control" rows={3} placeholder={ar ? 'أي ملاحظات إضافية...' : 'Any additional notes...'} value={notes} onChange={e => setNotes(e.target.value)} style={{ resize: 'vertical', fontFamily: 'inherit' }} />
+                  </FormField>
+
+                  <Button variant="primary" type="submit" disabled={saving || !selectedOil || !quantity} style={{ width: '100%', padding: '11px', fontSize: 14 }}>
                     {saving ? (
                       <><span className="ft-spinner" style={{ width: 14, height: 14 }} /> {ar ? 'جاري الحفظ...' : 'Saving...'}</>
                     ) : (
-                      <><Droplet size={16} /> {ar ? 'تأكيد إضافة الزيت' : 'Confirm Oil Addition'}</>
+                      <><Save size={16} /> {ar ? 'تأكيد إضافة الزيت' : 'Confirm Oil Addition'}</>
                     )}
-                  </button>
+                  </Button>
                 </form>
               </div>
             </div>
@@ -263,14 +205,14 @@ function AddOilToGenerator({ lang }) {
 
           {/* ── Right: History ── */}
           <div>
-            <div className="glass-card">
-              <div className="glass-card-header">
+            <div className="section-card">
+              <div className="section-card-header">
                 <div>
-                  <div className="glass-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div className="section-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <ClipboardList size={16} style={{ color: 'var(--primary)' }} />
                     {ar ? 'سجل إضافات الزيت' : 'Oil Addition History'}
                   </div>
-                  <div className="glass-card-sub">
+                  <div className="section-card-sub">
                     {transactions.length} {ar ? 'عملية مسجلة' : 'records'}
                   </div>
                 </div>
@@ -283,7 +225,7 @@ function AddOilToGenerator({ lang }) {
                 </div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
-                  <table className="ft-table">
+                  <table className="data-table">
                     <thead>
                       <tr>
                         <th>{ar ? 'التاريخ' : 'Date'}</th>
@@ -306,7 +248,7 @@ function AddOilToGenerator({ lang }) {
                           </td>
                           <td>
                             <span style={{ fontWeight: 700, color: 'var(--warning)' }}>{tx.quantityLiters}</span>
-                            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 3 }}>{ar ? 'لتر' : 'L'}</span>
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginInlineStart: 3 }}>{ar ? 'لتر' : 'L'}</span>
                           </td>
                           <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                             {tx.reference || '—'}

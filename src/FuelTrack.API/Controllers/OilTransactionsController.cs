@@ -8,14 +8,16 @@ namespace FuelTrack.API.Controllers;
 
 [Authorize]
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/oil-transactions")]
 public class OilTransactionsController : BaseApiController
 {
     private readonly IOilTransactionService _oilTransactionService;
+    private readonly IRealtimeNotifier _notifier;
 
-    public OilTransactionsController(IOilTransactionService oilTransactionService)
+    public OilTransactionsController(IOilTransactionService oilTransactionService, IRealtimeNotifier notifier)
     {
         _oilTransactionService = oilTransactionService;
+        _notifier = notifier;
     }
 
     [HttpPost]
@@ -23,6 +25,7 @@ public class OilTransactionsController : BaseApiController
     {
         var userId = GetUserId();
         var result = await _oilTransactionService.CreateAsync(dto, userId);
+        await _notifier.NotifyAllAsync("OilTransactionCreated", new { result.Id, result.SubStationId });
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
@@ -31,6 +34,7 @@ public class OilTransactionsController : BaseApiController
     {
         var userId = GetUserId();
         var result = await _oilTransactionService.UpdateAsync(id, dto, userId);
+        await _notifier.NotifyAllAsync("OilTransactionUpdated", new { Id = id });
         return Ok(result);
     }
 
@@ -73,6 +77,33 @@ public class OilTransactionsController : BaseApiController
     public async Task<IActionResult> GetByGenerator(int generatorId)
     {
         var result = await _oilTransactionService.GetByGeneratorAsync(generatorId);
+        return Ok(result);
+    }
+
+    [HttpPost("{id:int}/submit")]
+    public async Task<IActionResult> Submit(int id)
+    {
+        var userId = GetUserId();
+        var result = await _oilTransactionService.SubmitForApprovalAsync(id, userId);
+        await _notifier.NotifyAllAsync("OilTransactionSubmitted", new { Id = id });
+        return Ok(result);
+    }
+
+    [HttpPost("{id:int}/approve")]
+    public async Task<IActionResult> Approve(int id)
+    {
+        var userId = GetUserId();
+        var result = await _oilTransactionService.ApproveAsync(id, userId);
+        await _notifier.NotifyAllAsync("OilTransactionApproved", new { Id = id });
+        return Ok(result);
+    }
+
+    [HttpPost("{id:int}/reject")]
+    public async Task<IActionResult> Reject(int id, [FromBody] FuelTrack.Application.DTOs.Readings.RejectReadingDto? dto = null)
+    {
+        var userId = GetUserId();
+        var result = await _oilTransactionService.RejectAsync(id, userId, dto?.RejectionReason);
+        await _notifier.NotifyAllAsync("OilTransactionRejected", new { Id = id });
         return Ok(result);
     }
 

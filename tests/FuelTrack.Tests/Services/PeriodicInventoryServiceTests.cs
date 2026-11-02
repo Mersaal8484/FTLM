@@ -22,7 +22,7 @@ public class PeriodicInventoryServiceTests : IDisposable
             .Options;
         _db = new FuelTrackDbContext(o);
 
-        _service = new PeriodicInventoryService(_db, new StubHttpContextAccessor(), new StubUserScopeFilterService());
+        _service = new PeriodicInventoryService(_db, new StubUserScopeFilterService(), new StubCurrentUserService());
 
         _subStationId = 1;
         _db.SubStations.Add(new SubStation { Id = _subStationId, Name = "SS1", Code = "SS1" });

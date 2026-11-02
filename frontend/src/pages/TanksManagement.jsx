@@ -1,15 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Plus, Droplets, Pencil, Trash2, Save, X, AlertCircle, RefreshCw, MapPin } from 'lucide-react';
 import client from '../api/client';
-
-/**
- * صفحة إعداد خزانات الوقود
- * يتصل بـ:
- *   GET/POST/PUT/DELETE /api/fuel-tanks
- *   GET /api/sub-stations  → لربط الخزان بالمنطقة (subStation)
- *   GET /api/stations      → لعرض اسم المحطة
- *   GET /api/lookups/by-category/FuelType → لأنواع الوقود
- */
+import ConfirmModal from '../components/ConfirmModal';
+import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 
 const emptyForm = {
   code: '', name: '',
@@ -23,13 +16,11 @@ const emptyForm = {
 function TanksManagement({ lang, currentUser }) {
   const ar = lang === 'ar';
 
-  // Permission helpers
   const perms = currentUser?.permissions?.tanks || {};
   const canAdd = currentUser?.role === 'admin' || perms.create || perms.add;
   const canEdit = currentUser?.role === 'admin' || perms.edit;
   const canDelete = currentUser?.role === 'admin' || perms.delete;
 
-  // ─── Data ────────────────────────────────────────────────────────────────────
   const [tanks, setTanks]           = useState([]);
   const [branches, setBranches]     = useState([]);
   const [subStations, setSubStations] = useState([]);
@@ -38,7 +29,6 @@ function TanksManagement({ lang, currentUser }) {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState('');
 
-  // ─── UI ──────────────────────────────────────────────────────────────────────
   const [showForm, setShowForm]     = useState(false);
   const [editItem, setEditItem]     = useState(null);
   const [form, setForm]             = useState(emptyForm);
@@ -47,7 +37,6 @@ function TanksManagement({ lang, currentUser }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [search, setSearch]         = useState('');
 
-  // ─── Fetch ───────────────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     setLoading(true); setError('');
     try {
@@ -72,10 +61,8 @@ function TanksManagement({ lang, currentUser }) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────────
   const resetForm = () => { setForm(emptyForm); setEditItem(null); setShowForm(false); setFormError(''); };
 
-  /** حساب نسبة ملء الخزان (0-100%) — يستخدم قراءة العداد إن وُجدت، وإلا المخزون الفعلي */
   const getFillPct = (tank) => {
     const capacity = Number(tank.capacityLiters) || 0;
     if (capacity <= 0) return null;
@@ -86,12 +73,11 @@ function TanksManagement({ lang, currentUser }) {
 
   const getFillColor = (pct) => {
     if (pct === null) return 'var(--text-faint)';
-    if (pct <= 20) return '#ef4444';
-    if (pct <= 50) return '#f59e0b';
-    return '#10b981';
+    if (pct <= 20) return 'var(--danger)';
+    if (pct <= 50) return 'var(--warning)';
+    return 'var(--success)';
   };
 
-  // ─── Frontend Validation ──────────────────────────────────────────────────────
   const validateForm = () => {
     const capacity = Number(form.capacityLiters);
     if (isNaN(capacity) || capacity <= 0) {
@@ -128,7 +114,6 @@ function TanksManagement({ lang, currentUser }) {
     setShowForm(true);
   };
 
-  // ─── CRUD ────────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!validateForm()) return;
 
@@ -178,7 +163,6 @@ function TanksManagement({ lang, currentUser }) {
     finally { setDeleteConfirm(null); }
   };
 
-  // ─── Derived ─────────────────────────────────────────────────────────────────
   const filtered = tanks.filter(t =>
     t.name?.includes(search) || t.code?.includes(search)
   );
@@ -199,7 +183,6 @@ function TanksManagement({ lang, currentUser }) {
     form.stationId ? subStations.filter(s => (s.stationId ?? s.station_id) === Number(form.stationId)) : (form.stationId === '' ? subStations : [])
   , [form.stationId, subStations]);
 
-  // ── تجميع الخزانات بناءً على المحطة (Group by Station) ──
   const groupedTanks = {};
   filtered.forEach(tank => {
     const stationName = getStaName(tank.subStationId);
@@ -207,29 +190,20 @@ function TanksManagement({ lang, currentUser }) {
     groupedTanks[stationName].push(tank);
   });
 
-  const secTitle = { background: 'hsla(217,91%,60%,0.15)', padding: '10px 16px', fontSize: 13, fontWeight: 700, color: 'var(--primary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 };
-  const inp = (val, onChange, placeholder = '', type = 'text') => (
-    <input value={val} onChange={e => onChange(e.target.value)} className="form-control"
-      placeholder={placeholder} type={type} style={{ padding: '8px 12px', fontSize: 13 }} />
-  );
-
   return (
     <div>
-      {/* Page Header */}
-      <div className="page-header">
-        <div className="page-header-row">
-          <div>
-            <h1>{ar ? 'إعداد خزانات الوقود' : 'Tanks Management'}</h1>
-            <p>{ar ? 'إضافة وتعديل خزانات الوقود وربطها بالمواقع والمولدات' : 'Add and manage fuel tanks, link them to locations and generators'}</p>
-          </div>
+      <PageHeader
+        title={ar ? 'إعداد خزانات الوقود' : 'Tanks Management'}
+        subtitle={ar ? 'إضافة وتعديل خزانات الوقود وربطها بالمواقع والمولدات' : 'Add and manage fuel tanks, link them to locations and generators'}
+        actions={
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-ghost btn-sm" onClick={fetchAll} title={ar ? 'تحديث' : 'Refresh'}><RefreshCw size={14} /></button>
+            <Button variant="ghost" size="sm" icon={RefreshCw} onClick={fetchAll} title={ar ? 'تحديث' : 'Refresh'} />
             {canAdd && (
-              <button className="btn btn-primary btn-sm" onClick={openAdd}><Plus size={15} /> {ar ? 'خزان جديد' : 'New Tank'}</button>
+              <Button icon={Plus} onClick={openAdd}>{ar ? 'خزان جديد' : 'New Tank'}</Button>
             )}
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Error */}
       {error && (
@@ -245,9 +219,9 @@ function TanksManagement({ lang, currentUser }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
           {[
             { label: ar?'إجمالي الخزانات':'Total Tanks', value: tanks.length, color: 'var(--primary)' },
-            { label: ar?'إجمالي السعة (لتر)':'Total Capacity (L)', value: tanks.reduce((a, t) => a + (t.capacityLiters || 0), 0).toLocaleString(), color: '#10b981' },
-            { label: ar?'المخزون الفعلي (لتر)':'Actual Stock (L)', value: tanks.reduce((a, t) => a + (t.actualStockLiters || 0), 0).toLocaleString(), color: '#8b5cf6' },
-            { label: ar?'خزانات بدون قراءة':'No Reading', value: tanks.filter(t => !getFillPct(t)).length, color: '#f59e0b' },
+            { label: ar?'إجمالي السعة (لتر)':'Total Capacity (L)', value: tanks.reduce((a, t) => a + (t.capacityLiters || 0), 0).toLocaleString(), color: 'var(--success)' },
+            { label: ar?'المخزون الفعلي (لتر)':'Actual Stock (L)', value: tanks.reduce((a, t) => a + (t.actualStockLiters || 0), 0).toLocaleString(), color: 'var(--purple)' },
+            { label: ar?'خزانات بدون قراءة':'No Reading', value: tanks.filter(t => !getFillPct(t)).length, color: 'var(--warning)' },
           ].map((c, i) => (
             <div key={i} className="glass-card" style={{ padding: '14px 16px', margin: 0 }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: c.color }}>{c.value}</div>
@@ -259,8 +233,7 @@ function TanksManagement({ lang, currentUser }) {
 
       {/* Search */}
       <div style={{ marginBottom: 16 }}>
-        <input className="form-control" placeholder={ar ? '🔍 بحث بالاسم أو الكود...' : '🔍 Search by name, code...'}
-          value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 360, padding: '8px 14px', fontSize: 13 }} />
+        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={ar ? '🔍 بحث بالاسم أو الكود...' : '🔍 Search by name, code...'} style={{ maxWidth: 360 }} />
       </div>
 
       {/* Tanks Grid */}
@@ -279,7 +252,7 @@ function TanksManagement({ lang, currentUser }) {
         <div className="grouped-container">
           {Object.entries(groupedTanks).map(([stationName, stationTanks]) => (
             <div key={stationName} className="station-group" style={{ marginBottom: 40 }}>
-              <div className="station-group-header" style={{ display: 'flex', alignItems: 'center', gap: 15, padding: '15px 20px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderBottom: '2px solid var(--primary)', borderRadius: '12px', marginBottom: 20, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
+              <div className="station-group-header" style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, borderRadius: 10, background: 'var(--primary-light)', color: 'var(--primary)' }}>
                   <MapPin size={22} />
                 </div>
@@ -291,7 +264,7 @@ function TanksManagement({ lang, currentUser }) {
                   {stationTanks.length} {ar ? 'خزانات' : 'Tanks'}
                 </span>
               </div>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
                 {stationTanks.map(tank => {
                   const fuelLabel = fuelTypes.find(f => f.id === tank.fuelLookupId)?.name || tank.fuelLookup?.name || '—';
@@ -307,7 +280,7 @@ function TanksManagement({ lang, currentUser }) {
                           {fuelLabel}
                         </span>
                         {tank.isActive === false && (
-                          <span style={{ fontSize: 10, background: 'rgba(239,68,68,0.12)', color: '#ef4444', padding: '2px 8px', borderRadius: 8 }}>
+                          <span style={{ fontSize: 10, background: 'var(--danger-subtle)', color: 'var(--danger)', padding: '2px 8px', borderRadius: 8 }}>
                             {ar ? 'معطل' : 'Inactive'}
                           </span>
                         )}
@@ -352,15 +325,14 @@ function TanksManagement({ lang, currentUser }) {
                         {/* Actions */}
                         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
                           {canEdit && (
-                            <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => openEdit(tank)}>
-                              <Pencil size={12} /> {ar ? 'تعديل' : 'Edit'}
-                            </button>
+                            <Button variant="ghost" size="sm" style={{ flex: 1 }} icon={Pencil} onClick={() => openEdit(tank)}>
+                              {ar ? 'تعديل' : 'Edit'}
+                            </Button>
                           )}
                           {canDelete && (
-                            <button className="btn btn-ghost btn-sm" style={{ flex: 1, color: 'var(--danger)' }}
-                              onClick={() => setDeleteConfirm({ id: tank.id, name: tank.name })}>
-                              <Trash2 size={12} /> {ar ? 'حذف' : 'Delete'}
-                            </button>
+                            <Button variant="ghost" size="sm" style={{ flex: 1, color: 'var(--danger)' }} icon={Trash2} onClick={() => setDeleteConfirm({ id: tank.id, name: tank.name })}>
+                              {ar ? 'حذف' : 'Delete'}
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -375,168 +347,131 @@ function TanksManagement({ lang, currentUser }) {
 
       {/* ─── Add / Edit Modal ─────────────────────────────────────────────── */}
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
-          <div className="glass-card" style={{ width: '100%', maxWidth: 600, maxHeight: '92vh', overflowY: 'auto', margin: 0 }}>
-            <div style={secTitle}>
-              <Droplets size={15} />
+        <Modal
+          open={showForm}
+          onClose={resetForm}
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Droplets size={18} style={{ color: 'var(--primary)' }} />
               {editItem ? (ar ? 'تعديل الخزان' : 'Edit Tank') : (ar ? 'إضافة خزان جديد' : 'Add New Tank')}
-              <button onClick={resetForm} style={{ marginRight: 'auto', background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 4 }}><X size={16} /></button>
             </div>
-
-            <div className="glass-card-body">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-
-                {/* Code */}
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">{ar ? 'كود الخزان' : 'Tank Code'}</label>
-                  {inp(form.code, v => setForm(f => ({ ...f, code: v })), 'TK-01')}
-                </div>
-
-                {/* Name - full width */}
-                <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
-                  <label className="form-label">{ar ? 'اسم الخزان' : 'Tank Name'}</label>
-                  {inp(form.name, v => setForm(f => ({ ...f, name: v })), ar ? 'مثال: خزان A1' : 'e.g. Tank A1')}
-                </div>
-
-                {/* Fuel Type */}
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">{ar ? 'نوع الوقود' : 'Fuel Type'}</label>
-                  <select className="form-select" value={form.fuelLookupId}
-                    onChange={e => setForm(f => ({ ...f, fuelLookupId: e.target.value }))}
-                    style={{ padding: '8px 12px', fontSize: 13 }}>
-                    <option value="">— {ar ? 'اختر النوع' : 'Select Type'} —</option>
-                    {fuelTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                </div>
-
-                {/* Capacity */}
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">{ar ? 'سعة الخزان (لتر)' : 'Capacity (L)'}</label>
-                  {inp(form.capacityLiters, v => setForm(f => ({ ...f, capacityLiters: v })), '0', 'number')}
-                </div>
-
-                {/* Minimum Stock / Alert Threshold */}
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">{ar ? 'الحد الأدنى للمخزون (لتر)' : 'Minimum Stock Level (L)'}</label>
-                  {inp(form.minAlertLiters, v => setForm(f => ({ ...f, minAlertLiters: v })), '0', 'number')}
-                </div>
-
-                {/* Dead Stock / النقطة الميتة */}
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">{ar ? 'النقطة الميتة (لتر)' : 'Dead Stock (L)'}</label>
-                  {inp(form.deadStockLiters, v => setForm(f => ({ ...f, deadStockLiters: v })), '0', 'number')}
-                  <label style={{fontSize:'.75rem',color:'#64748b'}}>{ar?'المخزون الفعلي (لتر)':'Actual Stock (L)'}</label>
-                  {inp(form.actualStockLiters, v => setForm(f => ({ ...f, actualStockLiters: v })), '0', 'number')}
-                </div>
-
-                {/* Branch Select */}
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">{ar ? 'الفرع' : 'Branch'}</label>
-                  <select className="form-select" value={form.branchId}
-                    onChange={e => setForm(f => ({ ...f, branchId: e.target.value, stationId: '', subStation: '' }))}
-                    style={{ padding: '8px 12px', fontSize: 13 }}>
-                    <option value="">— {ar ? 'كل الفروع' : 'All Branches'} —</option>
-                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
-                </div>
-
-                {/* Station Select */}
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">{ar ? 'المحطة' : 'Station'}</label>
-                  <select className="form-select" value={form.stationId}
-                    onChange={e => setForm(f => ({ ...f, stationId: e.target.value, subStation: '' }))}
-                    style={{ padding: '8px 12px', fontSize: 13 }}
-                    disabled={!form.branchId && form.branchId !== ''}>
-                    <option value="">— {ar ? 'اختر المحطة' : 'Select Station'} —</option>
-                    {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-
-                {/* SubStation Select */}
-                <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
-                  <label className="form-label" style={{ color: 'var(--primary)', fontWeight: 600 }}>
-                    🔗 {ar ? 'ربط الخزان بالمنطقة (الموقع)' : 'Link Tank to Area (Location)'}
-                  </label>
-                  <select className="form-select" value={form.subStation}
-                    onChange={e => setForm(f => ({ ...f, subStation: e.target.value }))}
-                    style={{ padding: '8px 12px', fontSize: 13 }}
-                    disabled={!form.stationId && form.stationId !== ''}>
-                    <option value="">— {ar ? 'اختر المنطقة' : 'Select Area'} —</option>
-                    {filteredSubStations.map(ss => {
-                      const sta = stations.find(s => s.id === (ss.station_id ?? ss.stationId));
-                      return (
-                        <option key={ss.id} value={ss.id}>
-                          {sta ? `${sta.name} ← ` : ''}{ss.name}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  {subStations.length === 0 && (
-                    <p style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4 }}>
-                      {ar ? '⚠️ أضف مواقع من صفحة "إدارة المواقع" أولاً' : '⚠️ Add locations from "Locations Management" first'}
-                    </p>
-                  )}
-                </div>
-
-                {/* Notes - full width */}
-                <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
-                  <label className="form-label">{ar ? 'ملاحظات' : 'Notes'}</label>
-                  <textarea className="form-control" rows={2} value={form.notes}
-                    onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                    placeholder={ar ? 'ملاحظات إضافية...' : 'Additional notes...'}
-                    style={{ padding: '8px 12px', fontSize: 13, resize: 'vertical' }} />
-                </div>
-
-                {/* Active Status */}
-                <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
-                    <input type="checkbox" checked={form.isActive}
-                      onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))}
-                      style={{ width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }} />
-                    {ar ? 'الخزان نشط' : 'Tank is Active'}
-                  </label>
-                </div>
-              </div>
-
-              {/* Inline validation / server error inside modal */}
-              {formError && (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, marginBottom: 12 }}>
-                  <AlertCircle size={16} style={{ color: '#ef4444', flexShrink: 0, marginTop: 1 }} />
-                  <span style={{ fontSize: 13, color: '#ef4444', lineHeight: 1.5 }}>{formError}</span>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: 10, paddingTop: 16, borderTop: '1px solid var(--border)', marginTop: 0 }}>
-                <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={resetForm}>{ar ? 'إلغاء' : 'Cancel'}</button>
-                <button className="btn btn-primary btn-sm" style={{ flex: 2 }} onClick={handleSave} disabled={saving}>
-                  <Save size={13} /> {saving ? (ar ? 'جارٍ الحفظ...' : 'Saving...') : (ar ? 'حفظ الخزان' : 'Save Tank')}
-                </button>
-              </div>
+          }
+          maxWidth={600}
+          footer={
+            <>
+              <Button variant="ghost" onClick={resetForm}>{ar ? 'إلغاء' : 'Cancel'}</Button>
+              <Button variant="primary" onClick={handleSave} disabled={saving} icon={Save}>
+                {saving ? (ar ? 'جارٍ الحفظ...' : 'Saving...') : (ar ? 'حفظ الخزان' : 'Save Tank')}
+              </Button>
+            </>
+          }
+        >
+          {formError && (
+            <div className="alert-inline alert-inline-danger" style={{ marginBottom: 16 }}>
+              <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+              {formError}
             </div>
+          )}
+
+          <div className="form-row">
+            <FormField label={ar ? 'كود الخزان' : 'Tank Code'}>
+              <Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="TK-01" />
+            </FormField>
+            <FormField label={ar ? 'اسم الخزان' : 'Tank Name'}>
+              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={ar ? 'مثال: خزان A1' : 'e.g. Tank A1'} />
+            </FormField>
           </div>
-        </div>
+          <div className="form-row">
+            <FormField label={ar ? 'نوع الوقود' : 'Fuel Type'}>
+              <select className="form-select" value={form.fuelLookupId}
+                onChange={e => setForm(f => ({ ...f, fuelLookupId: e.target.value }))}>
+                <option value="">— {ar ? 'اختر النوع' : 'Select Type'} —</option>
+                {fuelTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </FormField>
+            <FormField label={ar ? 'سعة الخزان (لتر)' : 'Capacity (L)'}>
+              <Input type="number" value={form.capacityLiters} onChange={e => setForm(f => ({ ...f, capacityLiters: e.target.value }))} placeholder="0" />
+            </FormField>
+          </div>
+          <div className="form-row">
+            <FormField label={ar ? 'الحد الأدنى للمخزون (لتر)' : 'Minimum Stock Level (L)'}>
+              <Input type="number" value={form.minAlertLiters} onChange={e => setForm(f => ({ ...f, minAlertLiters: e.target.value }))} placeholder="0" />
+            </FormField>
+            <FormField label={ar ? 'النقطة الميتة (لتر)' : 'Dead Stock (L)'}>
+              <Input type="number" value={form.deadStockLiters} onChange={e => setForm(f => ({ ...f, deadStockLiters: e.target.value }))} placeholder="0" />
+            </FormField>
+          </div>
+          <div className="form-row">
+            <FormField label={ar ? 'المخزون الفعلي (لتر)' : 'Actual Stock (L)'}>
+              <Input type="number" value={form.actualStockLiters} onChange={e => setForm(f => ({ ...f, actualStockLiters: e.target.value }))} placeholder="0" />
+            </FormField>
+          </div>
+
+          <div className="form-section-header">{ar ? 'الموقع' : 'Location'}</div>
+          <div className="form-row">
+            <FormField label={ar ? 'الفرع' : 'Branch'}>
+              <select className="form-select" value={form.branchId}
+                onChange={e => setForm(f => ({ ...f, branchId: e.target.value, stationId: '', subStation: '' }))}>
+                <option value="">— {ar ? 'كل الفروع' : 'All Branches'} —</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </FormField>
+            <FormField label={ar ? 'المحطة' : 'Station'}>
+              <select className="form-select" value={form.stationId}
+                onChange={e => setForm(f => ({ ...f, stationId: e.target.value, subStation: '' }))}
+                disabled={!form.branchId && form.branchId !== ''}>
+                <option value="">— {ar ? 'اختر المحطة' : 'Select Station'} —</option>
+                {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </FormField>
+          </div>
+          <FormField label={ar ? 'ربط الخزان بالمنطقة (الموقع)' : 'Link Tank to Area (Location)'} required error={!form.subStation && formError ? (ar ? 'يجب ربط الخزان بمنطقة.' : 'Tank must be linked to an area.') : null}>
+            <select className="form-select" value={form.subStation}
+              onChange={e => setForm(f => ({ ...f, subStation: e.target.value }))}
+              disabled={!form.stationId && form.stationId !== ''}>
+              <option value="">— {ar ? 'اختر المنطقة' : 'Select Area'} —</option>
+              {filteredSubStations.map(ss => {
+                const sta = stations.find(s => s.id === (ss.station_id ?? ss.stationId));
+                return (
+                  <option key={ss.id} value={ss.id}>
+                    {sta ? `${sta.name} ← ` : ''}{ss.name}
+                  </option>
+                );
+              })}
+            </select>
+          </FormField>
+          {subStations.length === 0 && (
+            <p style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4, marginBottom: 12 }}>
+              {ar ? '⚠️ أضف مواقع من صفحة "إدارة المواقع" أولاً' : '⚠️ Add locations from "Locations Management" first'}
+            </p>
+          )}
+
+          <div className="form-section-header">{ar ? 'إضافية' : 'Additional'}</div>
+          <FormField label={ar ? 'ملاحظات' : 'Notes'}>
+            <textarea className="form-control" rows={2} value={form.notes}
+              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder={ar ? 'ملاحظات إضافية...' : 'Additional notes...'}
+              style={{ resize: 'vertical', fontFamily: 'inherit' }} />
+          </FormField>
+          <div className="form-group" style={{ marginTop: 8 }}>
+            <label className="checkbox-label">
+              <input type="checkbox" checked={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))} />
+              <span>{ar ? 'الخزان نشط' : 'Tank is Active'}</span>
+            </label>
+          </div>
+        </Modal>
       )}
 
-      {/* ─── Delete Confirm ───────────────────────────────────────────────── */}
-      {deleteConfirm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001, padding: 16 }}>
-          <div className="glass-card" style={{ width: '100%', maxWidth: 380, margin: 0, textAlign: 'center' }}>
-            <div className="glass-card-body">
-              <AlertCircle size={36} style={{ color: 'var(--danger)', marginBottom: 12 }} />
-              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{ar ? 'تأكيد الحذف' : 'Confirm Delete'}</h3>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-                {ar ? `هل أنت متأكد من حذف خزان "${deleteConfirm.name}"؟` : `Delete tank "${deleteConfirm.name}"?`}
-              </p>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => setDeleteConfirm(null)}>{ar ? 'إلغاء' : 'Cancel'}</button>
-                <button className="btn btn-sm" style={{ flex: 1, background: 'var(--danger)', color: '#fff', border: 'none' }} onClick={handleDelete}>
-                  <Trash2 size={13} /> {ar ? 'حذف' : 'Delete'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        open={!!deleteConfirm}
+        title={ar ? 'تأكيد الحذف' : 'Confirm Delete'}
+        message={ar ? `هل أنت متأكد من حذف خزان "${deleteConfirm?.name}"؟` : `Delete tank "${deleteConfirm?.name}"?`}
+        confirmText={ar ? 'حذف' : 'Delete'}
+        cancelText={ar ? 'إلغاء' : 'Cancel'}
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirm(null)}
+      />
     </div>
   );
 }

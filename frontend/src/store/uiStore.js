@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import i18n from '../i18n';
 
 const useUiStore = create((set) => ({
   sidebarCollapsed: false,
@@ -23,6 +24,11 @@ const useUiStore = create((set) => ({
 
   setLang: (lang) => {
     localStorage.setItem('lang', lang);
+    // Update i18n immediately — no page reload required
+    i18n.changeLanguage(lang);
+    // Update document direction and lang attribute
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.lang = lang;
     set({ lang });
   },
 

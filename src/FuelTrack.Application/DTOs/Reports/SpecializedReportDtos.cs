@@ -104,9 +104,6 @@ public record OilTransactionReportItemDto(
     double QuantityLiters,
     string TransactionTypeName,
     string? SupplierCompany,
-    string? DriverName,
-    string? SourceSubStationName,
-    string? DestinationSubStationName,
     string StatusName,
     string? Notes);
 
@@ -186,3 +183,15 @@ public record ReportFilterQueryDto(
     DateTime? DateTo,
     int Page = 1,
     int PageSize = 50);
+
+// ─── Inventory Summary ──────────────────────────────────────────────────
+
+public record InventorySummaryDto(
+    int TotalFuelTanks,
+    int TotalOilTanks,
+    double TotalFuelStockLiters,
+    double TotalOilStockLiters,
+    int LowFuelTanks,
+    int LowOilTanks,
+    int ActiveGenerators,
+    int TotalGenerators);

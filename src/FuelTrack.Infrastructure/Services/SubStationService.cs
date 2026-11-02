@@ -1,9 +1,7 @@
-using System.Security.Claims;
 using FuelTrack.Application.Common;
 using FuelTrack.Application.DTOs.SubStations;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Services;
@@ -12,24 +10,13 @@ public class SubStationService : ISubStationService
 {
     private readonly FuelTrackDbContext _db;
     private readonly IUserScopeFilterService _scopeFilter;
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ICurrentUserService _currentUser;
 
-    public SubStationService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, IHttpContextAccessor httpContextAccessor)
+    public SubStationService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser)
     {
         _db = db;
         _scopeFilter = scopeFilter;
-        _httpContextAccessor = httpContextAccessor;
-    }
-
-    private int? GetCurrentUserId()
-    {
-        var claim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        return claim != null && int.TryParse(claim.Value, out var id) ? id : null;
-    }
-
-    private bool IsAdmin()
-    {
-        return _httpContextAccessor.HttpContext?.User.IsInRole("Admin") ?? false;
+        _currentUser = currentUser;
     }
 
     public async Task<Result<SubStationDetailDto>> CreateAsync(CreateSubStationDto dto, int userId)
@@ -73,7 +60,7 @@ public class SubStationService : ISubStationService
         if (dto.Name is not null) subStation.Name = dto.Name;
         if (dto.Code is not null) subStation.Code = dto.Code;
         if (dto.Location is not null) subStation.Location = dto.Location;
-        if (dto.CapacityKW.HasValue) subStation.CapacityKW = dto.CapacityKW;
+        if (dto.CapacityKW.HasValue) subStation.CapacityKW = dto.CapacityKW.Value;
         if (dto.IsActive.HasValue) subStation.IsActive = dto.IsActive.Value;
 
         subStation.UpdatedAt = DateTime.UtcNow;
@@ -100,9 +87,9 @@ public class SubStationService : ISubStationService
 
     public async Task<SubStationDetailDto?> GetByIdAsync(int id)
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = _currentUser.UserId;
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -116,9 +103,9 @@ public class SubStationService : ISubStationService
 
     public async Task<List<SubStationListDto>> GetAllAsync(bool includeInactive = false)
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = _currentUser.UserId;
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -147,9 +134,9 @@ public class SubStationService : ISubStationService
 
     public async Task<List<SubStationListDto>> GetByStationAsync(int stationId, bool includeInactive = false)
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = _currentUser.UserId;
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);

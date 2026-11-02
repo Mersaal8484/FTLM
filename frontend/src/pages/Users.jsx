@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Users as UsersIcon, ShieldCheck, Shield, Trash2, Edit2, LogIn, Plus, X, KeyRound, ChevronUp, ChevronDown } from 'lucide-react';
+import { Users as UsersIcon, ShieldCheck, Shield, Trash2, Edit2, LogIn, Plus, X, KeyRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
+import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 
 /* ── Map backend API ↔ frontend form field names ── */
 function normalizeUser(u, rolesList) {
@@ -295,19 +296,13 @@ function Users({ t, lang, currentUser }) {
 
   return (
     <div>
-      <div className="page-header">
-        <div className="page-header-row">
-          <div>
-            <h1>{t.userManagement}</h1>
-            <p>{t.manageUsers}</p>
-          </div>
-          {canManage && (
-            <button className="btn btn-primary" onClick={openAdd}>
-              <Plus size={16} /> {ar ? 'مستخدم جديد' : 'New User'}
-            </button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title={t.userManagement}
+        subtitle={t.manageUsers}
+        actions={canManage ? (
+          <Button icon={Plus} onClick={openAdd}>{ar ? 'مستخدم جديد' : 'New User'}</Button>
+        ) : null}
+      />
 
       {error && <div className="alert alert-danger">{error}</div>}
 
@@ -371,85 +366,82 @@ function Users({ t, lang, currentUser }) {
         </div>
       )}
 
-      {/* ─── Modal ─── */}
+      {/* ─── User Modal ─── */}
       {showModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && closeModal()}>
-          <div className="modal-box" style={{ maxWidth: 600 }}>
-            <div className="modal-header">
-              <div className="modal-title">{editId ? (ar ? 'تعديل مستخدم' : 'Edit User') : (ar ? 'إضافة مستخدم' : 'Add User')}</div>
-              <button className="modal-close" onClick={closeModal}><X size={18} /></button>
-            </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label className="form-label">{ar ? 'الاسم *' : 'Name *'}</label>
-                <input className="form-control" value={form.name} onChange={e => fld('name', e.target.value)} dir="auto" />
+        <Modal
+          open={showModal}
+          onClose={closeModal}
+          title={editId ? (ar ? 'تعديل مستخدم' : 'Edit User') : (ar ? 'إضافة مستخدم' : 'Add User')}
+          maxWidth={600}
+          footer={
+            <>
+              <Button variant="ghost" onClick={closeModal}>{ar ? 'إلغاء' : 'Cancel'}</Button>
+              <Button variant="primary" onClick={handleSave} disabled={saving}>
+                {saving
+                  ? <><span className="ft-spinner" style={{ width: 14, height: 14 }} /> {ar ? 'جاري الحفظ...' : 'Saving...'}</>
+                  : (editId ? (ar ? 'تحديث المستخدم' : 'Update User') : (ar ? 'إضافة مستخدم' : 'Add User'))}
+              </Button>
+            </>
+          }
+        >
+          <FormField label={ar ? 'الاسم *' : 'Name *'} required>
+            <Input value={form.name} onChange={e => fld('name', e.target.value)} dir="auto" />
+          </FormField>
+          <FormField label={ar ? 'البريد الإلكتروني *' : 'Email *'} required>
+            <Input type="email" value={form.email} onChange={e => fld('email', e.target.value)} />
+          </FormField>
+          {!editId && (
+            <FormField label={ar ? 'كلمة المرور *' : 'Password *'} required>
+              <Input type="password" autoComplete="new-password" value={form.password} onChange={e => fld('password', e.target.value)} />
+            </FormField>
+          )}
+          
+          <div className="form-row">
+            <FormField label={ar ? 'الدور الوظيفي' : 'Role'}>
+              <select className="form-select" value={form.role} onChange={e => fldRole(e.target.value)}>
+                {roles
+                  .filter(r => {
+                    if (currentUser?.role === 'admin') return true;
+                    const myWeight = ROLE_HIERARCHY[currentUser?.role] || 0;
+                    const targetWeight = ROLE_HIERARCHY[r.key] || 0;
+                    return targetWeight < myWeight;
+                  })
+                  .map(r => (
+                    <option key={r.key} value={r.key}>{r.name}</option>
+                  ))}
+              </select>
+            </FormField>
+            <FormField label={ar ? 'رقم الهاتف *' : 'Phone *'} required>
+              <div className="phone-input-wrap" dir="ltr">
+                <span className="phone-prefix">+967</span>
+                <Input
+                  value={form.phone}
+                  onChange={e => fldPhone(e.target.value)}
+                  inputMode="numeric"
+                  maxLength={9}
+                  placeholder="7XXXXXXXX"
+                  style={{ paddingInlineStart: 52 }}
+                />
               </div>
-              <div className="form-group">
-                <label className="form-label">{ar ? 'البريد الإلكتروني *' : 'Email *'}</label>
-                <input className="form-control" type="email" value={form.email} onChange={e => fld('email', e.target.value)} />
-              </div>
-              {!editId && (
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'كلمة المرور *' : 'Password *'}</label>
-                  <input
-                    className="form-control"
-                    type="password"
-                    autoComplete="new-password"
-                    value={form.password}
-                    onChange={e => fld('password', e.target.value)}
-                  />
-                </div>
-              )}
-              
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'الدور الوظيفي' : 'Role'}</label>
-                  <select className="form-select" value={form.role} onChange={e => fldRole(e.target.value)}>
-                    {roles
-                      .filter(r => {
-                        if (currentUser?.role === 'admin') return true;
-                        const myWeight = ROLE_HIERARCHY[currentUser?.role] || 0;
-                        const targetWeight = ROLE_HIERARCHY[r.key] || 0;
-                        return targetWeight < myWeight;
-                      })
-                      .map(r => (
-                        <option key={r.key} value={r.key}>{r.name}</option>
-                      ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'رقم الهاتف *' : 'Phone *'}</label>
-                  <div className="phone-input-wrap" dir="ltr">
-                    <span className="phone-prefix">+967</span>
-                    <input
-                      className="form-control phone-local-input"
-                      value={form.phone}
-                      onChange={e => fldPhone(e.target.value)}
-                      inputMode="numeric"
-                      maxLength={9}
-                      placeholder="7XXXXXXXX"
-                    />
-                  </div>
-                </div>
-              </div>
+            </FormField>
+          </div>
 
-              {isShiftAssignableRole(form.role) && (
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'وردية المشغل' : 'Operator Shift'}</label>
-                  <select
-                    className="form-select"
-                    value={form.assignedShiftType || 'day'}
-                    onChange={e => {
-                      const opt = SHIFT_OPTIONS.find(x => x.type === e.target.value) || SHIFT_OPTIONS[0];
-                      setForm(f => ({ ...f, assignedShiftType: opt.type, assignedShiftDuration: opt.duration }));
-                    }}
-                  >
-                    {SHIFT_OPTIONS.map(opt => (
-                      <option key={opt.type} value={opt.type}>{ar ? opt.ar : opt.en}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+          {isShiftAssignableRole(form.role) && (
+            <FormField label={ar ? 'وردية المشغل' : 'Operator Shift'}>
+              <select
+                className="form-select"
+                value={form.assignedShiftType || 'day'}
+                onChange={e => {
+                  const opt = SHIFT_OPTIONS.find(x => x.type === e.target.value) || SHIFT_OPTIONS[0];
+                  setForm(f => ({ ...f, assignedShiftType: opt.type, assignedShiftDuration: opt.duration }));
+                }}
+              >
+                {SHIFT_OPTIONS.map(opt => (
+                  <option key={opt.type} value={opt.type}>{ar ? opt.ar : opt.en}</option>
+                ))}
+              </select>
+            </FormField>
+          )}
 
               {/* ── Scope Selector ── */}
               <div className="form-group">
@@ -497,54 +489,43 @@ function Users({ t, lang, currentUser }) {
                   )}
                 </div>
               </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={closeModal}>{ar ? 'إلغاء' : 'Cancel'}</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                {saving
-                  ? <><span className="ft-spinner" style={{ width: 14, height: 14 }} /> {ar ? 'جاري الحفظ...' : 'Saving...'}</>
-                  : (editId ? (ar ? 'تحديث المستخدم' : 'Update User') : (ar ? 'إضافة مستخدم' : 'Add User'))}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </Modal>
+          )}
+        )}
 
+        {/* ─── Reset Password Modal ─── */}
       {resetUser && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && closeResetPassword()}>
-          <div className="modal-box" style={{ maxWidth: 420 }}>
-            <div className="modal-header">
-              <div className="modal-title">{ar ? 'إعادة تعيين كلمة المرور' : 'Reset Password'}</div>
-              <button className="modal-close" onClick={closeResetPassword}><X size={18} /></button>
-            </div>
-            <div className="modal-body">
-              <div style={{ marginBottom: 14, color: 'var(--text-muted)', fontSize: 13 }}>
-                {resetUser.name || resetUser.email}
-              </div>
-              <div className="form-group">
-                <label className="form-label">{ar ? 'كلمة المرور الجديدة *' : 'New Password *'}</label>
-                <input
-                  className="form-control"
-                  type="password"
-                  value={resetPassword}
-                  onChange={e => setResetPassword(e.target.value)}
-                  placeholder={ar ? '7 أحرف مع رقم ورمز' : '7 chars with number and symbol'}
-                />
-              </div>
-              <div style={{ color: 'var(--text-faint)', fontSize: 12 }}>
-                {ar
-                  ? 'بعد الحفظ سيطلب النظام من المستخدم تغيير كلمة المرور عند أول دخول.'
-                  : 'After saving, the user will be forced to change it on next login.'}
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={closeResetPassword}>{ar ? 'إلغاء' : 'Cancel'}</button>
-              <button className="btn btn-primary" onClick={handleResetPassword} disabled={saving}>
+        <Modal
+          open={!!resetUser}
+          onClose={closeResetPassword}
+          title={ar ? 'إعادة تعيين كلمة المرور' : 'Reset Password'}
+          maxWidth={420}
+          footer={
+            <>
+              <Button variant="ghost" onClick={closeResetPassword}>{ar ? 'إلغاء' : 'Cancel'}</Button>
+              <Button variant="primary" onClick={handleResetPassword} disabled={saving}>
                 {saving ? <><span className="ft-spinner" style={{ width: 14, height: 14 }} /> {ar ? 'جاري الحفظ...' : 'Saving...'}</> : (ar ? 'إعادة التعيين' : 'Reset')}
-              </button>
-            </div>
+              </Button>
+            </>
+          }
+        >
+          <div style={{ marginBottom: 14, color: 'var(--text-muted)', fontSize: 13 }}>
+            {resetUser.name || resetUser.email}
           </div>
-        </div>
+          <FormField label={ar ? 'كلمة المرور الجديدة *' : 'New Password *'} required>
+            <Input
+              type="password"
+              value={resetPassword}
+              onChange={e => setResetPassword(e.target.value)}
+              placeholder={ar ? '7 أحرف مع رقم ورمز' : '7 chars with number and symbol'}
+            />
+          </FormField>
+          <div style={{ color: 'var(--text-faint)', fontSize: 12 }}>
+            {ar
+              ? 'بعد الحفظ سيطلب النظام من المستخدم تغيير كلمة المرور عند أول دخول.'
+              : 'After saving, the user will be forced to change it on next login.'}
+          </div>
+        </Modal>
       )}
     </div>
   );

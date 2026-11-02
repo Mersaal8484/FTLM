@@ -8,6 +8,6 @@ public class HangfireAllowAdminFilter : IDashboardAuthorizationFilter
     {
         var httpContext = context.GetHttpContext();
         return httpContext.User.Identity?.IsAuthenticated == true
-            && httpContext.User.IsInRole("SystemOwner");
+            && (httpContext.User.IsInRole("SystemOwner") || httpContext.User.IsInRole("Admin"));
     }
 }

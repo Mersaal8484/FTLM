@@ -3,6 +3,7 @@ import {
   canSubmitInventory,
   buildInventoryStatusPayload,
   formatEnergyReading,
+  formatInventoryEfficiency,
   getInventoryPrintDate,
   getMissingFuelReason,
 } from './PeriodicInventoryPage';
@@ -17,7 +18,7 @@ describe('PeriodicInventoryPage inventory actions', () => {
   });
 
   test('inventory head submits drafts but does not approve them', () => {
-    const inventoryHead = { role: 'inventory_head' };
+    const inventoryHead = { role: 'inventory_head', permissions: { inventory: { create: true, update: true } } };
 
     expect(canSubmitInventory(inventoryHead, { status: 'draft' })).toBe(true);
     expect(canSubmitInventory(inventoryHead, { status: 'rejected' })).toBe(true);
@@ -37,6 +38,14 @@ describe('PeriodicInventoryPage inventory actions', () => {
     expect(formatEnergyReading(90000, true)).toBe('90,000');
     expect(formatEnergyReading(0, true)).toBe('-');
     expect(formatEnergyReading(0, false)).toBe('0');
+  });
+
+  test('formats efficiency value as percentage or dash', () => {
+    expect(formatInventoryEfficiency(0.8543)).toBe('0.85%');
+    expect(formatInventoryEfficiency(1)).toBe('1.00%');
+    expect(formatInventoryEfficiency(0)).toBe('—');
+    expect(formatInventoryEfficiency(null)).toBe('—');
+    expect(formatInventoryEfficiency('invalid')).toBe('—');
   });
 
   test('status updates keep the full inventory payload values', () => {

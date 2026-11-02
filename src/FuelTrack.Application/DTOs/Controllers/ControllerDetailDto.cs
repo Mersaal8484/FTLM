@@ -18,5 +18,6 @@ public record ControllerDetailDto(
     string? RegisterType,
     bool AutoConnect,
     string? EnergyUnit,
+    bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt);

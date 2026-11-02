@@ -1,8 +1,6 @@
-using System.Security.Claims;
 using FuelTrack.Application.DTOs.FuelTanks;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Services;
@@ -11,24 +9,13 @@ public class FuelTankService : IFuelTankService
 {
     private readonly FuelTrackDbContext _db;
     private readonly IUserScopeFilterService _scopeFilter;
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ICurrentUserService _currentUser;
 
-    public FuelTankService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, IHttpContextAccessor httpContextAccessor)
+    public FuelTankService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser)
     {
         _db = db;
         _scopeFilter = scopeFilter;
-        _httpContextAccessor = httpContextAccessor;
-    }
-
-    private int? GetCurrentUserId()
-    {
-        var claim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        return claim != null && int.TryParse(claim.Value, out var id) ? id : null;
-    }
-
-    private bool IsAdmin()
-    {
-        return _httpContextAccessor.HttpContext?.User.IsInRole("Admin") ?? false;
+        _currentUser = currentUser;
     }
 
     public async Task<FuelTankDetailDto> CreateAsync(CreateFuelTankDto dto, int userId)
@@ -47,6 +34,7 @@ public class FuelTankService : IFuelTankService
             DeadStockLiters = dto.DeadStockLiters,
             ActualStockLiters = dto.ActualStockLiters,
             Notes = dto.Notes,
+            IsActive = dto.IsActive,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
@@ -61,7 +49,7 @@ public class FuelTankService : IFuelTankService
     {
         var tank = await _db.FuelTanks
             .Include(ft => ft.SubStation)
-            .FirstOrDefaultAsync(ft => ft.Id == id)
+            .FirstOrDefaultAsync(ft => ft.Id == id && ft.DeletedAt == null)
             ?? throw new KeyNotFoundException($"FuelTank {id} not found.");
 
         if (dto.Name is not null) tank.Name = dto.Name;
@@ -78,36 +66,37 @@ public class FuelTankService : IFuelTankService
             tank.SubStationId = dto.SubStationId.Value;
         }
         if (dto.Notes is not null) tank.Notes = dto.Notes;
+        if (dto.IsActive.HasValue) tank.IsActive = dto.IsActive.Value;
         tank.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
 
         var fuelLookup = await _db.Lookups.FindAsync(tank.FuelLookupId);
         var meterDict = await GetLatestMeterReadingsAsync(new[] { tank.Id });
-        meterDict.TryGetValue(tank.Id, out var meterInfo);
+        meterDict.TryGetValue(tank.SubStationId, out var meterInfo);
         return MapToDetail(tank, tank.SubStation, fuelLookup, meterInfo);
     }
 
     public async Task<FuelTankDetailDto?> GetByIdAsync(int id)
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = _currentUser.UserId;
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
                 if (accessibleIds.Count == 0)
                     return null;
                 var tank = await _db.FuelTanks
-                    .AsNoTracking()
-                    .Include(ft => ft.SubStation)
-                    .Include(ft => ft.FuelLookup)
-                    .FirstOrDefaultAsync(ft => ft.Id == id && accessibleIds.Contains(ft.SubStationId));
+                     .AsNoTracking()
+                     .Include(ft => ft.SubStation)
+                     .Include(ft => ft.FuelLookup)
+                     .FirstOrDefaultAsync(ft => ft.Id == id && ft.DeletedAt == null && accessibleIds.Contains(ft.SubStationId));
                 if (tank is null) return null;
 
                 var meterDict = await GetLatestMeterReadingsAsync(new[] { id });
 
-                meterDict.TryGetValue(id, out var meterInfo);
+                meterDict.TryGetValue(tank.SubStationId, out var meterInfo);
 
                 return new FuelTankDetailDto(
                     tank.Id, tank.SubStationId, tank.SubStation.Name,
@@ -117,6 +106,7 @@ public class FuelTankService : IFuelTankService
                     tank.DeadStockLiters, tank.ActualStockLiters,
                     meterInfo.HasMeter, meterInfo.MeterReading, meterInfo.MeterReadingActual,
                     tank.Notes,
+                    tank.IsActive,
                     tank.CreatedAt, tank.UpdatedAt);
             }
         }
@@ -125,12 +115,12 @@ public class FuelTankService : IFuelTankService
             .AsNoTracking()
             .Include(ft => ft.SubStation)
             .Include(ft => ft.FuelLookup)
-            .FirstOrDefaultAsync(ft => ft.Id == id);
+            .FirstOrDefaultAsync(ft => ft.Id == id && ft.DeletedAt == null);
 
         if (originalTank is null) return null;
 
         var originalMeterDict = await GetLatestMeterReadingsAsync(new[] { id });
-        originalMeterDict.TryGetValue(id, out var originalMeterInfo);
+        originalMeterDict.TryGetValue(originalTank.SubStationId, out var originalMeterInfo);
 
         return new FuelTankDetailDto(
             originalTank.Id, originalTank.SubStationId, originalTank.SubStation.Name,
@@ -140,14 +130,15 @@ public class FuelTankService : IFuelTankService
             originalTank.DeadStockLiters, originalTank.ActualStockLiters,
             originalMeterInfo.HasMeter, originalMeterInfo.MeterReading, originalMeterInfo.MeterReadingActual,
             originalTank.Notes,
+            originalTank.IsActive,
             originalTank.CreatedAt, originalTank.UpdatedAt);
     }
 
     public async Task<List<FuelTankListDto>> GetAllAsync()
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = _currentUser.UserId;
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -157,7 +148,7 @@ public class FuelTankService : IFuelTankService
                     .AsNoTracking()
                     .Include(ft => ft.SubStation)
                     .Include(ft => ft.FuelLookup)
-                    .Where(ft => accessibleIds.Contains(ft.SubStationId))
+                    .Where(ft => ft.DeletedAt == null && accessibleIds.Contains(ft.SubStationId))
                     .OrderBy(ft => ft.SubStation.Name)
                     .ThenBy(ft => ft.Name)
                     .ToListAsync();
@@ -167,13 +158,14 @@ public class FuelTankService : IFuelTankService
 
                 return tanks.Select(ft =>
                 {
-                    meterDict.TryGetValue(ft.Id, out var m);
+                    meterDict.TryGetValue(ft.SubStationId, out var m);
                     return new FuelTankListDto(
                         ft.Id, ft.SubStationId, ft.SubStation.Name,
                         ft.FuelLookupId, ft.FuelLookup?.Name,
                         ft.Name, ft.Code, ft.CapacityLiters,
                         ft.MinAlertLiters, ft.DeadStockLiters, ft.ActualStockLiters,
-                        m.HasMeter, m.MeterReading, m.MeterReadingActual);
+                        m.HasMeter, m.MeterReading, m.MeterReadingActual,
+                        ft.IsActive);
                 }).ToList();
             }
         }
@@ -182,6 +174,7 @@ public class FuelTankService : IFuelTankService
             .AsNoTracking()
             .Include(ft => ft.SubStation)
             .Include(ft => ft.FuelLookup)
+            .Where(ft => ft.DeletedAt == null)
             .OrderBy(ft => ft.SubStation.Name)
             .ThenBy(ft => ft.Name)
             .ToListAsync();
@@ -191,21 +184,22 @@ public class FuelTankService : IFuelTankService
 
         return allTanks.Select(ft =>
         {
-            allMeterDict.TryGetValue(ft.Id, out var m);
+            allMeterDict.TryGetValue(ft.SubStationId, out var m);
             return new FuelTankListDto(
                 ft.Id, ft.SubStationId, ft.SubStation.Name,
                 ft.FuelLookupId, ft.FuelLookup?.Name,
                 ft.Name, ft.Code, ft.CapacityLiters,
                 ft.MinAlertLiters, ft.DeadStockLiters, ft.ActualStockLiters,
-                m.HasMeter, m.MeterReading, m.MeterReadingActual);
+                m.HasMeter, m.MeterReading, m.MeterReadingActual,
+                ft.IsActive);
         }).ToList();
     }
 
     public async Task<List<FuelTankListDto>> GetBySubStationAsync(int subStationId)
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = _currentUser.UserId;
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -218,7 +212,7 @@ public class FuelTankService : IFuelTankService
             .AsNoTracking()
             .Include(ft => ft.SubStation)
             .Include(ft => ft.FuelLookup)
-            .Where(ft => ft.SubStationId == subStationId)
+            .Where(ft => ft.DeletedAt == null && ft.SubStationId == subStationId)
             .ToListAsync();
 
         var tankIds = tanks.Select(t => t.Id).ToArray();
@@ -232,7 +226,8 @@ public class FuelTankService : IFuelTankService
                 ft.FuelLookupId, ft.FuelLookup?.Name,
                 ft.Name, ft.Code, ft.CapacityLiters,
                 ft.MinAlertLiters, ft.DeadStockLiters, ft.ActualStockLiters,
-                m.HasMeter, m.MeterReading, m.MeterReadingActual);
+                m.HasMeter, m.MeterReading, m.MeterReadingActual,
+                ft.IsActive);
         }).ToList();
     }
 
@@ -240,7 +235,9 @@ public class FuelTankService : IFuelTankService
     {
         var tank = await _db.FuelTanks.FindAsync(id)
             ?? throw new KeyNotFoundException($"FuelTank {id} not found.");
-        _db.FuelTanks.Remove(tank);
+        tank.IsActive = false;
+        tank.DeletedAt = DateTime.UtcNow;
+        tank.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
     }
 
@@ -255,6 +252,7 @@ public class FuelTankService : IFuelTankService
             tank.ActualStockLiters,
             meterInfo.HasMeter, meterInfo.MeterReading, meterInfo.MeterReadingActual,
             tank.Notes,
+            tank.IsActive,
             tank.CreatedAt, tank.UpdatedAt);
     }
 
@@ -263,16 +261,22 @@ public class FuelTankService : IFuelTankService
         if (tankIds.Length == 0)
             return new Dictionary<int, (bool, double?, double?)>();
 
+        var subStationIds = await _db.FuelTanks
+            .Where(t => tankIds.Contains(t.Id))
+            .Select(t => t.SubStationId)
+            .Distinct()
+            .ToListAsync();
+
         return await _db.Meters
-            .Where(m => m.FuelTankId.HasValue && tankIds.Contains(m.FuelTankId.Value))
-            .GroupBy(m => m.FuelTankId!.Value)
+            .Where(m => m.SubStationId.HasValue && subStationIds.Contains(m.SubStationId.Value))
+            .GroupBy(m => m.SubStationId!.Value)
             .Select(g => new
             {
-                TankId = g.Key,
+                SubStationId = g.Key,
                 Latest = g.OrderByDescending(m => m.UpdatedAt).First()
             })
             .ToDictionaryAsync(
-                x => x.TankId,
+                x => x.SubStationId,
                 x => (true, x.Latest.EnergyReading, x.Latest.HoursReading));
     }
 }

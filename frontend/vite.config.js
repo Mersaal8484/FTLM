@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    setupFiles: ['./src/setupTests.js'],
     exclude: [
       '**/e2e/**',
       '**/node_modules/**',
@@ -42,17 +43,34 @@ export default defineConfig({
   ],
   server: {
     host: '0.0.0.0',
-    port: 3000,
+    port: parseInt(process.env.VITE_FRONTEND_PORT || '3000', 10),
     proxy: {
-      '/api': 'http://localhost:5000',
+      '/api': {
+        target: `http://localhost:${process.env.VITE_API_PORT || '5000'}`,
+        changeOrigin: true,
+      },
       '/hubs': {
-        target: 'http://localhost:5000',
+        target: `http://localhost:${process.env.VITE_API_PORT || '5000'}`,
         ws: true,
+        changeOrigin: true,
       },
     },
   },
   build: {
     outDir: 'build',
     sourcemap: false,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-core': ['react', 'react-dom', 'react-router-dom', 'zustand', 'i18next', 'react-i18next'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-charts': ['chart.js', 'react-chartjs-2'],
+          'vendor-icons': ['lucide-react'],
+          'vendor-xlsx': ['xlsx-js-style'],
+          'vendor-canvas': ['html2canvas'],
+        }
+      }
+    }
   },
 });

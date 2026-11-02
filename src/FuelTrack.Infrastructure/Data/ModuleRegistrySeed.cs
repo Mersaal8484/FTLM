@@ -16,49 +16,38 @@ public static class ModuleRegistrySeed
     public static async Task SeedAsync(FuelTrackDbContext db)
     {
         var modules = GetModules();
+        var keys = modules.Select(m => m.Key).ToList();
 
-        // Seed in two passes to respect self-referencing FK (ParentKey)
-        // Pass 1: modules without a parent (ParentKey == null)
-        foreach (var module in modules)
-        {
-            if (module.ParentKey != null) continue;
-            await UpsertModuleAsync(db, module);
-        }
-        await db.SaveChangesAsync();
-
-        // Pass 2: modules with a parent
-        foreach (var module in modules)
-        {
-            if (module.ParentKey == null) continue;
-            await UpsertModuleAsync(db, module);
-        }
-        await db.SaveChangesAsync();
-    }
-
-    private static async Task UpsertModuleAsync(FuelTrackDbContext db, ModuleDefinition module)
-    {
         var existing = await db.ModuleDefinitions
-            .FirstOrDefaultAsync(m => m.Key == module.Key);
+            .Where(m => keys.Contains(m.Key))
+            .ToListAsync();
 
-        if (existing == null)
+        var existingMap = existing.ToDictionary(m => m.Key, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var module in modules)
         {
-            db.ModuleDefinitions.Add(module);
+            if (existingMap.TryGetValue(module.Key, out var found))
+            {
+                found.NameEn = module.NameEn;
+                found.NameAr = module.NameAr;
+                found.Route = module.Route;
+                found.Icon = module.Icon;
+                found.ParentKey = module.ParentKey;
+                found.Template = module.Template;
+                found.ScopeType = module.ScopeType;
+                found.SortOrder = module.SortOrder;
+                found.IsVisible = module.IsVisible;
+                found.CustomActions = module.CustomActions;
+                found.SupportsAuditLog = module.SupportsAuditLog;
+                found.SupportsGlobalSearch = module.SupportsGlobalSearch;
+            }
+            else
+            {
+                db.ModuleDefinitions.Add(module);
+            }
         }
-        else
-        {
-            existing.NameEn = module.NameEn;
-            existing.NameAr = module.NameAr;
-            existing.Route = module.Route;
-            existing.Icon = module.Icon;
-            existing.ParentKey = module.ParentKey;
-            existing.Template = module.Template;
-            existing.ScopeType = module.ScopeType;
-            existing.SortOrder = module.SortOrder;
-            existing.IsVisible = module.IsVisible;
-            existing.CustomActions = module.CustomActions;
-            existing.SupportsAuditLog = module.SupportsAuditLog;
-            existing.SupportsGlobalSearch = module.SupportsGlobalSearch;
-        }
+
+        await db.SaveChangesAsync();
     }
 
     public static List<ModuleDefinition> GetModules()
@@ -283,7 +272,7 @@ public static class ModuleRegistrySeed
                 IsVisible = true,
                 SupportsAuditLog = true,
                 SupportsGlobalSearch = true,
-                CustomActions = "send,receive"
+                CustomActions = "send,receive,approve,reject"
             },
             new ModuleDefinition
             {
@@ -299,7 +288,7 @@ public static class ModuleRegistrySeed
                 IsVisible = true,
                 SupportsAuditLog = true,
                 SupportsGlobalSearch = true,
-                CustomActions = "send,receive"
+                CustomActions = "send,receive,approve,reject"
             },
             new ModuleDefinition
             {
@@ -314,7 +303,8 @@ public static class ModuleRegistrySeed
                 SortOrder = 304,
                 IsVisible = true,
                 SupportsAuditLog = true,
-                SupportsGlobalSearch = true
+                SupportsGlobalSearch = true,
+                CustomActions = "approve,reject"
             },
             new ModuleDefinition
             {
@@ -512,7 +502,45 @@ public static class ModuleRegistrySeed
                 IsVisible = true,
                 SupportsAuditLog = false,
                 SupportsGlobalSearch = false
-            }
+            },
+
+            // ============================================
+            // WAREHOUSE
+            // ============================================
+            new ModuleDefinition
+            {
+                Key = "warehouse",
+                NameEn = "Warehouse",
+                NameAr = "المخازن",
+                Route = "/warehouse/parts",
+                Icon = "Warehouse",
+                ParentKey = null,
+                Template = ModuleTemplate.CRUD,
+                ScopeType = ScopeType.Station,
+                SortOrder = 700,
+                IsVisible = true,
+                SupportsAuditLog = true,
+                SupportsGlobalSearch = true
+            },
+
+            // ============================================
+            // MAINTENANCE
+            // ============================================
+            new ModuleDefinition
+            {
+                Key = "maintenance",
+                NameEn = "Maintenance",
+                NameAr = "الصيانة",
+                Route = "/maintenance",
+                Icon = "Wrench",
+                ParentKey = null,
+                Template = ModuleTemplate.CRUD,
+                ScopeType = ScopeType.Station,
+                SortOrder = 701,
+                IsVisible = true,
+                SupportsAuditLog = true,
+                SupportsGlobalSearch = true
+            },
         };
     }
 }

@@ -5,6 +5,7 @@ using FuelTrack.Application;
 using FuelTrack.Application.DTOs.Audits;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Infrastructure.Data;
+using FuelTrack.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,24 +14,17 @@ namespace FuelTrack.Infrastructure.Services;
 public class AuditService : IAuditService
 {
     private readonly FuelTrackDbContext _db;
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ICurrentUserService _currentUser;
 
-    public AuditService(FuelTrackDbContext db, IHttpContextAccessor httpContextAccessor)
+    public AuditService(FuelTrackDbContext db, ICurrentUserService currentUser)
     {
         _db = db;
-        _httpContextAccessor = httpContextAccessor;
+        _currentUser = currentUser;
     }
 
-    private int? GetCurrentUserId()
-    {
-        var claim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        return claim != null && int.TryParse(claim.Value, out var id) ? id : null;
-    }
+    
 
-    private bool IsAdmin()
-    {
-        return _httpContextAccessor.HttpContext?.User.IsInRole("Admin") ?? false;
-    }
+    
 
     public async Task<PagedResult<AuditListDto>> GetPagedAsync(AuditFilterParams filter)
     {
@@ -38,12 +32,12 @@ public class AuditService : IAuditService
             .Where(x => x.IsActive)
             .AsQueryable();
 
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var currentUserId = GetCurrentUserId();
-            if (currentUserId.HasValue)
+            var currentUserId = _currentUser.UserId;
+            if (_currentUser.UserId.HasValue)
             {
-                query = query.Where(x => x.UserId == currentUserId.Value);
+                query = query.Where(x => x.UserId == _currentUser.UserId!.Value);
             }
         }
 
@@ -117,3 +111,4 @@ public class AuditService : IAuditService
         return value;
     }
 }
+

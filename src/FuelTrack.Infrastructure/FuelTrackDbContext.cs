@@ -49,6 +49,19 @@ namespace FuelTrack.Infrastructure
         public DbSet<DailyReadingArchive> DailyReadingArchives => Set<DailyReadingArchive>();
         public DbSet<AuditLogArchive> AuditLogArchives => Set<AuditLogArchive>();
 
+        // Warehouse & Maintenance
+        public DbSet<SparePart> SpareParts => Set<SparePart>();
+        public DbSet<WarehouseStock> WarehouseStocks => Set<WarehouseStock>();
+        public DbSet<WarehouseSupply> WarehouseSupplies => Set<WarehouseSupply>();
+        public DbSet<WarehouseSupplyItem> WarehouseSupplyItems => Set<WarehouseSupplyItem>();
+        public DbSet<DispatchRequest> DispatchRequests => Set<DispatchRequest>();
+        public DbSet<DispatchRequestItem> DispatchRequestItems => Set<DispatchRequestItem>();
+        public DbSet<WarehouseTransaction> WarehouseTransactions => Set<WarehouseTransaction>();
+        public DbSet<WorkPermit> WorkPermits => Set<WorkPermit>();
+        public DbSet<WorkTask> WorkTasks => Set<WorkTask>();
+        public DbSet<InstalledPart> InstalledParts => Set<InstalledPart>();
+        public DbSet<MaintenanceLog> MaintenanceLogs => Set<MaintenanceLog>();
+
         // Permission system (Module Registry)
         public DbSet<ModuleDefinition> ModuleDefinitions => Set<ModuleDefinition>();
         public DbSet<PagePermission> PagePermissions => Set<PagePermission>();
@@ -90,8 +103,6 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<FuelTransaction>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<SubStationReading>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<PeriodicInventory>().HasQueryFilter(e => e.DeletedAt == null);
-            modelBuilder.Entity<PeriodicInventoryFuel>().HasQueryFilter(e => e.DeletedAt == null);
-            modelBuilder.Entity<PeriodicInventoryOil>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<Notification>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<NotificationRecipient>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<AuditLog>().HasQueryFilter(e => e.DeletedAt == null);
@@ -102,6 +113,19 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<UserScope>().HasQueryFilter(e => e.DeletedAt == null);
 
             modelBuilder.Entity<Oil>().HasQueryFilter(e => e.DeletedAt == null);
+
+            // === Warehouse & Maintenance soft-delete filters ===
+            modelBuilder.Entity<SparePart>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<WarehouseStock>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<WarehouseSupply>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<WarehouseSupplyItem>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<DispatchRequest>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<DispatchRequestItem>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<WarehouseTransaction>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<WorkPermit>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<WorkTask>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<InstalledPart>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<MaintenanceLog>().HasQueryFilter(e => e.DeletedAt == null);
 
             // === Oil relationships ===
             modelBuilder.Entity<Oil>()
@@ -179,12 +203,6 @@ namespace FuelTrack.Infrastructure
                 .HasOne(m => m.Generator)
                 .WithMany()
                 .HasForeignKey(m => m.GeneratorId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            modelBuilder.Entity<Meter>()
-                .HasOne(m => m.FuelTank)
-                .WithMany()
-                .HasForeignKey(m => m.FuelTankId)
                 .OnDelete(DeleteBehavior.SetNull);
 
 
@@ -303,10 +321,16 @@ namespace FuelTrack.Infrastructure
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<OilTransaction>()
-                .HasOne(ot => ot.Oil)
+                .HasOne(ot => ot.SourceSubStation)
                 .WithMany()
-                .HasForeignKey(ot => ot.OilId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .HasForeignKey(ot => ot.SourceSubStationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OilTransaction>()
+                .HasOne(ot => ot.DestinationSubStation)
+                .WithMany()
+                .HasForeignKey(ot => ot.DestinationSubStationId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             // === Ledger: FuelTransaction ===
             modelBuilder.Entity<FuelTransaction>()
@@ -498,6 +522,105 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<Notification>()
                 .HasIndex(n => new { n.SubStationId, n.CreatedAt })
                 .HasDatabaseName("IX_Notification_SubStation_Created");
+            modelBuilder.Entity<Notification>()
+                .Property(n => n.RelatedEntityType)
+                .HasMaxLength(64);
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => new { n.NotificationType, n.RelatedEntityType, n.RelatedEntityId, n.CreatedAt })
+                .HasDatabaseName("IX_Notifications_Alert_Deduplication");
+
+            // === Critical missing indexes for frequent filters ===
+            modelBuilder.Entity<Generator>()
+                .HasIndex(g => g.SubStationId)
+                .HasDatabaseName("IX_Generator_SubStationId");
+
+            modelBuilder.Entity<SubStation>()
+                .HasIndex(ss => ss.StationId)
+                .HasDatabaseName("IX_SubStation_StationId");
+
+            modelBuilder.Entity<Station>()
+                .HasIndex(s => s.BranchId)
+                .HasDatabaseName("IX_Station_BranchId");
+
+            modelBuilder.Entity<Oil>()
+                .HasIndex(o => o.SubStationId)
+                .HasDatabaseName("IX_Oil_SubStationId");
+
+            modelBuilder.Entity<Oil>()
+                .HasIndex(o => o.StationId)
+                .HasDatabaseName("IX_Oil_StationId");
+
+            modelBuilder.Entity<Controller>()
+                .HasIndex(c => c.GeneratorId)
+                .HasDatabaseName("IX_Controller_GeneratorId");
+
+            modelBuilder.Entity<Meter>()
+                .HasIndex(m => m.SubStationId)
+                .HasDatabaseName("IX_Meter_SubStationId");
+
+            modelBuilder.Entity<RefreshToken>()
+                .HasIndex(rt => rt.UserId)
+                .HasDatabaseName("IX_RefreshToken_UserId");
+
+            modelBuilder.Entity<AuditLog>()
+                .HasIndex(al => al.EntityName)
+                .HasDatabaseName("IX_AuditLog_EntityName");
+
+            // === Stock Summary: Composite indexes for summary queries ===
+            modelBuilder.Entity<FuelTransaction>()
+                .HasIndex(ft => new { ft.SubStationId, ft.FuelLookupId, ft.TransactionDate, ft.IsApproved })
+                .HasDatabaseName("IX_FuelTransactions_StockSummary")
+                .HasFilter("[DeletedAt] IS NULL");
+
+            modelBuilder.Entity<DailyReading>()
+                .HasIndex(dr => new { dr.GeneratorId, dr.ReadingDate, dr.FuelLookupId })
+                .HasDatabaseName("IX_DailyReadings_FuelConsumption")
+                .HasFilter("[DeletedAt] IS NULL");
+
+            modelBuilder.Entity<PeriodicInventory>()
+                .HasIndex(pi => new { pi.SubStationId, pi.InventoryDate, pi.IsApproved })
+                .HasDatabaseName("IX_PeriodicInventory_LastApproved")
+                .HasFilter("[DeletedAt] IS NULL AND [IsApproved] = 1");
+
+            modelBuilder.Entity<PeriodicInventoryFuel>()
+                .HasIndex(pif => new { pif.PeriodicInventoryId, pif.FuelLookupId })
+                .HasDatabaseName("IX_PeriodicInventoryFuel_Lookup");
+
+            modelBuilder.Entity<OilTransaction>()
+                .HasIndex(ot => new { ot.SubStationId, ot.OilLookupId, ot.TransactionDate, ot.IsApproved })
+                .HasDatabaseName("IX_OilTransactions_StockSummary")
+                .HasFilter("[DeletedAt] IS NULL");
+
+            // === Phase 3 Performance: Composite & Filtered Indexes for High-Frequency Queries ===
+            modelBuilder.Entity<FuelTransaction>()
+                .HasIndex(ft => new { ft.TransactionDate, ft.IsApproved })
+                .HasDatabaseName("IX_FuelTransactions_Date_Approved")
+                .HasFilter("[DeletedAt] IS NULL");
+
+            modelBuilder.Entity<OilTransaction>()
+                .HasIndex(ot => new { ot.TransactionDate, ot.IsApproved })
+                .HasDatabaseName("IX_OilTransactions_Date_Approved")
+                .HasFilter("[DeletedAt] IS NULL");
+
+            modelBuilder.Entity<DailyReading>()
+                .HasIndex(dr => new { dr.GeneratorId, dr.ReadingDate, dr.ReadingStatusLookupId })
+                .HasDatabaseName("IX_DailyReadings_Gen_Date_Status")
+                .HasFilter("[DeletedAt] IS NULL");
+
+            modelBuilder.Entity<SubStationReading>()
+                .HasIndex(sr => new { sr.ReadingDate, sr.ReadingStatusLookupId })
+                .HasDatabaseName("IX_SubStationReadings_Date_Status")
+                .HasFilter("[DeletedAt] IS NULL");
+
+            modelBuilder.Entity<SubStationReading>()
+                .HasIndex(sr => new { sr.SubStationId, sr.ReadingDate, sr.ReadingStatusLookupId })
+                .HasDatabaseName("IX_SubStationReadings_SubStation_Date_Status")
+                .HasFilter("[DeletedAt] IS NULL");
+
+            modelBuilder.Entity<PeriodicInventory>()
+                .HasIndex(pi => new { pi.SubStationId, pi.InventoryDate })
+                .HasDatabaseName("IX_PeriodicInventories_SubStation_Date")
+                .HasFilter("[DeletedAt] IS NULL");
 
             // === Archive: DailyReadingArchive ===
             modelBuilder.Entity<DailyReadingArchive>()
@@ -520,6 +643,322 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<AuditLogArchive>()
                 .HasIndex(a => a.Timestamp)
                 .HasDatabaseName("IX_AuditLogArchive_Timestamp");
+
+            modelBuilder.Entity<AuditLogArchive>()
+                .HasIndex(a => a.Timestamp)
+                .HasDatabaseName("IX_AuditLogArchive_Timestamp");
+
+            // === Warehouse: SparePart ===
+            modelBuilder.Entity<SparePart>()
+                .HasOne(sp => sp.PartCategoryLookup)
+                .WithMany()
+                .HasForeignKey(sp => sp.PartCategoryLookupId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<SparePart>()
+                .HasOne(sp => sp.UnitLookup)
+                .WithMany()
+                .HasForeignKey(sp => sp.UnitLookupId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<SparePart>()
+                .HasOne(sp => sp.ReplacementPriorityLookup)
+                .WithMany()
+                .HasForeignKey(sp => sp.ReplacementPriorityLookupId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<SparePart>()
+                .HasIndex(sp => sp.PartNumber)
+                .IsUnique()
+                .HasFilter("[DeletedAt] IS NULL");
+
+            // === Warehouse: WarehouseStock ===
+            modelBuilder.Entity<WarehouseStock>()
+                .HasOne(ws => ws.SparePart)
+                .WithMany(sp => sp.Stocks)
+                .HasForeignKey(ws => ws.SparePartId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<WarehouseStock>()
+                .HasOne(ws => ws.Station)
+                .WithMany()
+                .HasForeignKey(ws => ws.StationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<WarehouseStock>()
+                .HasIndex(ws => new { ws.SparePartId, ws.StationId })
+                .IsUnique()
+                .HasFilter("[DeletedAt] IS NULL");
+
+            // === Warehouse: WarehouseSupply ===
+            modelBuilder.Entity<WarehouseSupply>()
+                .HasOne(ws => ws.Station)
+                .WithMany()
+                .HasForeignKey(ws => ws.StationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<WarehouseSupply>()
+                .HasOne(ws => ws.StatusLookup)
+                .WithMany()
+                .HasForeignKey(ws => ws.StatusLookupId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // === Warehouse: WarehouseSupplyItem ===
+            modelBuilder.Entity<WarehouseSupplyItem>()
+                .HasOne(wsi => wsi.WarehouseSupply)
+                .WithMany(ws => ws.Items)
+                .HasForeignKey(wsi => wsi.WarehouseSupplyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<WarehouseSupplyItem>()
+                .HasOne(wsi => wsi.SparePart)
+                .WithMany()
+                .HasForeignKey(wsi => wsi.SparePartId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // === Warehouse: DispatchRequest ===
+            modelBuilder.Entity<DispatchRequest>()
+                .HasOne(dr => dr.SubStation)
+                .WithMany()
+                .HasForeignKey(dr => dr.SubStationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DispatchRequest>()
+                .HasOne(dr => dr.Station)
+                .WithMany()
+                .HasForeignKey(dr => dr.StationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DispatchRequest>()
+                .HasOne(dr => dr.RequestedBy)
+                .WithMany()
+                .HasForeignKey(dr => dr.RequestedById)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DispatchRequest>()
+                .HasOne(dr => dr.ApprovedBy)
+                .WithMany()
+                .HasForeignKey(dr => dr.ApprovedById)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<DispatchRequest>()
+                .HasOne(dr => dr.WorkPermit)
+                .WithMany(wp => wp.DispatchRequests)
+                .HasForeignKey(dr => dr.WorkPermitId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<DispatchRequest>()
+                .HasOne(dr => dr.StatusLookup)
+                .WithMany()
+                .HasForeignKey(dr => dr.StatusLookupId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // === Warehouse: DispatchRequestItem ===
+            modelBuilder.Entity<DispatchRequestItem>()
+                .HasOne(dri => dri.DispatchRequest)
+                .WithMany(dr => dr.Items)
+                .HasForeignKey(dri => dri.DispatchRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<DispatchRequestItem>()
+                .HasOne(dri => dri.SparePart)
+                .WithMany()
+                .HasForeignKey(dri => dri.SparePartId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // === Warehouse: WarehouseTransaction ===
+            modelBuilder.Entity<WarehouseTransaction>()
+                .HasOne(wt => wt.SparePart)
+                .WithMany()
+                .HasForeignKey(wt => wt.SparePartId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<WarehouseTransaction>()
+                .HasOne(wt => wt.Station)
+                .WithMany()
+                .HasForeignKey(wt => wt.StationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<WarehouseTransaction>()
+                .HasOne(wt => wt.TransactionTypeLookup)
+                .WithMany()
+                .HasForeignKey(wt => wt.TransactionTypeLookupId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // === Maintenance: WorkPermit ===
+            modelBuilder.Entity<WorkPermit>()
+                .HasOne(wp => wp.SubStation)
+                .WithMany()
+                .HasForeignKey(wp => wp.SubStationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<WorkPermit>()
+                .HasOne(wp => wp.Generator)
+                .WithMany()
+                .HasForeignKey(wp => wp.GeneratorId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<WorkPermit>()
+                .HasOne(wp => wp.MaintenanceTypeLookup)
+                .WithMany()
+                .HasForeignKey(wp => wp.MaintenanceTypeLookupId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<WorkPermit>()
+                .HasOne(wp => wp.DepartmentLookup)
+                .WithMany()
+                .HasForeignKey(wp => wp.DepartmentLookupId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<WorkPermit>()
+                .HasOne(wp => wp.PriorityLookup)
+                .WithMany()
+                .HasForeignKey(wp => wp.PriorityLookupId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<WorkPermit>()
+                .HasOne(wp => wp.StatusLookup)
+                .WithMany()
+                .HasForeignKey(wp => wp.StatusLookupId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<WorkPermit>()
+                .HasOne(wp => wp.RequestedBy)
+                .WithMany()
+                .HasForeignKey(wp => wp.RequestedById)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<WorkPermit>()
+                .HasOne(wp => wp.AssignedTo)
+                .WithMany()
+                .HasForeignKey(wp => wp.AssignedToId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<WorkPermit>()
+                .HasOne(wp => wp.ApprovedBy)
+                .WithMany()
+                .HasForeignKey(wp => wp.ApprovedById)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // === Maintenance: WorkTask ===
+            modelBuilder.Entity<WorkTask>()
+                .HasOne(wt => wt.WorkPermit)
+                .WithMany(wp => wp.Tasks)
+                .HasForeignKey(wt => wt.WorkPermitId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<WorkTask>()
+                .HasOne(wt => wt.CompletedBy)
+                .WithMany()
+                .HasForeignKey(wt => wt.CompletedById)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // === Maintenance: InstalledPart ===
+            modelBuilder.Entity<InstalledPart>()
+                .HasOne(ip => ip.Generator)
+                .WithMany()
+                .HasForeignKey(ip => ip.GeneratorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<InstalledPart>()
+                .HasOne(ip => ip.SparePart)
+                .WithMany()
+                .HasForeignKey(ip => ip.SparePartId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<InstalledPart>()
+                .HasOne(ip => ip.WorkPermit)
+                .WithMany(wp => wp.InstalledParts)
+                .HasForeignKey(ip => ip.WorkPermitId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<InstalledPart>()
+                .HasOne(ip => ip.DispatchRequestItem)
+                .WithMany(dri => dri.InstalledParts)
+                .HasForeignKey(ip => ip.DispatchRequestItemId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<InstalledPart>()
+                .HasIndex(ip => new { ip.GeneratorId, ip.IsActive })
+                .HasDatabaseName("IX_InstalledPart_Generator_Active")
+                .HasFilter("[DeletedAt] IS NULL");
+
+            // === Maintenance: MaintenanceLog ===
+            modelBuilder.Entity<MaintenanceLog>()
+                .HasOne(ml => ml.WorkPermit)
+                .WithMany(wp => wp.Logs)
+                .HasForeignKey(ml => ml.WorkPermitId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<MaintenanceLog>()
+                .HasOne(ml => ml.Generator)
+                .WithMany()
+                .HasForeignKey(ml => ml.GeneratorId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<MaintenanceLog>()
+                .HasOne(ml => ml.LoggedBy)
+                .WithMany()
+                .HasForeignKey(ml => ml.LoggedById)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<MaintenanceLog>()
+                .HasIndex(ml => new { ml.WorkPermitId, ml.LogDate })
+                .HasDatabaseName("IX_MaintenanceLog_Permit_Date");
+
+            // === Decimal precision ===
+            modelBuilder.Entity<SparePart>()
+                .Property(sp => sp.UnitPrice)
+                .HasColumnType("decimal(18,4)");
+
+            modelBuilder.Entity<WarehouseSupplyItem>()
+                .Property(wsi => wsi.UnitPrice)
+                .HasColumnType("decimal(18,4)");
+
+            modelBuilder.Entity<WarehouseSupplyItem>()
+                .Property(wsi => wsi.TotalPrice)
+                .HasColumnType("decimal(18,4)");
+
+            modelBuilder.Entity<WarehouseStock>()
+                .Property(ws => ws.CurrentQuantity)
+                .HasColumnType("decimal(18,3)");
+
+            modelBuilder.Entity<WarehouseStock>()
+                .Property(ws => ws.ReservedQuantity)
+                .HasColumnType("decimal(18,3)");
+
+            modelBuilder.Entity<WarehouseTransaction>()
+                .Property(wt => wt.Quantity)
+                .HasColumnType("decimal(18,3)");
+
+            modelBuilder.Entity<WarehouseTransaction>()
+                .Property(wt => wt.BalanceBefore)
+                .HasColumnType("decimal(18,3)");
+
+            modelBuilder.Entity<WarehouseTransaction>()
+                .Property(wt => wt.BalanceAfter)
+                .HasColumnType("decimal(18,3)");
+
+            // === Performance: Composite indexes for warehouse queries ===
+            modelBuilder.Entity<WarehouseSupply>()
+                .HasIndex(ws => new { ws.StationId, ws.SupplyDate })
+                .HasDatabaseName("IX_WarehouseSupply_Station_Date");
+
+            modelBuilder.Entity<DispatchRequest>()
+                .HasIndex(dr => new { dr.SubStationId, dr.RequestDate })
+                .HasDatabaseName("IX_DispatchRequest_SubStation_Date");
+
+            modelBuilder.Entity<DispatchRequest>()
+                .HasIndex(dr => new { dr.StationId, dr.StatusLookupId })
+                .HasDatabaseName("IX_DispatchRequest_Station_Status");
+
+            modelBuilder.Entity<WorkPermit>()
+                .HasIndex(wp => new { wp.SubStationId, wp.PermitDate })
+                .HasDatabaseName("IX_WorkPermit_SubStation_Date");
+
+            modelBuilder.Entity<WorkPermit>()
+                .HasIndex(wp => new { wp.StatusLookupId, wp.PriorityLookupId })
+                .HasDatabaseName("IX_WorkPermit_Status_Priority");
 
             // === Seed: ActiveStatus ===
             var seedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -1512,6 +1951,419 @@ namespace FuelTrack.Infrastructure
                     UpdatedAt = seedDate,
                     UpdatedBy = 0,
                 });
+
+             // === Seed: ReadingStatus (حالة الموقع) ===
+            modelBuilder.Entity<LookupCategory>().HasData(new LookupCategory
+            {
+                Id = 19,
+                Name = "ReadingStatus",
+                DisplayName = "حالة الموقع",
+                Description = "Reading status: Draft, Pending, Submitted, Approved, Rejected",
+                IsActive = true,
+                CreatedAt = seedDate,
+                CreatedBy = 0,
+                UpdatedAt = seedDate,
+                UpdatedBy = 0,
+            });
+
+            modelBuilder.Entity<Lookup>().HasData(
+                new Lookup
+                {
+                    Id = 55,
+                    CategoryId = 19,
+                    Name = "مسودة",
+                    Code = "Draft",
+                    SortOrder = 1,
+                    IsActive = true,
+                    CreatedAt = seedDate,
+                    CreatedBy = 0,
+                    UpdatedAt = seedDate,
+                    UpdatedBy = 0,
+                },
+                new Lookup
+                {
+                    Id = 56,
+                    CategoryId = 19,
+                    Name = "معلق",
+                    Code = "Pending",
+                    SortOrder = 2,
+                    IsActive = true,
+                    CreatedAt = seedDate,
+                    CreatedBy = 0,
+                    UpdatedAt = seedDate,
+                    UpdatedBy = 0,
+                },
+                new Lookup
+                {
+                    Id = 57,
+                    CategoryId = 19,
+                    Name = "مرسل",
+                    Code = "Submitted",
+                    SortOrder = 3,
+                    IsActive = true,
+                    CreatedAt = seedDate,
+                    CreatedBy = 0,
+                    UpdatedAt = seedDate,
+                    UpdatedBy = 0,
+                },
+                new Lookup
+                {
+                    Id = 58,
+                    CategoryId = 19,
+                    Name = "معتمد",
+                    Code = "Approved",
+                    SortOrder = 4,
+                    IsActive = true,
+                    CreatedAt = seedDate,
+                    CreatedBy = 0,
+                    UpdatedAt = seedDate,
+                    UpdatedBy = 0,
+                },
+                new Lookup
+                {
+                    Id = 59,
+                    CategoryId = 19,
+                    Name = "مرفوض",
+                    Code = "Rejected",
+                    SortOrder = 5,
+                    IsActive = true,
+                    CreatedAt = seedDate,
+                    CreatedBy = 0,
+                    UpdatedAt = seedDate,
+                    UpdatedBy = 0,
+                });
+
+            // === Seed: TransactionType (انواع الحركات) ===
+            modelBuilder.Entity<LookupCategory>().HasData(new LookupCategory
+            {
+                Id = 100,
+                Name = "TransactionType",
+                DisplayName = "انواع الحركات",
+                Description = "Transaction types for fuel and oil movements",
+                IsActive = true,
+                CreatedAt = seedDate,
+                CreatedBy = 0,
+                UpdatedAt = seedDate,
+                UpdatedBy = 0,
+            });
+
+            modelBuilder.Entity<Lookup>().HasData(
+                new Lookup
+                {
+                    Id = 200,
+                    CategoryId = 100,
+                    Name = "توريد",
+                    Code = "Purchase",
+                    SortOrder = 1,
+                    IsActive = true,
+                    CreatedAt = seedDate,
+                    CreatedBy = 0,
+                    UpdatedAt = seedDate,
+                    UpdatedBy = 0,
+                },
+                new Lookup
+                {
+                    Id = 201,
+                    CategoryId = 100,
+                    Name = "صادر",
+                    Code = "Sale",
+                    SortOrder = 2,
+                    IsActive = true,
+                    CreatedAt = seedDate,
+                    CreatedBy = 0,
+                    UpdatedAt = seedDate,
+                    UpdatedBy = 0,
+                },
+                new Lookup
+                {
+                    Id = 202,
+                    CategoryId = 100,
+                    Name = "نقل",
+                    Code = "Transfer",
+                    SortOrder = 3,
+                    IsActive = true,
+                    CreatedAt = seedDate,
+                    CreatedBy = 0,
+                    UpdatedAt = seedDate,
+                    UpdatedBy = 0,
+                },
+                new Lookup
+                {
+                    Id = 203,
+                    CategoryId = 100,
+                    Name = "نقل صادر",
+                    Code = "TransferOut",
+                    SortOrder = 4,
+                    IsActive = true,
+                    CreatedAt = seedDate,
+                    CreatedBy = 0,
+                    UpdatedAt = seedDate,
+                    UpdatedBy = 0,
+                },
+                new Lookup
+                {
+                    Id = 204,
+                    CategoryId = 100,
+                    Name = "نقل وارد",
+                    Code = "TransferIn",
+                    SortOrder = 5,
+                    IsActive = true,
+                    CreatedAt = seedDate,
+                    CreatedBy = 0,
+                    UpdatedAt = seedDate,
+                    UpdatedBy = 0,
+                },
+                new Lookup
+                {
+                    Id = 205,
+                    CategoryId = 100,
+                    Name = "فاقد",
+                    Code = "Loss",
+                    SortOrder = 6,
+                    IsActive = true,
+                    CreatedAt = seedDate,
+                    CreatedBy = 0,
+                    UpdatedAt = seedDate,
+                    UpdatedBy = 0,
+                },
+                new Lookup
+                {
+                    Id = 206,
+                    CategoryId = 100,
+                    Name = "استهلاك",
+                    Code = "Consumption",
+                    SortOrder = 7,
+                    IsActive = true,
+                    CreatedAt = seedDate,
+                    CreatedBy = 0,
+                    UpdatedAt = seedDate,
+                    UpdatedBy = 0,
+                },
+                new Lookup
+                {
+                    Id = 207,
+                    CategoryId = 100,
+                    Name = "تسوية",
+                    Code = "Adjustment",
+                    SortOrder = 8,
+                    IsActive = true,
+                    CreatedAt = seedDate,
+                    CreatedBy = 0,
+                    UpdatedAt = seedDate,
+                    UpdatedBy = 0,
+                });
+
+            // === Seed: PartCategory (فئة القطعة) ===
+            modelBuilder.Entity<LookupCategory>().HasData(new LookupCategory
+            {
+                Id = 20,
+                Name = "PartCategory",
+                DisplayName = "فئة القطعة",
+                Description = "Spare part categories: Mechanical, Electrical, Electronic, Instrumentation, Workshop, Other",
+                IsActive = true,
+                CreatedAt = seedDate,
+                CreatedBy = 0,
+                UpdatedAt = seedDate,
+                UpdatedBy = 0,
+            });
+
+            modelBuilder.Entity<Lookup>().HasData(
+                new Lookup { Id = 60, CategoryId = 20, Name = "ميكانيكي", Code = "Mechanical", SortOrder = 1, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 61, CategoryId = 20, Name = "كهربائي", Code = "Electrical", SortOrder = 2, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 62, CategoryId = 20, Name = "إلكتروني", Code = "Electronic", SortOrder = 3, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 63, CategoryId = 20, Name = "أجهزة قياس", Code = "Instrumentation", SortOrder = 4, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 64, CategoryId = 20, Name = "ورشة", Code = "Workshop", SortOrder = 5, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 65, CategoryId = 20, Name = "أخرى", Code = "Other", SortOrder = 6, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 });
+
+            // === Seed: PartUnit (وحدة القطعة) ===
+            modelBuilder.Entity<LookupCategory>().HasData(new LookupCategory
+            {
+                Id = 21,
+                Name = "PartUnit",
+                DisplayName = "وحدة القطعة",
+                Description = "Spare part units: Piece, Liter, Kilogram, Meter, Set, Pack",
+                IsActive = true,
+                CreatedAt = seedDate,
+                CreatedBy = 0,
+                UpdatedAt = seedDate,
+                UpdatedBy = 0,
+            });
+
+            modelBuilder.Entity<Lookup>().HasData(
+                new Lookup { Id = 66, CategoryId = 21, Name = "قطعة", Code = "Piece", SortOrder = 1, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 67, CategoryId = 21, Name = "لتر", Code = "Liter", SortOrder = 2, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 68, CategoryId = 21, Name = "كيلوغرام", Code = "Kilogram", SortOrder = 3, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 69, CategoryId = 21, Name = "متر", Code = "Meter", SortOrder = 4, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 70, CategoryId = 21, Name = "طقم", Code = "Set", SortOrder = 5, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 71, CategoryId = 21, Name = "علبة", Code = "Pack", SortOrder = 6, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 });
+
+            // === Seed: MaintenanceType (نوع الصيانة) ===
+            modelBuilder.Entity<LookupCategory>().HasData(new LookupCategory
+            {
+                Id = 22,
+                Name = "MaintenanceType",
+                DisplayName = "نوع الصيانة",
+                Description = "Maintenance types: Routine, Preventive, Scheduled, HalfLife, FullLife, Inspection, Emergency",
+                IsActive = true,
+                CreatedAt = seedDate,
+                CreatedBy = 0,
+                UpdatedAt = seedDate,
+                UpdatedBy = 0,
+            });
+
+            modelBuilder.Entity<Lookup>().HasData(
+                new Lookup { Id = 72, CategoryId = 22, Name = "روتيني", Code = "Routine", SortOrder = 1, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 73, CategoryId = 22, Name = "وقائي", Code = "Preventive", SortOrder = 2, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 74, CategoryId = 22, Name = "مبرمج", Code = "Scheduled", SortOrder = 3, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 75, CategoryId = 22, Name = "نصف عمرية", Code = "HalfLife", SortOrder = 4, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 76, CategoryId = 22, Name = "عمرية", Code = "FullLife", SortOrder = 5, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 77, CategoryId = 22, Name = "تفقدية", Code = "Inspection", SortOrder = 6, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 78, CategoryId = 22, Name = "طارئة", Code = "Emergency", SortOrder = 7, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 });
+
+            // === Seed: MaintenanceDepartment (القسم المكلف) ===
+            modelBuilder.Entity<LookupCategory>().HasData(new LookupCategory
+            {
+                Id = 23,
+                Name = "MaintenanceDepartment",
+                DisplayName = "القسم المكلف",
+                Description = "Maintenance departments: All, Mechanical, Electrical, Instrumentation, Workshop",
+                IsActive = true,
+                CreatedAt = seedDate,
+                CreatedBy = 0,
+                UpdatedAt = seedDate,
+                UpdatedBy = 0,
+            });
+
+            modelBuilder.Entity<Lookup>().HasData(
+                new Lookup { Id = 79, CategoryId = 23, Name = "الكل", Code = "All", SortOrder = 1, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 80, CategoryId = 23, Name = "ميكانيكي", Code = "Mechanical", SortOrder = 2, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 81, CategoryId = 23, Name = "كهربائي", Code = "Electrical", SortOrder = 3, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 82, CategoryId = 23, Name = "أجهزة", Code = "Instrumentation", SortOrder = 4, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 83, CategoryId = 23, Name = "ورشة", Code = "Workshop", SortOrder = 5, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 });
+
+            // === Seed: MaintenancePriority (أولوية الصيانة) ===
+            modelBuilder.Entity<LookupCategory>().HasData(new LookupCategory
+            {
+                Id = 24,
+                Name = "MaintenancePriority",
+                DisplayName = "أولوية الصيانة",
+                Description = "Maintenance priority: Critical, Emergency, Normal, Low",
+                IsActive = true,
+                CreatedAt = seedDate,
+                CreatedBy = 0,
+                UpdatedAt = seedDate,
+                UpdatedBy = 0,
+            });
+
+            modelBuilder.Entity<Lookup>().HasData(
+                new Lookup { Id = 84, CategoryId = 24, Name = "حرجة", Code = "Critical", SortOrder = 1, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 85, CategoryId = 24, Name = "اضطراري", Code = "Emergency", SortOrder = 2, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 86, CategoryId = 24, Name = "عادية", Code = "Normal", SortOrder = 3, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 87, CategoryId = 24, Name = "منخفضة", Code = "Low", SortOrder = 4, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 });
+
+            // === Seed: MaintenanceStatus (حالة التصريح) ===
+            modelBuilder.Entity<LookupCategory>().HasData(new LookupCategory
+            {
+                Id = 25,
+                Name = "MaintenanceStatus",
+                DisplayName = "حالة التصريح",
+                Description = "Work permit status: Draft, Submitted, Active, Completed, Approved, Rejected, Cancelled",
+                IsActive = true,
+                CreatedAt = seedDate,
+                CreatedBy = 0,
+                UpdatedAt = seedDate,
+                UpdatedBy = 0,
+            });
+
+            modelBuilder.Entity<Lookup>().HasData(
+                new Lookup { Id = 88, CategoryId = 25, Name = "مسودة", Code = "Draft", SortOrder = 1, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 89, CategoryId = 25, Name = "مقدم", Code = "Submitted", SortOrder = 2, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 90, CategoryId = 25, Name = "نشط", Code = "Active", SortOrder = 3, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 91, CategoryId = 25, Name = "مكتمل", Code = "Completed", SortOrder = 4, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 92, CategoryId = 25, Name = "معتمد", Code = "Approved", SortOrder = 5, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 93, CategoryId = 25, Name = "مرفوض", Code = "Rejected", SortOrder = 6, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 94, CategoryId = 25, Name = "ملغى", Code = "Cancelled", SortOrder = 7, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 });
+
+            // === Seed: DispatchStatus (حالة طلب الصرف) ===
+            modelBuilder.Entity<LookupCategory>().HasData(new LookupCategory
+            {
+                Id = 26,
+                Name = "DispatchStatus",
+                DisplayName = "حالة طلب الصرف",
+                Description = "Dispatch request status: Pending, Approved, PartialApproved, Rejected, Issued, Completed",
+                IsActive = true,
+                CreatedAt = seedDate,
+                CreatedBy = 0,
+                UpdatedAt = seedDate,
+                UpdatedBy = 0,
+            });
+
+            modelBuilder.Entity<Lookup>().HasData(
+                new Lookup { Id = 95, CategoryId = 26, Name = "قيد الانتظار", Code = "Pending", SortOrder = 1, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 96, CategoryId = 26, Name = "معتمد", Code = "Approved", SortOrder = 2, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 97, CategoryId = 26, Name = "موافقة جزئية", Code = "PartialApproved", SortOrder = 3, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 98, CategoryId = 26, Name = "مرفوض", Code = "Rejected", SortOrder = 4, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 99, CategoryId = 26, Name = "تم الصرف", Code = "Issued", SortOrder = 5, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 100, CategoryId = 26, Name = "مكتمل", Code = "Completed", SortOrder = 6, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 });
+
+            // === Seed: WarehouseSupplyStatus (حالة سند التوريد) ===
+            modelBuilder.Entity<LookupCategory>().HasData(new LookupCategory
+            {
+                Id = 27,
+                Name = "WarehouseSupplyStatus",
+                DisplayName = "حالة سند التوريد",
+                Description = "Warehouse supply voucher status: Draft, Completed",
+                IsActive = true,
+                CreatedAt = seedDate,
+                CreatedBy = 0,
+                UpdatedAt = seedDate,
+                UpdatedBy = 0,
+            });
+
+            modelBuilder.Entity<Lookup>().HasData(
+                new Lookup { Id = 101, CategoryId = 27, Name = "مسودة", Code = "Draft", SortOrder = 1, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 102, CategoryId = 27, Name = "مكتمل", Code = "Completed", SortOrder = 2, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 });
+
+            // === Seed: WarehouseTransactionType (نوع حركة المخزون) ===
+            modelBuilder.Entity<LookupCategory>().HasData(new LookupCategory
+            {
+                Id = 28,
+                Name = "WarehouseTransactionType",
+                DisplayName = "نوع حركة المخزون",
+                Description = "Warehouse transaction types: Supply, Dispatch, Return, Adjustment, Transfer",
+                IsActive = true,
+                CreatedAt = seedDate,
+                CreatedBy = 0,
+                UpdatedAt = seedDate,
+                UpdatedBy = 0,
+            });
+
+            modelBuilder.Entity<Lookup>().HasData(
+                new Lookup { Id = 103, CategoryId = 28, Name = "توريد", Code = "Supply", SortOrder = 1, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 104, CategoryId = 28, Name = "صرف", Code = "Dispatch", SortOrder = 2, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 105, CategoryId = 28, Name = "إرجاع", Code = "Return", SortOrder = 3, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 106, CategoryId = 28, Name = "تسوية", Code = "Adjustment", SortOrder = 4, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 107, CategoryId = 28, Name = "نقل", Code = "Transfer", SortOrder = 5, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 });
+
+            // === Seed: ReplacementPriority (أهمية الاستبدال) ===
+            modelBuilder.Entity<LookupCategory>().HasData(new LookupCategory
+            {
+                Id = 29,
+                Name = "ReplacementPriority",
+                DisplayName = "أهمية الاستبدال",
+                Description = "Replacement priority: Critical, High, Medium, Low",
+                IsActive = true,
+                CreatedAt = seedDate,
+                CreatedBy = 0,
+                UpdatedAt = seedDate,
+                UpdatedBy = 0,
+            });
+
+            modelBuilder.Entity<Lookup>().HasData(
+                new Lookup { Id = 108, CategoryId = 29, Name = "حرجة", Code = "Critical", SortOrder = 1, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 109, CategoryId = 29, Name = "عالية", Code = "High", SortOrder = 2, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 110, CategoryId = 29, Name = "متوسطة", Code = "Medium", SortOrder = 3, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
+                new Lookup { Id = 111, CategoryId = 29, Name = "منخفضة", Code = "Low", SortOrder = 4, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 });
 
             // === Module Registry System ===
 

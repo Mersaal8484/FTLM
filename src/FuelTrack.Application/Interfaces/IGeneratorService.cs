@@ -13,5 +13,6 @@ public interface IGeneratorService
     Task<Result> DeleteAsync(int id, int userId, CancellationToken ct = default);
     Task<List<MyGeneratorListDto>> GetMyGeneratorsAsync(int userId, CancellationToken ct = default);
     Task<MyGeneratorDetailDto?> GetMyGeneratorByIdAsync(int id, int userId, CancellationToken ct = default);
+    Task<List<ActiveGeneratorDto>> GetActiveWithControllersAsync(int userId, CancellationToken ct = default);
     Task<LastReadingDto?> GetLastReadingAsync(int generatorId, CancellationToken ct = default);
 }

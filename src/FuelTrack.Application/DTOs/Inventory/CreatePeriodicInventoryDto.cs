@@ -8,16 +8,14 @@ public record CreatePeriodicInventoryDto(
     DateTime InventoryDate,
     string? Notes,
     List<FuelReadingDto>? FuelReadings,
-    List<OilReadingDto>? OilReadings);
+    List<OilReadingDto>? OilReadings,
+    bool? IsApproved = null);
 
 public record FuelReadingDto(
-    int? FuelTankId,
     int FuelLookupId,
-    double ExpectedQtyLiters,
     double ActualQtyLiters);
 
 public record OilReadingDto(
     int? OilId,
     int OilLookupId,
-    double ExpectedQtyLiters,
     double ActualQtyLiters);

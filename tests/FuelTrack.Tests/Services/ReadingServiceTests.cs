@@ -53,6 +53,8 @@ public class ReadingServiceTests : IDisposable
         _approvedLookupId = _db.Lookups.First(l => l.Name == "Approved").Id;
 
         _db.Generators.Add(new Generator { Id = _genId, Name = "Gen 1", SerialNumber = "G1", SubStationId = 1, ActualPowerKW = 100 });
+        // A control panel is required to create a reading (see ReadingService).
+        _db.Controllers.Add(new Controller { Id = 9, Name = "CTRL-DEFAULT", GeneratorId = _genId });
         _db.SaveChanges();
 
         var mockScopeFilter = new Mock<IUserScopeFilterService>();
@@ -61,9 +63,13 @@ public class ReadingServiceTests : IDisposable
         mockScopeFilter.Setup(s => s.HasAccessToSubStationAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(true);
 
+        var mockCurrentUser = new Mock<ICurrentUserService>();
+        mockCurrentUser.Setup(s => s.UserId).Returns((int?)null);
+        mockCurrentUser.Setup(s => s.HasAnyAdminRole).Returns(true);
+
         var mockLogger = new Mock<ILogger<ReadingService>>();
 
-        _service = new ReadingService(_db, mockScopeFilter.Object, mockLogger.Object);
+        _service = new ReadingService(_db, mockScopeFilter.Object, mockLogger.Object, mockCurrentUser.Object);
     }
 
     [Fact]
@@ -111,16 +117,16 @@ public class ReadingServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateAsync_WhenGeneratorHasNoLinkedController_ControllerIdIsNull()
+    public async Task CreateAsync_WhenGeneratorHasNoLinkedController_ThrowsInvalidOperationException()
     {
-        var dto = new CreateReadingDto(_genId, DateTime.UtcNow, 100, 150, 50, 55, 10, 10m, 11, null, null);
+        // Generator 2 has no linked control panel -> creation must be rejected.
+        _db.Generators.Add(new Generator { Id = 2, Name = "Gen 2", SerialNumber = "G2", SubStationId = 1, ActualPowerKW = 100 });
+        await _db.SaveChangesAsync();
 
-        var result = await _service.CreateAsync(dto, _userId);
+        var dto = new CreateReadingDto(2, DateTime.UtcNow, 100, 150, 50, 55, 10, 10m, 11, null, null);
 
-        var inDb = await _db.DailyReadings.FindAsync(result.Id);
-        Assert.NotNull(inDb);
-        Assert.Null(inDb!.ControllerId);
-        Assert.Null(result.ControllerName);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => _service.CreateAsync(dto, _userId));
+        Assert.Contains("control panel", ex.Message);
     }
 
     [Fact]

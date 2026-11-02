@@ -1,8 +1,6 @@
-using System.Security.Claims;
 using FuelTrack.Application.DTOs.SubStationReadings;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Services;
@@ -10,75 +8,103 @@ namespace FuelTrack.Infrastructure.Services;
 public class SubStationReadingService : ISubStationReadingService
 {
     private readonly FuelTrackDbContext _db;
-    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserScopeFilterService _scopeFilter;
+    private readonly ICurrentUserService _currentUser;
 
-    public SubStationReadingService(FuelTrackDbContext db, IHttpContextAccessor httpContextAccessor, IUserScopeFilterService scopeFilter)
+    public SubStationReadingService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser)
     {
         _db = db;
-        _httpContextAccessor = httpContextAccessor;
         _scopeFilter = scopeFilter;
+        _currentUser = currentUser;
     }
 
-    private int? GetCurrentUserId()
+    private async Task<int?> GetExportEnergyMeterTypeIdAsync()
     {
-        var claim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        return claim != null && int.TryParse(claim.Value, out var id) ? id : null;
+        return await _db.Lookups
+            .Where(l => l.Category != null && l.Category.Name == "MeterType" &&
+                        (l.Code == "ExportEnergy" || l.Name == "عداد طاقة"))
+            .Select(l => (int?)l.Id)
+            .FirstOrDefaultAsync();
     }
 
-    private bool IsAdmin()
+    private async Task<int> GetLookupIdAsync(string categoryName, string code)
     {
-        return _httpContextAccessor.HttpContext?.User.IsInRole("Admin") ?? false;
-    }
+        var categoryId = await _db.LookupCategories
+            .Where(c => c.Name == categoryName)
+            .Select(c => c.Id)
+            .FirstOrDefaultAsync();
 
-    private int GetSubmitterId()
-    {
-        return GetCurrentUserId() ?? 0;
+        if (categoryId == 0)
+            return 0;
+
+        return await _db.Lookups
+            .Where(l => l.CategoryId == categoryId && l.Code == code)
+            .Select(l => l.Id)
+            .FirstOrDefaultAsync();
     }
 
     public async Task<SubStationReadingDto> CreateAsync(CreateSubStationReadingDto dto)
     {
-        if (dto.SubStationId <= 0)
+        if (dto.SubStationId is null or <= 0)
             throw new ArgumentException("Site number (SubStationId) is required.");
 
-        var subStation = await _db.SubStations.FindAsync(dto.SubStationId)
-            ?? throw new KeyNotFoundException($"SubStation {dto.SubStationId} not found.");
+        var subStationId = dto.SubStationId.Value;
+        var subStation = await _db.SubStations.FindAsync(subStationId)
+            ?? throw new KeyNotFoundException($"SubStation {subStationId} not found.");
 
-        // Resolve the grid meter if the caller did not supply one and the site owns an
-        // exported-energy meter.
         int? meterId = dto.MeterId;
         if (meterId is null || meterId == 0)
         {
-            meterId = await _db.Meters
-                .Where(m => m.SubStationId == dto.SubStationId && m.MeterType == "عداد الطاقة المرسلة")
-                .Select(m => (int?)m.Id)
-                .FirstOrDefaultAsync();
+            var exportEnergyTypeId = await GetExportEnergyMeterTypeIdAsync();
+            if (exportEnergyTypeId.HasValue)
+            {
+                meterId = await _db.Meters
+                    .Where(m => m.SubStationId == dto.SubStationId && m.MeterTypeLookupId == exportEnergyTypeId)
+                    .Select(m => (int?)m.Id)
+                    .FirstOrDefaultAsync();
+            }
         }
 
-        // Reject readings when no meter is linked to the site.
         if (meterId is null || meterId == 0)
             throw new InvalidOperationException("Cannot create reading: site is not linked to an active meter. Link a meter to the site first.");
 
-        // Default the reading status to "Draft" when not supplied (a newly submitted
-        // reading is pending review). Falls back to Pending/Submitted if seeded that way.
+        var meter = await _db.Meters
+            .FirstOrDefaultAsync(m => m.Id == meterId.Value);
+        if (meter is null || meter.SubStationId != subStationId || meter.IsActive != true)
+            throw new InvalidOperationException("Cannot create reading: the linked meter does not belong to this site or is inactive.");
+
         int? statusId = dto.ReadingStatusLookupId;
         if (statusId is null || statusId == 0)
         {
-            statusId = await _db.Lookups
-                .Where(l => l.Category != null && l.Category.Name == "ReadingStatus" &&
-                            (l.Code == "Draft" || l.Code == "DRAFT" || l.Code == "Pending" || l.Code == "Submitted"))
-                .Select(l => (int?)l.Id)
-                .FirstOrDefaultAsync();
+            statusId = await GetLookupIdAsync("ReadingStatus", "Pending");
+
+            if (statusId is null || statusId == 0)
+            {
+                statusId = await GetLookupIdAsync("ReadingStatus", "Draft");
+                if (statusId is null || statusId == 0)
+                    statusId = await GetLookupIdAsync("ReadingStatus", "Submitted");
+            }
         }
 
         if (statusId is null || statusId == 0)
             throw new InvalidOperationException("No 'ReadingStatus' lookup found. Seed the ReadingStatus lookup category.");
 
-        var submitterId = GetSubmitterId();
+        var readingDateUtc = dto.ReadingDate.Kind == DateTimeKind.Utc
+            ? dto.ReadingDate
+            : DateTime.SpecifyKind(dto.ReadingDate, DateTimeKind.Utc);
+        var readingDay = readingDateUtc.Date;
+        var duplicateExists = await _db.SubStationReadings
+            .AnyAsync(r => r.SubStationId == subStationId &&
+                           r.ReadingDate.Date == readingDay);
+        if (duplicateExists)
+            throw new InvalidOperationException(
+                "A reading for this site on the selected date already exists. Edit the existing reading instead of creating a new one.");
+
+        var submitterId = _currentUser.UserId ?? 0;
 
         var reading = new SubStationReading
         {
-            SubStationId = dto.SubStationId,
+            SubStationId = subStationId,
             MeterId = meterId,
             ReadingDate = dto.ReadingDate,
             PrevExportedEnergyKWh = dto.PrevExportedEnergyKWh,
@@ -94,7 +120,20 @@ public class SubStationReadingService : ISubStationReadingService
         };
 
         _db.SubStationReadings.Add(reading);
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+        {
+            if (ex.InnerException?.Message.Contains("IX_SubStationReadings_SubStationId_ReadingDate",
+                    StringComparison.OrdinalIgnoreCase) == true)
+            {
+                throw new InvalidOperationException(
+                    "A reading for this site on the selected date already exists. Edit the existing reading instead of creating a new one.");
+            }
+            throw;
+        }
 
         var meterName = meterId.HasValue
             ? await _db.Meters.Where(m => m.Id == meterId.Value).Select(m => m.Name).FirstOrDefaultAsync()
@@ -117,22 +156,27 @@ public class SubStationReadingService : ISubStationReadingService
         int? meterId = dto.MeterId;
         if (meterId is null || meterId == 0)
         {
-            meterId = await _db.Meters
-                .Where(m => m.SubStationId == reading.SubStationId && m.MeterType == "عداد الطاقة المرسلة")
-                .Select(m => (int?)m.Id)
-                .FirstOrDefaultAsync();
+            var exportEnergyTypeId = await GetExportEnergyMeterTypeIdAsync();
+            if (exportEnergyTypeId.HasValue)
+            {
+                meterId = await _db.Meters
+                    .Where(m => m.SubStationId == reading.SubStationId && m.MeterTypeLookupId == exportEnergyTypeId)
+                    .Select(m => (int?)m.Id)
+                    .FirstOrDefaultAsync();
+            }
         }
 
-        // Default the reading status to "Draft" when not supplied (a newly submitted
-        // reading is pending review). Falls back to Pending/Submitted if seeded that way.
         int? statusId = dto.ReadingStatusLookupId;
         if (statusId is null || statusId == 0)
         {
-            statusId = await _db.Lookups
-                .Where(l => l.Category != null && l.Category.Name == "ReadingStatus" &&
-                            (l.Code == "Draft" || l.Code == "DRAFT" || l.Code == "Pending" || l.Code == "Submitted"))
-                .Select(l => (int?)l.Id)
-                .FirstOrDefaultAsync();
+            statusId = await GetLookupIdAsync("ReadingStatus", "Pending");
+
+            if (statusId is null || statusId == 0)
+            {
+                statusId = await GetLookupIdAsync("ReadingStatus", "Draft");
+                if (statusId is null || statusId == 0)
+                    statusId = await GetLookupIdAsync("ReadingStatus", "Submitted");
+            }
         }
 
         if (statusId is null || statusId == 0)
@@ -147,7 +191,7 @@ public class SubStationReadingService : ISubStationReadingService
         reading.RejectionReason = dto.RejectionReason;
         reading.Notes = dto.Notes;
         reading.UpdatedAt = DateTime.UtcNow;
-        reading.UpdatedBy = GetSubmitterId();
+        reading.UpdatedBy = _currentUser.UserId ?? 0;
 
         await _db.SaveChangesAsync();
 
@@ -187,12 +231,12 @@ public class SubStationReadingService : ISubStationReadingService
             .Include(r => r.SubStation)
             .Include(r => r.Meter)
             .Include(r => r.ReadingStatusLookup)
-            .Where(r => r.SubStationId == stationId)
+            .Where(r => r.SubStation != null && r.SubStation.StationId == stationId)
             .AsQueryable();
 
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.UserId;
             if (userId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
@@ -212,7 +256,7 @@ public class SubStationReadingService : ISubStationReadingService
             .ToListAsync();
     }
 
-    public async Task<SubStationReadingDto?> GetLastByStationAsync(int stationId, int? subStation = null)
+    public async Task<SubStationReadingDto?> GetLastByStationAsync(int stationId, int? subStation = null, CancellationToken ct = default)
     {
         var query = _db.SubStationReadings
             .Include(r => r.SubStation)
@@ -224,9 +268,9 @@ public class SubStationReadingService : ISubStationReadingService
         if (subStation.HasValue)
             query = query.Where(r => r.SubStationId == subStation.Value);
 
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.UserId;
             if (userId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
@@ -236,7 +280,10 @@ public class SubStationReadingService : ISubStationReadingService
             }
         }
 
+        var approvedLookupId = await GetLookupIdAsync("ReadingStatus", "Approved");
+
         var reading = await query
+            .Where(r => r.ReadingStatusLookupId == approvedLookupId)
             .OrderByDescending(r => r.ReadingDate)
             .FirstOrDefaultAsync();
 
@@ -255,7 +302,7 @@ public class SubStationReadingService : ISubStationReadingService
             reading.CreatedAt, reading.CreatedBy);
     }
 
-    public async Task<List<PendingSubStationReadingDto>> GetPendingAsync()
+    public async Task<List<PendingSubStationReadingDto>> GetPendingAsync(CancellationToken ct = default)
     {
         var query = _db.SubStationReadings
             .Include(r => r.SubStation)
@@ -263,9 +310,9 @@ public class SubStationReadingService : ISubStationReadingService
             .Include(r => r.ReadingStatusLookup)
             .AsQueryable();
 
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.UserId;
             if (userId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
@@ -275,6 +322,11 @@ public class SubStationReadingService : ISubStationReadingService
             }
         }
 
+        // Only return Draft readings for the approval page (ReadingStatusLookupId=55)
+        var draftLookupId = await GetLookupIdAsync("ReadingStatus", "Draft");
+
+        query = query.Where(r => r.ReadingStatusLookupId == draftLookupId);
+
         return await query
             .OrderByDescending(r => r.ReadingDate)
             .Select(r => new PendingSubStationReadingDto(
@@ -283,18 +335,24 @@ public class SubStationReadingService : ISubStationReadingService
                 r.PrevExportedEnergyKWh, r.CurrentExportedEnergyKWh, r.InternalConsumption,
                 r.ReadingStatusLookupId, r.ReadingStatusLookup.Name, r.RejectionReason, r.Notes,
                 r.CreatedAt, r.CreatedBy))
-            .ToListAsync();
+            .ToListAsync(ct);
     }
 
     public async Task ApproveAsync(int id, int userId)
     {
-        var reading = await _db.SubStationReadings.FindAsync(id)
+        var reading = await _db.SubStationReadings
+            .Include(r => r.ReadingStatusLookup)
+            .FirstOrDefaultAsync(r => r.Id == id)
             ?? throw new KeyNotFoundException($"SubStationReading {id} not found.");
 
-        var approvedLookupId = await _db.Lookups
-            .Where(l => l.Category != null && l.Category.Name == "ReadingStatus" && l.Code == "Approved")
-            .Select(l => l.Id)
-            .FirstOrDefaultAsync();
+        // Only readings that are Pending or Submitted can be approved.
+        if (reading.ReadingStatusLookup?.Code == "Approved" || reading.ReadingStatusLookup?.Code == "Rejected")
+            throw new InvalidOperationException($"Cannot approve reading {id}: it has already been {reading.ReadingStatusLookup.Code.ToLower()}.");
+
+        var approvedLookupId = await GetLookupIdAsync("ReadingStatus", "Approved");
+
+        if (approvedLookupId == 0)
+            throw new InvalidOperationException("ReadingStatus lookup with Code='Approved' not found. Seed the ReadingStatus lookup category.");
 
         reading.ReadingStatusLookupId = approvedLookupId;
         reading.UpdatedAt = DateTime.UtcNow;
@@ -302,17 +360,59 @@ public class SubStationReadingService : ISubStationReadingService
         await _db.SaveChangesAsync();
     }
 
-    public async Task RejectAsync(int id, int userId)
+    public async Task<ProductionSummaryDto> GetProductionSummaryAsync(int stationId, DateTime date, int? subStationId = null)
     {
-        var reading = await _db.SubStationReadings.FindAsync(id)
-            ?? throw new KeyNotFoundException($"SubStationReading {id} not found.");
+        var approvedLookupId = await GetLookupIdAsync("ReadingStatus", "Approved");
 
-        var rejectedLookupId = await _db.Lookups
-            .Where(l => l.Category != null && l.Category.Name == "ReadingStatus" && l.Code == "Rejected")
-            .Select(l => l.Id)
+        var query = _db.DailyReadings
+            .Include(r => r.Generator)
+            .Where(r => r.ReadingDate.Date == date.Date
+                      && r.Generator.SubStation.StationId == stationId
+                      && r.ReadingStatusLookupId == approvedLookupId
+                      && r.DeletedAt == null)
+            .AsQueryable();
+
+        if (subStationId.HasValue)
+            query = query.Where(r => r.Generator.SubStationId == subStationId.Value);
+
+        if (!_currentUser.HasAnyAdminRole)
+        {
+            var userId = _currentUser.UserId;
+            if (userId.HasValue)
+            {
+                var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
+                if (accessibleIds.Count > 0)
+                    query = query.Where(r => accessibleIds.Contains(r.Generator.SubStationId));
+                else
+                    return new ProductionSummaryDto(0, 0, date);
+            }
+        }
+
+        var result = await query
+            .GroupBy(r => 1)
+            .Select(g => new ProductionSummaryDto(
+                g.Sum(r => r.CurrentEnergyKWh - r.PrevEnergyKWh),
+                g.Select(r => r.GeneratorId).Distinct().Count(),
+                date))
             .FirstOrDefaultAsync();
 
+        return result ?? new ProductionSummaryDto(0, 0, date);
+    }
+
+    public async Task RejectAsync(int id, int userId, string? reason = null)
+    {
+        var reading = await _db.SubStationReadings
+            .Include(r => r.ReadingStatusLookup)
+            .FirstOrDefaultAsync(r => r.Id == id)
+            ?? throw new KeyNotFoundException($"SubStationReading {id} not found.");
+
+        var rejectedLookupId = await GetLookupIdAsync("ReadingStatus", "Rejected");
+
+        if (rejectedLookupId == 0)
+            throw new InvalidOperationException("ReadingStatus lookup with Code='Rejected' not found. Seed the ReadingStatus lookup category.");
+
         reading.ReadingStatusLookupId = rejectedLookupId;
+        reading.RejectionReason = reason;
         reading.UpdatedAt = DateTime.UtcNow;
         reading.UpdatedBy = userId;
         await _db.SaveChangesAsync();

@@ -5,7 +5,7 @@ public class UpdateOilTransactionDtoValidator : AbstractValidator<UpdateOilTrans
 {
     public UpdateOilTransactionDtoValidator()
     {
-        RuleFor(x => x.InvoiceNumber).MaximumLength(200).When(x => x.InvoiceNumber is not null);
+        RuleFor(x => x.Reference).MaximumLength(200).When(x => x.Reference is not null);
         RuleFor(x => x.Notes).MaximumLength(1000).When(x => x.Notes is not null);
     }
 }

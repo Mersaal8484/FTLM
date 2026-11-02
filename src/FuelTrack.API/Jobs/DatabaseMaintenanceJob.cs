@@ -20,10 +20,11 @@ public class DatabaseMaintenanceJob
 
         try
         {
-            var databaseName = _db.Database.GetDbConnection().Database;
-            await _db.Database.ExecuteSqlRawAsync(
-                $"UPDATE STATISTICS [{databaseName}]", ct);
-            _logger.LogInformation("[JOB] Updated database statistics");
+            if (_db.Database.IsRelational())
+            {
+                await _db.Database.ExecuteSqlRawAsync("EXEC sp_updatestats", ct);
+                _logger.LogInformation("[JOB] Updated database statistics via sp_updatestats");
+            }
         }
         catch (Exception ex)
         {

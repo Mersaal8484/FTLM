@@ -100,7 +100,7 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
                     {
                         UserId = userId,
                         Action = "Modified",
-                        EntityName = entry.Entity.GetType().Name,
+                        EntityName = entry.Entity.GetType().Name.Replace("FuelTrack.Domain.Models.", ""),
                         EntityId = entityId,
                         OldValues = JsonSerializer.Serialize(
                             entry.OriginalValues.Properties.ToDictionary(p => p.Name, p => entry.OriginalValues[p])),
@@ -137,7 +137,7 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
                     {
                         UserId = userId,
                         Action = "Deleted",
-                        EntityName = entry.Entity.GetType().Name,
+                        EntityName = entry.Entity.GetType().Name.Replace("FuelTrack.Domain.Models.", ""),
                         EntityId = entityId,
                         OldValues = JsonSerializer.Serialize(
                             entry.OriginalValues.Properties.ToDictionary(p => p.Name, p => entry.OriginalValues[p])),

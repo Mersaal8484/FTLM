@@ -2,24 +2,34 @@
   "cookies": [
     {
       "name": "refresh_token",
-      "value": "EgW8Yib83lJkOoXgpKOljgSjcFzCWVT0Tekd7m22ZIFOfpOe9WY%2BA9vFq6XukolI2r5ZCAa5vbo%2FqyVy%2Bwk8dw%3D%3D",
+      "value": "mCHGpGT%2FSE0hrKarsh06EcY6MHR%2FVpa82awbTMocRpkiqn5A0%2FRJEyO8ZJbd5L0TxiQzUDLcpZIgwaSvVH4dMg%3D%3D",
       "domain": "localhost",
       "path": "/api/auth",
-      "expires": 1784478895.372289,
+      "expires": 1788028040.96053,
       "httpOnly": true,
       "secure": true,
       "sameSite": "Strict"
     },
     {
       "name": "access_token",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjEiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiYWRtaW5AZnQuY29tIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvZW1haWxhZGRyZXNzIjoiYWRtaW5AZnQuY29tIiwiZnVsbE5hbWUiOiJTeXN0ZW0gQWRtaW4iLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJBZG1pbiIsImV4cCI6MTc4Mzg3ODg0NSwiaXNzIjoiRnVlbFRyYWNrLkFQSSIsImF1ZCI6IkZ1ZWxUcmFjay5DbGllbnRzIn0.lIyV4zbedIJYiCk8IvyoXK2mDdneT58rMMJ9Yox98Lo",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjEiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiYWRtaW5AZnQuY29tIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvZW1haWxhZGRyZXNzIjoiYWRtaW5AZnQuY29tIiwiZnVsbE5hbWUiOiJTeXN0ZW0gQWRtaW4iLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOlsiQWRtaW4iLCJTeXN0ZW1Pd25lciJdLCJleHAiOjE3ODc0MjY4NDAsImlzcyI6IkZ1ZWxUcmFjay5BUEkiLCJhdWQiOiJGdWVsVHJhY2suQ2xpZW50cyJ9.EnRytH-1K2bMXh_31PHEaJp3vsOY6fK6fHmoNn9qUFs",
       "domain": "localhost",
       "path": "/",
-      "expires": -1,
+      "expires": 1787426840.961236,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Strict"
     }
   ],
-  "origins": []
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "lang",
+          "value": "en"
+        }
+      ]
+    }
+  ]
 }

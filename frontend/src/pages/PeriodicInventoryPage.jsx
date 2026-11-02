@@ -1,9 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import client from '../api/client';
 import { 
-  PackageSearch, Plus, X, TrendingUp, CheckCircle, 
+  PackageSearch, Plus, TrendingUp, CheckCircle, 
   AlertTriangle, Info, FileText,   Droplets, Printer
 } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
+import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 
 export function canReviewInventory(currentUser, inventory) {
   const role = currentUser?.role;
@@ -65,6 +67,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
   const [status, setStatus] = useState(null);
   const [printDate, setPrintDate] = useState('');
   const [selectedInventory, setSelectedInventory] = useState(null);
+  const [confirmModal, setConfirmModal] = useState({ open: false, inventory: null, newStatus: null });
 
   const [newForm, setNewForm] = useState(initialForm());
 
@@ -205,8 +208,12 @@ function PeriodicInventoryPage({ lang, currentUser }) {
     setNewForm({ ...newForm, [key]: list });
   };
 
-  const updateStatus = async (inventory, newStatus) => {
-    if (!window.confirm(ar ? 'تأكيد العملية؟' : 'Confirm action?')) return;
+  const updateStatus = (inventory, newStatus) => {
+    setConfirmModal({ open: true, inventory, newStatus });
+  };
+  const confirmUpdateStatus = async () => {
+    const { inventory, newStatus } = confirmModal;
+    setConfirmModal({ open: false, inventory: null, newStatus: null });
     try {
       const id = inventory.id || inventory._id;
       await client.put(`/api/inventory/${id}`, buildInventoryStatusPayload(inventory, newStatus));
@@ -217,14 +224,6 @@ function PeriodicInventoryPage({ lang, currentUser }) {
   const months = ar 
     ? ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
     : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-  const secHdr = { 
-    fontSize: '0.85rem', fontWeight: 800, color: '#f97316', 
-    marginBottom: 16, marginTop: 12, paddingBottom: 6, 
-    borderBottom: '1px solid rgba(249, 115, 22, 0.3)',
-    textTransform: 'uppercase', letterSpacing: '0.5px',
-    display: 'flex', alignItems: 'center', gap: 8
-  };
 
   // Helper to get total actual fuel for display in the table
   const getDisplayTotal = (inv, type) => {
@@ -290,15 +289,15 @@ function PeriodicInventoryPage({ lang, currentUser }) {
 
   return (
     <div className="periodic-inventory-page" style={{ animation: 'fadeIn 0.5s ease' }}>
-      <div className="page-header">
-        <div className="page-header-row">
-          <div>
-            <h1 style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <PackageSearch size={28} style={{ color: 'var(--primary)' }} />
-              {ar ? 'الجرد الدوري' : 'Periodic Inventory'}
-            </h1>
-            <p>{ar ? 'مقارنة الأرصدة وإدخال الجرد الميداني' : 'Compare balances and enter field inventory'}</p>
-          </div>
+      <PageHeader
+        title={
+          <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <PackageSearch size={28} style={{ color: 'var(--primary)' }} />
+            {ar ? 'الجرد الدوري' : 'Periodic Inventory'}
+          </span>
+        }
+        subtitle={ar ? 'مقارنة الأرصدة وإدخال الجرد الميداني' : 'Compare balances and enter field inventory'}
+        actions={
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <select className="form-select no-print" value={printDate} onChange={e => setPrintDate(e.target.value)} style={{ width: 190 }}>
               <option value="">{ar ? 'كل تواريخ الجرد' : 'All inventory dates'}</option>
@@ -306,22 +305,30 @@ function PeriodicInventoryPage({ lang, currentUser }) {
                 <option key={date} value={date}>{date.replaceAll('-', '/')}</option>
               ))}
             </select>
-            <button className="btn btn-ghost" style={{ padding: '12px 24px', borderRadius: 12 }} onClick={() => {
-              const appRoot = document.querySelector('.app-root');
-              const isLight = appRoot?.classList.contains('theme-light');
-              if (isLight) appRoot.classList.remove('theme-light');
-              setTimeout(() => { window.print(); if (isLight) appRoot.classList.add('theme-light'); }, 100);
-            }}>
-              <Printer size={18} /> {ar ? 'طباعة' : 'Print'}
-            </button>
+            <Button
+              variant="outline"
+              icon={Printer}
+              onClick={() => {
+                const appRoot = document.querySelector('.app-root');
+                const isLight = appRoot?.classList.contains('theme-light');
+                if (isLight) appRoot.classList.remove('theme-light');
+                setTimeout(() => { window.print(); if (isLight) appRoot.classList.add('theme-light'); }, 100);
+              }}
+            >
+              {ar ? 'طباعة' : 'Print'}
+            </Button>
             {canAdd && (
-              <button className="btn btn-primary" style={{ padding: '12px 24px', borderRadius: 12 }} onClick={() => { setShowNew(true); setStatus(null); }}>
-                <Plus size={18} /> {ar ? 'جديد' : 'New'}
-              </button>
+              <Button
+                variant="primary"
+                icon={Plus}
+                onClick={() => { setShowNew(true); setStatus(null); }}
+              >
+                {ar ? 'جديد' : 'New'}
+              </Button>
             )}
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {status && (
         <div className={`alert ${status.type === 'success' ? 'alert-success' : 'alert-danger'}`}
@@ -333,139 +340,132 @@ function PeriodicInventoryPage({ lang, currentUser }) {
 
       {/* ── NEW INVENTORY MODAL ── */}
       {showNew && (
-        <div className="modal-overlay" style={{ backdropFilter: 'blur(8px)', zIndex: 1000 }}>
-          <div className="glass-card" style={{ width: '100%', maxWidth: 900, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div className="glass-card-header">
-              <div className="glass-card-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <FileText size={20} style={{ color: 'var(--primary)' }} />
-                {ar ? 'بيانات الجرد الميداني الجديد' : 'New Field Inventory Data'}
-              </div>
-              <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setShowNew(false)}><X size={16} /></button>
-            </div>
+        <Modal
+          open={showNew}
+          onClose={() => setShowNew(false)}
+          title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <FileText size={20} style={{ color: 'var(--primary)' }} />
+              {ar ? 'بيانات الجرد الميداني الجديد' : 'New Field Inventory Data'}
+            </span>
+          }
+          maxWidth={900}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setShowNew(false)}>{ar ? 'إلغاء' : 'Cancel'}</Button>
+              <Button variant="primary" onClick={createInventory} disabled={saving}>
+                {saving ? '...' : (ar ? 'إنشاء مسودة الجرد' : 'Create Draft')}
+              </Button>
+            </>
+          }
+        >
+          <div className="form-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30 }}>
             
-            <div className="glass-card-body">
-              <div className="form-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30 }}>
-                
-                {/* ── COL 1: Basic & Field Inventory ── */}
-                <div>
-                  <div style={secHdr}><Info size={14}/> {ar ? 'المعلومات الأساسية' : 'Basic Information'}</div>
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'اسم الموقع *' : 'Location Name *'}</label>
-                    <select className="form-select" value={newForm.subStation} onChange={e => handleLocationChange(e.target.value)}>
-                      <option value="">{ar ? '— اختر الموقع —' : '— Select Location —'}</option>
-                      {siteOptions.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">{ar ? 'تاريخ الجرد' : 'Inventory Date'}</label>
-                      <input className="form-control" type="date" value={newForm.inventoryDate} onChange={e => {
-                        const newDate = e.target.value;
-                        const yr = new Date(newDate).getFullYear();
-                        setNewForm({...newForm, inventoryDate: newDate, year: yr});
-                      }} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">{ar ? 'فريق الجرد' : 'Inventory Team'}</label>
-                      <input className="form-control" value={newForm.team} onChange={e => setNewForm({...newForm, team: e.target.value})} placeholder={ar ? 'أسماء الفريق...' : 'Team names...'} />
-                    </div>
-                  </div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">{ar ? 'حدد الشهر' : 'Select Month'}</label>
-                      <select className="form-select" value={newForm.month} onChange={e => setNewForm({...newForm, month: parseInt(e.target.value, 10)})}>
-                        <option value={0}>{ar ? '— اختر الشهر —' : '— Select Month —'}</option>
-                        {months.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">{ar ? 'حدد النصف' : 'Select Half'}</label>
-                      <select className="form-select" value={newForm.periodType} onChange={e => setNewForm({...newForm, periodType: parseInt(e.target.value, 10)})}>
-                        {periodTypes.map(pt => (
-                          <option key={pt.id} value={pt.id}>{pt.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div style={secHdr}><Droplets size={14}/> {ar ? 'مخزون الوقود الفعلي (ميداني)' : 'Physical Fuel Stock'}</div>
-                  {!newForm.station ? (
-                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>{ar ? 'يرجى اختيار الموقع أولاً لإظهار الخزانات' : 'Select location first to show tanks'}</div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {newForm.fuelReadings.length === 0 ? (
-                        <div style={{ padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-                          {ar ? 'لا توجد خزانات وقود مرتبطة بهذا الموقع' : 'No fuel tanks linked to this location'}
-                        </div>
-                      ) : newForm.fuelReadings.map((r, i) => (
-                        <div key={i} className="form-group" style={{ margin: 0 }}>
-                          <label className="form-label" style={{ fontSize: 11, marginBottom: 4 }}>{r.tankName}</label>
-                          <input className="form-control" type="number" placeholder={ar ? 'الكمية الفعلية باللتر...' : 'Actual Liters...'} 
-                            value={r.actualQty} onChange={e => updateActualInForm('fuel', i, e.target.value)} />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div style={secHdr}><TrendingUp size={14}/> {ar ? 'مخزون الزيت الفعلي (ميداني)' : 'Physical Oil Stock'}</div>
-                  {!newForm.station ? (
-                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-                      {ar ? 'يرجى اختيار الموقع أولاً لإظهار الزيوت' : 'Select location first to show oils'}
-                    </div>
-                  ) : (
-                    <div className="form-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                      {newForm.oilReadings.length === 0 ? (
-                        <div style={{ gridColumn: '1 / -1', padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-                          {ar ? 'لا توجد زيوت مرتبطة بهذا الموقع' : 'No oils linked to this location'}
-                        </div>
-                      ) : newForm.oilReadings.map((r, i) => (
-                        <div key={i} className="form-group" style={{ margin: 0 }}>
-                          <label className="form-label" style={{ fontSize: 11, marginBottom: 4 }}>{r.oilName}</label>
-                          <input className="form-control" type="number" placeholder="L" 
-                            value={r.actualQty} onChange={e => updateActualInForm('oil', i, e.target.value)} />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* ── COL 2: Energy & Details ── */}
-                <div style={{ background: 'hsla(217,91%,60%,0.02)', padding: '20px', borderRadius: 16, border: '1px solid var(--border)' }}>
-                  <div style={secHdr}><FileText size={14}/> {ar ? 'ملاحظات' : 'Notes'}</div>
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'ملاحظات (اختياري)' : 'Notes (optional)'}</label>
-                    <textarea
-                      className="form-control"
-                      rows={8}
-                      placeholder={ar ? 'ملاحظات الجرد الميداني...' : 'Field inventory notes...'}
-                      value={newForm.notes || ''}
-                      onChange={e => setNewForm({ ...newForm, notes: e.target.value })}
-                      style={{ minHeight: 180, resize: 'vertical', lineHeight: 1.7 }}
-                    />
-                  </div>
-                  <div style={{ marginTop: 16, padding: 14, background: 'rgba(59,130,246,0.06)', borderRadius: 10, border: '1px solid rgba(59,130,246,0.15)' }}>
-                    <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                      {ar
-                        ? '✓ يُحتسب تلقائياً من الإدخال اليومي المعتمد: الطاقة المنتجة، ساعات التشغيل، الوقود المستهلك، الوقود الوارد، الوقود المنقول، الفاقد.'
-                        : '✓ Auto-calculated from approved daily readings: energy produced, operating hours, fuel consumed, fuel received, transfers, losses.'}
-                    </p>
-                  </div>
-                </div>
+            {/* ── COL 1: Basic & Field Inventory ── */}
+            <div>
+              <div className="form-section-header"><Info size={14}/> {ar ? 'المعلومات الأساسية' : 'Basic Information'}</div>
+              <FormField label={ar ? 'اسم الموقع *' : 'Location Name *'} required>
+                <select className="form-select" value={newForm.subStation} onChange={e => handleLocationChange(e.target.value)}>
+                  <option value="">{ar ? '— اختر الموقع —' : '— Select Location —'}</option>
+                  {siteOptions.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                </select>
+              </FormField>
+              <div className="form-row">
+                <FormField label={ar ? 'تاريخ الجرد' : 'Inventory Date'}>
+                  <Input type="date" value={newForm.inventoryDate} onChange={e => {
+                    const newDate = e.target.value;
+                    const yr = new Date(newDate).getFullYear();
+                    setNewForm({...newForm, inventoryDate: newDate, year: yr});
+                  }} />
+                </FormField>
+                <FormField label={ar ? 'فريق الجرد' : 'Inventory Team'}>
+                  <Input value={newForm.team} onChange={e => setNewForm({...newForm, team: e.target.value})} placeholder={ar ? 'أسماء الفريق...' : 'Team names...'} />
+                </FormField>
+              </div>
+              <div className="form-row">
+                <FormField label={ar ? 'حدد الشهر' : 'Select Month'}>
+                  <select className="form-select" value={newForm.month} onChange={e => setNewForm({...newForm, month: parseInt(e.target.value, 10)})}>
+                    <option value={0}>{ar ? '— اختر الشهر —' : '— Select Month —'}</option>
+                    {months.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+                  </select>
+                </FormField>
+                <FormField label={ar ? 'حدد النصف' : 'Select Half'}>
+                  <select className="form-select" value={newForm.periodType} onChange={e => setNewForm({...newForm, periodType: parseInt(e.target.value, 10)})}>
+                    {periodTypes.map(pt => (
+                      <option key={pt.id} value={pt.id}>{pt.name}</option>
+                    ))}
+                  </select>
+                </FormField>
               </div>
 
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 30, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
-                <button className="btn btn-ghost" onClick={() => setShowNew(false)}>{ar ? 'إلغاء' : 'Cancel'}</button>
-                <button className="btn btn-primary" onClick={createInventory} disabled={saving} style={{ minWidth: 160, padding: '12px 30px' }}>
-                  {saving ? '...' : (ar ? 'إنشاء مسودة الجرد' : 'Create Draft')}
-                </button>
+              <div className="form-section-header"><Droplets size={14}/> {ar ? 'مخزون الوقود الفعلي (ميداني)' : 'Physical Fuel Stock'}</div>
+              {!newForm.station ? (
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>{ar ? 'يرجى اختيار الموقع أولاً لإظهار الخزانات' : 'Select location first to show tanks'}</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {newForm.fuelReadings.length === 0 ? (
+                    <div style={{ padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                      {ar ? 'لا توجد خزانات وقود مرتبطة بهذا الموقع' : 'No fuel tanks linked to this location'}
+                    </div>
+                  ) : newForm.fuelReadings.map((r, i) => (
+                    <div key={i} className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: 11, marginBottom: 4 }}>{r.tankName}</label>
+                      <Input type="number" placeholder={ar ? 'الكمية الفعلية باللتر...' : 'Actual Liters...'} 
+                        value={r.actualQty} onChange={e => updateActualInForm('fuel', i, e.target.value)} />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="form-section-header"><TrendingUp size={14}/> {ar ? 'مخزون الزيت الفعلي (ميداني)' : 'Physical Oil Stock'}</div>
+              {!newForm.station ? (
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                  {ar ? 'يرجى اختيار الموقع أولاً لإظهار الزيوت' : 'Select location first to show oils'}
+                </div>
+              ) : (
+                <div className="form-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  {newForm.oilReadings.length === 0 ? (
+                    <div style={{ gridColumn: '1 / -1', padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                      {ar ? 'لا توجد زيوت مرتبطة بهذا الموقع' : 'No oils linked to this location'}
+                    </div>
+                  ) : newForm.oilReadings.map((r, i) => (
+                    <div key={i} className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontSize: 11, marginBottom: 4 }}>{r.oilName}</label>
+                      <Input type="number" placeholder="L" 
+                        value={r.actualQty} onChange={e => updateActualInForm('oil', i, e.target.value)} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ── COL 2: Energy & Details ── */}
+            <div style={{ background: 'hsla(217,91%,60%,0.02)', padding: '20px', borderRadius: 16, border: '1px solid var(--border)' }}>
+              <div className="form-section-header"><FileText size={14}/> {ar ? 'ملاحظات' : 'Notes'}</div>
+              <FormField label={ar ? 'ملاحظات (اختياري)' : 'Notes (optional)'}>
+                <textarea
+                  className="form-control"
+                  rows={8}
+                  placeholder={ar ? 'ملاحظات الجرد الميداني...' : 'Field inventory notes...'}
+                  value={newForm.notes || ''}
+                  onChange={e => setNewForm({ ...newForm, notes: e.target.value })}
+                  style={{ minHeight: 180, resize: 'vertical', lineHeight: 1.7 }}
+                />
+              </FormField>
+              <div style={{ marginTop: 16, padding: 14, background: 'rgba(59,130,246,0.06)', borderRadius: 10, border: '1px solid rgba(59,130,246,0.15)' }}>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                  {ar
+                    ? '✓ يُحتسب تلقائياً من الإدخال اليومي المعتمد: الطاقة المنتجة، ساعات التشغيل، الوقود المستهلك، الوقود الوارد، الوقود المنقول، الفاقد.'
+                    : '✓ Auto-calculated from approved daily readings: energy produced, operating hours, fuel consumed, fuel received, transfers, losses.'}
+                </p>
               </div>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* ── REPORT VIEW (Based on provided images) ── */}
-      <div className="glass-card periodic-print-card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="section-card periodic-print-card" style={{ padding: 0, overflow: 'hidden' }}>
 
         {/* PRINT HEADER */}
         <div className="print-wrapper">
@@ -485,12 +485,12 @@ function PeriodicInventoryPage({ lang, currentUser }) {
               {ar ? `تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}` : `Report Date: ${new Date().toLocaleDateString()}`}
             </div>
           </div>
-          <div style={{ textAlign: 'left' }}></div>
+          <div style={{ textAlign: 'start' }}></div>
         </div>
 
         <div style={{ overflowX: 'auto' }}>
-          <style>{`.ft-table th, .ft-table td { text-align: center !important; }`}</style>
-          <table className="ft-table" style={{ width: '100%', minWidth: '760px', margin: 0, borderBottom: '2px solid var(--border)' }}>
+          <style>{`.data-table th, .data-table td { text-align: center !important; }`}</style>
+          <table className="data-table" style={{ width: '100%', minWidth: '760px', margin: 0, borderBottom: '2px solid var(--border)' }}>
             <thead style={{ background: 'rgba(99,179,237,0.1)' }}>
               <tr>
                 <th>{ar ? 'اسم الموقع' : 'Location'}</th>
@@ -574,7 +574,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
         </div>
 
         <div style={{ overflowX: 'auto' }}>
-          <table className="ft-table inventory-notes-table" style={{ width: '100%', minWidth: '760px', margin: 0 }}>
+          <table className="data-table inventory-notes-table" style={{ width: '100%', minWidth: '760px', margin: 0 }}>
             <thead style={{ background: 'rgba(99,179,237,0.05)' }}>
               <tr>
                 <th>{ar ? 'اسم الموقع' : 'Location'}</th>
@@ -625,131 +625,130 @@ function PeriodicInventoryPage({ lang, currentUser }) {
         const statusColors = { approved: 'var(--success)', rejected: 'var(--danger)', submitted: 'var(--warning)', draft: 'var(--text-muted)' };
         const statusLabels = { approved: ar ? 'معتمد' : 'Approved', rejected: ar ? 'مرفوض' : 'Rejected', submitted: ar ? 'قيد المراجعة' : 'Pending Review', draft: ar ? 'مسودة' : 'Draft' };
         return (
-          <div className="modal-overlay" style={{ backdropFilter: 'blur(8px)', zIndex: 1000 }}>
-            <div className="glass-card" style={{ width: '100%', maxWidth: 800, maxHeight: '85vh', overflowY: 'auto' }}>
-              <div className="glass-card-header">
-                <div className="glass-card-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <PackageSearch size={20} style={{ color: 'var(--primary)' }} />
-                  {ar ? 'تفاصيل الجرد الدوري' : 'Inventory Details'}
-                </div>
-                <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setSelectedInventory(null)}><X size={16} /></button>
+          <Modal
+            open={!!selectedInventory}
+            onClose={() => setSelectedInventory(null)}
+            title={
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <PackageSearch size={20} style={{ color: 'var(--primary)' }} />
+                {ar ? 'تفاصيل الجرد الدوري' : 'Inventory Details'}
+              </span>
+            }
+            maxWidth={800}
+          >
+            {/* Header Info */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 22 }}>
+              <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{ar ? 'الموقع' : 'Location'}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)' }}>{getLocationLabel(inv)}</div>
               </div>
-              <div className="glass-card-body">
-                {/* Header Info */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 22 }}>
-                  <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{ar ? 'الموقع' : 'Location'}</div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)' }}>{getLocationLabel(inv)}</div>
-                  </div>
-                  <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{ar ? 'الفترة' : 'Period'}</div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)' }}>{inv.periodType || '—'}</div>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{months[(inv.month || 1) - 1]} {inv.year || ''}</div>
-                  </div>
-                  <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{ar ? 'الحالة' : 'Status'}</div>
-                    <span className="badge" style={{ background: statusColors[inv.status] || 'var(--text-muted)', color: '#fff', fontSize: 13, fontWeight: 600, padding: '5px 14px' }}>
-                      {statusLabels[inv.status] || inv.status || '—'}
-                    </span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 22 }}>
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                    <span style={{ fontWeight: 600 }}>{ar ? 'تاريخ الجرد: ' : 'Inventory Date: '}</span>
-                    <span style={{ direction: 'ltr', display: 'inline-block' }}>{formatDate(inv.inventoryDate)}</span>
-                  </div>
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                    <span style={{ fontWeight: 600 }}>{ar ? 'الفريق: ' : 'Team: '}</span>
-                    <span>{inv.team || '—'}</span>
-                  </div>
-                </div>
-
-                {/* Fuel Readings */}
-                <div style={{ marginBottom: 22 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-main)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Droplets size={15} style={{ color: 'var(--primary)' }} />
-                    {ar ? 'مخزون الوقود' : 'Fuel Stock'}
-                  </div>
-                  {fuelItems && fuelItems.length > 0 ? (
-                    <div style={{ overflowX: 'auto' }}>
-                      <table className="ft-table" style={{ width: '100%', fontSize: 13 }}>
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th>{ar ? 'الخزان' : 'Tank'}</th>
-                            <th>{ar ? 'النوع' : 'Type'}</th>
-                            <th>{ar ? 'المخزون الفعلي' : 'Actual Stock'}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {fuelItems.map((item, i) => (
-                            <tr key={item.key || i}>
-                              <td style={{ color: 'var(--text-faint)' }}>{i + 1}</td>
-                              <td style={{ fontWeight: 600 }}>{item.name || '—'}</td>
-                              <td>{item.fuelType || '—'}</td>
-                              <td style={{ fontWeight: 700 }}>{formatLiters(item.actualQty)} L</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div style={{ padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'rgba(0,0,0,0.15)', borderRadius: 10 }}>
-                      {ar ? 'لا توجد بيانات وقود' : 'No fuel data'}
-                    </div>
-                  )}
-                </div>
-
-                {/* Oil Readings */}
-                <div style={{ marginBottom: 22 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-main)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <TrendingUp size={15} style={{ color: 'var(--warning)' }} />
-                    {ar ? 'مخزون الزيوت' : 'Oil Stock'}
-                  </div>
-                  {oilItems.length > 0 ? (
-                    <div style={{ overflowX: 'auto' }}>
-                      <table className="ft-table" style={{ width: '100%', fontSize: 13 }}>
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th>{ar ? 'نوع الزيت' : 'Oil Type'}</th>
-                            <th>{ar ? 'المخزون الفعلي' : 'Actual Stock'}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {oilItems.map((item, i) => (
-                            <tr key={item.key || i}>
-                              <td style={{ color: 'var(--text-faint)' }}>{i + 1}</td>
-                              <td style={{ fontWeight: 600 }}>{item.name || '—'}</td>
-                              <td style={{ fontWeight: 700 }}>{formatLiters(item.actualQty)} L</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div style={{ padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'rgba(0,0,0,0.15)', borderRadius: 10 }}>
-                      {ar ? 'لا توجد بيانات زيوت' : 'No oil data'}
-                    </div>
-                  )}
-                </div>
-
-                {/* Notes */}
-                {inv.notes && (
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-main)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <FileText size={15} style={{ color: 'var(--primary)' }} />
-                      {ar ? 'ملاحظات' : 'Notes'}
-                    </div>
-                    <div style={{ padding: 14, background: 'rgba(0,0,0,0.15)', borderRadius: 10, fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'var(--text-muted)' }}>
-                      {inv.notes}
-                    </div>
-                  </div>
-                )}
+              <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{ar ? 'الفترة' : 'Period'}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)' }}>{inv.periodType || '—'}</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{months[(inv.month || 1) - 1]} {inv.year || ''}</div>
+              </div>
+              <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{ar ? 'الحالة' : 'Status'}</div>
+                <span className="badge" style={{ background: statusColors[inv.status] || 'var(--text-muted)', color: '#fff', fontSize: 13, fontWeight: 600, padding: '5px 14px' }}>
+                  {statusLabels[inv.status] || inv.status || '—'}
+                </span>
               </div>
             </div>
-          </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 22 }}>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                <span style={{ fontWeight: 600 }}>{ar ? 'تاريخ الجرد: ' : 'Inventory Date: '}</span>
+                <span style={{ direction: 'ltr', display: 'inline-block' }}>{formatDate(inv.inventoryDate)}</span>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                <span style={{ fontWeight: 600 }}>{ar ? 'الفريق: ' : 'Team: '}</span>
+                <span>{inv.team || '—'}</span>
+              </div>
+            </div>
+
+            {/* Fuel Readings */}
+            <div style={{ marginBottom: 22 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-main)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Droplets size={15} style={{ color: 'var(--primary)' }} />
+                {ar ? 'مخزون الوقود' : 'Fuel Stock'}
+              </div>
+              {fuelItems && fuelItems.length > 0 ? (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table" style={{ width: '100%', fontSize: 13 }}>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>{ar ? 'الخزان' : 'Tank'}</th>
+                        <th>{ar ? 'النوع' : 'Type'}</th>
+                        <th>{ar ? 'المخزون الفعلي' : 'Actual Stock'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fuelItems.map((item, i) => (
+                        <tr key={item.key || i}>
+                          <td style={{ color: 'var(--text-faint)' }}>{i + 1}</td>
+                          <td style={{ fontWeight: 600 }}>{item.name || '—'}</td>
+                          <td>{item.fuelType || '—'}</td>
+                          <td style={{ fontWeight: 700 }}>{formatLiters(item.actualQty)} L</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'rgba(0,0,0,0.15)', borderRadius: 10 }}>
+                  {ar ? 'لا توجد بيانات وقود' : 'No fuel data'}
+                </div>
+              )}
+            </div>
+
+            {/* Oil Readings */}
+            <div style={{ marginBottom: 22 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-main)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <TrendingUp size={15} style={{ color: 'var(--warning)' }} />
+                {ar ? 'مخزون الزيوت' : 'Oil Stock'}
+              </div>
+              {oilItems.length > 0 ? (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table" style={{ width: '100%', fontSize: 13 }}>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>{ar ? 'نوع الزيت' : 'Oil Type'}</th>
+                        <th>{ar ? 'المخزون الفعلي' : 'Actual Stock'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {oilItems.map((item, i) => (
+                        <tr key={item.key || i}>
+                          <td style={{ color: 'var(--text-faint)' }}>{i + 1}</td>
+                          <td style={{ fontWeight: 600 }}>{item.name || '—'}</td>
+                          <td style={{ fontWeight: 700 }}>{formatLiters(item.actualQty)} L</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'rgba(0,0,0,0.15)', borderRadius: 10 }}>
+                  {ar ? 'لا توجد بيانات زيوت' : 'No oil data'}
+                </div>
+              )}
+            </div>
+
+            {/* Notes */}
+            {inv.notes && (
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-main)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <FileText size={15} style={{ color: 'var(--primary)' }} />
+                  {ar ? 'ملاحظات' : 'Notes'}
+                </div>
+                <div style={{ padding: 14, background: 'rgba(0,0,0,0.15)', borderRadius: 10, fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'var(--text-muted)' }}>
+                  {inv.notes}
+                </div>
+              </div>
+            )}
+          </Modal>
         );
       })()}
 
@@ -817,7 +816,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
           }
           .periodic-inventory-page > :not(.periodic-print-card) { display: none !important; }
           .periodic-print-card { display: block !important; height: auto !important; min-height: 0 !important; overflow: visible !important; }
-          .glass-card { border: none !important; box-shadow: none !important; background: transparent !important; margin: 0 !important; padding: 0 !important; }
+          .section-card { border: none !important; box-shadow: none !important; background: transparent !important; margin: 0 !important; padding: 0 !important; }
 
           .print-only { display: block !important; }
           .no-print { display: none !important; }
@@ -843,9 +842,9 @@ function PeriodicInventoryPage({ lang, currentUser }) {
           .print-title p { margin: 0 !important; font-size: 13px !important; color: #000 !important; }
 
           /* Enhanced Table Borders */
-          .ft-table { border: 2px solid #000 !important; border-collapse: collapse !important; width: 100% !important; min-width: 100% !important; margin: 0 !important; page-break-after: avoid !important; }
-          .ft-table th, .ft-table td { border: 1px solid #000 !important; padding: 5px 4px !important; color: #000 !important; font-size: 12px !important; background: transparent !important; text-align: center !important; }
-          .ft-table th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: bold !important; color: #000 !important; }
+          .data-table { border: 2px solid #000 !important; border-collapse: collapse !important; width: 100% !important; min-width: 100% !important; margin: 0 !important; page-break-after: avoid !important; }
+          .data-table th, .data-table td { border: 1px solid #000 !important; padding: 5px 4px !important; color: #000 !important; font-size: 12px !important; background: transparent !important; text-align: center !important; }
+          .data-table th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: bold !important; color: #000 !important; }
           .oil-inventory-list { gap: 2px !important; line-height: 1.45 !important; }
           .inventory-notes-cell { white-space: pre-wrap !important; word-break: break-word !important; text-align: start !important; }
 
@@ -859,6 +858,16 @@ function PeriodicInventoryPage({ lang, currentUser }) {
           .print-footer-info { display: flex !important; justify-content: space-between !important; font-size: 11px !important; color: #000 !important; border-top: 1px solid #000 !important; padding-top: 8px !important; margin-top: 18px !important; }
         }
       `}</style>
+
+      <ConfirmModal
+        open={confirmModal.open}
+        title={ar ? 'تأكيد تحديث الحالة' : 'Confirm Status Update'}
+        message={ar ? 'تأكيد العملية؟' : 'Confirm action?'}
+        confirmText={ar ? 'تأكيد' : 'Confirm'}
+        cancelText={ar ? 'إلغاء' : 'Cancel'}
+        onConfirm={confirmUpdateStatus}
+        onCancel={() => setConfirmModal({ open: false, inventory: null, newStatus: null })}
+      />
     </div>
   );
 }

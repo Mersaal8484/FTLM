@@ -10,5 +10,6 @@ public record OilDetailDto(
     string? StationName,
     int? SubStationId,
     string? SubStationName,
+    bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt);

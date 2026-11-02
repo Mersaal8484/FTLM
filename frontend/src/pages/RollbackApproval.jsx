@@ -11,21 +11,24 @@ import React, { useState, useCallback, useEffect } from 'react';
 import client from '../api/client';
 import { Undo2, Search, AlertTriangle, CheckCircle, XCircle, History, Copy } from 'lucide-react';
 import Pagination from '../components/Pagination';
+import ConfirmModal from '../components/ConfirmModal';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ثوابت
 // ─────────────────────────────────────────────────────────────────────────────
 const ENTITY_TYPES = [
-  { value: 'generator_reading', label: 'قراءة مولد',    icon: '⚡' },
-  { value: 'station_reading',   label: 'قراءة موقع',    icon: '📡' },
-  { value: 'fuel_movement',     label: 'حركة وقود/زيت', icon: '⛽' },
-  { value: 'inventory',         label: 'جرد دوري',      icon: '📦' },
+  { value: 'generator_reading', label: 'قراءة مولد',    labelEn: 'Generator Reading', icon: '⚡' },
+  { value: 'station_reading',   label: 'قراءة موقع',    labelEn: 'Station Reading',   icon: '📡' },
+  { value: 'fuel_movement',     label: 'حركة وقود/زيت', labelEn: 'Fuel/Oil Movement', icon: '⛽' },
+  { value: 'inventory',         label: 'جرد دوري',      labelEn: 'Periodic Inventory',icon: '📦' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // مكون رئيسي
 // ─────────────────────────────────────────────────────────────────────────────
-function RollbackApproval({ lang: _lang, user }) {
+function RollbackApproval({ lang, user }) {
+  const ar = lang === 'ar';
+
   // ── حالة النموذج ──────────────────────────────────────────────────────────
   const [entityType, setEntityType]   = useState('generator_reading');
   const [entityId,   setEntityId]     = useState('');
@@ -37,6 +40,7 @@ function RollbackApproval({ lang: _lang, user }) {
   const [checkResult, setCheckResult] = useState(null);   // { ok, reason, preview, blockedBy }
   const [error,       setError]       = useState('');
   const [successMsg,  setSuccessMsg]  = useState('');
+  const [confirmModal, setConfirmModal] = useState({ open: false, reason: '' });
 
   // ── حالة السجل ────────────────────────────────────────────────────────────
   const [tab,          setTab]          = useState('form');  // 'form' | 'history'
@@ -73,12 +77,12 @@ function RollbackApproval({ lang: _lang, user }) {
 
   // ── فحص إمكانية التراجع ───────────────────────────────────────────────────
   const handleCheck = useCallback(async () => {
-    if (!entityId.trim()) { setError('الرجاء إدخال معرّف العملية'); return; }
+    if (!entityId.trim()) { setError(ar ? 'الرجاء إدخال معرّف العملية' : 'Please enter the operation ID'); return; }
     setChecking(true); setError(''); setSuccessMsg(''); setCheckResult(null);
     try {
       const res = await client.post('/api/rollback/check', { entityType, entityId: entityId.trim() });
       setCheckResult(res.data);
-      if (!res.data.ok) setError(res.data.reason || 'لا يمكن التراجع');
+      if (!res.data.ok) setError(res.data.reason || (ar ? 'لا يمكن التراجع' : 'Rollback not possible'));
     } catch (e) {
       setError(e.response?.data?.reason || e.response?.data?.msg || e.message);
     } finally {
@@ -88,17 +92,24 @@ function RollbackApproval({ lang: _lang, user }) {
 
   // ── تنفيذ التراجع ─────────────────────────────────────────────────────────
   const handleExecute = useCallback(async () => {
-    if (reason.trim().length < 5) { setError('سبب التراجع يجب أن يكون 5 أحرف على الأقل'); return; }
+    if (reason.trim().length < 5) { setError(ar ? 'سبب التراجع يجب أن يكون 5 أحرف على الأقل' : 'Rollback reason must be at least 5 characters'); return; }
 
-    const confirmed = window.confirm(
-      `هل أنت متأكد من التراجع عن هذا الاعتماد؟\n\nالسبب: ${reason}\n\nهذه العملية ستُعيد البيانات إلى ما قبل الاعتماد مباشرةً.`
-    );
-    if (!confirmed) return;
+    setConfirmModal({
+      open: true,
+      reason: reason.trim(),
+      message: ar
+        ? `هل أنت متأكد من التراجع عن هذا الاعتماد؟\n\nالسبب: ${reason}\n\nهذه العملية ستُعيد البيانات إلى ما قبل الاعتماد مباشرةً.`
+        : `Are you sure you want to roll back this approval?\n\nReason: ${reason}\n\nThis will revert the data to its pre-approval state.`,
+    });
+  }, [entityType, entityId, reason, loadHistory]);
 
+  const confirmExecute = async () => {
+    const { reason: confirmReason } = confirmModal;
+    setConfirmModal({ open: false, reason: '', message: '' });
     setExecuting(true); setError(''); setSuccessMsg('');
     try {
-      await client.post('/api/rollback/execute', { entityType, entityId: entityId.trim(), reason: reason.trim() });
-      setSuccessMsg('✓ تم التراجع بنجاح');
+      await client.post('/api/rollback/execute', { entityType, entityId: entityId.trim(), reason: confirmReason });
+      setSuccessMsg(ar ? '✓ تم التراجع بنجاح' : '✓ Rollback completed successfully');
       setCheckResult(null);
       setEntityId('');
       setReason('');
@@ -108,7 +119,7 @@ function RollbackApproval({ lang: _lang, user }) {
     } finally {
       setExecuting(false);
     }
-  }, [entityType, entityId, reason, loadHistory]);
+  };
 
   // ─────────────────────────────────────────────────────────────────────────
   if (!isAdmin) {
@@ -116,8 +127,8 @@ function RollbackApproval({ lang: _lang, user }) {
       <div className="rollback-page">
         <div className="rb-no-permission">
           <span style={{ fontSize: 48 }}>🔒</span>
-          <h3>صلاحية خاصة بمدير النظام</h3>
-          <p>هذه الميزة متاحة لحساب المسؤول فقط.</p>
+          <h3>{ar ? 'صلاحية خاصة بمدير النظام' : 'Admin Access Only'}</h3>
+          <p>{ar ? 'هذه الميزة متاحة لحساب المسؤول فقط.' : 'This feature is available to the administrator account only.'}</p>
         </div>
       </div>
     );
@@ -125,24 +136,24 @@ function RollbackApproval({ lang: _lang, user }) {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="rollback-page" dir="rtl">
+    <div className="rollback-page">
 
       {/* ─── رأس الصفحة ─────────────────────────────────────────────────── */}
       <div className="rb-header">
         <div className="rb-header-text">
-          <Undo2 size={28} color="var(--warning-color, #f59e0b)" />
+          <Undo2 size={28} color="var(--warning-color, var(--warning))" />
           <div>
-            <h1>التراجع عن الاعتماد</h1>
-            <p>تراجع آمن ومشروط عن آخر اعتماد — متاح للمسؤول فقط</p>
+            <h1>{ar ? 'التراجع عن الاعتماد' : 'Approval Rollback'}</h1>
+            <p>{ar ? 'تراجع آمن ومشروط عن آخر اعتماد — متاح للمسؤول فقط' : 'Safe conditional rollback of the last approval — admin only'}</p>
           </div>
         </div>
         {/* أزرار التبويب */}
         <div className="rb-tabs">
           <button className={`rb-tab ${tab === 'form' ? 'active' : ''}`} onClick={() => setTab('form')}>
-            <Undo2 size={15} /> تنفيذ التراجع
+            <Undo2 size={15} /> {ar ? 'تنفيذ التراجع' : 'Execute Rollback'}
           </button>
           <button className={`rb-tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>
-            <History size={15} /> السجل
+            <History size={15} /> {ar ? 'السجل' : 'History'}
           </button>
         </div>
       </div>
@@ -153,16 +164,18 @@ function RollbackApproval({ lang: _lang, user }) {
 
           {/* تحذير */}
           <div className="rb-warning-banner">
-            <AlertTriangle size={18} color="#f59e0b" />
+            <AlertTriangle size={18} color="var(--warning)" />
             <p>
-              يُتيح هذا القسم التراجع عن <strong>آخر اعتماد فقط</strong> إذا لم تكن هناك سلسلة اعتمادات لاحقة مترتبة عليه.
-              ستُعاد البيانات إلى حالتها قبل الاعتماد مباشرةً، وتُسجَّل كل عملية في سجل التدقيق.
+              {ar
+                ? <>يُتيح هذا القسم التراجع عن <strong>آخر اعتماد فقط</strong> إذا لم تكن هناك سلسلة اعتمادات لاحقة مترتبة عليه. ستُعاد البيانات إلى حالتها قبل الاعتماد مباشرةً، وتُسجَّل كل عملية في سجل التدقيق.</>  
+                : <>This section allows rollback of the <strong>last approval only</strong> if no subsequent dependent approvals exist. Data will be reverted to its pre-approval state, and every operation is recorded in the audit log.</>
+              }
             </p>
           </div>
 
           {/* نوع العملية */}
           <div className="rb-section">
-            <label className="rb-label">نوع العملية</label>
+            <label className="rb-label">{ar ? 'نوع العملية' : 'Operation Type'}</label>
             <div className="rb-entity-types">
               {ENTITY_TYPES.map(et => (
                 <button
@@ -171,7 +184,7 @@ function RollbackApproval({ lang: _lang, user }) {
                   onClick={() => { setEntityType(et.value); setCheckResult(null); setError(''); setSuccessMsg(''); }}
                 >
                   <span>{et.icon}</span>
-                  <span>{et.label}</span>
+                  <span>{ar ? et.label : et.labelEn}</span>
                 </button>
               ))}
             </div>
@@ -179,16 +192,16 @@ function RollbackApproval({ lang: _lang, user }) {
 
           {/* معرّف العملية */}
           <div className="rb-section">
-            <label className="rb-label">معرّف العملية (ID)</label>
+            <label className="rb-label">{ar ? 'معرّف العملية (ID)' : 'Operation ID'}</label>
             <div className="rb-id-row">
               <input
                 className="rb-input"
-                placeholder="الصق هنا معرّف (ID) العملية"
+                placeholder={ar ? 'الصق هنا معرّف (ID) العملية' : 'Paste the operation ID here'}
                 value={entityId}
                 onChange={e => { setEntityId(e.target.value); setCheckResult(null); setError(''); setSuccessMsg(''); }}
                 style={{ fontFamily: 'monospace' }}
               />
-              <button className="rb-paste-btn" title="لصق من الحافظة" onClick={async () => {
+              <button className="rb-paste-btn" title={ar ? 'لصق من الحافظة' : 'Paste from clipboard'} onClick={async () => {
                 try {
                   const text = await navigator.clipboard.readText();
                   if (text?.trim()) { setEntityId(text.trim()); setCheckResult(null); }
@@ -209,8 +222,8 @@ function RollbackApproval({ lang: _lang, user }) {
             onClick={handleCheck}
           >
             {checking
-              ? <><span className="rb-spinner" /> جارٍ الفحص…</>
-              : <><Search size={16} /> فحص إمكانية التراجع</>}
+              ? <><span className="rb-spinner" /> {ar ? 'جارىن الفحص…' : 'Checking…'}</>
+              : <><Search size={16} /> {ar ? 'فحص إمكانية التراجع' : 'Check Rollback Eligibility'}</>}
           </button>
 
           {/* رسالة خطأ */}
@@ -234,8 +247,8 @@ function RollbackApproval({ lang: _lang, user }) {
             <div className={`rb-result-card ${checkResult.ok ? 'ok' : 'blocked'}`}>
               <div className="rb-result-header">
                 {checkResult.ok
-                  ? <><CheckCircle size={22} color="#10b981" /> <span style={{color:'#10b981', fontWeight:900}}>يمكن التراجع ✓</span></>
-                  : <><XCircle    size={22} color="#ef4444" /> <span style={{color:'#ef4444', fontWeight:900}}>لا يمكن التراجع ✗</span></>
+                  ? <><CheckCircle size={22} color="#10b981" /> <span style={{color:'#10b981', fontWeight:900}}>{ar ? 'يمكن التراجع ✓' : 'Rollback possible ✓'}</span></>
+                  : <><XCircle    size={22} color="#ef4444" /> <span style={{color:'#ef4444', fontWeight:900}}>{ar ? 'لا يمكن التراجع ✗' : 'Rollback not possible ✗'}</span></>
                 }
                 <button className="rb-close-result" onClick={() => setCheckResult(null)}>✕</button>
               </div>
@@ -246,7 +259,7 @@ function RollbackApproval({ lang: _lang, user }) {
                   <p>{checkResult.reason}</p>
                   {checkResult.blockedBy && (
                     <p style={{fontSize:11, color:'#94a3b8', fontFamily:'monospace', marginTop:4}}>
-                      معرّف العملية الحاجبة: {checkResult.blockedBy.id ?? '—'}
+                      {ar ? 'معرّف العملية الحاجبة' : 'Blocking operation ID'}: {checkResult.blockedBy.id ?? '—'}
                     </p>
                   )}
               </div>
@@ -266,10 +279,10 @@ function RollbackApproval({ lang: _lang, user }) {
 
                   {/* حقل سبب التراجع */}
                   <div className="rb-section" style={{marginTop:16}}>
-                    <label className="rb-label">سبب التراجع *</label>
+                    <label className="rb-label">{ar ? 'سبب التراجع *' : 'Rollback Reason *'}</label>
                     <textarea
                       className="rb-textarea"
-                      placeholder="اكتب هنا سبب التراجع بوضوح…"
+                      placeholder={ar ? 'اكتب هنا سبب التراجع بوضوح…' : 'Write the rollback reason clearly…'}
                       maxLength={250}
                       rows={3}
                       value={reason}
@@ -285,8 +298,8 @@ function RollbackApproval({ lang: _lang, user }) {
                     onClick={handleExecute}
                   >
                     {executing
-                      ? <><span className="rb-spinner" /> جارٍ التراجع…</>
-                      : <><Undo2 size={16} /> تنفيذ التراجع</>}
+                      ? <><span className="rb-spinner" /> {ar ? 'جارىن التراجع…' : 'Rolling back…'}</>
+                      : <><Undo2 size={16} /> {ar ? 'تنفيذ التراجع' : 'Execute Rollback'}</>}
                   </button>
                 </>
               )}
@@ -299,13 +312,13 @@ function RollbackApproval({ lang: _lang, user }) {
       {tab === 'history' && (
         <div className="rb-history-wrap">
           {historyLoading && history.length === 0 && (
-            <div className="rb-loading">⏳ جارٍ تحميل السجل…</div>
+            <div className="rb-loading">{ar ? 'جارىن تحميل السجل…' : 'Loading history…'}</div>
           )}
 
           {!historyLoading && history.length === 0 && (
             <div className="rb-empty-history">
               <History size={40} color="#475569" />
-              <p>لا توجد عمليات تراجع مسجلة</p>
+              <p>{ar ? 'لا توجد عمليات تراجع مسجلة' : 'No rollback operations recorded'}</p>
             </div>
           )}
 
@@ -328,7 +341,7 @@ function RollbackApproval({ lang: _lang, user }) {
           {historyTotalPages > 1 && (
             <div className="rb-pagination" style={{ padding: '12px 16px' }}>
               <Pagination page={safeHistoryPage} totalPages={historyTotalPages}
-                total={history.length} pageSize={HISTORY_PAGE_SIZE} lang={_lang}
+                total={history.length} pageSize={HISTORY_PAGE_SIZE} lang={lang}
                 onPageChange={setHistoryPage} />
             </div>
           )}
@@ -395,13 +408,13 @@ function RollbackApproval({ lang: _lang, user }) {
         .rb-result-card.ok      { background:rgba(16,185,129,0.07); border-color:rgba(16,185,129,0.3); }
         .rb-result-card.blocked { background:rgba(239,68,68,0.07); border-color:rgba(239,68,68,0.3); }
         .rb-result-header { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
-        .rb-result-header > :last-child { margin-right:auto; }
+        .rb-result-header > :last-child { margin-inline-end:auto; }
         .rb-close-result { background:none; border:none; color:#94a3b8; cursor:pointer; font-size:16px; padding:0 4px; }
         .rb-close-result:hover { color:#fff; }
         .rb-blocked-reason { padding:11px 14px; background:rgba(239,68,68,0.1); border-radius:10px; font-size:0.86rem; color:#f87171; }
         .rb-preview { padding:12px 0; }
         .rb-preview-summary { font-weight:700; margin:0 0 10px; }
-        .rb-preview-changes  { padding-right:16px; margin:0; list-style:none; }
+        .rb-preview-changes  { padding-inline-end:16px; margin:0; list-style:none; }
         .rb-preview-changes li { padding:4px 0; font-size:0.86rem; color:#cbd5e1; position:relative; }
         .rb-preview-changes li::before { content:''; }
 
@@ -411,7 +424,7 @@ function RollbackApproval({ lang: _lang, user }) {
         .rb-empty-history p { margin:10px 0 0; }
         .rb-history-card  { padding:14px 16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:12px; }
         .rb-history-head  { display:flex; justify-content:space-between; align-items:center; margin-bottom:7px; }
-        .rb-history-action { font-weight:700; color:#f59e0b; font-size:0.88rem; }
+        .rb-history-action { font-weight:700; color:var(--warning); font-size:0.88rem; }
         .rb-history-date   { font-size:0.8rem; color:#64748b; }
         .rb-history-meta   { display:flex; gap:16px; font-size:0.82rem; color:#94a3b8; margin-bottom:5px; }
         .rb-history-reason { font-size:0.82rem; color:#cbd5e1; }
@@ -432,6 +445,17 @@ function RollbackApproval({ lang: _lang, user }) {
           .rb-entity-btn   { width:100%; }
         }
       `}</style>
+
+      <ConfirmModal
+        open={confirmModal.open}
+        title={ar ? 'تأكيد التراجع' : 'Confirm Rollback'}
+        message={confirmModal.message}
+        confirmText={ar ? 'نعم، تراجع' : 'Yes, Rollback'}
+        cancelText={ar ? 'إلغاء' : 'Cancel'}
+        danger
+        onConfirm={confirmExecute}
+        onCancel={() => setConfirmModal({ open: false, reason: '', message: '' })}
+      />
     </div>
   );
 }

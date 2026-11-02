@@ -1,6 +1,0 @@
-Msg 156, Level 15, State 1, Server LAPTOP-HAITHAM, Line 51
-Incorrect syntax near the keyword 'Schema'.
-Msg 156, Level 15, State 1, Server LAPTOP-HAITHAM, Line 53
-Incorrect syntax near the keyword 'Set'.
-Msg 156, Level 15, State 1, Server LAPTOP-HAITHAM, Line 53
-Incorrect syntax near the keyword 'SET'.

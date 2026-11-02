@@ -16,5 +16,6 @@ public record FuelTankDetailDto(
     double? MeterReading,
     double? MeterReadingActual,
     string? Notes,
+    bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt);

@@ -109,7 +109,7 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.Property<string>("EntityName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("IpAddress")
                         .HasColumnType("nvarchar(max)");
@@ -145,6 +145,9 @@ namespace FuelTrack.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EntityName")
+                        .HasDatabaseName("IX_AuditLog_EntityName");
 
                     b.HasIndex("Timestamp");
 
@@ -325,6 +328,7 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasIndex("GeneratorId")
                         .IsUnique()
+                        .HasDatabaseName("IX_Controller_GeneratorId")
                         .HasFilter("[GeneratorId] IS NOT NULL");
 
                     b.ToTable("Controllers");
@@ -416,6 +420,10 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.HasIndex("ReadingDate", "GeneratorId")
                         .HasDatabaseName("IX_DailyReading_Date_Generator");
 
+                    b.HasIndex("GeneratorId", "ReadingDate", "FuelLookupId")
+                        .HasDatabaseName("IX_DailyReadings_FuelConsumption")
+                        .HasFilter("[DeletedAt] IS NULL");
+
                     b.ToTable("DailyReadings");
                 });
 
@@ -472,6 +480,146 @@ namespace FuelTrack.Infrastructure.Migrations
                         .HasDatabaseName("IX_DailyReadingArchive_GeneratorId");
 
                     b.ToTable("DailyReadingArchives");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.DispatchRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ApprovalDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ApprovedById")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Purpose")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("RequestDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RequestNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("RequestedById")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StationId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StatusLookupId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SubStationId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("WorkPermitId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedById");
+
+                    b.HasIndex("RequestedById");
+
+                    b.HasIndex("StatusLookupId");
+
+                    b.HasIndex("WorkPermitId");
+
+                    b.HasIndex("StationId", "StatusLookupId")
+                        .HasDatabaseName("IX_DispatchRequest_Station_Status");
+
+                    b.HasIndex("SubStationId", "RequestDate")
+                        .HasDatabaseName("IX_DispatchRequest_SubStation_Date");
+
+                    b.ToTable("DispatchRequests");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.DispatchRequestItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal?>("ApprovedQuantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DispatchRequestId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("IssuedQuantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("RequestedQuantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("SparePartId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SparePartId1")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DispatchRequestId");
+
+                    b.HasIndex("SparePartId");
+
+                    b.HasIndex("SparePartId1");
+
+                    b.ToTable("DispatchRequestItems");
                 });
 
             modelBuilder.Entity("FuelTrack.Domain.Models.FuelTank", b =>
@@ -643,15 +791,6 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<int>("UpdatedBy")
                         .HasColumnType("int");
 
-                    b.Property<double?>("WarehouseQuantity")
-                        .HasColumnType("float");
-
-                    b.Property<DateTime?>("WarehouseReceiptDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("WarehouseReceiptNumber")
-                        .HasColumnType("nvarchar(max)");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ApprovedById");
@@ -670,6 +809,10 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasIndex("SubStationId", "TransactionDate")
                         .HasDatabaseName("IX_FuelTransaction_SubStation_Date");
+
+                    b.HasIndex("SubStationId", "FuelLookupId", "TransactionDate", "IsApproved")
+                        .HasDatabaseName("IX_FuelTransactions_StockSummary")
+                        .HasFilter("[DeletedAt] IS NULL");
 
                     b.ToTable("FuelTransactions");
                 });
@@ -768,7 +911,8 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasIndex("StatusLookupId");
 
-                    b.HasIndex("SubStationId");
+                    b.HasIndex("SubStationId")
+                        .HasDatabaseName("IX_Generator_SubStationId");
 
                     b.HasIndex("VoltageLookupId");
 
@@ -822,6 +966,88 @@ namespace FuelTrack.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("InsightFeedbacks");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.InstalledPart", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DispatchRequestItemId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EarlyReplacementReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<double?>("EstimatedReplacementAtHours")
+                        .HasColumnType("float");
+
+                    b.Property<int>("GeneratorId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("InstallationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("InstallationHours")
+                        .HasColumnType("float");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("RemovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double?>("RemovedAtHours")
+                        .HasColumnType("float");
+
+                    b.Property<int?>("ReplacementIntervalHours")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SparePartId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SparePartId1")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("WorkPermitId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DispatchRequestItemId");
+
+                    b.HasIndex("SparePartId");
+
+                    b.HasIndex("SparePartId1");
+
+                    b.HasIndex("WorkPermitId");
+
+                    b.HasIndex("GeneratorId", "IsActive")
+                        .HasDatabaseName("IX_InstalledPart_Generator_Active")
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.ToTable("InstalledParts");
                 });
 
             modelBuilder.Entity("FuelTrack.Domain.Models.LoginAttempt", b =>
@@ -1627,6 +1853,851 @@ namespace FuelTrack.Infrastructure.Migrations
                             SortOrder = 2,
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 55,
+                            CategoryId = 19,
+                            Code = "Draft",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "مسودة",
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 56,
+                            CategoryId = 19,
+                            Code = "Pending",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "معلق",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 57,
+                            CategoryId = 19,
+                            Code = "Submitted",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "مرسل",
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 58,
+                            CategoryId = 19,
+                            Code = "Approved",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "معتمد",
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 59,
+                            CategoryId = 19,
+                            Code = "Rejected",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "مرفوض",
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 200,
+                            CategoryId = 100,
+                            Code = "Purchase",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "توريد",
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 201,
+                            CategoryId = 100,
+                            Code = "Sale",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "صادر",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 202,
+                            CategoryId = 100,
+                            Code = "Transfer",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "نقل",
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 203,
+                            CategoryId = 100,
+                            Code = "TransferOut",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "نقل صادر",
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 204,
+                            CategoryId = 100,
+                            Code = "TransferIn",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "نقل وارد",
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 205,
+                            CategoryId = 100,
+                            Code = "Loss",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "فاقد",
+                            SortOrder = 6,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 206,
+                            CategoryId = 100,
+                            Code = "Consumption",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "استهلاك",
+                            SortOrder = 7,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 207,
+                            CategoryId = 100,
+                            Code = "Adjustment",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "تسوية",
+                            SortOrder = 8,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 60,
+                            CategoryId = 20,
+                            Code = "Mechanical",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "ميكانيكي",
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 61,
+                            CategoryId = 20,
+                            Code = "Electrical",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "كهربائي",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 62,
+                            CategoryId = 20,
+                            Code = "Electronic",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "إلكتروني",
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 63,
+                            CategoryId = 20,
+                            Code = "Instrumentation",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "أجهزة قياس",
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 64,
+                            CategoryId = 20,
+                            Code = "Workshop",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "ورشة",
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 65,
+                            CategoryId = 20,
+                            Code = "Other",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "أخرى",
+                            SortOrder = 6,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 66,
+                            CategoryId = 21,
+                            Code = "Piece",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "قطعة",
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 67,
+                            CategoryId = 21,
+                            Code = "Liter",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "لتر",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 68,
+                            CategoryId = 21,
+                            Code = "Kilogram",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "كيلوغرام",
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 69,
+                            CategoryId = 21,
+                            Code = "Meter",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "متر",
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 70,
+                            CategoryId = 21,
+                            Code = "Set",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "طقم",
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 71,
+                            CategoryId = 21,
+                            Code = "Pack",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "علبة",
+                            SortOrder = 6,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 72,
+                            CategoryId = 22,
+                            Code = "Routine",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "روتيني",
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 73,
+                            CategoryId = 22,
+                            Code = "Preventive",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "وقائي",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 74,
+                            CategoryId = 22,
+                            Code = "Scheduled",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "مبرمج",
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 75,
+                            CategoryId = 22,
+                            Code = "HalfLife",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "نصف عمرية",
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 76,
+                            CategoryId = 22,
+                            Code = "FullLife",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "عمرية",
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 77,
+                            CategoryId = 22,
+                            Code = "Inspection",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "تفقدية",
+                            SortOrder = 6,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 78,
+                            CategoryId = 22,
+                            Code = "Emergency",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "طارئة",
+                            SortOrder = 7,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 79,
+                            CategoryId = 23,
+                            Code = "All",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "الكل",
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 80,
+                            CategoryId = 23,
+                            Code = "Mechanical",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "ميكانيكي",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 81,
+                            CategoryId = 23,
+                            Code = "Electrical",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "كهربائي",
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 82,
+                            CategoryId = 23,
+                            Code = "Instrumentation",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "أجهزة",
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 83,
+                            CategoryId = 23,
+                            Code = "Workshop",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "ورشة",
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 84,
+                            CategoryId = 24,
+                            Code = "Critical",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "حرجة",
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 85,
+                            CategoryId = 24,
+                            Code = "Emergency",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "اضطراري",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 86,
+                            CategoryId = 24,
+                            Code = "Normal",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "عادية",
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 87,
+                            CategoryId = 24,
+                            Code = "Low",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "منخفضة",
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 88,
+                            CategoryId = 25,
+                            Code = "Draft",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "مسودة",
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 89,
+                            CategoryId = 25,
+                            Code = "Submitted",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "مقدم",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 90,
+                            CategoryId = 25,
+                            Code = "Active",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "نشط",
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 91,
+                            CategoryId = 25,
+                            Code = "Completed",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "مكتمل",
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 92,
+                            CategoryId = 25,
+                            Code = "Approved",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "معتمد",
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 93,
+                            CategoryId = 25,
+                            Code = "Rejected",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "مرفوض",
+                            SortOrder = 6,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 94,
+                            CategoryId = 25,
+                            Code = "Cancelled",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "ملغى",
+                            SortOrder = 7,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 95,
+                            CategoryId = 26,
+                            Code = "Pending",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "قيد الانتظار",
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 96,
+                            CategoryId = 26,
+                            Code = "Approved",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "معتمد",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 97,
+                            CategoryId = 26,
+                            Code = "PartialApproved",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "موافقة جزئية",
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 98,
+                            CategoryId = 26,
+                            Code = "Rejected",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "مرفوض",
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 99,
+                            CategoryId = 26,
+                            Code = "Issued",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "تم الصرف",
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 100,
+                            CategoryId = 26,
+                            Code = "Completed",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "مكتمل",
+                            SortOrder = 6,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 101,
+                            CategoryId = 27,
+                            Code = "Draft",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "مسودة",
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 102,
+                            CategoryId = 27,
+                            Code = "Completed",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "مكتمل",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 103,
+                            CategoryId = 28,
+                            Code = "Supply",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "توريد",
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 104,
+                            CategoryId = 28,
+                            Code = "Dispatch",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "صرف",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 105,
+                            CategoryId = 28,
+                            Code = "Return",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "إرجاع",
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 106,
+                            CategoryId = 28,
+                            Code = "Adjustment",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "تسوية",
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 107,
+                            CategoryId = 28,
+                            Code = "Transfer",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "نقل",
+                            SortOrder = 5,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 108,
+                            CategoryId = 29,
+                            Code = "Critical",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "حرجة",
+                            SortOrder = 1,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 109,
+                            CategoryId = 29,
+                            Code = "High",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "عالية",
+                            SortOrder = 2,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 110,
+                            CategoryId = 29,
+                            Code = "Medium",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "متوسطة",
+                            SortOrder = 3,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 111,
+                            CategoryId = 29,
+                            Code = "Low",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            IsActive = true,
+                            Name = "منخفضة",
+                            SortOrder = 4,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
                         });
                 });
 
@@ -1887,7 +2958,211 @@ namespace FuelTrack.Infrastructure.Migrations
                             Name = "ItemType",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 19,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            Description = "Reading status: Draft, Pending, Submitted, Approved, Rejected",
+                            DisplayName = "حالة الموقع",
+                            IsActive = true,
+                            Name = "ReadingStatus",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 100,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            Description = "Transaction types for fuel and oil movements",
+                            DisplayName = "انواع الحركات",
+                            IsActive = true,
+                            Name = "TransactionType",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 20,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            Description = "Spare part categories: Mechanical, Electrical, Electronic, Instrumentation, Workshop, Other",
+                            DisplayName = "فئة القطعة",
+                            IsActive = true,
+                            Name = "PartCategory",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 21,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            Description = "Spare part units: Piece, Liter, Kilogram, Meter, Set, Pack",
+                            DisplayName = "وحدة القطعة",
+                            IsActive = true,
+                            Name = "PartUnit",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 22,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            Description = "Maintenance types: Routine, Preventive, Scheduled, HalfLife, FullLife, Inspection, Emergency",
+                            DisplayName = "نوع الصيانة",
+                            IsActive = true,
+                            Name = "MaintenanceType",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 23,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            Description = "Maintenance departments: All, Mechanical, Electrical, Instrumentation, Workshop",
+                            DisplayName = "القسم المكلف",
+                            IsActive = true,
+                            Name = "MaintenanceDepartment",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 24,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            Description = "Maintenance priority: Critical, Emergency, Normal, Low",
+                            DisplayName = "أولوية الصيانة",
+                            IsActive = true,
+                            Name = "MaintenancePriority",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 25,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            Description = "Work permit status: Draft, Submitted, Active, Completed, Approved, Rejected, Cancelled",
+                            DisplayName = "حالة التصريح",
+                            IsActive = true,
+                            Name = "MaintenanceStatus",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 26,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            Description = "Dispatch request status: Pending, Approved, PartialApproved, Rejected, Issued, Completed",
+                            DisplayName = "حالة طلب الصرف",
+                            IsActive = true,
+                            Name = "DispatchStatus",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 27,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            Description = "Warehouse supply voucher status: Draft, Completed",
+                            DisplayName = "حالة سند التوريد",
+                            IsActive = true,
+                            Name = "WarehouseSupplyStatus",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 28,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            Description = "Warehouse transaction types: Supply, Dispatch, Return, Adjustment, Transfer",
+                            DisplayName = "نوع حركة المخزون",
+                            IsActive = true,
+                            Name = "WarehouseTransactionType",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
+                        },
+                        new
+                        {
+                            Id = 29,
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = 0,
+                            Description = "Replacement priority: Critical, High, Medium, Low",
+                            DisplayName = "أهمية الاستبدال",
+                            IsActive = true,
+                            Name = "ReplacementPriority",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UpdatedBy = 0
                         });
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.MaintenanceLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("GeneratorId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LogDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("LoggedById")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<double?>("RunningHoursAtLog")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WorkPermitId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GeneratorId");
+
+                    b.HasIndex("LoggedById");
+
+                    b.HasIndex("WorkPermitId", "LogDate")
+                        .HasDatabaseName("IX_MaintenanceLog_Permit_Date");
+
+                    b.ToTable("MaintenanceLogs");
                 });
 
             modelBuilder.Entity("FuelTrack.Domain.Models.Meter", b =>
@@ -1897,10 +3172,6 @@ namespace FuelTrack.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -1914,9 +3185,6 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<double?>("EnergyReading")
                         .HasColumnType("float");
 
-                    b.Property<int?>("FuelTankId")
-                        .HasColumnType("int");
-
                     b.Property<int?>("GeneratorId")
                         .HasColumnType("int");
 
@@ -1925,9 +3193,6 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
-
-                    b.Property<string>("MeterType")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("MeterTypeLookupId")
                         .HasColumnType("int");
@@ -1938,9 +3203,6 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.Property<string>("SerialNumber")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("StationId")
-                        .HasColumnType("int");
 
                     b.Property<int?>("SubStationId")
                         .HasColumnType("int");
@@ -1953,15 +3215,12 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FuelTankId");
-
                     b.HasIndex("GeneratorId");
 
                     b.HasIndex("MeterTypeLookupId");
 
-                    b.HasIndex("StationId");
-
-                    b.HasIndex("SubStationId");
+                    b.HasIndex("SubStationId")
+                        .HasDatabaseName("IX_Meter_SubStationId");
 
                     b.ToTable("Meters");
                 });
@@ -2194,9 +3453,11 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasIndex("OilLookupId");
 
-                    b.HasIndex("StationId");
+                    b.HasIndex("StationId")
+                        .HasDatabaseName("IX_Oil_StationId");
 
-                    b.HasIndex("SubStationId");
+                    b.HasIndex("SubStationId")
+                        .HasDatabaseName("IX_Oil_SubStationId");
 
                     b.ToTable("Oils");
                 });
@@ -2215,6 +3476,12 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<int?>("ApprovedById")
                         .HasColumnType("int");
 
+                    b.Property<int?>("CorrectedFromId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CorrectionReason")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -2227,21 +3494,6 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<int?>("DestinationSubStationId")
                         .HasColumnType("int");
 
-                    b.Property<string>("DriverIdCard")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("DriverName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("InvoiceDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("InvoiceNumber")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<double?>("InvoiceQuantity")
-                        .HasColumnType("float");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -2251,14 +3503,14 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("OilId")
-                        .HasColumnType("int");
-
                     b.Property<int>("OilLookupId")
                         .HasColumnType("int");
 
                     b.Property<double>("QuantityLiters")
                         .HasColumnType("float");
+
+                    b.Property<string>("Reference")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("SourceSubStationId")
                         .HasColumnType("int");
@@ -2275,31 +3527,17 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<int>("TransactionTypeLookupId")
                         .HasColumnType("int");
 
-                    b.Property<string>("TruckNumber")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("UpdatedBy")
                         .HasColumnType("int");
 
-                    b.Property<double?>("WarehouseQuantity")
-                        .HasColumnType("float");
-
-                    b.Property<DateTime?>("WarehouseReceiptDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("WarehouseReceiptNumber")
-                        .HasColumnType("nvarchar(max)");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ApprovedById");
 
                     b.HasIndex("DestinationSubStationId");
-
-                    b.HasIndex("OilId");
 
                     b.HasIndex("OilLookupId");
 
@@ -2311,6 +3549,10 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasIndex("SubStationId", "TransactionDate")
                         .HasDatabaseName("IX_OilTransaction_SubStation_Date");
+
+                    b.HasIndex("SubStationId", "OilLookupId", "TransactionDate", "IsApproved")
+                        .HasDatabaseName("IX_OilTransactions_StockSummary")
+                        .HasFilter("[DeletedAt] IS NULL");
 
                     b.ToTable("OilTransactions");
                 });
@@ -2414,6 +3656,10 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasIndex("PeriodTypeLookupId");
 
+                    b.HasIndex("SubStationId", "InventoryDate", "IsApproved")
+                        .HasDatabaseName("IX_PeriodicInventory_LastApproved")
+                        .HasFilter("[DeletedAt] IS NULL AND [IsApproved] = 1");
+
                     b.HasIndex("SubStationId", "PeriodTypeLookupId", "Year", "Month")
                         .HasDatabaseName("IX_PeriodicInventory_SubStation_Period");
 
@@ -2431,35 +3677,18 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<double>("ActualStockLiters")
                         .HasColumnType("float");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int>("FuelLookupId")
                         .HasColumnType("int");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
                     b.Property<int>("PeriodicInventoryId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("UpdatedBy")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
                     b.HasIndex("FuelLookupId");
 
-                    b.HasIndex("PeriodicInventoryId");
+                    b.HasIndex("PeriodicInventoryId", "FuelLookupId")
+                        .HasDatabaseName("IX_PeriodicInventoryFuel_Lookup");
 
                     b.ToTable("PeriodicInventoryFuels");
                 });
@@ -2475,18 +3704,6 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<double>("ActualStockLiters")
                         .HasColumnType("float");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
                     b.Property<int?>("OilId")
                         .HasColumnType("int");
 
@@ -2494,12 +3711,6 @@ namespace FuelTrack.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<int>("PeriodicInventoryId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("UpdatedBy")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
@@ -2564,6 +3775,9 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_RefreshToken_UserId");
 
                     b.ToTable("RefreshTokens");
                 });
@@ -2649,6 +3863,91 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.ToTable("RolePermissions");
                 });
 
+            modelBuilder.Entity("FuelTrack.Domain.Models.SparePart", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Barcode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsHoursTracked")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ManufacturerPartNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("MinStockQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NameEn")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("PartCategoryLookupId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PartNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("ReplacementIntervalHours")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ReplacementPriorityLookupId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UnitLookupId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PartCategoryLookupId");
+
+                    b.HasIndex("PartNumber")
+                        .IsUnique()
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.HasIndex("ReplacementPriorityLookupId");
+
+                    b.HasIndex("UnitLookupId");
+
+                    b.ToTable("SpareParts");
+                });
+
             modelBuilder.Entity("FuelTrack.Domain.Models.Station", b =>
                 {
                     b.Property<int>("Id")
@@ -2691,7 +3990,8 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BranchId");
+                    b.HasIndex("BranchId")
+                        .HasDatabaseName("IX_Station_BranchId");
 
                     b.ToTable("Stations");
                 });
@@ -2741,7 +4041,8 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("StationId");
+                    b.HasIndex("StationId")
+                        .HasDatabaseName("IX_SubStation_StationId");
 
                     b.ToTable("SubStations");
                 });
@@ -2960,6 +4261,420 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.ToTable("UserScopes");
                 });
 
+            modelBuilder.Entity("FuelTrack.Domain.Models.WarehouseStock", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("CurrentQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("ReservedQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<int>("SparePartId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StationId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StationId");
+
+                    b.HasIndex("SparePartId", "StationId")
+                        .IsUnique()
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.ToTable("WarehouseStocks");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.WarehouseSupply", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("InvoiceDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InvoiceNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("StationId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StatusLookupId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SupplierName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("SupplyDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SupplyNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("TotalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StatusLookupId");
+
+                    b.HasIndex("StationId", "SupplyDate")
+                        .HasDatabaseName("IX_WarehouseSupply_Station_Date");
+
+                    b.ToTable("WarehouseSupplies");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.WarehouseSupplyItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("SerialNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SparePartId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SparePartId1")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalPrice")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WarehouseSupplyId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SparePartId");
+
+                    b.HasIndex("SparePartId1");
+
+                    b.HasIndex("WarehouseSupplyId");
+
+                    b.ToTable("WarehouseSupplyItems");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.WarehouseTransaction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("BalanceAfter")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("BalanceBefore")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<int?>("ReferenceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReferenceType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SparePartId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StationId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("TransactionDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("TransactionTypeLookupId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SparePartId");
+
+                    b.HasIndex("StationId");
+
+                    b.HasIndex("TransactionTypeLookupId");
+
+                    b.ToTable("WarehouseTransactions");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.WorkPermit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ActualEndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ActualStartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ApprovedById")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("AssignedToId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CompletionNotes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DepartmentLookupId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("GeneratorId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("MaintenanceTypeLookupId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("PermitDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PermitNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("PlannedEndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("PlannedStartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PriorityLookupId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProblemCause")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProblemDescription")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("RequestedById")
+                        .HasColumnType("int");
+
+                    b.Property<double?>("RunningHoursAtCreation")
+                        .HasColumnType("float");
+
+                    b.Property<int>("StatusLookupId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SubStationId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedById");
+
+                    b.HasIndex("AssignedToId");
+
+                    b.HasIndex("DepartmentLookupId");
+
+                    b.HasIndex("GeneratorId");
+
+                    b.HasIndex("MaintenanceTypeLookupId");
+
+                    b.HasIndex("PriorityLookupId");
+
+                    b.HasIndex("RequestedById");
+
+                    b.HasIndex("StatusLookupId", "PriorityLookupId")
+                        .HasDatabaseName("IX_WorkPermit_Status_Priority");
+
+                    b.HasIndex("SubStationId", "PermitDate")
+                        .HasDatabaseName("IX_WorkPermit_SubStation_Date");
+
+                    b.ToTable("WorkPermits");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.WorkTask", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CompletedById")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TaskDescription")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WorkPermitId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompletedById");
+
+                    b.HasIndex("WorkPermitId");
+
+                    b.ToTable("WorkTasks");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<int>", b =>
                 {
                     b.Property<int>("Id")
@@ -3115,6 +4830,78 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Navigation("ReadingStatusLookup");
                 });
 
+            modelBuilder.Entity("FuelTrack.Domain.Models.DispatchRequest", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.User", "ApprovedBy")
+                        .WithMany()
+                        .HasForeignKey("ApprovedById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FuelTrack.Domain.Models.User", "RequestedBy")
+                        .WithMany()
+                        .HasForeignKey("RequestedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.Station", "Station")
+                        .WithMany()
+                        .HasForeignKey("StationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.Lookup", "StatusLookup")
+                        .WithMany()
+                        .HasForeignKey("StatusLookupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.SubStation", "SubStation")
+                        .WithMany()
+                        .HasForeignKey("SubStationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.WorkPermit", "WorkPermit")
+                        .WithMany("DispatchRequests")
+                        .HasForeignKey("WorkPermitId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ApprovedBy");
+
+                    b.Navigation("RequestedBy");
+
+                    b.Navigation("Station");
+
+                    b.Navigation("StatusLookup");
+
+                    b.Navigation("SubStation");
+
+                    b.Navigation("WorkPermit");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.DispatchRequestItem", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.DispatchRequest", "DispatchRequest")
+                        .WithMany("Items")
+                        .HasForeignKey("DispatchRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.SparePart", "SparePart")
+                        .WithMany()
+                        .HasForeignKey("SparePartId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.SparePart", null)
+                        .WithMany("DispatchItems")
+                        .HasForeignKey("SparePartId1");
+
+                    b.Navigation("DispatchRequest");
+
+                    b.Navigation("SparePart");
+                });
+
             modelBuilder.Entity("FuelTrack.Domain.Models.FuelTank", b =>
                 {
                     b.HasOne("FuelTrack.Domain.Models.Lookup", "FuelLookup")
@@ -3245,6 +5032,43 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Navigation("AnalyticsInsight");
                 });
 
+            modelBuilder.Entity("FuelTrack.Domain.Models.InstalledPart", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.DispatchRequestItem", "DispatchRequestItem")
+                        .WithMany("InstalledParts")
+                        .HasForeignKey("DispatchRequestItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FuelTrack.Domain.Models.Generator", "Generator")
+                        .WithMany()
+                        .HasForeignKey("GeneratorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.SparePart", "SparePart")
+                        .WithMany()
+                        .HasForeignKey("SparePartId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.SparePart", null)
+                        .WithMany("InstalledParts")
+                        .HasForeignKey("SparePartId1");
+
+                    b.HasOne("FuelTrack.Domain.Models.WorkPermit", "WorkPermit")
+                        .WithMany("InstalledParts")
+                        .HasForeignKey("WorkPermitId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("DispatchRequestItem");
+
+                    b.Navigation("Generator");
+
+                    b.Navigation("SparePart");
+
+                    b.Navigation("WorkPermit");
+                });
+
             modelBuilder.Entity("FuelTrack.Domain.Models.Lookup", b =>
                 {
                     b.HasOne("FuelTrack.Domain.Models.LookupCategory", "Category")
@@ -3256,13 +5080,34 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Navigation("Category");
                 });
 
-            modelBuilder.Entity("FuelTrack.Domain.Models.Meter", b =>
+            modelBuilder.Entity("FuelTrack.Domain.Models.MaintenanceLog", b =>
                 {
-                    b.HasOne("FuelTrack.Domain.Models.FuelTank", "FuelTank")
+                    b.HasOne("FuelTrack.Domain.Models.Generator", "Generator")
                         .WithMany()
-                        .HasForeignKey("FuelTankId")
+                        .HasForeignKey("GeneratorId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("FuelTrack.Domain.Models.User", "LoggedBy")
+                        .WithMany()
+                        .HasForeignKey("LoggedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.WorkPermit", "WorkPermit")
+                        .WithMany("Logs")
+                        .HasForeignKey("WorkPermitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Generator");
+
+                    b.Navigation("LoggedBy");
+
+                    b.Navigation("WorkPermit");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.Meter", b =>
+                {
                     b.HasOne("FuelTrack.Domain.Models.Generator", "Generator")
                         .WithMany()
                         .HasForeignKey("GeneratorId")
@@ -3272,22 +5117,14 @@ namespace FuelTrack.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("MeterTypeLookupId");
 
-                    b.HasOne("FuelTrack.Domain.Models.Station", "Station")
-                        .WithMany()
-                        .HasForeignKey("StationId");
-
                     b.HasOne("FuelTrack.Domain.Models.SubStation", "SubStation")
                         .WithMany("Meters")
                         .HasForeignKey("SubStationId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("FuelTank");
-
                     b.Navigation("Generator");
 
                     b.Navigation("MeterTypeLookup");
-
-                    b.Navigation("Station");
 
                     b.Navigation("SubStation");
                 });
@@ -3365,12 +5202,8 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasOne("FuelTrack.Domain.Models.SubStation", "DestinationSubStation")
                         .WithMany()
-                        .HasForeignKey("DestinationSubStationId");
-
-                    b.HasOne("FuelTrack.Domain.Models.Oil", "Oil")
-                        .WithMany()
-                        .HasForeignKey("OilId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("DestinationSubStationId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("FuelTrack.Domain.Models.Lookup", "OilLookup")
                         .WithMany()
@@ -3380,7 +5213,8 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasOne("FuelTrack.Domain.Models.SubStation", "SourceSubStation")
                         .WithMany()
-                        .HasForeignKey("SourceSubStationId");
+                        .HasForeignKey("SourceSubStationId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("FuelTrack.Domain.Models.SubStation", "SubStation")
                         .WithMany()
@@ -3397,8 +5231,6 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Navigation("ApprovedBy");
 
                     b.Navigation("DestinationSubStation");
-
-                    b.Navigation("Oil");
 
                     b.Navigation("OilLookup");
 
@@ -3510,6 +5342,32 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("FuelTrack.Domain.Models.SparePart", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.Lookup", "PartCategoryLookup")
+                        .WithMany()
+                        .HasForeignKey("PartCategoryLookupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.Lookup", "ReplacementPriorityLookup")
+                        .WithMany()
+                        .HasForeignKey("ReplacementPriorityLookupId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FuelTrack.Domain.Models.Lookup", "UnitLookup")
+                        .WithMany()
+                        .HasForeignKey("UnitLookupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PartCategoryLookup");
+
+                    b.Navigation("ReplacementPriorityLookup");
+
+                    b.Navigation("UnitLookup");
+                });
+
             modelBuilder.Entity("FuelTrack.Domain.Models.Station", b =>
                 {
                     b.HasOne("FuelTrack.Domain.Models.Branch", "Branch")
@@ -3590,6 +5448,184 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("FuelTrack.Domain.Models.WarehouseStock", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.SparePart", "SparePart")
+                        .WithMany("Stocks")
+                        .HasForeignKey("SparePartId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.Station", "Station")
+                        .WithMany()
+                        .HasForeignKey("StationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SparePart");
+
+                    b.Navigation("Station");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.WarehouseSupply", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.Station", "Station")
+                        .WithMany()
+                        .HasForeignKey("StationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.Lookup", "StatusLookup")
+                        .WithMany()
+                        .HasForeignKey("StatusLookupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Station");
+
+                    b.Navigation("StatusLookup");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.WarehouseSupplyItem", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.SparePart", "SparePart")
+                        .WithMany()
+                        .HasForeignKey("SparePartId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.SparePart", null)
+                        .WithMany("SupplyItems")
+                        .HasForeignKey("SparePartId1");
+
+                    b.HasOne("FuelTrack.Domain.Models.WarehouseSupply", "WarehouseSupply")
+                        .WithMany("Items")
+                        .HasForeignKey("WarehouseSupplyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SparePart");
+
+                    b.Navigation("WarehouseSupply");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.WarehouseTransaction", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.SparePart", "SparePart")
+                        .WithMany()
+                        .HasForeignKey("SparePartId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.Station", "Station")
+                        .WithMany()
+                        .HasForeignKey("StationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.Lookup", "TransactionTypeLookup")
+                        .WithMany()
+                        .HasForeignKey("TransactionTypeLookupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SparePart");
+
+                    b.Navigation("Station");
+
+                    b.Navigation("TransactionTypeLookup");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.WorkPermit", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.User", "ApprovedBy")
+                        .WithMany()
+                        .HasForeignKey("ApprovedById")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("FuelTrack.Domain.Models.User", "AssignedTo")
+                        .WithMany()
+                        .HasForeignKey("AssignedToId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("FuelTrack.Domain.Models.Lookup", "DepartmentLookup")
+                        .WithMany()
+                        .HasForeignKey("DepartmentLookupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.Generator", "Generator")
+                        .WithMany()
+                        .HasForeignKey("GeneratorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FuelTrack.Domain.Models.Lookup", "MaintenanceTypeLookup")
+                        .WithMany()
+                        .HasForeignKey("MaintenanceTypeLookupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.Lookup", "PriorityLookup")
+                        .WithMany()
+                        .HasForeignKey("PriorityLookupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.User", "RequestedBy")
+                        .WithMany()
+                        .HasForeignKey("RequestedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.Lookup", "StatusLookup")
+                        .WithMany()
+                        .HasForeignKey("StatusLookupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FuelTrack.Domain.Models.SubStation", "SubStation")
+                        .WithMany()
+                        .HasForeignKey("SubStationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ApprovedBy");
+
+                    b.Navigation("AssignedTo");
+
+                    b.Navigation("DepartmentLookup");
+
+                    b.Navigation("Generator");
+
+                    b.Navigation("MaintenanceTypeLookup");
+
+                    b.Navigation("PriorityLookup");
+
+                    b.Navigation("RequestedBy");
+
+                    b.Navigation("StatusLookup");
+
+                    b.Navigation("SubStation");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.WorkTask", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.User", "CompletedBy")
+                        .WithMany()
+                        .HasForeignKey("CompletedById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FuelTrack.Domain.Models.WorkPermit", "WorkPermit")
+                        .WithMany("Tasks")
+                        .HasForeignKey("WorkPermitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CompletedBy");
+
+                    b.Navigation("WorkPermit");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<int>", b =>
                 {
                     b.HasOne("FuelTrack.Domain.Models.Role", null)
@@ -3651,6 +5687,16 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Navigation("Stations");
                 });
 
+            modelBuilder.Entity("FuelTrack.Domain.Models.DispatchRequest", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.DispatchRequestItem", b =>
+                {
+                    b.Navigation("InstalledParts");
+                });
+
             modelBuilder.Entity("FuelTrack.Domain.Models.Generator", b =>
                 {
                     b.Navigation("Controller");
@@ -3682,6 +5728,17 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Navigation("OilReadings");
                 });
 
+            modelBuilder.Entity("FuelTrack.Domain.Models.SparePart", b =>
+                {
+                    b.Navigation("DispatchItems");
+
+                    b.Navigation("InstalledParts");
+
+                    b.Navigation("Stocks");
+
+                    b.Navigation("SupplyItems");
+                });
+
             modelBuilder.Entity("FuelTrack.Domain.Models.Station", b =>
                 {
                     b.Navigation("SubStations");
@@ -3701,6 +5758,22 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Navigation("Notifications");
 
                     b.Navigation("Scopes");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.WarehouseSupply", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.WorkPermit", b =>
+                {
+                    b.Navigation("DispatchRequests");
+
+                    b.Navigation("InstalledParts");
+
+                    b.Navigation("Logs");
+
+                    b.Navigation("Tasks");
                 });
 #pragma warning restore 612, 618
         }

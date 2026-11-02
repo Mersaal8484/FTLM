@@ -58,17 +58,24 @@ public class SubStationReadingApiTests : IntegrationTestBase
         var pending = await context.Lookups.FirstOrDefaultAsync(l => l.CategoryId == statusCat.Id && l.Code == "Pending");
         if (pending == null)
         {
-            pending = new Lookup { CategoryId = statusCat.Id, Name = "Pending", Code = "Pending", IsActive = true, CreatedAt = DateTime.UtcNow, CreatedBy = 1, UpdatedAt = DateTime.UtcNow, UpdatedBy = 1 };
+            pending = new Lookup { CategoryId = statusCat.Id, Category = statusCat, Name = "Pending", Code = "Pending", IsActive = true, CreatedAt = DateTime.UtcNow, CreatedBy = 1, UpdatedAt = DateTime.UtcNow, UpdatedBy = 1 };
             context.Lookups.Add(pending);
+            await context.SaveChangesAsync();
+        }
+        var approved = await context.Lookups.FirstOrDefaultAsync(l => l.CategoryId == statusCat.Id && l.Code == "Approved");
+        if (approved == null)
+        {
+            approved = new Lookup { CategoryId = statusCat.Id, Category = statusCat, Name = "Approved", Code = "Approved", IsActive = true, CreatedAt = DateTime.UtcNow, CreatedBy = 1, UpdatedAt = DateTime.UtcNow, UpdatedBy = 1 };
+            context.Lookups.Add(approved);
             await context.SaveChangesAsync();
         }
 
         // Grid (exported-energy) meter for Site A with an initial energy reading.
         int meterId;
-        var meter = await context.Meters.FirstOrDefaultAsync(m => m.SubStationId == subStationId && m.MeterType == "عداد الطاقة المرسلة");
+        var meter = await context.Meters.FirstOrDefaultAsync(m => m.SubStationId == subStationId && m.MeterTypeLookupId == 17);
         if (meter == null)
         {
-            meter = new Meter { SubStationId = subStationId, StationId = stationId, Name = "Grid Meter A", MeterType = "عداد الطاقة المرسلة", EnergyReading = 500, IsActive = true, CreatedAt = DateTime.UtcNow, CreatedBy = 1, UpdatedAt = DateTime.UtcNow, UpdatedBy = 1 };
+            meter = new Meter { SubStationId = subStationId, Name = "Grid Meter A", MeterTypeLookupId = 17, EnergyReading = 500, IsActive = true, CreatedAt = DateTime.UtcNow, CreatedBy = 1, UpdatedAt = DateTime.UtcNow, UpdatedBy = 1 };
             context.Meters.Add(meter);
             await context.SaveChangesAsync();
         }
@@ -76,10 +83,10 @@ public class SubStationReadingApiTests : IntegrationTestBase
 
         // Grid meter for Site B (no reading recorded yet -> previous should fall back to meter).
         int otherMeterId;
-        var otherMeter = await context.Meters.FirstOrDefaultAsync(m => m.SubStationId == otherSubStationId && m.MeterType == "عداد الطاقة المرسلة");
+        var otherMeter = await context.Meters.FirstOrDefaultAsync(m => m.SubStationId == otherSubStationId && m.MeterTypeLookupId == 17);
         if (otherMeter == null)
         {
-            otherMeter = new Meter { SubStationId = otherSubStationId, StationId = stationId, Name = "Grid Meter B", MeterType = "عداد الطاقة المرسلة", EnergyReading = 777, IsActive = true, CreatedAt = DateTime.UtcNow, CreatedBy = 1, UpdatedAt = DateTime.UtcNow, UpdatedBy = 1 };
+            otherMeter = new Meter { SubStationId = otherSubStationId, Name = "Grid Meter B", MeterTypeLookupId = 17, EnergyReading = 777, IsActive = true, CreatedAt = DateTime.UtcNow, CreatedBy = 1, UpdatedAt = DateTime.UtcNow, UpdatedBy = 1 };
             context.Meters.Add(otherMeter);
             await context.SaveChangesAsync();
         }
@@ -96,7 +103,7 @@ public class SubStationReadingApiTests : IntegrationTestBase
                 PrevExportedEnergyKWh = 0,
                 CurrentExportedEnergyKWh = 200,
                 InternalConsumption = 10,
-                ReadingStatusLookupId = pending.Id,
+                ReadingStatusLookupId = approved.Id,
                 CreatedAt = DateTime.UtcNow.AddDays(-1),
                 CreatedBy = 1,
                 UpdatedAt = DateTime.UtcNow.AddDays(-1),
@@ -149,6 +156,12 @@ public class SubStationReadingApiTests : IntegrationTestBase
             notes = "test"
         });
         Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        var created = await createResponse.Content.ReadFromJsonAsync<SubStationReadingDto>();
+        Assert.NotNull(created);
+
+        var approveResponse = await client.PostAsync($"/api/substation-readings/{created!.Id}/approve", null);
+        Assert.Equal(HttpStatusCode.NoContent, approveResponse.StatusCode);
 
         var last = await client.GetAsync($"/api/substation-readings/last/{stationId}?subStation={subStationId}");
         var reading = await last.Content.ReadFromJsonAsync<SubStationReadingDto>();

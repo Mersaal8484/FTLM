@@ -1,3 +1,9 @@
+import { vi } from 'vitest';
+
+vi.mock('../socket', () => ({
+  default: { on: vi.fn(), off: vi.fn() },
+}));
+
 import { getNotificationId } from './Notifications';
 
 describe('Notifications helpers', () => {

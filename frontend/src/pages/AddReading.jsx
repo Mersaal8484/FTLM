@@ -1,17 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import client from '../api/client';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Zap, ChevronLeft, ArrowRight, Save, AlertCircle, CheckCircle,
-  Clock, Activity, Droplet, Layout,
+  Zap, ChevronLeft, Save, AlertCircle, CheckCircle,
+  Clock, Activity, Droplet, Layout, RefreshCw
 } from 'lucide-react';
+import client from '../api/client';
+import { PageHeader, Button, FormField, Input } from '../components/ui';
 
 function AddReading({ lang, currentUser }) {
   const ar = lang === 'ar';
-  // Date/shift fields are editable by all roles — the report build date
-  // always follows the value the user enters here (readingDate), never
-  // the approval timestamp. See backend/routes/reports.js for the
-  // corresponding fix that consumes this field correctly.
   const canEditSchedule = true;
   const getCurrentShiftType = () => {
     const hour = new Date().getHours();
@@ -30,7 +27,7 @@ function AddReading({ lang, currentUser }) {
   const [oils, setOils] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState(null); // {type, msg}
+  const [status, setStatus] = useState(null);
 
   const [form, setForm] = useState({
     readingDate: new Date().toISOString().slice(0, 16),
@@ -40,7 +37,6 @@ function AddReading({ lang, currentUser }) {
     currentRunningHours: '',
     maxLoadKw: '',
     minLoadKw: '',
-
     oilTypeUsed: '',
     oilAddedLiters: '',
     notes: '',
@@ -50,8 +46,6 @@ function AddReading({ lang, currentUser }) {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // ✅ جلب بيانات المولد وآخر قراءة بالتوازي
-        // last-reading يجلب من: القراءات المعتمدة → الشاشة → المولد (بهذا الترتيب)
         const [genRes, lastRes] = await Promise.all([
           client.get(`/api/generators/my/${generatorId}`),
           client.get(`/api/generators/my/${generatorId}/last-reading`),
@@ -60,12 +54,10 @@ function AddReading({ lang, currentUser }) {
         setGenerator(gen);
         setLastReading(lastRes.data);
 
-        // ✅ جلب زيوت موقع المولد فقط
         const stationId = gen?.stationId;
         const oilsRes = await client.get('/api/oils', { params: stationId ? { stationId } : {} });
         setOils(oilsRes.data || []);
 
-        // ✅ جلب شاشة التحكم النشطة المرتبطة بالمولد (المرتبطة عبر GeneratorId)
         try {
           const controllersRes = await client.get('/api/controllers');
           const active = (controllersRes.data || []).find(c => c.generatorId === gen.id);
@@ -74,7 +66,6 @@ function AddReading({ lang, currentUser }) {
           setController(null);
         }
 
-        // تعبئة نوع الزيت تلقائياً إذا كان هناك زيوت مخصصة
         if (gen?.assignedOilTypes?.length > 0) {
           setForm(f => ({ ...f, oilTypeUsed: gen.assignedOilTypes[0].id }));
         }
@@ -97,16 +88,12 @@ function AddReading({ lang, currentUser }) {
 
   const hasController = !!controller;
 
-  // حساب مسبق للعرض
-  //last-reading يرجع currentEnergyKWh/currentRunningHours من أي مصدر (قراءة أو شاشة أو مولد)
-  //في حال عدم وجود شاشة تحكم يتم تصفير القراءات السابقة
   const prevPower = hasController
     ? (lastReading?.currentEnergyKWh ?? generator?.lastPowerRecord ?? 0)
     : 0;
   const prevHours = hasController
     ? (lastReading?.currentRunningHours ?? generator?.lastHoursRecord ?? 0)
     : 0;
-
 
   const calcEnergy = form.currentEnergyKWh
     ? Math.max(0, parseFloat(form.currentEnergyKWh) - prevPower).toFixed(3)
@@ -117,11 +104,9 @@ function AddReading({ lang, currentUser }) {
 
   const consumptionRate = generator?.fuelConsumptionRatePerHour || generator?.fuelConsumption || 0;
 
-  // ✅ الصحيح: معدل الاستهلاك (لتر/kWh) × الطاقة المنتجة (kWh)
   const calcFuel = calcEnergy !== '—'
     ? (parseFloat(calcEnergy) * consumptionRate).toFixed(3)
     : '—';
-
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -153,12 +138,13 @@ function AddReading({ lang, currentUser }) {
   };
 
   const labelStyle = { display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' };
+
   const prevBox = (label, value, unit = '') => (
-    <div style={{ background: 'var(--card-2)', borderRadius: 8, padding: '10px 14px', marginBottom: 12 }}>
+    <div className="glass-card" style={{ padding: '10px 14px', marginBottom: 12, background: 'var(--card-2)' }}>
       <div style={{ ...labelStyle, marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-faint)' }}>
         {value !== null && value !== undefined ? value.toLocaleString() : '—'}
-        {unit && <span style={{ fontSize: 12, fontWeight: 400, marginRight: 4 }}>{unit}</span>}
+        {unit && <span style={{ fontSize: 12, fontWeight: 400, marginInlineStart: 4 }}>{unit}</span>}
       </div>
       <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 2 }}>
         {ar ? '(القراءة السابقة — للمشاهدة فقط)' : '(Previous reading — read only)'}
@@ -167,11 +153,11 @@ function AddReading({ lang, currentUser }) {
   );
 
   const calcBox = (label, value, unit, color = 'var(--primary)') => (
-    <div style={{ background: 'var(--card-2)', borderRadius: 8, padding: '10px 14px' }}>
+    <div className="glass-card" style={{ padding: '10px 14px', background: 'var(--card-2)' }}>
       <div style={{ ...labelStyle, marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, color }}>
         {value}
-        {value !== '—' && <span style={{ fontSize: 12, fontWeight: 400, marginRight: 4, color: 'var(--text-muted)' }}>{unit}</span>}
+        {value !== '—' && <span style={{ fontSize: 12, fontWeight: 400, marginInlineStart: 4, color: 'var(--text-muted)' }}>{unit}</span>}
       </div>
     </div>
   );
@@ -180,27 +166,24 @@ function AddReading({ lang, currentUser }) {
 
   return (
     <div>
-      {/* Breadcrumb + Header */}
-      <div className="page-header">
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <button className="btn btn-ghost btn-sm btn-icon" onClick={() => navigate('/my-generators')}>
-              <ChevronLeft size={16} style={{ transform: ar ? 'rotate(180deg)' : 'none' }} />
-            </button>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{ar ? 'مولداتي' : 'My Generators'}</span>
-            <ArrowRight size={12} style={{ color: 'var(--text-faint)', transform: ar ? 'rotate(180deg)' : 'none' }} />
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{generator?.name}</span>
-          </div>
-          <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <PageHeader
+        title={
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Button variant="ghost" size="sm" icon={ChevronLeft} onClick={() => navigate('/my-generators')} style={{ transform: ar ? 'rotate(180deg)' : 'none' }} />
             <Activity size={22} style={{ color: 'var(--primary)' }} />
             {ar ? 'إدخال قراءة جديدة' : 'New Reading Entry'}
-          </h1>
-          <p>
+          </span>
+        }
+        subtitle={
+          <span>
             <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{generator?.name}</span>
-            <span style={{ color: 'var(--text-muted)' }}> —             {generator?.stationName}</span>
-          </p>
-        </div>
-      </div>
+            <span style={{ color: 'var(--text-muted)' }}> — {generator?.stationName}</span>
+          </span>
+        }
+        actions={
+          <Button variant="ghost" size="sm" icon={RefreshCw} onClick={() => navigate('/my-generators')} />
+        }
+      />
 
       {status && (
         <div className={`alert ${status.type === 'success' ? 'alert-success' : 'alert-danger'}`}
@@ -217,20 +200,19 @@ function AddReading({ lang, currentUser }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* ── لوحة المحطة/الموقع المرتبط بالمولد ── */}
-            <div className="glass-card" style={{ border: '1px solid var(--border-light)' }}>
-              <div className="glass-card-header">
-                <div className="glass-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="section-card" style={{ border: '1px solid var(--border-light)' }}>
+              <div className="section-card-header">
+                <div className="section-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Layout size={16} style={{ color: 'var(--primary)' }} />
                   {ar ? 'المحطة/الموقع المرتبط' : 'Linked Station / Site'}
                 </div>
               </div>
-              <div className="glass-card-body">
+              <div className="section-card-body">
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
                   <span style={{ fontWeight: 700 }}>{generator?.subStationName}</span>
                   {generator?.stationName ? <span> — {generator.stationName}</span> : null}
                 </div>
 
-                {/* شاشة التحكم النشطة المرتبطة بالمولد */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '8px 12px', borderRadius: 8, background: controller ? 'var(--card-2)' : 'rgba(220,53,69,0.1)', border: controller ? '1px solid var(--border-light)' : '1px solid var(--danger)' }}>
                   <Layout size={14} style={{ color: controller ? 'var(--primary)' : 'var(--danger)' }} />
                   <div>
@@ -241,13 +223,7 @@ function AddReading({ lang, currentUser }) {
                   </div>
                 </div>
                 {!hasController && (
-                  <div style={{
-                    background: 'rgba(220,53,69,0.1)',
-                    border: '1px solid var(--danger)',
-                    borderRadius: 8,
-                    padding: '12px 16px',
-                    marginBottom: 12,
-                  }}>
+                  <div className="glass-card" style={{ marginBottom: 12, borderColor: 'var(--danger)', padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                       <AlertCircle size={16} style={{ color: 'var(--danger)' }} />
                       <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger)' }}>
@@ -263,72 +239,45 @@ function AddReading({ lang, currentUser }) {
                 )}
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div style={{ background: 'var(--card-2)', borderRadius: 8, padding: '10px 14px' }}>
+                  <div className="glass-card" style={{ padding: '10px 14px', background: 'var(--card-2)' }}>
                     <div style={{ ...labelStyle, marginBottom: 4 }}>{ar ? 'نوع الوقود المستخدم' : 'Fuel Type Used'}</div>
                     <div style={{ fontSize: 16, fontWeight: 700 }}>
                       {generator?.fuelLookupName || '—'}
                     </div>
                   </div>
                 </div>
-
-                {/* الزيوت المربوطة بالموقع */}
-                <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-                  <div style={{ ...labelStyle, marginBottom: 6 }}>{ar ? 'الزيوت المربوطة بالموقع' : 'Site-Linked Oils'}</div>
-                  {oils.length === 0 ? (
-                    <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>{ar ? 'لا يوجد زيت مرتبط' : 'No linked oils'}</div>
-                  ) : (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {oils.map(o => (
-                        <span key={o.id} className="badge badge-muted" style={{ fontSize: 12 }}>
-                          <Droplet size={12} style={{ marginLeft: 4 }} />
-                          {o.name}: {o.currentStock} {ar ? 'لتر' : 'L'}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
 
             {/* الوردية */}
-            <div className="glass-card">
-              <div className="glass-card-header">
-                <div className="glass-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="section-card">
+              <div className="section-card-header">
+                <div className="section-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Clock size={16} style={{ color: 'var(--primary)' }} />
                   {ar ? 'التاريخ والوردية' : 'Date & Shift'}
                 </div>
-                {!canEditSchedule && (
-                  <span className="badge badge-muted">{ar ? 'تلقائي' : 'Auto'}</span>
-                )}
               </div>
-              <div className="glass-card-body">
+              <div className="section-card-body">
                 <div className="form-row">
-                  <div className="form-group">
-                    <label style={labelStyle}>{ar ? 'التاريخ والوقت *' : 'Date & Time *'}</label>
-                    <input className="form-control" type="datetime-local"
-                      value={form.readingDate} onChange={e => fld('readingDate', e.target.value)}
-                      disabled={!canEditSchedule} required />
-                  </div>
-                  <div className="form-group">
-                    <label style={labelStyle}>{ar ? 'مدة الوردية' : 'Shift Duration'}</label>
+                  <FormField label={ar ? 'التاريخ والوقت *' : 'Date & Time *'}>
+                    <Input type="datetime-local" value={form.readingDate} onChange={e => fld('readingDate', e.target.value)} disabled={!canEditSchedule} required />
+                  </FormField>
+                  <FormField label={ar ? 'مدة الوردية' : 'Shift Duration'}>
                     <select className="form-select" value={form.shiftDuration} onChange={e => fld('shiftDuration', e.target.value)}
                       disabled={!canEditSchedule}>
                       <option value={6}>{ar ? '6 ساعات' : '6 Hours'}</option>
                       <option value={12}>{ar ? '12 ساعة' : '12 Hours'}</option>
                       <option value={24}>{ar ? '24 ساعة' : '24 Hours'}</option>
                     </select>
-                  </div>
+                  </FormField>
                 </div>
-                <div className="form-group" style={{ margin: 0 }}>
+                <div className="form-group" style={{ marginTop: 8 }}>
                   <label style={labelStyle}>{ar ? 'نوع الوردية' : 'Shift Type'}</label>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {[['day', ar ? '☀️ صباحية' : '☀️ Day'], ['night', ar ? '🌙 مسائية' : '🌙 Night'], ['full', ar ? '🔄 كاملة 24h' : '🔄 Full 24h']].map(([v, l]) => (
-                      <button key={v} type="button" onClick={() => fld('shiftType', v)}
-                        disabled={!canEditSchedule}
-                        className={`btn btn-sm ${form.shiftType === v ? 'btn-primary' : 'btn-ghost'}`}
-                        style={{ flex: 1, cursor: canEditSchedule ? 'pointer' : 'not-allowed' }}>
+                      <Button key={v} variant={form.shiftType === v ? 'primary' : 'ghost'} size="sm" onClick={() => fld('shiftType', v)} disabled={!canEditSchedule} style={{ flex: 1 }}>
                         {l}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
@@ -336,96 +285,78 @@ function AddReading({ lang, currentUser }) {
             </div>
 
             {/* عداد الطاقة */}
-            <div className="glass-card">
-              <div className="glass-card-header">
-                <div className="glass-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="section-card">
+              <div className="section-card-header">
+                <div className="section-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Zap size={16} style={{ color: 'var(--warning)' }} />
                   {ar ? 'عداد الطاقة المنتجة (KW/KVA)' : 'Power Meter (KW/KVA)'}
                 </div>
               </div>
-              <div className="glass-card-body">
+              <div className="section-card-body">
                 {prevBox(ar ? 'القراءة السابقة' : 'Previous Reading', prevPower, 'KWh')}
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label style={labelStyle}>{ar ? 'القراءة الحالية *' : 'Current Reading *'}</label>
-                  <input className="form-control" type="number" step="0.01" min={prevPower}
-                    placeholder={`≥ ${prevPower}`}
-                    value={form.currentEnergyKWh}
-                    onChange={e => fld('currentEnergyKWh', sanitizeNumeric(e.target.value))}
+                <FormField
+                  label={ar ? 'القراءة الحالية *' : 'Current Reading *'}
+                  error={form.currentEnergyKWh && parseFloat(form.currentEnergyKWh) < prevPower ? (ar ? 'القراءة أقل من السابقة' : 'Reading is less than previous') : null}
+                >
+                  <Input type="number" step="0.01" min={prevPower} placeholder={`≥ ${prevPower}`}
+                    value={form.currentEnergyKWh} onChange={e => fld('currentEnergyKWh', sanitizeNumeric(e.target.value))}
                     disabled={!hasController} required />
-                  {form.currentEnergyKWh && parseFloat(form.currentEnergyKWh) < prevPower && (
-                    <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4 }}>
-                      ⚠ {ar ? 'القراءة أقل من السابقة' : 'Reading is less than previous'}
-                    </div>
-                  )}
-                </div>
+                </FormField>
               </div>
             </div>
 
             {/* عداد الساعات */}
-            <div className="glass-card">
-              <div className="glass-card-header">
-                <div className="glass-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="section-card">
+              <div className="section-card-header">
+                <div className="section-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Clock size={16} style={{ color: 'var(--secondary)' }} />
                   {ar ? 'عداد ساعات التشغيل' : 'Operating Hours Meter'}
                 </div>
               </div>
-              <div className="glass-card-body">
+              <div className="section-card-body">
                 {prevBox(ar ? 'الساعات السابقة' : 'Previous Hours', prevHours, ar ? 'ساعة' : 'h')}
                 <div className="form-row" style={{ margin: 0 }}>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label style={labelStyle}>{ar ? 'الساعات الحالية *' : 'Current Hours *'}</label>
-                    <input className="form-control" type="number" step="0.1" min={prevHours}
-                      placeholder={`≥ ${prevHours}`}
-                      value={form.currentRunningHours}
-                      onChange={e => fld('currentRunningHours', sanitizeNumeric(e.target.value))}
+                  <FormField label={ar ? 'الساعات الحالية *' : 'Current Hours *'}>
+                    <Input type="number" step="0.1" min={prevHours} placeholder={`≥ ${prevHours}`}
+                      value={form.currentRunningHours} onChange={e => fld('currentRunningHours', sanitizeNumeric(e.target.value))}
                       disabled={!hasController} required />
-                  </div>
+                  </FormField>
                 </div>
               </div>
             </div>
 
             {/* الأحمال */}
-            <div className="glass-card">
-              <div className="glass-card-header">
-                <div className="glass-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="section-card">
+              <div className="section-card-header">
+                <div className="section-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Activity size={16} style={{ color: 'var(--primary)' }} />
                   {ar ? 'الأحمال (KW)' : 'Load (KW)'}
                 </div>
               </div>
-              <div className="glass-card-body">
+              <div className="section-card-body">
                 <div className="form-row" style={{ margin: 0 }}>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label style={labelStyle}>{ar ? 'أقصى الأحمال KW' : 'Max Load KW'}</label>
-                    <input className="form-control" type="number" step="0.1"
-                      value={form.maxLoadKw} onChange={e => fld('maxLoadKw', sanitizeNumeric(e.target.value))}
-                      disabled={!hasController} />
-                  </div>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label style={labelStyle}>{ar ? 'أدنى الأحمال KW' : 'Min Load KW'}</label>
-                    <input className="form-control" type="number" step="0.1"
-                      value={form.minLoadKw} onChange={e => fld('minLoadKw', sanitizeNumeric(e.target.value))}
-                      disabled={!hasController} />
-                  </div>
+                  <FormField label={ar ? 'أقصى الأحمال KW' : 'Max Load KW'}>
+                    <Input type="number" step="0.1" value={form.maxLoadKw} onChange={e => fld('maxLoadKw', sanitizeNumeric(e.target.value))} disabled={!hasController} />
+                  </FormField>
+                  <FormField label={ar ? 'أدنى الأحمال KW' : 'Min Load KW'}>
+                    <Input type="number" step="0.1" value={form.minLoadKw} onChange={e => fld('minLoadKw', sanitizeNumeric(e.target.value))} disabled={!hasController} />
+                  </FormField>
                 </div>
               </div>
             </div>
 
-
-
             {/* الزيت */}
-            <div className="glass-card">
-              <div className="glass-card-header">
-                <div className="glass-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="section-card">
+              <div className="section-card-header">
+                <div className="section-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Droplet size={16} style={{ color: 'var(--warning)' }} />
                   {ar ? 'الزيت المضاف' : 'Oil Added'}
                 </div>
               </div>
-              <div className="glass-card-body">
+              <div className="section-card-body">
                 <div className="form-row">
-                  <div className="form-group">
-                    <label style={labelStyle}>{ar ? 'نوع الزيت المستخدم' : 'Oil Type Used'}</label>
-                    <select className="form-select" value={form.oilTypeUsed} onChange={e => fld('oilTypeUsed', e.target.value)}
-                      disabled={!hasController}>
+                  <FormField label={ar ? 'نوع الزيت المستخدم' : 'Oil Type Used'}>
+                    <select className="form-select" value={form.oilTypeUsed} onChange={e => fld('oilTypeUsed', e.target.value)} disabled={!hasController}>
                       <option value="">{ar ? '— لا يوجد —' : '— None —'}</option>
                       {oils.map(o => (
                         <option key={o.id} value={o.id}>
@@ -433,40 +364,31 @@ function AddReading({ lang, currentUser }) {
                         </option>
                       ))}
                     </select>
-                  </div>
-                  <div className="form-group">
-                    <label style={labelStyle}>{ar ? 'الكمية المضافة (لتر)' : 'Quantity Added (L)'}</label>
-                    <input className="form-control" type="number" step="0.1" min="0"
-                      value={form.oilAddedLiters} onChange={e => fld('oilAddedLiters', sanitizeNumeric(e.target.value))}
-                      disabled={!hasController} />
-                  </div>
+                  </FormField>
+                  <FormField label={ar ? 'الكمية المضافة (لتر)' : 'Quantity Added (L)'}>
+                    <Input type="number" step="0.1" min="0" value={form.oilAddedLiters} onChange={e => fld('oilAddedLiters', sanitizeNumeric(e.target.value))} disabled={!hasController} />
+                  </FormField>
                 </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label style={labelStyle}>{ar ? 'ملاحظات' : 'Notes'}</label>
-                  <textarea className="form-control" rows={2}
-                    value={form.notes} onChange={e => fld('notes', e.target.value)}
-                    style={{ resize: 'vertical', fontFamily: 'inherit' }}
-                    disabled={!hasController} />
-                </div>
+                <FormField label={ar ? 'ملاحظات' : 'Notes'}>
+                  <textarea className="form-control" rows={2} value={form.notes} onChange={e => fld('notes', e.target.value)} disabled={!hasController} style={{ resize: 'vertical', fontFamily: 'inherit' }} />
+                </FormField>
               </div>
             </div>
           </div>
 
           {/* ── الجانب الأيسر: ملخص مباشر ── */}
           <div>
-            <div className="glass-card" style={{ position: 'sticky', top: 20 }}>
-              <div className="glass-card-header">
-                <div className="glass-card-title">{ar ? 'الملخص المحسوب تلقائياً' : 'Auto-Calculated Summary'}</div>
+            <div className="section-card" style={{ position: 'sticky', top: 20 }}>
+              <div className="section-card-header">
+                <div className="section-card-title">{ar ? 'الملخص المحسوب تلقائياً' : 'Auto-Calculated Summary'}</div>
                 <span className="live-badge">
                   <span className="status-dot online" />
                   {ar ? 'مباشر' : 'Live'}
                 </span>
               </div>
-              <div className="glass-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="section-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {calcBox(ar ? 'ساعات التشغيل' : 'Operating Hours', calcHours, ar ? 'ساعة' : 'h', 'var(--secondary)')}
                 {calcBox(ar ? 'الطاقة المنتجة' : 'Energy Produced', calcEnergy, 'KWh', 'var(--primary)')}
-
-
                 {calcBox(ar ? 'الوقود المستهلك (تقديري)' : 'Fuel Consumed (est.)', calcFuel, ar ? 'لتر' : 'L', 'var(--warning)')}
 
                 {/* معلومات المولد */}
@@ -486,15 +408,11 @@ function AddReading({ lang, currentUser }) {
                   ))}
                 </div>
 
-                {/* زر الإرسال */}
-                <button type="submit" className="btn btn-primary"
-                  disabled={saving || !hasController || !form.currentEnergyKWh || !form.currentRunningHours}
-                  style={{ width: '100%', padding: 12, fontSize: 14, marginTop: 8 }}>
+                <Button variant="primary" type="submit" disabled={saving || !hasController || !form.currentEnergyKWh || !form.currentRunningHours} style={{ width: '100%', padding: 12, marginTop: 8 }}>
                   {saving
                     ? <><span className="ft-spinner" style={{ width: 14, height: 14 }} /> {ar ? 'جاري الإرسال...' : 'Submitting...'}</>
-                    : <><Save size={16} /> {ar ? 'إرسال القراءة للموافقة' : 'Submit for Approval'}</>
-                  }
-                </button>
+                    : <><Save size={16} /> {ar ? 'إرسال القراءة للموافقة' : 'Submit for Approval'}</>}
+                </Button>
               </div>
             </div>
           </div>

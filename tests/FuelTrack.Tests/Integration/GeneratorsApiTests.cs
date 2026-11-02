@@ -166,6 +166,77 @@ public class GeneratorsApiTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Fact]
+    public async Task GetActiveWithControllers_ReturnsOnlyActiveGeneratorsWithControllers()
+    {
+        await SeedGeneratorGraphAsync();
+        var client = await CreateAuthenticatedClientAsync();
+
+        var response = await client.GetAsync("/api/generators/active");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var generators = await response.Content.ReadFromJsonAsync<List<ActiveGeneratorDto>>();
+        Assert.NotNull(generators);
+        // All returned generators must be active and have a linked controller
+        foreach (var gen in generators!)
+        {
+            Assert.True(gen.IsActive);
+            Assert.NotNull(gen.ControllerName);
+        }
+    }
+
+    [Fact]
+    public async Task GetActiveWithControllers_OperatorWithoutSystemOwner_IsAllowedByMiddleware()
+    {
+        await SeedGeneratorGraphAsync();
+
+        using var scope = Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<FuelTrackDbContext>();
+        var user = await context.Users.FirstOrDefaultAsync(u => u.UserName == TestUserName);
+        Assert.NotNull(user);
+
+        var token = GenerateJwtToken(user!.Id, user.UserName!, "Operator", includeSystemOwner: false);
+        var client = CreateClientWithToken(token);
+
+        var response = await client.GetAsync("/api/generators/active");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetActiveWithControllers_Unauthenticated_ReturnsUnauthorized()
+    {
+        await SeedGeneratorGraphAsync();
+        var client = Factory.CreateClient();
+
+        var response = await client.GetAsync("/api/generators/active");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // Mirrors FuelTrack.Application.DTOs.Generators.ActiveGeneratorDto (camelCase JSON)
+    private record ActiveGeneratorDto(
+        int Id,
+        int SubStationId,
+        string SubStationName,
+        string Name,
+        string SerialNumber,
+        string? Model,
+        string? Manufacturer,
+        double NominalPower,
+        int ActualPowerKW,
+        string? GenType,
+        string? Voltage,
+        string? Frequency,
+        string? Status,
+        bool IsActive,
+        string? ControllerName,
+        string? ControllerCode,
+        string? ControllerType,
+        double ControllerEnergyReading,
+        double ControllerOperatingHours,
+        string? Location);
+
     // Mirrors FuelTrack.Application.DTOs.Generators.My.MyGeneratorListDto (camelCase JSON)
     private record MyGeneratorListDto(
         int Id,

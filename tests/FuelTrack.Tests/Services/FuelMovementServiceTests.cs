@@ -20,7 +20,7 @@ public class FuelMovementServiceTests : IDisposable
             .Options;
         _db = new FuelTrackDbContext(o);
 
-        _service = new FuelMovementService(_db, new StubHttpContextAccessor(), new StubUserScopeFilterService());
+        _service = new FuelMovementService(_db, new StubCurrentUserService(), new StubUserScopeFilterService());
 
         _fuelLookupId = 1;
         _subStationId = 1;
@@ -29,6 +29,11 @@ public class FuelMovementServiceTests : IDisposable
         _db.Stations.Add(new Station { Id = 1, BranchId = 1, Name = "Test Station", Code = "TS" });
         _db.LookupCategories.Add(new LookupCategory { Id = 1, Name = "Fuel", DisplayName = "Fuel" });
         _db.Lookups.Add(new Lookup { Id = _fuelLookupId, Name = "Diesel", CategoryId = 1, Code = "DIESEL" });
+        _db.LookupCategories.Add(new LookupCategory { Id = 2, Name = "TransactionType", DisplayName = "TransactionType" });
+        _db.Lookups.Add(new Lookup { Id = 200, Name = "Purchase", CategoryId = 2, Code = "Purchase" });
+        _db.Lookups.Add(new Lookup { Id = 202, Name = "Transfer", CategoryId = 2, Code = "Transfer" });
+        _db.Lookups.Add(new Lookup { Id = 205, Name = "Loss", CategoryId = 2, Code = "Loss" });
+        _db.Lookups.Add(new Lookup { Id = 206, Name = "Consumption", CategoryId = 2, Code = "Consumption" });
         _db.SubStations.Add(new SubStation { Id = _subStationId, StationId = 1, Name = "Test SubStation", Code = "TSS" });
         _db.SaveChanges();
     }
@@ -59,7 +64,7 @@ public class FuelMovementServiceTests : IDisposable
         var dto = new CreateFuelMovementDto(
             SubStationId: _subStationId,
             FuelLookupId: _fuelLookupId,
-            TransactionTypeLookupId: null,
+            TransactionTypeLookupId: 200,
             TransactionDate: DateTime.UtcNow,
             QuantityLiters: 100,
             Reference: "TST-002",
@@ -70,9 +75,6 @@ public class FuelMovementServiceTests : IDisposable
             InvoiceNumber: null,
             InvoiceDate: null,
             InvoiceQuantity: null,
-            WarehouseReceiptNumber: null,
-            WarehouseReceiptDate: null,
-            WarehouseQuantity: null,
             MeterId: null,
             PrevMeterVisualReading: null,
             CurrentMeterVisualReading: null,
@@ -126,7 +128,7 @@ public class FuelMovementServiceTests : IDisposable
         var dto = new CreateFuelMovementDto(
             SubStationId: _subStationId,
             FuelLookupId: _fuelLookupId,
-            TransactionTypeLookupId: null,
+            TransactionTypeLookupId: 200,
             TransactionDate: DateTime.UtcNow,
             QuantityLiters: 250,
             Reference: "SUB-001",
@@ -137,9 +139,6 @@ public class FuelMovementServiceTests : IDisposable
             InvoiceNumber: null,
             InvoiceDate: null,
             InvoiceQuantity: null,
-            WarehouseReceiptNumber: null,
-            WarehouseReceiptDate: null,
-            WarehouseQuantity: null,
             MeterId: null,
             PrevMeterVisualReading: null,
             CurrentMeterVisualReading: null,
@@ -175,9 +174,6 @@ public class FuelMovementServiceTests : IDisposable
             InvoiceNumber: null,
             InvoiceDate: null,
             InvoiceQuantity: null,
-            WarehouseReceiptNumber: null,
-            WarehouseReceiptDate: null,
-            WarehouseQuantity: null,
             MeterId: null,
             PrevMeterVisualReading: null,
             CurrentMeterVisualReading: null,

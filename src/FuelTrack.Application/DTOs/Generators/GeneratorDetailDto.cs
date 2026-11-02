@@ -27,5 +27,8 @@ public record GeneratorDetailDto(
     string? StatusLookupName,
     DateTime? InstallationDate,
     string? Notes,
+    bool IsActive,
+    string? ControllerName,
+    string? ControllerCode,
     DateTime CreatedAt,
     DateTime UpdatedAt);

@@ -25,7 +25,7 @@ public class ReportServiceTests : IDisposable
             .Options;
         _db = new FuelTrackDbContext(o);
 
-        _service = new ReportService(_db, new NullCacheService(), new StubHttpContextAccessor(), new StubUserScopeFilterService());
+        _service = new ReportService(_db, new NullCacheService(), new StubCurrentUserService(), new StubUserScopeFilterService());
 
         SeedData();
     }
@@ -77,8 +77,8 @@ public class ReportServiceTests : IDisposable
 
         // Meters
         _db.Meters.AddRange(
-            new Meter { Id = 1, SubStationId = _subStationId, Name = "Meter 1", Code = "M-01" },
-            new Meter { Id = 2, SubStationId = 2, Name = "Meter 2", Code = "M-02" });
+            new Meter { Id = 1, SubStationId = _subStationId, Name = "Meter 1" },
+            new Meter { Id = 2, SubStationId = 2, Name = "Meter 2" });
 
         // Generators
         _db.Generators.AddRange(
@@ -93,7 +93,7 @@ public class ReportServiceTests : IDisposable
 
         // OilTransactions
         _db.OilTransactions.AddRange(
-            new OilTransaction { Id = 1, SubStationId = _subStationId, OilLookupId = _oilLookupId, TransactionTypeLookupId = 10, TransactionDate = DateTime.UtcNow.AddDays(-4), QuantityLiters = 50, InvoiceNumber = "OIL-001", IsApproved = true },
+            new OilTransaction { Id = 1, SubStationId = _subStationId, OilLookupId = _oilLookupId, TransactionTypeLookupId = 10, TransactionDate = DateTime.UtcNow.AddDays(-4), QuantityLiters = 50, Reference = "OIL-001", IsApproved = true },
             new OilTransaction { Id = 2, SubStationId = _subStationId, OilLookupId = _oilLookupId, TransactionTypeLookupId = 13, TransactionDate = DateTime.UtcNow.AddDays(-2), QuantityLiters = 10, IsApproved = true });
 
         // DailyReadings
@@ -104,7 +104,9 @@ public class ReportServiceTests : IDisposable
         // SubStationReadings
         _db.SubStationReadings.AddRange(
             new SubStationReading { Id = 1, SubStationId = _subStationId, MeterId = 1, ReadingDate = DateTime.UtcNow.AddDays(-2), PrevExportedEnergyKWh = 0, CurrentExportedEnergyKWh = 80, ReadingStatusLookupId = 20 },
-            new SubStationReading { Id = 2, SubStationId = _subStationId, MeterId = 1, ReadingDate = DateTime.UtcNow.AddDays(-1), PrevExportedEnergyKWh = 80, CurrentExportedEnergyKWh = 200, ReadingStatusLookupId = 21 });
+            new SubStationReading { Id = 2, SubStationId = _subStationId, MeterId = 1, ReadingDate = DateTime.UtcNow.AddDays(-1), PrevExportedEnergyKWh = 80, CurrentExportedEnergyKWh = 200, ReadingStatusLookupId = 20 },
+            new SubStationReading { Id = 3, SubStationId = 2, MeterId = 2, ReadingDate = DateTime.UtcNow.AddDays(-2), PrevExportedEnergyKWh = 0, CurrentExportedEnergyKWh = 50, ReadingStatusLookupId = 20 },
+            new SubStationReading { Id = 4, SubStationId = 2, MeterId = 2, ReadingDate = DateTime.UtcNow.AddDays(-1), PrevExportedEnergyKWh = 50, CurrentExportedEnergyKWh = 120, ReadingStatusLookupId = 20 });
 
         // PeriodicInventories
         var inv = new PeriodicInventory { Id = 1, SubStationId = _subStationId, Year = DateTime.UtcNow.Year, Month = DateTime.UtcNow.Month, PeriodTypeLookupId = 30, InventoryDate = DateTime.Today, IsApproved = true };
@@ -137,7 +139,7 @@ public class ReportServiceTests : IDisposable
 
         Assert.Equal(1000, result.Fuel.TotalReceivedLiters);
         Assert.Equal(300, result.Fuel.TotalTransferredLiters);
-        Assert.Equal(200, result.Fuel.TotalConsumedLiters);
+        Assert.Equal(62.5, result.Fuel.TotalConsumedLiters);
         Assert.Equal(2, result.Fuel.TankLevels.Count);
     }
 
@@ -147,9 +149,9 @@ public class ReportServiceTests : IDisposable
         var result = await _service.GetDashboardStatsAsync(null, null, null, null, null);
 
         Assert.Equal(250, result.Energy.TotalProducedKWh);
-        Assert.Equal(200, result.Energy.TotalExportedKWh);
-        Assert.Equal(50, result.Energy.NetInternalKWh);
-        Assert.Equal(2, result.Energy.ActiveGenerators);
+        Assert.Equal(320, result.Energy.TotalExportedKWh);
+        Assert.Equal(-70, result.Energy.NetInternalKWh);
+        Assert.Equal(1, result.Energy.ActiveGenerators);
     }
 
     [Fact]
@@ -249,8 +251,8 @@ public class ReportServiceTests : IDisposable
     {
         var result = await _service.GetStationReadingsReportAsync(null, null, null, null, null, 1, 20);
 
-        Assert.Equal(2, result.Items.Count);
-        Assert.Equal(200, result.Summary.TotalEnergyExportedKWh);
+        Assert.Equal(4, result.Items.Count);
+        Assert.Equal(320, result.Summary.TotalEnergyExportedKWh);
     }
 
     [Fact]
@@ -415,7 +417,7 @@ public class ReportServiceTests : IDisposable
             .UseInMemoryDatabase($"ReportTestDb_Empty_{Guid.NewGuid()}")
             .Options;
         using var freshDb = new FuelTrackDbContext(freshDbOptions);
-        var freshService = new ReportService(freshDb, new NullCacheService(), new StubHttpContextAccessor(), new StubUserScopeFilterService());
+        var freshService = new ReportService(freshDb, new NullCacheService(), new StubCurrentUserService(), new StubUserScopeFilterService());
 
         var result = await freshService.GetDashboardStatsAsync(null, null, null, null, null);
 

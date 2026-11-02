@@ -24,7 +24,7 @@ public class ReportsController : BaseApiController
         _hub = hub;
     }
 
-    // ─── Dashboard ────────────────────────────────────────────────────────
+    // ─── Dashboard ────────────────────────────────────────────────
 
     [HttpGet("dashboard-stats")]
     [OutputCache(PolicyName = "Dashboard")]
@@ -33,9 +33,10 @@ public class ReportsController : BaseApiController
         [FromQuery] int? stationId,
         [FromQuery] int? subStationId,
         [FromQuery] DateTime? dateFrom,
-        [FromQuery] DateTime? dateTo)
+        [FromQuery] DateTime? dateTo,
+        [FromQuery] string timeZoneId = "Asia/Riyadh")
     {
-        var result = await _service.GetDashboardStatsAsync(branchId, stationId, subStationId, dateFrom, dateTo);
+        var result = await _service.GetDashboardStatsAsync(branchId, stationId, subStationId, dateFrom, dateTo, timeZoneId);
         return Ok(result);
     }
 
@@ -46,13 +47,14 @@ public class ReportsController : BaseApiController
         [FromQuery] int? stationId,
         [FromQuery] int? subStationId,
         [FromQuery] DateTime? dateFrom,
-        [FromQuery] DateTime? dateTo)
+        [FromQuery] DateTime? dateTo,
+        [FromQuery] string timeZoneId = "Asia/Riyadh")
     {
-        var result = await _service.GetFuelOilDashboardAsync(branchId, stationId, subStationId, dateFrom, dateTo);
+        var result = await _service.GetFuelOilDashboardAsync(branchId, stationId, subStationId, dateFrom, dateTo, timeZoneId);
         return Ok(result);
     }
 
-    // ─── Specialized Reports ──────────────────────────────────────────────
+    // ─── Specialized Reports ──────────────────────────────────────
 
     [HttpGet("generators")]
     public async Task<IActionResult> GetGeneratorsReport(
@@ -62,9 +64,10 @@ public class ReportsController : BaseApiController
         [FromQuery] DateTime? dateFrom,
         [FromQuery] DateTime? dateTo,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string timeZoneId = "Asia/Riyadh")
     {
-        var result = await _service.GetGeneratorsReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize);
+        var result = await _service.GetGeneratorsReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId);
         return Ok(result);
     }
 
@@ -76,9 +79,10 @@ public class ReportsController : BaseApiController
         [FromQuery] DateTime? dateFrom,
         [FromQuery] DateTime? dateTo,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string timeZoneId = "Asia/Riyadh")
     {
-        var result = await _service.GetStationReadingsReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize);
+        var result = await _service.GetStationReadingsReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId);
         return Ok(result);
     }
 
@@ -90,9 +94,10 @@ public class ReportsController : BaseApiController
         [FromQuery] DateTime? dateFrom,
         [FromQuery] DateTime? dateTo,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string timeZoneId = "Asia/Riyadh")
     {
-        var result = await _service.GetFuelTransactionsReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize);
+        var result = await _service.GetFuelTransactionsReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId);
         return Ok(result);
     }
 
@@ -104,9 +109,10 @@ public class ReportsController : BaseApiController
         [FromQuery] DateTime? dateFrom,
         [FromQuery] DateTime? dateTo,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string timeZoneId = "Asia/Riyadh")
     {
-        var result = await _service.GetOilTransactionsReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize);
+        var result = await _service.GetOilTransactionsReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId);
         return Ok(result);
     }
 
@@ -118,9 +124,10 @@ public class ReportsController : BaseApiController
         [FromQuery] DateTime? dateFrom,
         [FromQuery] DateTime? dateTo,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string timeZoneId = "Asia/Riyadh")
     {
-        var result = await _service.GetPeriodicInventoryReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize);
+        var result = await _service.GetPeriodicInventoryReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId);
         return Ok(result);
     }
 
@@ -132,19 +139,82 @@ public class ReportsController : BaseApiController
         [FromQuery] DateTime? dateFrom,
         [FromQuery] DateTime? dateTo,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string timeZoneId = "Asia/Riyadh")
     {
-        var result = await _service.GetEfficiencyReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize);
+        var result = await _service.GetEfficiencyReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId);
         return Ok(result);
     }
 
-    // ─── SignalR Push ─────────────────────────────────────────────────────
+    // ─── Daily Reports Sub-Tabs ────────────────────────────────────
+
+    [HttpGet("fuel-incoming")]
+    public async Task<IActionResult> GetFuelIncomingReport(
+        [FromQuery] int? branchId,
+        [FromQuery] int? stationId,
+        [FromQuery] int? subStationId,
+        [FromQuery] DateTime? dateFrom,
+        [FromQuery] DateTime? dateTo,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string timeZoneId = "Asia/Riyadh")
+    {
+        var result = await _service.GetFuelIncomingReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId);
+        return Ok(result);
+    }
+
+    [HttpGet("fuel-transfer")]
+    public async Task<IActionResult> GetFuelTransferReport(
+        [FromQuery] int? branchId,
+        [FromQuery] int? stationId,
+        [FromQuery] int? subStationId,
+        [FromQuery] DateTime? dateFrom,
+        [FromQuery] DateTime? dateTo,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string timeZoneId = "Asia/Riyadh")
+    {
+        var result = await _service.GetFuelTransferReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId);
+        return Ok(result);
+    }
+
+    [HttpGet("fuel-loss")]
+    public async Task<IActionResult> GetFuelLossReport(
+        [FromQuery] int? branchId,
+        [FromQuery] int? stationId,
+        [FromQuery] int? subStationId,
+        [FromQuery] DateTime? dateFrom,
+        [FromQuery] DateTime? dateTo,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string timeZoneId = "Asia/Riyadh")
+    {
+        var result = await _service.GetFuelLossReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId);
+        return Ok(result);
+    }
+
+    // ─── Inventory Summary ─────────────────────────────────────────
+
+    [HttpGet("inventory-summary")]
+    public async Task<IActionResult> GetInventorySummary(
+        [FromQuery] int? branchId,
+        [FromQuery] int? stationId,
+        [FromQuery] int? subStationId,
+        [FromQuery] DateTime? dateFrom,
+        [FromQuery] DateTime? dateTo,
+        [FromQuery] string timeZoneId = "Asia/Riyadh")
+    {
+        var result = await _service.GetInventorySummaryAsync(branchId, stationId, subStationId, dateFrom, dateTo, timeZoneId);
+        return Ok(result);
+    }
+
+    // ─── SignalR Push ─────────────────────────────────────────────
 
     [HttpPost("push-stats")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> PushDashboardStats()
     {
-        var stats = await _service.GetDashboardStatsAsync(null, null, null, null, null);
+        var stats = await _service.GetDashboardStatsAsync(null, null, null, null, null, "Asia/Riyadh");
         await _hub.Clients.Group("dashboard").SendAsync("DashboardStatsUpdated", stats);
         return Ok(new { message = "Dashboard stats pushed to all connected clients." });
     }

@@ -1,8 +1,6 @@
-using System.Security.Claims;
 using FuelTrack.Application.DTOs.Branches;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Services;
@@ -11,24 +9,13 @@ public class BranchService : IBranchService
 {
     private readonly FuelTrackDbContext _db;
     private readonly IUserScopeFilterService _scopeFilter;
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ICurrentUserService _currentUser;
 
-    public BranchService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, IHttpContextAccessor httpContextAccessor)
+    public BranchService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser)
     {
         _db = db;
         _scopeFilter = scopeFilter;
-        _httpContextAccessor = httpContextAccessor;
-    }
-
-    private int? GetCurrentUserId()
-    {
-        var claim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        return claim != null && int.TryParse(claim.Value, out var id) ? id : null;
-    }
-
-    private bool IsAdmin()
-    {
-        return _httpContextAccessor.HttpContext?.User.IsInRole("Admin") ?? false;
+        _currentUser = currentUser;
     }
 
     public async Task<BranchDetailDto> CreateAsync(CreateBranchDto dto, int userId)
@@ -88,9 +75,9 @@ public class BranchService : IBranchService
 
     public async Task<BranchDetailDto?> GetByIdAsync(int id)
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = _currentUser.UserId;
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleBranchIdsAsync(currentUserId.Value);
@@ -104,9 +91,9 @@ public class BranchService : IBranchService
 
     public async Task<List<BranchListDto>> GetAllAsync()
     {
-        if (!IsAdmin())
+        if (!_currentUser.HasAnyAdminRole)
         {
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = _currentUser.UserId;
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleBranchIdsAsync(currentUserId.Value);

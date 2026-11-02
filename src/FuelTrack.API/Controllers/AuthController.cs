@@ -399,7 +399,12 @@ public class AuthController : ControllerBase
 
         var roles = await _userManager.GetRolesAsync(user);
         var roleName = roles.FirstOrDefault() ?? "operator";
-        var isAdmin = roleName.Equals("admin", StringComparison.OrdinalIgnoreCase);
+        var isAdmin = roles.Any(r =>
+            r.Equals("Admin", StringComparison.OrdinalIgnoreCase) ||
+            r.Equals("SystemOwner", StringComparison.OrdinalIgnoreCase));
+
+        // Normalize role name for frontend: SystemOwner maps to "admin" (frontend checks role === 'admin')
+        var frontendRole = isAdmin ? "admin" : (roleName ?? "operator").ToLowerInvariant();
 
         var permissions = await BuildPermissionsDictAsync(user, isAdmin);
 
@@ -412,7 +417,7 @@ public class AuthController : ControllerBase
             phoneNumber = user.PhoneNumber,
             isActive = user.IsActive,
             createdAt = user.CreatedAt,
-            role = roleName.ToLower(),
+            role = frontendRole,
             roles,
             permissions,
             mustChangePassword = false,
@@ -422,51 +427,59 @@ public class AuthController : ControllerBase
 
     private async Task<Dictionary<string, Dictionary<string, bool>>> BuildPermissionsDictAsync(User user, bool isAdmin)
     {
-        var modules = await _context.ModuleDefinitions
-            .Where(m => m.IsActive)
-            .Include(m => m.PagePermissions.Where(pp => pp.IsActive))
-            .OrderBy(m => m.SortOrder)
-            .ToListAsync();
-
-        if (isAdmin)
+        try
         {
+            var modules = await _context.ModuleDefinitions
+                .Where(m => m.IsActive)
+                .Include(m => m.PagePermissions.Where(pp => pp.IsActive))
+                .OrderBy(m => m.SortOrder)
+                .ToListAsync();
+
+            if (isAdmin)
+            {
+                return modules.ToDictionary(
+                    m => m.Key,
+                    m => m.PagePermissions.ToDictionary(
+                        pp => pp.ActionKey,
+                        _ => true));
+            }
+
+            var roleNames = await _userManager.GetRolesAsync(user);
+            var roleIds = new List<int>();
+            foreach (var rn in roleNames)
+            {
+                var r = await _roleManager.FindByNameAsync(rn);
+                if (r != null) roleIds.Add(r.Id);
+            }
+
+            var grantedPerms = await _context.RolePermissions
+                .Where(rp => roleIds.Contains(rp.RoleId) && rp.IsGranted)
+                .Include(rp => rp.PagePermission)
+                    .ThenInclude(pp => pp.ModuleDefinition)
+                .Select(rp => new { rp.PagePermission.ModuleDefinition.Key, rp.PagePermission.ActionKey })
+                .Distinct()
+                .ToListAsync();
+
+            var grantedDict = grantedPerms
+                .GroupBy(g => g.Key)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.ToDictionary(x => x.ActionKey, _ => true));
+
             return modules.ToDictionary(
                 m => m.Key,
-                m => m.PagePermissions.ToDictionary(
-                    pp => pp.ActionKey,
-                    _ => true));
+                m =>
+                {
+                    if (grantedDict.TryGetValue(m.Key, out var actions))
+                        return actions;
+                    return m.PagePermissions.ToDictionary(pp => pp.ActionKey, _ => false);
+                });
         }
-
-        var roleNames = await _userManager.GetRolesAsync(user);
-        var roleIds = new List<int>();
-        foreach (var rn in roleNames)
+        catch (Exception ex)
         {
-            var r = await _roleManager.FindByNameAsync(rn);
-            if (r != null) roleIds.Add(r.Id);
+            Console.WriteLine($"[Auth] BuildPermissionsDictAsync error: {ex.Message}");
+            return new Dictionary<string, Dictionary<string, bool>>();
         }
-
-        var grantedPerms = await _context.RolePermissions
-            .Where(rp => roleIds.Contains(rp.RoleId) && rp.IsGranted)
-            .Include(rp => rp.PagePermission)
-                .ThenInclude(pp => pp.ModuleDefinition)
-            .Select(rp => new { rp.PagePermission.ModuleDefinition.Key, rp.PagePermission.ActionKey })
-            .Distinct()
-            .ToListAsync();
-
-        var grantedDict = grantedPerms
-            .GroupBy(g => g.Key)
-            .ToDictionary(
-                g => g.Key,
-                g => g.ToDictionary(x => x.ActionKey, _ => true));
-
-        return modules.ToDictionary(
-            m => m.Key,
-            m =>
-            {
-                if (grantedDict.TryGetValue(m.Key, out var actions))
-                    return actions;
-                return m.PagePermissions.ToDictionary(pp => pp.ActionKey, _ => false);
-            });
     }
 
     private void SetTokenCookie(string token)

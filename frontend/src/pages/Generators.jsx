@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Plus, Search, Edit2, Trash2, Zap, X, Save } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Zap, MapPin, ChevronDown, ChevronRight, Save } from 'lucide-react';
 import client from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
+import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 
 const initialForm = {
-  // بيانات المولد الأساسية
   name: '',
   serialNo: '',
   manufacturer: '',
@@ -18,16 +18,14 @@ const initialForm = {
   frequency: '',
   owner: '',
   fuelConsumptionRatePerHour: '',
-  // حالة التشغيل
-  status: 'واقف',
+  status: '',
   lastMaintenance: '',
   installationDate: '',
   notes: '',
-  // الروابط
   branchId: '',
   station: '',
   subStation: '',
-  ownershipType: 'ملك',
+  ownershipType: '',
   controller: '',
   isActive: true,
 };
@@ -66,8 +64,7 @@ function StatusBadge({ status, lang }) {
 
 function Generators({ t, lang, currentUser }) {
   const ar = lang === 'ar';
-  
-  // Permission helpers
+
   const perms = currentUser?.permissions?.generators || {};
   const canAdd = currentUser?.role === 'admin' || perms.add || perms.create;
   const canEdit = currentUser?.role === 'admin' || perms.edit;
@@ -83,7 +80,9 @@ function Generators({ t, lang, currentUser }) {
   const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null });
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
-  
+  const [expandedStations, setExpandedStations] = useState(new Set());
+  const [expandedSites, setExpandedSites] = useState(new Set());
+
   const [stations, setStations] = useState([]);
   const [subStations, setSubStations] = useState([]);
   const [controllers, setControllers] = useState([]);
@@ -148,7 +147,7 @@ function Generators({ t, lang, currentUser }) {
   const openEdit = (gen) => {
     const subStationId = gen.subStationId || gen.subStation?.id || gen.subStation || '';
     const subStationObj = subStationId ? subStations.find(ss => String(ss.id) === String(subStationId)) : null;
-    const stationId = subStationObj?.station_id || gen.stationId || gen.station?.id || '';
+    const stationId = subStationObj?.station_id || subStationObj?.stationId || gen.stationId || gen.station?.id || '';
     const stationObj = stationId ? stations.find(s => String(s.id) === String(stationId)) : null;
     const branchId = stationObj?.branchId || '';
     setForm({
@@ -156,22 +155,22 @@ function Generators({ t, lang, currentUser }) {
       serialNo: gen.serialNumber || '',
       manufacturer: gen.manufacturer || '',
       model: gen.model || '',
-      genType: gen.generatorTypeLookupName || gen.genType || '',
-      ratedCapacityKw: gen.nominalPower || gen.ratedCapacityKw || '',
-      actualPowerKw: gen.actualPowerKW || gen.actualPowerKw || '',
-      fuelConsumptionRatePerHour: gen.fuelConsumptionRatePerHour ?? gen.fuelConsumption ?? '',
-      owner: gen.ownerName || gen.owner || '',
-      voltage: gen.voltageLookupName || gen.voltage || '',
-      frequency: gen.frequencyLookupName || gen.frequency || '',
+      genType: gen.generatorTypeLookupId || '',
+      ratedCapacityKw: gen.nominalPower || '',
+      actualPowerKw: gen.actualPowerKW || '',
+      fuelConsumptionRatePerHour: gen.fuelConsumptionRatePerHour ?? '',
+      owner: gen.ownerName || '',
+      voltage: gen.voltageLookupId || '',
+      frequency: gen.frequencyLookupId || '',
       powerFactor: gen.powerFactor || '',
-      ownershipType: gen.ownershipTypeLookupName || gen.ownershipType || 'ملك',
-      status: gen.statusLookupName || gen.status || 'واقف',
+      ownershipType: gen.ownershipTypeLookupId || '',
+      status: gen.statusLookupId || '',
       installationDate: gen.installationDate ? gen.installationDate.substring(0, 10) : '',
       notes: gen.notes || '',
-      branchId: branchId,
-      station: stationId,
-      subStation: subStationId,
-      controller: controllers.find(c => c.generatorId === gen.id)?.id || '',
+      branchId: branchId ? String(branchId) : '',
+      station: stationId ? String(stationId) : '',
+      subStation: subStationId ? String(subStationId) : '',
+      controller: gen.controllerName ? controllers.find(c => c.name === gen.controllerName)?.id || '' : '',
       isActive: gen.isActive !== false,
     });
     setEditId(getId(gen)); setShowModal(true); setError(null);
@@ -179,11 +178,17 @@ function Generators({ t, lang, currentUser }) {
   const closeModal = () => { setShowModal(false); setError(null); };
   const fld = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  const fieldError = (key) => {
+    if (key === 'name' && !form.name) return ar ? 'اسم المولد مطلوب' : 'Generator name is required';
+    if (key === 'subStation' && !form.subStation) return ar ? 'المنطقة (وحدة فرعية) مطلوبة' : 'SubStation is required';
+    if (key === 'ratedCapacityKw' && (!form.ratedCapacityKw || Number(form.ratedCapacityKw) <= 0)) return ar ? 'القدرة الاسمية مطلوبة ويجب أن تكون أكبر من صفر' : 'Nominal power is required and must be greater than zero';
+    if (key === 'fuelConsumptionRatePerHour' && (!form.fuelConsumptionRatePerHour || Number(form.fuelConsumptionRatePerHour) <= 0)) return ar ? 'معدل استهلاك الوقود مطلوب ويجب أن يكون أكبر من صفر' : 'Fuel consumption rate is required and must be greater than zero';
+    return null;
+  };
+
   const handleSubmit = async () => {
-    if (!form.name) { setError(ar ? 'اسم المولد مطلوب' : 'Generator name is required'); return; }
-    if (!form.subStation) { setError(ar ? 'المنطقة (وحدة فرعية) مطلوبة' : 'SubStation is required'); return; }
-    if (!form.ratedCapacityKw || Number(form.ratedCapacityKw) <= 0) { setError(ar ? 'القدرة الاسمية مطلوبة ويجب أن تكون أكبر من صفر' : 'Nominal power is required and must be greater than zero'); return; }
-    if (!form.fuelConsumptionRatePerHour || Number(form.fuelConsumptionRatePerHour) <= 0) { setError(ar ? 'معدل استهلاك الوقود مطلوب ويجب أن يكون أكبر من صفر' : 'Fuel consumption rate is required and must be greater than zero'); return; }
+    const err = fieldError('name') || fieldError('subStation') || fieldError('ratedCapacityKw') || fieldError('fuelConsumptionRatePerHour');
+    if (err) { setError(err); return; }
     setSaving(true); setError(null);
     try {
       let generatorId;
@@ -201,11 +206,11 @@ function Generators({ t, lang, currentUser }) {
           PowerFactor: form.powerFactor ? Number(form.powerFactor) : null,
           InstallationDate: form.installationDate || null,
           Notes: form.notes || null,
-          GeneratorTypeLookupName: form.genType || null,
-          VoltageLookupName: form.voltage || null,
-          FrequencyLookupName: form.frequency || null,
-          OwnershipTypeLookupName: form.ownershipType || null,
-          StatusLookupName: form.status || null,
+          GeneratorTypeLookupId: form.genType ? Number(form.genType) : null,
+          VoltageLookupId: form.voltage ? Number(form.voltage) : null,
+          FrequencyLookupId: form.frequency ? Number(form.frequency) : null,
+          OwnershipTypeLookupId: form.ownershipType ? Number(form.ownershipType) : null,
+          StatusLookupId: form.status ? Number(form.status) : null,
           IsActive: form.isActive,
         };
         await client.put(`/api/generators/${editId}`, payload);
@@ -225,18 +230,17 @@ function Generators({ t, lang, currentUser }) {
           PowerFactor: form.powerFactor ? Number(form.powerFactor) : null,
           InstallationDate: form.installationDate || null,
           Notes: form.notes || null,
-          GeneratorTypeLookupName: form.genType || null,
-          VoltageLookupName: form.voltage || null,
-          FrequencyLookupName: form.frequency || null,
-          OwnershipTypeLookupName: form.ownershipType || null,
-          StatusLookupName: form.status || null,
+          GeneratorTypeLookupId: form.genType ? Number(form.genType) : null,
+          VoltageLookupId: form.voltage ? Number(form.voltage) : null,
+          FrequencyLookupId: form.frequency ? Number(form.frequency) : null,
+          OwnershipTypeLookupId: form.ownershipType ? Number(form.ownershipType) : null,
+          StatusLookupId: form.status ? Number(form.status) : null,
           IsActive: form.isActive,
         };
         const res = await client.post('/api/generators', payload);
         generatorId = res.data?.id || res.data?.data?.id;
       }
 
-      // ── ربط/إلغاء ربط الشاشة ──
       if (generatorId) {
         const selectedCtrlId = form.controller ? Number(form.controller) : null;
         const prevCtrl = controllers.find(c => c.generatorId === generatorId && c.id !== selectedCtrlId);
@@ -283,18 +287,29 @@ function Generators({ t, lang, currentUser }) {
   const stationById = new Map(stations.map(station => [getId(station), station]));
   const subStationById = new Map(subStations.map(site => [getId(site), site]));
   const stationNameFor = (gen) => {
-    const stationId = getId(gen.station);
-    return displayName(gen.station?.name) ||
-      displayName(stationById.get(stationId)?.name) ||
-      displayName(gen.stationName) ||
-      displayName(gen.station);
+    const siteId = gen.subStationId || getId(gen.subStation);
+    const site = siteId ? subStations.find(s => String(s.id) === String(siteId)) : null;
+    const stationId = site?.stationId || site?.station_id || gen.stationId || getId(gen.station);
+    const station = stationId ? stations.find(s => String(s.id) === String(stationId)) : null;
+    return displayName(station?.name) || displayName(site?.stationName) || displayName(gen.stationName);
   };
+
+  const branchNameFor = (gen) => {
+    const siteId = gen.subStationId || getId(gen.subStation);
+    const site = siteId ? subStations.find(s => String(s.id) === String(siteId)) : null;
+    const stationId = site?.stationId || site?.station_id || gen.stationId || getId(gen.station);
+    const station = stationId ? stations.find(s => String(s.id) === String(stationId)) : null;
+    const branchId = station?.branchId || station?.branch_id;
+    const branch = branchId ? branches.find(b => String(b.id) === String(branchId)) : null;
+    return displayName(branch?.name);
+  };
+
   const subStationFor = (gen) => {
-    const siteId = getId(gen.subStation);
-    return gen.subStation?.name
-      ? gen.subStation
-      : subStationById.get(siteId) || null;
+    const siteId = gen.subStationId || getId(gen.subStation);
+    if (!siteId) return null;
+    return subStationById.get(String(siteId)) || subStations.find(s => String(s.id) === String(siteId)) || null;
   };
+
   const subStationNameFor = (gen) => {
     const site = subStationFor(gen);
     return displayName(site?.name) ||
@@ -327,46 +342,74 @@ function Generators({ t, lang, currentUser }) {
   const safePage = Math.min(page, totalPages);
   const paginatedFiltered = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  // Reset page when search changes
   const handleSearchChange = (e) => { setSearch(e.target.value); setPage(1); };
 
-  // Section header style inside modal
-  const secHdr = {
-    fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px',
-    color: 'var(--primary)', padding: '14px 0 8px', marginTop: 8,
-    borderBottom: '1px solid var(--border)', marginBottom: 12,
-  };
+  const generatorTree = useMemo(() => {
+    const tree = {};
+    paginatedFiltered.forEach(gen => {
+      const site = subStationFor(gen);
+      const siteId = gen.subStationId || getId(site) || getId(gen.subStation) || 'unassigned-site';
+      const siteName = subStationNameFor(gen);
 
-  // ── تجميع المولدات بناءً على الموقع/الفرع مع إظهار المحطة الأم ──
-  const groupedGenerators = {};
-  paginatedFiltered.forEach(gen => {
-    const stationId = getId(gen.station);
-    const siteId = getId(gen.subStation);
-    const groupKey = siteId || stationId || 'unassigned';
-    if (!groupedGenerators[groupKey]) {
-      groupedGenerators[groupKey] = {
-        label: generatorSitePath(gen),
-        gens: [],
-      };
-    }
-    groupedGenerators[groupKey].gens.push(gen);
-  });
+      const stationId = (site?.stationId || site?.station_id || gen.stationId || getId(gen.station)) || 'unknown-station';
+      const station = stations.find(s => String(s.id) === String(stationId)) ||
+                      { id: stationId, name: stationNameFor(gen) };
+      const resolvedStationId = getId(station) || stationId || 'unknown-station';
+      const stationName = displayName(station?.name) || stationNameFor(gen) || (ar ? 'محطة غير محددة' : 'Unnamed Station');
+
+      const siteNameFinal = (siteName && siteName !== stationName) ? siteName : (siteName || (ar ? 'موقع غير محدد' : 'Unassigned Site'));
+
+      if (!tree[resolvedStationId]) {
+        tree[resolvedStationId] = { stationName, sites: {} };
+      }
+      const stationObj = tree[resolvedStationId];
+      const siteKey = `${resolvedStationId}-${siteId}`;
+      if (!stationObj.sites[siteKey]) {
+        stationObj.sites[siteKey] = { siteId, siteName: siteNameFinal, gens: [] };
+       }
+       stationObj.sites[siteKey].gens.push(gen);
+     });
+
+     const sorted = Object.entries(tree)
+       .map(([stationId, data]) => ({
+         stationId,
+         stationName: data.stationName,
+         sites: Object.entries(data.sites).map(([siteKey, siteData]) => ({
+           siteKey, siteId: siteData.siteId, siteName: siteData.siteName, gens: siteData.gens
+         }))
+       }))
+       .sort((a, b) => (a.stationName || '').localeCompare(b.stationName || ''));
+
+     return sorted;
+   }, [paginatedFiltered, stations, subStations, ar]);
+
+   const toggleStation = (stationId) => {
+     setExpandedStations(prev => {
+       const next = new Set(prev);
+       if (next.has(stationId)) next.delete(stationId);
+       else next.add(stationId);
+       return next;
+     });
+   };
+
+   const toggleSite = (siteKey) => {
+     setExpandedSites(prev => {
+       const next = new Set(prev);
+       if (next.has(siteKey)) next.delete(siteKey);
+       else next.add(siteKey);
+       return next;
+     });
+   };
 
   return (
     <div>
-      <div className="page-header">
-        <div className="page-header-row">
-          <div>
-            <h1>{t.generators}</h1>
-            <p>{t.manageGenerators}</p>
-          </div>
-          {canAdd && (
-            <button className="btn btn-primary" onClick={openAdd}>
-              <Plus size={16} /> {t.addGenerator}
-            </button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title={t.generators}
+        subtitle={t.manageGenerators}
+        actions={canAdd ? (
+          <Button icon={Plus} onClick={openAdd}>{t.addGenerator}</Button>
+        ) : null}
+      />
 
       {/* Search */}
       <div style={{ marginBottom: 20 }}>
@@ -378,7 +421,7 @@ function Generators({ t, lang, currentUser }) {
         </div>
       </div>
 
-      {error && !showModal && <div className="alert alert-danger">{error}</div>}
+      {error && !showModal && <div className="alert-inline alert-inline-danger">{error}</div>}
 
       {loading ? (
         <div className="spinner-wrap"><div className="ft-spinner" /></div>
@@ -386,83 +429,95 @@ function Generators({ t, lang, currentUser }) {
         <div className="empty-state"><Zap size={48} /><h3>{t.noData}</h3></div>
       ) : (<>
         <div className="grouped-container">
-          {Object.entries(groupedGenerators).map(([groupKey, group]) => (
-            <div key={groupKey} className="station-group" style={{ marginBottom: 40 }}>
-              <div className="station-group-header" style={{ display: 'flex', alignItems: 'center', gap: 15, padding: '15px 20px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderBottom: '2px solid var(--primary)', borderRadius: '12px', marginBottom: 20, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, borderRadius: 10, background: 'var(--primary-light)', color: 'var(--primary)' }}>
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 'bold', color: 'var(--text-main)' }}>{group.label}</h3>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{ar ? 'المولدات التابعة لهذا الموقع' : 'Generators in this location'}</div>
-                </div>
-                <span style={{ marginRight: ar ? 'auto' : 0, marginLeft: ar ? 0 : 'auto', padding: '6px 14px', background: 'var(--primary)', color: '#fff', borderRadius: 20, fontSize: 13, fontWeight: 'bold' }}>
-                  {group.gens.length} {ar ? 'مولدات' : 'Generators'}
-                </span>
-              </div>
-              <div className="grid-auto">
-                {group.gens.map(gen => (
-                  <div key={gen.id} className="gen-card">
-                    <div className="gen-card-header">
-                      <div>
-                        <div className="gen-name">{gen.name}</div>
-                        <div className="gen-model">{gen.manufacturer} {gen.model && `— ${gen.model}`}</div>
-                      </div>
-                       <StatusBadge status={gen.statusLookupName || gen.status} lang={lang} />
-                       <span className={`status-badge ${gen.isActive !== false ? 'status-active' : 'status-inactive'}`}>
-                         {gen.isActive !== false ? (ar ? 'نشط' : 'Active') : (ar ? 'غير نشط' : 'Inactive')}
-                       </span>
-                    </div>
-                    <div className="gen-stats">
-                      <div className="gen-stat-item">
-                        <div className="gen-stat-label">{ar ? 'القدرة الاسمية' : 'Nominal Power'}</div>
-                        <div className="gen-stat-value">{(gen.nominalPower || gen.ratedCapacityKw) ? `${gen.nominalPower || gen.ratedCapacityKw} KW` : '—'}</div>
-                      </div>
-                      <div className="gen-stat-item">
-                        <div className="gen-stat-label">{ar ? 'القدرة الفعلية' : 'Actual Power'}</div>
-                        <div className="gen-stat-value">{(gen.actualPowerKW || gen.actualPowerKw) ? `${gen.actualPowerKW || gen.actualPowerKw} KW` : '—'}</div>
-                      </div>
-                      <div className="gen-stat-item">
-                        <div className="gen-stat-label">{ar ? 'نوع المولد' : 'Type'}</div>
-                        <div className="gen-stat-value">{gen.generatorTypeLookupName || gen.genType || '—'}</div>
-                      </div>
-                      <div className="gen-stat-item">
-                        <div className="gen-stat-label">{ar ? 'الموقع' : 'Location'}</div>
-                        <div className="gen-stat-value" style={{ fontSize: 12 }}>{generatorSiteName(gen)}</div>
-                      </div>
-                      <div className="gen-stat-item">
-                        <div className="gen-stat-label">{ar ? 'الساعات الحالية' : 'Current Hours'}</div>
-                        <div className="gen-stat-value">{gen.lastHoursRecord ? `${gen.lastHoursRecord} h` : (gen.initialHoursRecord ? `${gen.initialHoursRecord} h` : '—')}</div>
-                      </div>
-                      <div className="gen-stat-item">
-                        <div className="gen-stat-label">{ar ? 'قراءة الطاقة الحالية' : 'Current Energy'}</div>
-                        <div className="gen-stat-value">{gen.lastPowerRecord ? `${gen.lastPowerRecord} KWh` : (gen.initialPowerRecord ? `${gen.initialPowerRecord} KWh` : '—')}</div>
-                      </div>
-                      <div className="gen-stat-item">
-                        <div className="gen-stat-label">{ar ? 'الفولت' : 'Voltage'}</div>
-                        <div className="gen-stat-value">{gen.voltageLookupName || gen.voltage || '—'}</div>
-                      </div>
-                      <div className="gen-stat-item">
-                        <div className="gen-stat-label">{ar ? 'التردد' : 'Frequency'}</div>
-                        <div className="gen-stat-value">{gen.frequencyLookupName || gen.frequency || '—'}</div>
-                      </div>
-                    </div>
-                    <div className="gen-card-actions">
-                      {canEdit && (
-                        <button className="btn btn-warning btn-sm" onClick={() => openEdit(gen)}>
-                          <Edit2 size={13} /> {t.edit}
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(getId(gen))}>
-                          <Trash2 size={13} /> {t.delete}
-                        </button>
-                      )}
-                    </div>
+          {generatorTree.map(({ stationId, stationName, sites }) => {
+            const stationExpanded = expandedStations.has(stationId);
+            const stationGenCount = sites.reduce((sum, s) => sum + s.gens.length, 0);
+            return (
+              <div key={stationId} className="station-group" style={{ marginBottom: 28 }}>
+                {/* Station Header */}
+                <div className="station-group-header" style={{ marginBottom: 4, cursor: 'pointer' }}
+                  onClick={() => toggleStation(stationId)}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, background: 'var(--primary-light)', color: 'var(--primary)', flexShrink: 0 }}>
+                    {stationExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                   </div>
-                ))}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 'bold', color: 'var(--text-main)' }}>{stationName || (ar ? 'محطة غير محددة' : 'Unnamed Station')}</h3>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{stationGenCount} {ar ? 'مولد' : 'generators'}</div>
+                  </div>
+                </div>
+
+                {/* Sites */}
+                {stationExpanded && sites.map(({ siteKey, siteName, gens }) => {
+                  const siteExpanded = expandedSites.has(siteKey);
+                  return (
+                    <div key={siteKey} style={{ paddingLeft: 24, marginBottom: 8 }}>
+                      <div className="site-group-header" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--card-2)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: 6 }}
+                        onClick={() => toggleSite(siteKey)}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, background: 'rgba(255,255,255,0.1)', color: 'var(--text-muted)', flexShrink: 0 }}>
+                          {siteExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </div>
+                        <MapPin size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-main)', flex: 1 }}>{siteName}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: 10 }}>{gens.length} {ar ? 'مولد' : 'gen'}</span>
+                      </div>
+
+                      {/* Generators */}
+                      {siteExpanded && (
+                        <div className="grid-auto" style={{ paddingLeft: 8 }}>
+                          {gens.map(gen => (
+                            <div key={gen.id} className="gen-card">
+                               <div className="gen-card-header">
+                                 <div>
+                                   <div className="gen-name">{gen.name}</div>
+                                   <div className="gen-model">{gen.manufacturer} {gen.model && `— ${gen.model}`}</div>
+                                 </div>
+                                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                  <StatusBadge status={gen.statusLookupName || gen.status} lang={lang} />
+                                  <span className={`status-badge ${gen.isActive !== false ? 'status-active' : 'status-inactive'}`}>
+                                    {gen.isActive !== false ? (ar ? 'نشط' : 'Active') : (ar ? 'غير نشط' : 'Inactive')}
+                                  </span>
+                                </div>
+                               </div>
+                               <div className="gen-stats">
+                                 <div className="gen-stat-item">
+                                   <div className="gen-stat-label">{ar ? 'القدرة الفعلية' : 'Actual Power'}</div>
+                                   <div className="gen-stat-value">{(gen.actualPowerKW || gen.actualPowerKw) ? `${gen.actualPowerKW || gen.actualPowerKw} KW` : '—'}</div>
+                                 </div>
+                                 <div className="gen-stat-item">
+                                   <div className="gen-stat-label">{ar ? 'نوع المولد' : 'Type'}</div>
+                                   <div className="gen-stat-value">{gen.generatorTypeLookupName || gen.genType || '—'}</div>
+                                 </div>
+                                 <div className="gen-stat-item">
+                                   <div className="gen-stat-label">{ar ? 'الشاشة المرتبطة' : 'Associated Screen'}</div>
+                                   <div className="gen-stat-value">
+                                     {gen.controllerName || gen.controllerCode
+                                       ? `${gen.controllerName || gen.controllerCode}${gen.controllerCode && gen.controllerName ? ` (${gen.controllerCode})` : ''}`
+                                       : (ar ? 'غير مرتبطة' : 'Not linked')}
+                                   </div>
+                                 </div>
+                               </div>
+                              <div className="gen-card-actions">
+                                {canEdit && (
+                                  <Button variant="warning" size="sm" icon={Edit2} onClick={() => openEdit(gen)}>
+                                    {t.edit}
+                                  </Button>
+                                )}
+                                {canDelete && (
+                                   <Button variant="danger" size="sm" icon={Trash2} onClick={() => handleDelete(getId(gen))}>
+                                     {t.delete}
+                                   </Button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         {filteredTotal > PAGE_SIZE && (
           <Pagination page={safePage} totalPages={totalPages} total={filteredTotal} pageSize={PAGE_SIZE} lang={lang}
@@ -470,232 +525,199 @@ function Generators({ t, lang, currentUser }) {
         )}
       </>)}
       {showModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && closeModal()}>
-          <div className="modal-box" style={{ maxWidth: 680 }}>
-            <div className="modal-header">
-              <div className="modal-title">{editId ? (ar ? 'تعديل بيانات المولد' : 'Edit Generator') : (ar ? 'إضافة مولد جديد' : 'Add New Generator')}</div>
-              <button className="modal-close" onClick={closeModal}><X size={18} /></button>
-            </div>
-            <div className="modal-body">
-              {error && <div className="alert alert-danger">{error}</div>}
-
-              {/* Section 1 — بيانات المولد الأساسية */}
-              <div style={secHdr}>{ar ? 'بيانات المولد الأساسية' : 'Generator Basic Data'}</div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'اسم المولد *' : 'Generator Name *'}</label>
-                  <input className="form-control" value={form.name} onChange={e => fld('name', e.target.value)} />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'الفرع *' : 'Branch *'}</label>
-                  <select className="form-select" value={form.branchId} onChange={e => {
-                    fld('branchId', e.target.value);
-                    fld('station', '');
-                    fld('subStation', '');
-                  }}>
-                    <option value="">— {ar ? 'اختر الفرع' : 'Select Branch'} —</option>
-                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'المحطة' : 'Station'}</label>
-                  <select className="form-select" value={form.station} onChange={e => {
-                    fld('station', e.target.value);
-                    fld('subStation', '');
-                  }} disabled={!form.branchId}>
-                    <option value="">— {ar ? 'اختر المحطة' : 'Select Station'} —</option>
-                    {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'المنطقة (وحدة فرعية)' : 'Area (SubStation)'}</label>
-                  <select className="form-select" value={form.subStation} onChange={e => fld('subStation', e.target.value)} disabled={!form.station}>
-                    <option value="">— {ar ? 'اختر المنطقة' : 'Select Area'} —</option>
-                    {filteredSubStations.map(ss => (
-                      <option key={ss.id} value={ss.id}>{ss.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'الرقم التسلسلي' : 'Serial No.'}</label>
-                  <input className="form-control" value={form.serialNo} onChange={e => fld('serialNo', e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'الشركة المصنعة' : 'Manufacturer'}</label>
-                  <input className="form-control" value={form.manufacturer} onChange={e => fld('manufacturer', e.target.value)} />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'الموديل' : 'Model'}</label>
-                  <input className="form-control" value={form.model} onChange={e => fld('model', e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'نوع المولد' : 'Generator Type'}</label>
-                  <select className="form-select" value={form.genType} onChange={e => fld('genType', e.target.value)}>
-                    <option value="">— {ar ? 'اختر' : 'Select'} —</option>
-                    {genTypes.map(item => (
-                      <option key={item.id} value={item.name}>{item.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'القدرة الاسمية (تصنيف المولد)' : 'Nominal Capacity'}</label>
-                  <input className="form-control" type="number" value={form.ratedCapacityKw} onChange={e => fld('ratedCapacityKw', e.target.value)} />
-                </div>
-              </div>
-
-              {/* Section — بيانات شاشة التحكم */}
-              <div style={secHdr}>{ar ? 'بيانات شاشة التحكم' : 'Controller Data'}</div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label" style={{ color: 'var(--warning)' }}>{ar ? 'شاشة التحكم المرتبطة' : 'Linked Controller'}</label>
-                  <select className="form-select" value={form.controller} onChange={e => {
-                    const ctrlId = e.target.value;
-                    fld('controller', ctrlId);
-                  }}>
-                    <option value="">— {ar ? 'اختر الشاشة' : 'Select Screen'} —</option>
-                    {controllers.filter(c => !c.generatorId || c.generatorId === editId).map(c => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.code}) — {c.controllerType}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'وحدة الطاقة' : 'Energy Unit'}</label>
-                  <input className="form-control" readOnly
-                    value={controllers.find(c => c.id === Number(form.controller))?.energyUnit || 'KW'}
-                    style={{ background: 'var(--card-2)', color: 'var(--secondary)', fontWeight: 600 }} />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'قراءة عداد الطاقة الحالية' : 'Current Energy Reading'}</label>
-                  <input className="form-control" readOnly
-                    value={controllers.find(c => c.id === Number(form.controller))?.energyReading || 0}
-                    style={{ background: 'var(--card-2)' }} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'قراءة ساعات التشغيل الحالية' : 'Current Operating Hours'}</label>
-                  <input className="form-control" readOnly
-                    value={controllers.find(c => c.id === Number(form.controller))?.operatingHours || 0}
-                    style={{ background: 'var(--card-2)' }} />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'معامل القدرة' : 'Power Factor'}</label>
-                  <input className="form-control" value={form.powerFactor} onChange={e => fld('powerFactor', e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'القدرة الفعلية (KW)' : 'Actual Power (KW)'}</label>
-                  <input className="form-control" type="number" value={form.actualPowerKw} onChange={e => fld('actualPowerKw', e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'معدل استهلاك الوقود (لتر/KWh)' : 'Fuel Consumption Rate (L/KWh)'}</label>
-                  <input className="form-control" value={form.fuelConsumptionRatePerHour} onChange={e => fld('fuelConsumptionRatePerHour', e.target.value)} />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'مستوى الفولتات' : 'Voltage Level'}</label>
-                  <select className="form-select" value={form.voltage} onChange={e => fld('voltage', e.target.value)}>
-                    <option value="">—</option>
-                    {voltages.map(item => (
-                      <option key={item.id} value={item.name}>{item.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'التردد' : 'Frequency'}</label>
-                  <select className="form-select" value={form.frequency} onChange={e => fld('frequency', e.target.value)}>
-                    <option value="">—</option>
-                    {frequencies.map(item => (
-                      <option key={item.id} value={item.name}>{item.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'اسم المالك' : 'Owner Name'}</label>
-                  <input className="form-control" value={form.owner} onChange={e => fld('owner', e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'نوع الملكية' : 'Ownership Type'}</label>
-                  <select className="form-select" value={form.ownershipType} onChange={e => fld('ownershipType', e.target.value)}>
-                    <option value="">—</option>
-                    {ownershipTypes.map(item => (
-                      <option key={item.id} value={item.name}>{item.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'حالة التشغيل' : 'Operating Status'}</label>
-                  <select className="form-select" value={form.status} onChange={e => fld('status', e.target.value)}>
-                    <option value="">—</option>
-                    {statuses.map(item => (
-                      <option key={item.id} value={item.name}>{item.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Section 3 — صيانة وتواريخ */}
-              <div style={secHdr}>{ar ? 'بيانات الصيانة' : 'Maintenance Data'}</div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'تاريخ التركيب' : 'Installation Date'}</label>
-                  <input className="form-control" type="date" value={form.installationDate} onChange={e => fld('installationDate', e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{ar ? 'آخر صيانة' : 'Last Maintenance'}</label>
-                  <input className="form-control" type="date" value={form.lastMaintenance} onChange={e => fld('lastMaintenance', e.target.value)} />
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">{ar ? 'ملاحظات' : 'Notes'}</label>
-                <textarea className="form-control" rows={2} value={form.notes}
-                  onChange={e => fld('notes', e.target.value)}
-                  style={{ resize: 'vertical', fontFamily: 'inherit' }} />
-              </div>
-              <div className="form-group" style={{ marginTop: 8 }}>
-                <label className="checkbox-label">
-                  <input type="checkbox" checked={form.isActive} onChange={e => fld('isActive', e.target.checked)} />
-                  <span>{ar ? 'نشط' : 'Active'}</span>
-                </label>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={closeModal}>{ar ? 'إلغاء' : 'Cancel'}</button>
-              <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
+        <Modal
+          open={showModal}
+          onClose={closeModal}
+          title={editId ? (ar ? 'تعديل بيانات المولد' : 'Edit Generator') : (ar ? 'إضافة مولد جديد' : 'Add New Generator')}
+          maxWidth={680}
+          footer={
+            <>
+              <Button variant="ghost" onClick={closeModal}>{ar ? 'إلغاء' : 'Cancel'}</Button>
+              <Button variant="primary" onClick={handleSubmit} disabled={saving} icon={Save}>
                 {saving
-                  ? <><span className="ft-spinner" style={{ width: 14, height: 14 }} /> {ar ? 'جاري الحفظ...' : 'Saving...'}</>
-                  : <><Save size={14} /> {editId ? (ar ? 'تحديث المولد' : 'Update Generator') : (ar ? 'إضافة مولد' : 'Add Generator')}</>}
-              </button>
+                  ? ar ? 'جاري الحفظ...' : 'Saving...'
+                  : editId ? (ar ? 'تحديث المولد' : 'Update Generator') : (ar ? 'إضافة مولد' : 'Add Generator')}
+              </Button>
+            </>
+          }
+        >
+          {error && <div className="alert-inline alert-inline-danger">{error}</div>}
+
+          <div className="form-section-header">{ar ? 'بيانات المولد الأساسية' : 'Generator Basic Data'}</div>
+          <FormField label={ar ? 'اسم المولد *' : 'Generator Name *'} required error={fieldError('name')}>
+            <Input value={form.name} onChange={e => fld('name', e.target.value)} />
+          </FormField>
+          <div className="form-row">
+            <FormField label={ar ? 'المحافظة *' : 'Governorate *'} required error={fieldError('branchId')}>
+              <select className="form-select" value={form.branchId} onChange={e => {
+                fld('branchId', e.target.value);
+                fld('station', '');
+                fld('subStation', '');
+              }}>
+                <option value="">— {ar ? 'اختر المحافظة' : 'Select Governorate'} —</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </FormField>
+            {form.branchId && (
+              <FormField label={ar ? 'المحطة *' : 'Station *'} required error={fieldError('station')}>
+                <select className="form-select" value={form.station} onChange={e => {
+                  fld('station', e.target.value);
+                  fld('subStation', '');
+                }}>
+                  <option value="">— {ar ? 'اختر المحطة' : 'Select Station'} —</option>
+                  {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </FormField>
+            )}
+            {form.station && (
+              <FormField label={ar ? 'الموقع/الفرع *' : 'Site / Branch *'} required error={fieldError('subStation')}>
+                <select className="form-select" value={form.subStation} onChange={e => fld('subStation', e.target.value)}>
+                  <option value="">— {ar ? 'اختر الموقع' : 'Select Site'} —</option>
+                  {filteredSubStations.map(ss => (
+                    <option key={ss.id} value={ss.id}>{ss.name}</option>
+                  ))}
+                </select>
+              </FormField>
+             )}
+           </div>
+           <div className="form-row">
+             <FormField label={ar ? 'الرقم التسلسلي' : 'Serial No.'}>
+               <Input value={form.serialNo} onChange={e => fld('serialNo', e.target.value)} />
+             </FormField>
+             <FormField label={ar ? 'الشركة المصنعة' : 'Manufacturer'}>
+               <Input value={form.manufacturer} onChange={e => fld('manufacturer', e.target.value)} />
+             </FormField>
+           </div>
+           <div className="form-row">
+             <FormField label={ar ? 'الموديل' : 'Model'}>
+               <Input value={form.model} onChange={e => fld('model', e.target.value)} />
+             </FormField>
+             <FormField label={ar ? 'نوع المولد' : 'Generator Type'}>
+               <select className="form-select" value={form.genType} onChange={e => fld('genType', e.target.value)}>
+                 <option value="">— {ar ? 'اختر' : 'Select'} —</option>
+                 {genTypes.map(item => (
+                   <option key={item.id} value={item.id}>{item.name}</option>
+                 ))}
+               </select>
+             </FormField>
             </div>
-          </div>
-        </div>
-      )}
+           <div className="form-row">
+             <FormField label={ar ? 'القدرة الاسمية (تصنيف المولد)' : 'Nominal Capacity'}>
+               <Input type="number" value={form.ratedCapacityKw} onChange={e => fld('ratedCapacityKw', e.target.value)} />
+             </FormField>
+           </div>
 
-      {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        open={confirmDelete.open}
-        title={ar ? 'حذف المولد' : 'Delete Generator'}
-        message={ar ? 'هل تريد حذف هذا المولد؟ هذا الإجراء لا يمكن التراجع عنه.' : 'Delete this generator? This action cannot be undone.'}
-        confirmText={ar ? 'نعم، حذف' : 'Yes, Delete'}
-        cancelText={ar ? 'إلغاء' : 'Cancel'}
-        danger
-        onConfirm={confirmDeleteAction}
-        onCancel={() => setConfirmDelete({ open: false, id: null })}
-      />
-    </div>
-  );
-}
+           <div className="form-section-header">{ar ? 'بيانات شاشة التحكم' : 'Controller Data'}</div>
+           <div className="form-row">
+             <FormField label={ar ? 'شاشة التحكم المرتبطة' : 'Linked Controller'} error={null}>
+               <select className="form-select" value={form.controller} onChange={e => {
+                 const ctrlId = e.target.value;
+                 fld('controller', ctrlId);
+               }}>
+                 <option value="">— {ar ? 'اختر الشاشة' : 'Select Screen'} —</option>
+                 {controllers.filter(c => !c.generatorId || c.generatorId === editId).map(c => (
+                   <option key={c.id} value={c.id}>{c.name} ({c.code}) — {c.controllerType}</option>
+                 ))}
+               </select>
+             </FormField>
+             <FormField label={ar ? 'وحدة الطاقة' : 'Energy Unit'}>
+               <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.energyUnit || 'KW'} style={{ background: 'var(--card-2)', color: 'var(--secondary)', fontWeight: 600 }} />
+             </FormField>
+           </div>
+           <div className="form-row">
+             <FormField label={ar ? 'قراءة عداد الطاقة الحالية' : 'Current Energy Reading'}>
+               <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.energyReading || 0} style={{ background: 'var(--card-2)' }} />
+             </FormField>
+             <FormField label={ar ? 'قراءة ساعات التشغيل الحالية' : 'Current Operating Hours'}>
+               <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.operatingHours || 0} style={{ background: 'var(--card-2)' }} />
+             </FormField>
+           </div>
+           <div className="form-row">
+             <FormField label={ar ? 'معامل القدرة' : 'Power Factor'}>
+               <Input value={form.powerFactor} onChange={e => fld('powerFactor', e.target.value)} />
+             </FormField>
+             <FormField label={ar ? 'القدرة الفعلية (KW)' : 'Actual Power (KW)'}>
+               <Input type="number" value={form.actualPowerKw} onChange={e => fld('actualPowerKw', e.target.value)} />
+             </FormField>
+             <FormField label={ar ? 'معدل استهلاك الوقود (لتر/KWh)' : 'Fuel Consumption Rate (L/KWh)'}>
+               <Input value={form.fuelConsumptionRatePerHour} onChange={e => fld('fuelConsumptionRatePerHour', e.target.value)} />
+             </FormField>
+           </div>
+           <div className="form-row">
+             <FormField label={ar ? 'مستوى الفولتات' : 'Voltage Level'}>
+               <select className="form-select" value={form.voltage} onChange={e => fld('voltage', e.target.value)}>
+                 <option value="">—</option>
+                  {voltages.map(item => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </select>
+              </FormField>
+              <FormField label={ar ? 'التردد' : 'Frequency'}>
+                <select className="form-select" value={form.frequency} onChange={e => fld('frequency', e.target.value)}>
+                  <option value="">—</option>
+                  {frequencies.map(item => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+               </select>
+             </FormField>
+           </div>
+           <div className="form-row">
+             <FormField label={ar ? 'اسم المالك' : 'Owner Name'}>
+               <Input value={form.owner} onChange={e => fld('owner', e.target.value)} />
+             </FormField>
+             <FormField label={ar ? 'نوع الملكية' : 'Ownership Type'}>
+               <select className="form-select" value={form.ownershipType} onChange={e => fld('ownershipType', e.target.value)}>
+                 <option value="">—</option>
+                  {ownershipTypes.map(item => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </select>
+              </FormField>
+              <FormField label={ar ? 'حالة التشغيل' : 'Operating Status'}>
+                <select className="form-select" value={form.status} onChange={e => fld('status', e.target.value)}>
+                  <option value="">—</option>
+                  {statuses.map(item => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+               </select>
+             </FormField>
+           </div>
 
-export default Generators;
+           <div className="form-section-header">{ar ? 'بيانات الصيانة' : 'Maintenance Data'}</div>
+           <div className="form-row">
+             <FormField label={ar ? 'تاريخ التركيب' : 'Installation Date'}>
+               <Input type="date" value={form.installationDate} onChange={e => fld('installationDate', e.target.value)} />
+             </FormField>
+             <FormField label={ar ? 'آخر صيانة' : 'Last Maintenance'}>
+               <Input type="date" value={form.lastMaintenance} onChange={e => fld('lastMaintenance', e.target.value)} />
+             </FormField>
+           </div>
+           <FormField label={ar ? 'ملاحظات' : 'Notes'}>
+             <textarea className="form-control" rows={2} value={form.notes}
+               onChange={e => fld('notes', e.target.value)}
+               style={{ resize: 'vertical', fontFamily: 'inherit' }} />
+           </FormField>
+           <div className="form-group" style={{ marginTop: 8 }}>
+             <label className="checkbox-label">
+               <input type="checkbox" checked={form.isActive} onChange={e => fld('isActive', e.target.checked)} />
+               <span>{ar ? 'نشط' : 'Active'}</span>
+             </label>
+           </div>
+         </Modal>
+       )}
+
+       <ConfirmModal
+         open={confirmDelete.open}
+         title={ar ? 'حذف المولد' : 'Delete Generator'}
+         message={ar ? 'هل تريد حذف هذا المولد؟ هذا الإجراء لا يمكن التراجع عنه.' : 'Delete this generator? This action cannot be undone.'}
+         confirmText={ar ? 'نعم، حذف' : 'Yes, Delete'}
+         cancelText={ar ? 'إلغاء' : 'Cancel'}
+         danger
+         onConfirm={confirmDeleteAction}
+         onCancel={() => setConfirmDelete({ open: false, id: null })}
+       />
+     </div>
+   );
+ }
+
+ export default Generators;

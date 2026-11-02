@@ -1,7 +1,8 @@
 namespace FuelTrack.Domain.Models
 {
-    public class PeriodicInventoryOil : BaseEntity
+    public class PeriodicInventoryOil
     {
+        public int Id { get; set; }
         public int PeriodicInventoryId { get; set; }
         public int OilLookupId { get; set; }
         public int? OilId { get; set; }

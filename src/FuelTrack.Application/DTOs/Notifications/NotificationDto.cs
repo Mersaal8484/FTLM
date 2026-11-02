@@ -8,6 +8,8 @@ public record NotificationDto(
     string NotificationType,
     string? Severity,
     bool IsRead,
+    string? RelatedEntityType,
+    int? RelatedEntityId,
     DateTime? SentAt,
     int? SentById,
     DateTime CreatedAt);
@@ -20,4 +22,8 @@ public record CreateNotificationDto(
     string Message,
     string NotificationType,
     string? Severity,
-    List<int>? RecipientUserIds);
+    List<int>? RecipientUserIds,
+    string? RelatedEntityType = null,
+    int? RelatedEntityId = null);
+
+public record NotificationsResponseDto(List<NotificationDto> Notifications, int UnreadCount);

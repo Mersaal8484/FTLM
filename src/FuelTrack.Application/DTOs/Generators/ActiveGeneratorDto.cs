@@ -1,0 +1,28 @@
+namespace FuelTrack.Application.DTOs.Generators;
+
+public record ActiveGeneratorDto(
+    int Id,
+    int BranchId,
+    string BranchName,
+    int StationId,
+    string StationName,
+    int SubStationId,
+    string SubStationName,
+    string Name,
+    string SerialNumber,
+    string? Model,
+    string? Manufacturer,
+    double NominalPower,
+    int ActualPowerKW,
+    string? GeneratorTypeLookupName,
+    string? OwnershipTypeLookupName,
+    string? VoltageLookupName,
+    string? FrequencyLookupName,
+    string? StatusLookupName,
+    bool IsActive,
+    string? ControllerName,
+    string? ControllerCode,
+    string? ControllerType,
+    double ControllerEnergyReading,
+    double ControllerOperatingHours,
+    string? Location);

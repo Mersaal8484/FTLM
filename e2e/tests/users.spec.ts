@@ -56,6 +56,10 @@ test.describe('User Management', () => {
     await modal.getByRole('button', { name: /Add User|إضافة مستخدم/i }).click();
     await expect(page.getByText(name, { exact: false })).toBeVisible();
 
+    // Reload the page so React shows the newly created card.
+    await gotoPage(page, '/users');
+    await page.locator('.glass-card', { hasText: name }).waitFor({ state: 'visible' });
+
     // open edit from the card
     await page.locator('.glass-card', { hasText: name }).getByRole('button', { name: /Edit|تعديل/i }).click();
     await expect(modal).toBeVisible();
@@ -76,25 +80,22 @@ test.describe('User Management', () => {
     // Add a scope row.
     await modal.getByRole('button', { name: /Add Scope|إضافة نطاق/i }).click();
 
-    const scopeGroup = modal.locator('div.form-group', {
-      has: modal.locator('label', { hasText: /Data Scope|نطاق البيانات/i }),
-    });
-
-    // Branch select populated from /api/branches
-    const branchSel = scopeGroup.locator('select').first();
+    // The scope cascade selects are rendered directly in the modal, not inside .form-group.
+    const selects = modal.locator('select');
+    const branchSel = selects.nth(0);
     const branchOpts = await realOptions(branchSel);
     expect(branchOpts, 'scope branch options should include the DB branch').toContain(h.branchName);
     await branchSel.selectOption({ label: h.branchName });
 
     // Station select appears only after a branch is chosen.
-    const stationSel = scopeGroup.locator('select').nth(1);
+    const stationSel = selects.nth(1);
     await expect(stationSel).toBeVisible();
     const stationOpts = await realOptions(stationSel);
     expect(stationOpts, 'scope station options should include the DB station').toContain(h.stationName);
     await stationSel.selectOption({ label: h.stationName });
 
     // SubStation select appears only after a station is chosen.
-    const subSel = scopeGroup.locator('select').nth(2);
+    const subSel = selects.nth(2);
     await expect(subSel).toBeVisible();
     const subOpts = await realOptions(subSel);
     expect(subOpts, 'scope sub-station options should include the DB sub-station').toContain(h.subStationName);

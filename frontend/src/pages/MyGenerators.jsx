@@ -67,7 +67,7 @@ function MyGenerators({ lang, currentUser }) {
             <h2 style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, color: 'var(--secondary)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800 }}>
               <Layout size={18} />
               {ar ? 'رصد الطاقة المرسلة (للموقع ككل)' : 'Site Energy Monitoring (Site-wide)'}
-              <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, var(--secondary-glow), transparent)', marginLeft: 15 }} />
+               <div style={{ flex: 1, height: '1px', background: 'var(--border)', marginInlineStart: 15 }} />
             </h2>
             <div className="grid-auto" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))' }}>
               {siteCards.map(site => {
@@ -75,7 +75,7 @@ function MyGenerators({ lang, currentUser }) {
                   ? `/stations/${site.stationId}/reading?subStation=${site.subStationId}&siteName=${encodeURIComponent(site.siteName)}`
                   : `/stations/${site.stationId}/reading`;
                 return (
-                  <div key={site.key} className="glass-card" style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-2)', border: '1px solid var(--border-light)' }}>
+                  <div key={site.key} className="section-card" style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-2)', border: '1px solid var(--border-light)' }}>
                     <div>
                       <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--text)', marginBottom: 4 }}>{site.siteName}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -95,7 +95,7 @@ function MyGenerators({ lang, currentUser }) {
           <h2 style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800 }}>
             <Zap size={18} />
             {ar ? 'قراءات المولدات الفردية' : 'Individual Generator Readings'}
-            <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, var(--primary-glow), transparent)', marginLeft: 15 }} />
+            <div style={{ flex: 1, height: '1px', background: 'var(--border)', marginInlineStart: 15 }} />
           </h2>
 
           <div className="grid-auto">

@@ -80,7 +80,7 @@ const StationReadingsReport = ({ lang = 'ar' }) => {
           {[
             { label: isAr ? 'إجمالي القراءات' : 'Total Readings', value: summary.totalReadings },
             { label: isAr ? 'الموثقة' : 'Verified', value: summary.verifiedCount, color: '#10b981' },
-            { label: isAr ? 'قيد الانتظار' : 'Pending', value: summary.pendingCount, color: '#f59e0b' },
+            { label: isAr ? 'قيد الانتظار' : 'Pending', value: summary.pendingCount, color: 'var(--warning)' },
             { label: isAr ? 'الطاقة المصدرة (كيلوواط ساعة)' : 'Total Exported (kWh)', value: fmt(summary.totalEnergyExportedKWh) },
           ].map((s, i) => (
             <div key={i} className="modern-card animate-fade-up" style={{ padding: '1rem', animationDelay: `${i * 0.05}s` }}>
@@ -97,7 +97,7 @@ const StationReadingsReport = ({ lang = 'ar' }) => {
             <thead>
               <tr style={{ background: 'var(--color-bg-secondary, #f9fafb)' }}>
                 {[isAr ? 'التاريخ' : 'Date', isAr ? 'المحطة الفرعية' : 'Sub Station', isAr ? 'العداد' : 'Meter', isAr ? 'ال.previous (كيلوواط ساعة)' : 'Prev (kWh)', isAr ? 'الحالي (كيلوواط ساعة)' : 'Current (kWh)', isAr ? 'الفرق (كيلوواط ساعة)' : 'Delta (kWh)', isAr ? 'الحالة' : 'Status'].map((h, i) => (
-                  <th key={i} style={{ padding: '0.75rem', textAlign: i <= 1 ? (dir === 'rtl' ? 'right' : 'left') : 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h}</th>
+                  <th key={i} style={{ padding: '0.75rem', textAlign: i <= 1 ? 'start' : 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h}</th>
                 ))}
               </tr>
             </thead>

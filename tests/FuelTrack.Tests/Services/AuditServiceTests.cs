@@ -19,7 +19,7 @@ public class AuditServiceTests : IDisposable
             .Options;
         _db = new FuelTrackDbContext(o);
 
-        _service = new AuditService(_db, new Microsoft.AspNetCore.Http.HttpContextAccessor());
+        _service = new AuditService(_db, new StubCurrentUserService());
     }
 
     [Fact]

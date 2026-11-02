@@ -344,18 +344,121 @@ public class UserScopeService
                 && s.DeletedAt == null);
     }
 
-    /// <summary>
-    /// Applies scope filtering to a query based on the module's scope type.
-    /// </summary>
     public IQueryable<T> ApplyScope<T>(IQueryable<T> query, int userId, ScopeType scopeType, Func<T, int> getId, Func<T, int?>? getSubStationId = null, Func<T, int?>? getStationId = null, Func<T, int?>? getBranchId = null)
     {
         return scopeType switch
         {
             ScopeType.None => query,
-            ScopeType.Branch => query.Where(x => getBranchId != null && GetAccessibleBranchIdsAsync(userId).Result.Contains(getBranchId(x) ?? 0)),
-            ScopeType.Station => query.Where(x => getStationId != null && GetAccessibleStationIdsAsync(userId).Result.Contains(getStationId(x) ?? 0)),
-            ScopeType.SubStation => query.Where(x => getSubStationId != null && GetAccessibleSubStationIdsAsync(userId).Result.Contains(getSubStationId(x) ?? 0)),
+            ScopeType.Branch => query.Where(x => getBranchId != null && GetAccessibleBranchIds(userId).Contains(getBranchId(x) ?? 0)),
+            ScopeType.Station => query.Where(x => getStationId != null && GetAccessibleStationIds(userId).Contains(getStationId(x) ?? 0)),
+            ScopeType.SubStation => query.Where(x => getSubStationId != null && GetAccessibleSubStationIds(userId).Contains(getSubStationId(x) ?? 0)),
             _ => query
         };
+    }
+
+    private HashSet<int> GetAccessibleBranchIds(int userId)
+    {
+        var scopes = _db.UserScopes
+            .Where(s => s.UserId == userId && s.DeletedAt == null)
+            .ToList();
+
+        if (scopes.Count == 0)
+            return new HashSet<int>();
+
+        if (scopes.Any(s => s.BranchId == null && s.StationId == null && s.SubStationId == null))
+        {
+            return _db.Branches
+                .Where(b => b.DeletedAt == null && b.IsActive)
+                .Select(b => b.Id)
+                .ToHashSet();
+        }
+
+        var branchIds = new HashSet<int>();
+        foreach (var scope in scopes)
+        {
+            if (scope.BranchId.HasValue)
+                branchIds.Add(scope.BranchId.Value);
+        }
+        return branchIds;
+    }
+
+    private HashSet<int> GetAccessibleStationIds(int userId)
+    {
+        var scopes = _db.UserScopes
+            .Where(s => s.UserId == userId && s.DeletedAt == null)
+            .ToList();
+
+        if (scopes.Count == 0)
+            return new HashSet<int>();
+
+        if (scopes.Any(s => s.BranchId == null && s.StationId == null && s.SubStationId == null))
+        {
+            return _db.Stations
+                .Where(s => s.DeletedAt == null && s.IsActive)
+                .Select(s => s.Id)
+                .ToHashSet();
+        }
+
+        var stationIds = new HashSet<int>();
+        foreach (var scope in scopes)
+        {
+            if (scope.StationId.HasValue)
+            {
+                stationIds.Add(scope.StationId.Value);
+            }
+            else if (scope.BranchId.HasValue)
+            {
+                var ids = _db.Stations
+                    .Where(s => s.BranchId == scope.BranchId.Value && s.DeletedAt == null && s.IsActive)
+                    .Select(s => s.Id)
+                    .ToList();
+                foreach (var id in ids) stationIds.Add(id);
+            }
+        }
+        return stationIds;
+    }
+
+    private HashSet<int> GetAccessibleSubStationIds(int userId)
+    {
+        var scopes = _db.UserScopes
+            .Where(s => s.UserId == userId && s.DeletedAt == null)
+            .ToList();
+
+        if (scopes.Count == 0)
+            return new HashSet<int>();
+
+        if (scopes.Any(s => s.BranchId == null && s.StationId == null && s.SubStationId == null))
+        {
+            return _db.SubStations
+                .Where(ss => ss.DeletedAt == null && ss.IsActive)
+                .Select(ss => ss.Id)
+                .ToHashSet();
+        }
+
+        var subStationIds = new HashSet<int>();
+        foreach (var scope in scopes)
+        {
+            if (scope.SubStationId.HasValue)
+            {
+                subStationIds.Add(scope.SubStationId.Value);
+            }
+            else if (scope.StationId.HasValue)
+            {
+                var ids = _db.SubStations
+                    .Where(ss => ss.StationId == scope.StationId.Value && ss.DeletedAt == null && ss.IsActive)
+                    .Select(ss => ss.Id)
+                    .ToList();
+                foreach (var id in ids) subStationIds.Add(id);
+            }
+            else if (scope.BranchId.HasValue)
+            {
+                var ids = _db.SubStations
+                    .Where(ss => ss.Station.BranchId == scope.BranchId.Value && ss.DeletedAt == null && ss.IsActive)
+                    .Select(ss => ss.Id)
+                    .ToList();
+                foreach (var id in ids) subStationIds.Add(id);
+            }
+        }
+        return subStationIds;
     }
 }

@@ -18,6 +18,7 @@ public class StartupSecretsValidator : ISecretsValidator
         var result = new SecretsValidationResult();
 
         ValidateJwtKey(result);
+        ValidateDataEncryptionKey(result);
         ValidateConnectionString(result);
         ValidateAdminPassword(result);
         ValidateJwtIssuer(result);
@@ -25,6 +26,24 @@ public class StartupSecretsValidator : ISecretsValidator
         ValidateCorsOrigins(result);
 
         return result;
+    }
+
+    private void ValidateDataEncryptionKey(SecretsValidationResult result)
+    {
+        var key = _configuration["DataEncryption:Key"];
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            key = Environment.GetEnvironmentVariable("DATA_ENCRYPTION_KEY");
+        }
+
+        var env = _configuration["ASPNETCORE_ENVIRONMENT"];
+        if (string.Equals(env, "Production", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(key) || key.StartsWith("{") || key.Contains("Replace", StringComparison.OrdinalIgnoreCase))
+            {
+                result.Errors.Add("SECURITY: DataEncryption:Key must be configured with a 32-byte base64 production key.");
+            }
+        }
     }
 
     private void ValidateJwtKey(SecretsValidationResult result)

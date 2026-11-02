@@ -102,3 +102,55 @@ test.describe('Generator Setup', () => {
     await expect(page.getByText(updated, { exact: false })).toBeVisible();
   });
 });
+
+/**
+ * Active Generators (المولدات النشطة) — /generators/active
+ * Covers: page loads, displays only active generators linked to control screens,
+ * no add/edit/delete buttons present, data filtered by user scope.
+ */
+test.describe('Active Generators', () => {
+  test('loads without errors', async ({ page }) => {
+    await gotoPage(page, '/generators/active');
+    await expect(page.locator('.page-header h1')).toBeVisible();
+  });
+
+  test('has no add/edit/delete buttons', async ({ page }) => {
+    await gotoPage(page, '/generators/active');
+    await expect(page.getByRole('button', { name: /Add Generator|إضافة مولد/i })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: /Edit|تعديل/i })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: /Delete|حذف/i })).not.toBeVisible();
+  });
+
+  test('displays only active generators linked to control screens', async ({ page }) => {
+    await gotoPage(page, '/generators/active');
+    const genCards = page.locator('.gen-card');
+    const count = await genCards.count();
+    // If there are generators shown, they should all have a linked controller
+    for (let i = 0; i < count; i++) {
+      const card = genCards.nth(i);
+      // Each card should show a linked controller name
+      const controllerLabel = card.locator('text=/شاشة التحكم|Linked Controller/i');
+      await expect(controllerLabel).toBeVisible();
+    }
+  });
+
+  test('search filters generators by name, location, or controller', async ({ page }) => {
+    await gotoPage(page, '/generators/active');
+    const genCardsBefore = page.locator('.gen-card');
+    const countBefore = await genCardsBefore.count();
+
+    if (countBefore > 0) {
+      // Get the name of the first generator
+      const firstGenName = await genCardsBefore.first().locator('.gen-name').textContent();
+      if (firstGenName) {
+        // Search for the first generator's name
+        await page.getByRole('textbox', { name: /search/i }).fill(firstGenName);
+        const genCardsAfter = page.locator('.gen-card');
+        const countAfter = await genCardsAfter.count();
+        expect(countAfter).toBeGreaterThanOrEqual(1);
+        // Verify the searched name appears in the results
+        await expect(page.getByText(firstGenName, { exact: false })).toBeVisible();
+      }
+    }
+  });
+});

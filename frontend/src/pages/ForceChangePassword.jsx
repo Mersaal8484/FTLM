@@ -44,34 +44,14 @@ function ForceChangePassword({ onPasswordChanged, onLogout }) {
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      minHeight: '100dvh',
-      width: '100vw',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'var(--bg, #0f1117)',
-      padding: 20,
-      boxSizing: 'border-box',
-      zIndex: 1,
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: 440,
-        background: 'var(--card-bg, #1a1d27)',
-        border: '1px solid var(--border, rgba(255,255,255,0.08))',
-        borderRadius: 16,
-        padding: '34px 32px',
-        boxShadow: '0 8px 40px rgba(0,0,0,0.35)',
-      }}>
+    <div className="login-page">
+      <div className="login-card" style={{ maxWidth: 440 }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
           <div style={{
-            width: 58,
-            height: 58,
+            width: 56,
+            height: 56,
             borderRadius: 16,
-            background: 'rgba(59, 130, 246, 0.12)',
+            background: 'rgba(59, 130, 246, 0.15)',
             color: 'var(--primary)',
             display: 'flex',
             alignItems: 'center',
@@ -81,14 +61,14 @@ function ForceChangePassword({ onPasswordChanged, onLogout }) {
           </div>
         </div>
 
-        <h1 style={{ textAlign: 'center', color: 'var(--text)', fontSize: 22, margin: '0 0 8px' }}>
+        <h1 className="login-title" style={{ fontSize: '1.4rem' }}>
           {t('auth.passwordChangeRequired')}
         </h1>
-        <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, margin: '0 0 24px', lineHeight: 1.7 }}>
+        <p className="login-desc" style={{ marginBottom: 20 }}>
           {t('auth.passwordChangeDescription')}
         </p>
 
-        {error && <div className="alert alert-danger" style={{ marginBottom: 16 }}>{error}</div>}
+        {error && <div className="alert-inline alert-inline-danger" style={{ marginBottom: 16 }}>{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -132,8 +112,15 @@ function ForceChangePassword({ onPasswordChanged, onLogout }) {
             />
           </div>
 
-          <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: '100%', marginTop: 8, height: 44 }}>
-            {loading ? t('common.saving') : t('auth.changePasswordAndContinue')}
+          <button className="btn btn-primary login-btn" type="submit" disabled={loading} style={{ width: '100%', marginTop: 12 }}>
+            {loading ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <span className="ft-spinner" style={{ width: 16, height: 16 }} />
+                {t('common.saving')}
+              </span>
+            ) : (
+              t('auth.changePasswordAndContinue')
+            )}
           </button>
         </form>
 

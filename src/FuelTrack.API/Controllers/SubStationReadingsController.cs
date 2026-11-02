@@ -1,5 +1,6 @@
 using System;
 using System.Security.Claims;
+using FuelTrack.Application.DTOs.Readings;
 using FuelTrack.Application.DTOs.SubStationReadings;
 using FuelTrack.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -13,10 +14,12 @@ namespace FuelTrack.API.Controllers;
 public class SubStationReadingsController : BaseApiController
 {
     private readonly ISubStationReadingService _service;
+    private readonly IRealtimeNotifier _notifier;
 
-    public SubStationReadingsController(ISubStationReadingService service)
+    public SubStationReadingsController(ISubStationReadingService service, IRealtimeNotifier notifier)
     {
         _service = service;
+        _notifier = notifier;
     }
 
     [HttpPost]
@@ -25,11 +28,16 @@ public class SubStationReadingsController : BaseApiController
         try
         {
             var result = await _service.CreateAsync(dto);
+            await _notifier.NotifyAllAsync("SubStationReadingCreated", new { result.Id, result.SubStationId });
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
         catch (Exception ex)
         {
-            return BadRequest(new { msg = ex.Message, message = ex.Message });
+            return BadRequest(new Dictionary<string, string>
+            {
+                ["msg"] = ex.Message,
+                ["message"] = ex.Message
+            });
         }
     }
 
@@ -46,15 +54,16 @@ public class SubStationReadingsController : BaseApiController
     public async Task<IActionResult> GetProductionSummary(
         [FromQuery] int stationId, [FromQuery] string date, [FromQuery] int? subStation = null)
     {
-        // Lightweight summary used by the Site Energy Monitoring page.
-        // TODO: aggregate generator readings for the given station/date when available.
-        return Ok(new { totalProduced = 0 });
+        var targetDate = DateTime.TryParse(date, out var d) ? d : DateTime.UtcNow.Date;
+        var result = await _service.GetProductionSummaryAsync(stationId, targetDate, subStation);
+        return Ok(result);
     }
 
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, [FromBody] CreateSubStationReadingDto dto)
     {
         var result = await _service.UpdateAsync(id, dto);
+        await _notifier.NotifyAllAsync("SubStationReadingUpdated", new { result.Id, result.SubStationId });
         return Ok(result);
     }
 
@@ -83,17 +92,41 @@ public class SubStationReadingsController : BaseApiController
     [HttpPost("{id:int}/approve")]
     public async Task<IActionResult> Approve(int id)
     {
-        var userId = GetUserId();
-        await _service.ApproveAsync(id, userId);
-        return NoContent();
+        try
+        {
+            var userId = GetUserId();
+            await _service.ApproveAsync(id, userId);
+            await _notifier.NotifyAllAsync("SubStationReadingApproved", new { Id = id });
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new Dictionary<string, string>
+            {
+                ["msg"] = ex.Message,
+                ["message"] = ex.Message
+            });
+        }
     }
 
     [HttpPost("{id:int}/reject")]
-    public async Task<IActionResult> Reject(int id)
+    public async Task<IActionResult> Reject(int id, [FromBody] RejectReadingDto? dto = null)
     {
-        var userId = GetUserId();
-        await _service.RejectAsync(id, userId);
-        return NoContent();
+        try
+        {
+            var userId = GetUserId();
+            await _service.RejectAsync(id, userId, dto?.RejectionReason);
+            await _notifier.NotifyAllAsync("SubStationReadingRejected", new { Id = id, Reason = dto?.RejectionReason });
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new Dictionary<string, string>
+            {
+                ["msg"] = ex.Message,
+                ["message"] = ex.Message
+            });
+        }
     }
 
 }

@@ -96,7 +96,7 @@ const GeneratorsReport = ({ lang = 'ar' }) => {
             <thead>
               <tr style={{ background: 'var(--color-bg-secondary, #f9fafb)' }}>
                 {[isAr ? 'المولد' : 'Generator', isAr ? 'المحطة الفرعية' : 'Sub Station', isAr ? 'القدرة (كيلوواط)' : 'Power (kW)', isAr ? 'الطاقة (كيلوواط ساعة)' : 'Energy (kWh)', isAr ? 'الوقود (لتر)' : 'Fuel (L)', isAr ? 'الكفاءة %' : 'Eff %', isAr ? 'الحالة' : 'Status'].map((h, i) => (
-                  <th key={i} style={{ padding: '0.75rem', textAlign: i === 0 ? (dir === 'rtl' ? 'right' : 'left') : 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h}</th>
+                  <th key={i} style={{ padding: '0.75rem', textAlign: i === 0 ? 'start' : 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -107,7 +107,7 @@ const GeneratorsReport = ({ lang = 'ar' }) => {
                   <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-primary, #111827)' }}>{g.subStationName}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#3b82f6' }}>{fmt(g.actualPowerKW)}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#10b981' }}>{fmt(g.totalEnergyProducedKWh)}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#f59e0b' }}>{fmt(g.totalFuelConsumedLiters)}</td>
+                  <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--warning)' }}>{fmt(g.totalFuelConsumedLiters)}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                     <span style={{
                       display: 'inline-block', padding: '0.125rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600,

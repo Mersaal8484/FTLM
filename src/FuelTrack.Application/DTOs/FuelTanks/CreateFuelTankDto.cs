@@ -12,4 +12,5 @@ public record CreateFuelTankDto(
     bool HasMeter,
     double? MeterReading,
     double? MeterReadingActual,
-    string? Notes);
+    string? Notes,
+    bool IsActive = true);

@@ -91,6 +91,14 @@ public class GeneratorsController : BaseApiController
         return Ok(result);
     }
 
+    [HttpGet("active")]
+    public async Task<IActionResult> GetActiveWithControllers()
+    {
+        var userId = GetUserId();
+        var result = await _generatorService.GetActiveWithControllersAsync(userId);
+        return Ok(result);
+    }
+
     [HttpGet("my/{id:int}/last-reading")]
     public async Task<IActionResult> GetMyGeneratorLastReading(int id)
     {

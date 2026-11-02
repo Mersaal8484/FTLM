@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import client from '../api/client';
 import { CheckCircle, X, FileText, Zap, PackageSearch, CheckSquare, Layout, AlertTriangle, Droplet } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
 
 // ── Modal رفض مدمج ──────────────────────────────────────────────────────────
 function RejectModal({ ar, onConfirm, onCancel }) {
@@ -89,6 +90,7 @@ function ReviewChanges({ lang }) {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [toast, setToast] = useState(null);           // { type, msg }
   const [rejectModal, setRejectModal] = useState(null); // { type, id }
+  const [confirmModal, setConfirmModal] = useState({ open: false, message: '', onConfirm: null });
 
   // ✅ الإصلاح الجوهري: useRef لتخزين fetchPending بشكل دائم
   // يمنع stale closure الذي كان يسبب عدم تحديث الصفحة بعد العمليات
@@ -146,17 +148,23 @@ function ReviewChanges({ lang }) {
 
   const handleApproveAll = async () => {
     if (readings.length === 0) return;
-    if (!window.confirm(ar ? `اعتماد جميع القراءات (${readings.length})؟` : `Approve all ${readings.length}?`)) return;
-    setBulkLoading(true);
-    let ok = 0, fail = 0;
-    for (const r of readings) {
-      try { await client.post(`/api/readings/${r.id}/approve`); ok++; } catch { fail++; }
-    }
-    setBulkLoading(false);
-    showToast(fail === 0 ? 'success' : 'error',
-      ar ? `تم اعتماد ${ok} قراءة${fail > 0 ? ` وفشل ${fail}` : ''} ✓`
-        : `Approved ${ok}${fail > 0 ? `, ${fail} failed` : ''} ✓`);
-    await fetchPendingRef.current(true);
+    setConfirmModal({
+      open: true,
+      message: ar ? `اعتماد جميع القراءات (${readings.length})؟` : `Approve all ${readings.length}?`,
+      onConfirm: async () => {
+        setConfirmModal({ open: false, message: '', onConfirm: null });
+        setBulkLoading(true);
+        let ok = 0, fail = 0;
+        for (const r of readings) {
+          try { await client.post(`/api/readings/${r.id}/approve`); ok++; } catch { fail++; }
+        }
+        setBulkLoading(false);
+        showToast(fail === 0 ? 'success' : 'error',
+          ar ? `تم اعتماد ${ok} قراءة${fail > 0 ? ` وفشل ${fail}` : ''} ✓`
+            : `Approved ${ok}${fail > 0 ? `, ${fail} failed` : ''} ✓`);
+        await fetchPendingRef.current(true);
+      },
+    });
   };
 
   // ── قراءات المواقع ────────────────────────────────────────────────────────
@@ -200,7 +208,7 @@ function ReviewChanges({ lang }) {
           fontWeight: 600, fontSize: 14, boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
           animation: 'fadeInUp 0.3s ease',
         }}>
-          {toast.type === 'success' ? <CheckCircle size={16} style={{ marginLeft: 8, verticalAlign: 'middle' }} /> : <X size={16} style={{ marginLeft: 8, verticalAlign: 'middle' }} />}
+          {toast.type === 'success' ? <CheckCircle size={16} style={{ marginInlineStart: 8, verticalAlign: 'middle' }} /> : <X size={16} style={{ marginInlineStart: 8, verticalAlign: 'middle' }} />}
           {toast.msg}
         </div>
       )}
@@ -221,9 +229,9 @@ function ReviewChanges({ lang }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* ── قراءات المولدات ── */}
-          <div className="glass-card" style={{ transform: 'none', animation: 'fadeInUp 0.4s ease' }}>
-            <div className="glass-card-header">
-              <div className="glass-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="section-card" style={{ transform: 'none', animation: 'fadeInUp 0.4s ease' }}>
+            <div className="section-card-header">
+              <div className="section-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Zap size={18} style={{ color: 'var(--warning)' }} />
                 {ar ? 'قراءات المولدات المعلقة' : 'Pending Generator Readings'}
               </div>
@@ -245,7 +253,7 @@ function ReviewChanges({ lang }) {
               </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
-                <table className="ft-table">
+                <table className="data-table">
                   <thead>
                     <tr>
                       <th>{ar ? 'المولد' : 'Generator'}</th>
@@ -314,9 +322,9 @@ function ReviewChanges({ lang }) {
           </div>
 
           {/* ── قراءات المواقع ── */}
-          <div className="glass-card" style={{ transform: 'none', animation: 'fadeInUp 0.4s ease' }}>
-            <div className="glass-card-header">
-              <div className="glass-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="section-card" style={{ transform: 'none', animation: 'fadeInUp 0.4s ease' }}>
+            <div className="section-card-header">
+              <div className="section-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Layout size={18} style={{ color: 'var(--primary)' }} />
                 {ar ? 'قراءات الطاقة المرسلة للمواقع المعلقة' : 'Pending Site Grid Readings'}
               </div>
@@ -328,7 +336,7 @@ function ReviewChanges({ lang }) {
               </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
-                <table className="ft-table">
+                <table className="data-table">
                   <thead>
                     <tr>
                       <th>{ar ? 'الموقع' : 'Site'}</th>
@@ -378,9 +386,9 @@ function ReviewChanges({ lang }) {
           </div>
 
           {/* ── الجرد الدوري ── */}
-          <div className="glass-card" style={{ transform: 'none', animation: 'fadeInUp 0.4s ease' }}>
-            <div className="glass-card-header">
-              <div className="glass-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="section-card" style={{ transform: 'none', animation: 'fadeInUp 0.4s ease' }}>
+            <div className="section-card-header">
+              <div className="section-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <PackageSearch size={18} style={{ color: 'var(--primary)' }} />
                 {ar ? 'الجرد الدوري المعلق' : 'Pending Periodic Inventories'}
               </div>
@@ -392,7 +400,7 @@ function ReviewChanges({ lang }) {
               </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
-                <table className="ft-table">
+                <table className="data-table">
                   <thead>
                     <tr>
                       <th>{ar ? 'المحطة' : 'Station'}</th>
@@ -433,6 +441,16 @@ function ReviewChanges({ lang }) {
 
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmModal.open}
+        title={ar ? 'تأكيد الاعتماد' : 'Confirm Approval'}
+        message={confirmModal.message}
+        confirmText={ar ? 'نعم، اعتمد' : 'Yes, Approve'}
+        cancelText={ar ? 'إلغاء' : 'Cancel'}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal({ open: false, message: '', onConfirm: null })}
+      />
     </div>
   );
 }

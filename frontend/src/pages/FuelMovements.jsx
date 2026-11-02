@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import client from '../api/client';
 import {
   Package, Filter, Clock, ShieldCheck, ShieldAlert, LayoutGrid,
@@ -6,27 +7,27 @@ import {
 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
+import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
+import useToastStore from '../store/toastStore';
 
-const typeLabels = {
-  summary:    { label: 'مخزون الوقود والزيوت', color: 'var(--secondary)', icon: LayoutGrid },
-  supply:     { label: 'الوارد وقود / زيت',     color: 'var(--secondary)', icon: Package },
-  transfer:   { label: 'نقل وقود / زيت',         color: 'var(--primary)',   icon: ArrowRightLeft },
-  adjustment: { label: 'تسوية رصيد',              color: 'var(--text-muted)', icon: Filter },
-  loss:       { label: 'فاقد / تالف',             color: 'var(--danger)',    icon: AlertCircle },
+// typeLabels and statusConfig are now built lazily from i18n inside the component.
+// Static fallback icons map (icons don't change with language).
+const TAB_ICONS = {
+  summary:    LayoutGrid,
+  supply:     Package,
+  transfer:   ArrowRightLeft,
+  adjustment: Filter,
+  loss:       AlertCircle,
 };
-
-const statusConfig = {
-  pending:  { label: 'بانتظار الموافقة', color: '#f59e0b', icon: Clock },
-  approved: { label: 'تم الاعتماد',      color: '#10b981', icon: ShieldCheck },
-  rejected: { label: 'مرفوض',            color: '#ef4444', icon: ShieldAlert },
+const TAB_COLORS = {
+  summary:    'var(--secondary)',
+  supply:     'var(--secondary)',
+  transfer:   'var(--primary)',
+  adjustment: 'var(--text-muted)',
+  loss:       'var(--danger)',
 };
-
-const secHdr = {
-  fontSize: '0.85rem', fontWeight: 800, color: '#f59e0b',
-  marginBottom: 20, marginTop: 10, paddingBottom: 8,
-  borderBottom: '2px solid #f59e0b30',
-  textTransform: 'uppercase', letterSpacing: '1px'
-};
+const STATUS_ICONS  = { pending: Clock, approved: ShieldCheck, rejected: ShieldAlert };
+const STATUS_COLORS = { pending: 'var(--warning)', approved: 'var(--success)', rejected: 'var(--danger)' };
 
 /** استخراج حالة الحركة من الـ DTO الجديد */
 const getStatus = (m) => {
@@ -84,6 +85,28 @@ const renderMovementDetails = (m) => {
 
 function FuelMovements({ lang, currentUser }) {
   const ar = lang === 'ar';
+  const { t, i18n } = useTranslation();
+
+  useEffect(() => {
+    if (lang && i18n && i18n.language !== lang) {
+      i18n.changeLanguage(lang);
+    }
+  }, [lang, i18n]);
+
+  // i18n-driven config (reconstructed on lang change via useMemo)
+  const typeLabels = useMemo(() => ({
+    summary:    { label: t('movements.tabs.summary'),    color: TAB_COLORS.summary,    icon: TAB_ICONS.summary },
+    supply:     { label: t('movements.tabs.supply'),     color: TAB_COLORS.supply,     icon: TAB_ICONS.supply },
+    transfer:   { label: t('movements.tabs.transfer'),   color: TAB_COLORS.transfer,   icon: TAB_ICONS.transfer },
+    adjustment: { label: t('movements.tabs.adjustment'), color: TAB_COLORS.adjustment, icon: TAB_ICONS.adjustment },
+    loss:       { label: t('movements.tabs.loss'),       color: TAB_COLORS.loss,       icon: TAB_ICONS.loss },
+  }), [t]);
+
+  const statusConfig = useMemo(() => ({
+    pending:  { label: t('movements.status.pending'),  color: STATUS_COLORS.pending,  icon: STATUS_ICONS.pending },
+    approved: { label: t('movements.status.approved'), color: STATUS_COLORS.approved, icon: STATUS_ICONS.approved },
+    rejected: { label: t('movements.status.rejected'), color: STATUS_COLORS.rejected, icon: STATUS_ICONS.rejected },
+  }), [t]);
 
   const perms = currentUser?.permissions?.fuel_movements || currentUser?.permissions?.movements || {};
   const canAdd     = currentUser?.role === 'admin' || perms.create || perms.add;
@@ -100,7 +123,8 @@ function FuelMovements({ lang, currentUser }) {
   const [showForm,     setShowForm]     = useState(false);
   const [editId,       setEditId]       = useState(null);
   const [saving,       setSaving]       = useState(false);
-  const [status,       setStatus]       = useState(null);
+  const [status, setStatus] = useState(null);
+  const showToast = useToastStore((s) => s.showToast);
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
@@ -278,17 +302,19 @@ function FuelMovements({ lang, currentUser }) {
     try {
       await client.post(`/api/fuel-movements/${id}/approve`);
       fetchAll();
-    } catch (err) { alert(getApiErrorMessage(err)); }
+      showToast(ar ? 'تم الاعتماد ✓' : 'Approved ✓', 'success');
+    } catch (err) { showToast(getApiErrorMessage(err), 'error'); }
   };
 
   // ── Reject ─────────────────────────────────────────────────────────────────
   const handleReject = async () => {
-    if (!rejectReason) return alert(ar ? 'يرجى إدخال سبب الرفض' : 'Enter rejection reason');
+    if (!rejectReason) return showToast(ar ? 'يرجى إدخال سبب الرفض' : 'Enter rejection reason', 'error');
     try {
       await client.post(`/api/fuel-movements/${showRejectModal}/reject`);
       setShowRejectModal(null); setRejectReason('');
       fetchAll();
-    } catch (err) { alert(getApiErrorMessage(err)); }
+      showToast(ar ? 'تم الرفض ✓' : 'Rejected ✓', 'success');
+    } catch (err) { showToast(getApiErrorMessage(err), 'error'); }
   };
 
   // ── Grouping by sub-station name ──────────────────────────────────────────
@@ -338,30 +364,18 @@ function FuelMovements({ lang, currentUser }) {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="fuel-movements-page" style={{ animation: 'fadeIn 0.5s ease' }}>
-      {/* ── Header ── */}
-      <div className="page-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 20, marginBottom: 30 }}>
-        <div className="page-header-row">
-          <div>
-            <h1 style={{ fontSize: '1.8rem', letterSpacing: '-0.5px' }}>
-              {ar ? 'حركات الوقود / الزيت' : 'Fuel & Oil Movements'}
-            </h1>
-            <p style={{ fontSize: '0.95rem', opacity: 0.8 }}>
-              {ar ? 'إدارة التوريد، النقل، التسويات، والفاقد' : 'Manage supply, transfers, adjustments, and losses'}
-            </p>
-          </div>
-          {activeTab !== 'summary' && canAdd && (
-            <button
-              className="btn btn-primary"
-              style={{ padding: '12px 24px', borderRadius: 12 }}
-              onClick={() => { setShowForm(true); setEditId(null); setForm(initialForm()); setSelectedSupplySubStation(''); }}
-            >
-              <Plus size={18} /> {ar ? 'حركة جديدة' : 'New Movement'}
-            </button>
-          )}
-        </div>
-      </div>
+      {/* ── Header (unified PageHeader component) ── */}
+      <PageHeader
+        title={t('movements.pageTitle')}
+        subtitle={t('movements.pageSubtitle')}
+        actions={activeTab !== 'summary' && canAdd ? (
+          <Button icon={Plus} onClick={() => { setShowForm(true); setEditId(null); setForm(initialForm()); setSelectedSupplySubStation(''); }}>
+            {ar ? 'حركة جديدة' : 'New Movement'}
+          </Button>
+        ) : null}
+      />
 
-      {/* ── Tabs ── */}
+      {/* ── Tabs (labels now come from i18n) ── */}
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 30 }}>
         <div className="ft-tabs">
           {Object.entries(typeLabels).filter(([k]) => k !== 'adjustment').map(([k, cfg]) => (
@@ -389,13 +403,13 @@ function FuelMovements({ lang, currentUser }) {
 
       {/* ═══════════════════════════════ SUMMARY TAB ═══════════════════════════ */}
       {activeTab === 'summary' && (
-        <div className="glass-card" style={{ marginBottom: 30 }}>
-          <div className="glass-card-header">
-            <div className="glass-card-title">{ar ? 'ملخص مخزون المواقع' : 'Site Inventory Summary'}</div>
+        <div className="section-card" style={{ marginBottom: 30 }}>
+          <div className="section-card-header">
+            <div className="section-card-title">{ar ? 'ملخص مخزون المواقع' : 'Site Inventory Summary'}</div>
             <button className="btn btn-sm btn-ghost" onClick={fetchAll}>{ar ? 'تحديث البيانات' : 'Refresh'}</button>
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <table className="ft-table" style={{ borderTop: 'none' }}>
+            <table className="data-table" style={{ borderTop: 'none' }}>
               <thead>
                 <tr style={{ background: 'hsla(220,40%,60%,0.05)' }}>
                   <th style={{ textAlign: 'center' }}>{ar ? 'اسم الموقع' : 'Site'}</th>
@@ -461,9 +475,9 @@ function FuelMovements({ lang, currentUser }) {
                 </span>
               </div>
 
-              <div className="glass-card" style={{ padding: 0 }}>
+              <div className="section-card" style={{ padding: 0 }}>
                 <div style={{ overflowX: 'auto' }}>
-                  <table className="ft-table">
+                  <table className="data-table">
                     <thead>
                       <tr>
                         <th style={{ textAlign: 'center', width: 120 }}>{ar ? 'التاريخ' : 'Date'}</th>
@@ -490,7 +504,7 @@ function FuelMovements({ lang, currentUser }) {
                               {fmtDate(m.transactionDate)}
                             </td>
                             <td style={{ textAlign: 'center' }}>
-                              <span className="badge" style={{ background: '#f59e0b15', color: '#f59e0b', border: '1px solid #f59e0b30', padding: '4px 8px', fontWeight: 700 }}>
+                              <span className="badge" style={{ background: 'var(--warning)15', color: 'var(--warning)', border: '1px solid var(--warning)30', padding: '4px 8px', fontWeight: 700 }}>
                                 {m.transactionTypeLookupName || (ar ? 'وقود' : 'Fuel')}
                               </span>
                             </td>
@@ -538,10 +552,10 @@ function FuelMovements({ lang, currentUser }) {
 
       {/* ═══════════════════════════ TAB MOVEMENT TABLE ═════════════════════ */}
       {!showForm && activeTab !== 'summary' && (<>
-        <div className="glass-card" style={{ padding: 0, animation: 'fadeInUp 0.4s ease' }}>
-          <div className="glass-card-header">
+        <div className="section-card" style={{ padding: 0, animation: 'fadeInUp 0.4s ease' }}>
+          <div className="section-card-header">
             <div>
-              <div className="glass-card-title">{typeLabels[activeTab]?.label}</div>
+              <div className="section-card-title">{typeLabels[activeTab]?.label}</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                 {ar ? 'جميع حركات الوقود المسجلة' : 'All registered fuel movements'}
               </div>
@@ -550,7 +564,7 @@ function FuelMovements({ lang, currentUser }) {
           </div>
 
           <div style={{ overflowX: 'auto' }}>
-            <table className="ft-table">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th style={{ textAlign: 'center', minWidth: 110 }}>{ar ? 'تاريخ الحركة' : 'Date'}</th>
@@ -586,7 +600,7 @@ function FuelMovements({ lang, currentUser }) {
                         {m.subStationName || '—'}
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className="badge" style={{ background: '#f59e0b15', color: '#f59e0b' }}>
+                        <span className="badge" style={{ background: 'var(--warning)15', color: 'var(--warning)' }}>
                           {m.transactionTypeLookupName || (ar ? 'وقود' : 'Fuel')}
                         </span>
                       </td>
@@ -649,9 +663,9 @@ function FuelMovements({ lang, currentUser }) {
 
       {/* ═══════════════════════════════ FORM ═══════════════════════════════ */}
       {showForm && activeTab !== 'summary' && (
-        <div className="glass-card" style={{ marginBottom: 30, animation: 'fadeInUp 0.3s ease' }}>
-          <div className="glass-card-header">
-            <div className="glass-card-title">
+        <div className="section-card" style={{ marginBottom: 30, animation: 'fadeInUp 0.3s ease' }}>
+          <div className="section-card-header">
+            <div className="section-card-title">
               {editId
                 ? (ar ? 'تعديل حركة' : 'Edit Movement')
                 : (ar ? `تسجيل ${typeLabels[activeTab].label}` : `New ${activeTab}`)}
@@ -660,7 +674,7 @@ function FuelMovements({ lang, currentUser }) {
               <X size={16} />
             </button>
           </div>
-          <div className="glass-card-body">
+          <div className="section-card-body">
             <form onSubmit={handleSubmit}>
 
               {/* ── Supply Form ── */}
@@ -687,10 +701,9 @@ function FuelMovements({ lang, currentUser }) {
                   {/* Fuel supply fields */}
                   {form.itemType !== 'oil' && (
                     <>
-                      <div style={secHdr}>{ar ? 'بيانات التوريد الأساسية' : 'Primary Supply Data'}</div>
+                      <div className="form-section-header">{ar ? 'بيانات التوريد الأساسية' : 'Primary Supply Data'}</div>
                       <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'الموقع / الفرع *' : 'Site / Branch *'}</label>
+                        <FormField label={ar ? 'الموقع / الفرع *' : 'Site / Branch *'} required>
                           <select className="form-select" value={selectedSupplySubStation}
                             onChange={e => handleSupplySiteSelect(e.target.value)} required>
                             <option value="">— {ar ? 'اختر الموقع' : 'Select Site'} —</option>
@@ -700,9 +713,8 @@ function FuelMovements({ lang, currentUser }) {
                               </option>
                             ))}
                           </select>
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'الخزان المستلم *' : 'Receiving Tank *'}</label>
+                        </FormField>
+                        <FormField label={ar ? 'الخزان المستلم *' : 'Receiving Tank *'} required>
                           <select className="form-select" value={form.tank}
                             onChange={e => handleTankSelect(e.target.value)} required>
                             <option value="">— {ar ? 'اختر الخزان' : 'Select Tank'} —</option>
@@ -712,7 +724,7 @@ function FuelMovements({ lang, currentUser }) {
                               </option>
                             ))}
                           </select>
-                        </div>
+                        </FormField>
                       </div>
                       {/* ── Tank Capacity Info ── */}
                       {form.tank && (() => {
@@ -721,7 +733,7 @@ function FuelMovements({ lang, currentUser }) {
                         const capacity = Number(selectedTank.capacityLiters) || 0;
                         const current = Number(selectedTank.actualStockLiters) || 0;
                         const fillPct = capacity > 0 ? Math.min((current / capacity) * 100, 100) : 0;
-                        const fillColor = fillPct > 90 ? '#ef4444' : fillPct > 70 ? '#f59e0b' : '#10b981';
+                        const fillColor = fillPct > 90 ? '#ef4444' : fillPct > 70 ? 'var(--warning)' : '#10b981';
                         const qty = Number(form.quantityLiters) || 0;
                         const wouldExceed = qty > 0 && capacity > 0 && (current + qty) > capacity;
                         return (
@@ -753,75 +765,62 @@ function FuelMovements({ lang, currentUser }) {
                         );
                       })()}
                       <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'الجهة الموردة' : 'Supplier'}</label>
-                          <input className="form-control" value={form.supplierName} onChange={e => fld('supplierName', e.target.value)} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'رقم التوريد' : 'Supply No.'}</label>
-                          <input className="form-control" value={form.supplyNumber} onChange={e => fld('supplyNumber', e.target.value)} />
-                        </div>
+                        <FormField label={ar ? 'الجهة الموردة' : 'Supplier'}>
+                          <Input value={form.supplierName} onChange={e => fld('supplierName', e.target.value)} />
+                        </FormField>
+                        <FormField label={ar ? 'رقم التوريد' : 'Supply No.'}>
+                          <Input value={form.supplyNumber} onChange={e => fld('supplyNumber', e.target.value)} />
+                        </FormField>
                       </div>
                       <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'الكمية الموردة (لتر) *' : 'Qty (L) *'}</label>
-                          <input className="form-control" type="number" min="0.001" step="0.001"
+                        <FormField label={ar ? 'الكمية الموردة (لتر) *' : 'Qty (L) *'} required>
+                          <Input type="number" min="0.001" step="0.001"
                             value={form.quantityLiters} onChange={e => fld('quantityLiters', e.target.value)} required />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'تاريخ التوريد' : 'Supply Date'}</label>
-                          <input className="form-control" type="date" value={form.supplyDate} onChange={e => fld('supplyDate', e.target.value)} />
-                        </div>
+                        </FormField>
+                        <FormField label={ar ? 'تاريخ التوريد' : 'Supply Date'}>
+                          <Input type="date" value={form.supplyDate} onChange={e => fld('supplyDate', e.target.value)} />
+                        </FormField>
                       </div>
 
-                      <div style={secHdr}>{ar ? 'بيانات الناقل والإيصال' : 'Truck & Receipt'}</div>
+                      <div className="form-section-header">{ar ? 'بيانات الناقل والإيصال' : 'Truck & Receipt'}</div>
                       <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'اسم السواق' : 'Driver Name'}</label>
-                          <input className="form-control" value={form.driverName} onChange={e => fld('driverName', e.target.value)} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'البطاقة الشخصية' : 'Driver ID'}</label>
-                          <input className="form-control" value={form.driverId} onChange={e => fld('driverId', e.target.value)} />
-                        </div>
+                        <FormField label={ar ? 'اسم السواق' : 'Driver Name'}>
+                          <Input value={form.driverName} onChange={e => fld('driverName', e.target.value)} />
+                        </FormField>
+                        <FormField label={ar ? 'البطاقة الشخصية' : 'Driver ID'}>
+                          <Input value={form.driverId} onChange={e => fld('driverId', e.target.value)} />
+                        </FormField>
                       </div>
                       <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'رقم القاطرة' : 'Truck No.'}</label>
-                          <input className="form-control" value={form.truckNumber} onChange={e => fld('truckNumber', e.target.value)} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'رقم المقطورة' : 'Trailer No.'}</label>
-                          <input className="form-control" value={form.trailerNumber} onChange={e => fld('trailerNumber', e.target.value)} />
-                        </div>
+                        <FormField label={ar ? 'رقم القاطرة' : 'Truck No.'}>
+                          <Input value={form.truckNumber} onChange={e => fld('truckNumber', e.target.value)} />
+                        </FormField>
+                        <FormField label={ar ? 'رقم المقطورة' : 'Trailer No.'}>
+                          <Input value={form.trailerNumber} onChange={e => fld('trailerNumber', e.target.value)} />
+                        </FormField>
                       </div>
                       <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'رقم الإيصال' : 'Receipt No.'}</label>
-                          <input className="form-control" value={form.receiptNumber} onChange={e => fld('receiptNumber', e.target.value)} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'الكمية في الإيصال' : 'Receipt Qty'}</label>
-                          <input className="form-control" type="number" value={form.receiptQuantity} onChange={e => fld('receiptQuantity', e.target.value)} />
-                        </div>
+                        <FormField label={ar ? 'رقم الإيصال' : 'Receipt No.'}>
+                          <Input value={form.receiptNumber} onChange={e => fld('receiptNumber', e.target.value)} />
+                        </FormField>
+                        <FormField label={ar ? 'الكمية في الإيصال' : 'Receipt Qty'}>
+                          <Input type="number" value={form.receiptQuantity} onChange={e => fld('receiptQuantity', e.target.value)} />
+                        </FormField>
                       </div>
                       <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'تاريخ الإيصال' : 'Receipt Date'}</label>
-                          <input className="form-control" type="date" value={form.receiptDate} onChange={e => fld('receiptDate', e.target.value)} />
-                        </div>
+                        <FormField label={ar ? 'تاريخ الإيصال' : 'Receipt Date'}>
+                          <Input type="date" value={form.receiptDate} onChange={e => fld('receiptDate', e.target.value)} />
+                        </FormField>
                       </div>
 
-                      <div style={secHdr}>{ar ? 'قراءات العدادات' : 'Meter Readings'}</div>
+                      <div className="form-section-header">{ar ? 'قراءات العدادات' : 'Meter Readings'}</div>
                       <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'العداد العياري' : 'Calibration Reading'}</label>
-                          <input className="form-control" type="number" value={form.calibrationReading} onChange={e => fld('calibrationReading', e.target.value)} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'العداد المشاهد' : 'Observed Reading'}</label>
-                          <input className="form-control" type="number" value={form.observedReading} onChange={e => fld('observedReading', e.target.value)} />
-                        </div>
+                        <FormField label={ar ? 'العداد العياري' : 'Calibration Reading'}>
+                          <Input type="number" value={form.calibrationReading} onChange={e => fld('calibrationReading', e.target.value)} />
+                        </FormField>
+                        <FormField label={ar ? 'العداد المشاهد' : 'Observed Reading'}>
+                          <Input type="number" value={form.observedReading} onChange={e => fld('observedReading', e.target.value)} />
+                        </FormField>
                       </div>
                     </>
                   )}
@@ -829,34 +828,30 @@ function FuelMovements({ lang, currentUser }) {
                   {/* Oil supply fields */}
                   {form.itemType === 'oil' && (
                     <>
-                      <div style={secHdr}>{ar ? 'بيانات توريد الزيت' : 'Oil Supply Data'}</div>
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'نوع الزيت *' : 'Oil Type *'}</label>
-                          <select className="form-select" value={form.oil}
-                            onChange={e => handleOilSelect(e.target.value)} required>
-                            <option value="">— {ar ? 'اختر نوع الزيت' : 'Select oil'} —</option>
-                            {oils.map(o => (
-                              <option key={o.id} value={o.id}>{oilOptionLabel(o)}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'الكمية الموردة (لتر) *' : 'Qty (L) *'}</label>
-                          <input className="form-control" type="number" min="0.001" step="0.001"
-                            value={form.quantityLiters} onChange={e => fld('quantityLiters', e.target.value)} required />
-                        </div>
-                      </div>
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'الجهة الموردة' : 'Supplier'}</label>
-                          <input className="form-control" value={form.supplierName} onChange={e => fld('supplierName', e.target.value)} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">{ar ? 'تاريخ التوريد' : 'Supply Date'}</label>
-                          <input className="form-control" type="date" value={form.supplyDate} onChange={e => fld('supplyDate', e.target.value)} />
-                        </div>
-                      </div>
+                       <div className="form-section-header">{ar ? 'بيانات توريد الزيت' : 'Oil Supply Data'}</div>
+                       <div className="form-row">
+                         <FormField label={ar ? 'نوع الزيت *' : 'Oil Type *'} required>
+                           <select className="form-select" value={form.oil}
+                             onChange={e => handleOilSelect(e.target.value)} required>
+                             <option value="">— {ar ? 'اختر نوع الزيت' : 'Select oil'} —</option>
+                             {oils.map(o => (
+                               <option key={o.id} value={o.id}>{oilOptionLabel(o)}</option>
+                             ))}
+                           </select>
+                         </FormField>
+                         <FormField label={ar ? 'الكمية الموردة (لتر) *' : 'Qty (L) *'} required>
+                           <Input type="number" min="0.001" step="0.001"
+                             value={form.quantityLiters} onChange={e => fld('quantityLiters', e.target.value)} required />
+                         </FormField>
+                       </div>
+                       <div className="form-row">
+                         <FormField label={ar ? 'الجهة الموردة' : 'Supplier'}>
+                           <Input value={form.supplierName} onChange={e => fld('supplierName', e.target.value)} />
+                         </FormField>
+                         <FormField label={ar ? 'تاريخ التوريد' : 'Supply Date'}>
+                           <Input type="date" value={form.supplyDate} onChange={e => fld('supplyDate', e.target.value)} />
+                         </FormField>
+                       </div>
                     </>
                   )}
                 </>
@@ -865,97 +860,87 @@ function FuelMovements({ lang, currentUser }) {
               {/* ── Transfer Form ── */}
               {activeTab === 'transfer' && (
                 <>
-                  <div style={secHdr}>{ar ? 'أمر نقل وقود' : 'Fuel Transfer Order'}</div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">{ar ? 'من خزان *' : 'From Tank *'}</label>
-                      <select className="form-select" value={form.tank}
-                        onChange={e => handleTankSelect(e.target.value)} required>
-                        <option value="">— {ar ? 'اختر المصدر' : 'Select Source'} —</option>
-                        {tanks.map(t => (
-                          <option key={t.id} value={t.id}>
-                            {t.name} ({t.fuelName || '—'}) — {t.subStationName || '—'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">{ar ? 'إلى موقع *' : 'To Site *'}</label>
-                      <select className="form-select" value={form.targetSubStation}
-                        onChange={e => setForm(f => ({ ...f, targetSubStation: e.target.value }))} required>
-                        <option value="">— {ar ? 'اختر الوجهة' : 'Select Destination'} —</option>
-                        {transferDests
-                          .filter(s => String(s.id) !== String(form.subStation))
-                          .map(s => (
-                            <option key={s.id} value={s.id}>
-                              {subStationOptionLabel(s, stations)}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">{ar ? 'رقم أمر الصرف *' : 'Issue Order No. *'}</label>
-                      <input className="form-control" value={form.issueOrderNumber}
-                        onChange={e => fld('issueOrderNumber', e.target.value)} required />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">{ar ? 'تاريخ أمر الصرف *' : 'Issue Order Date *'}</label>
-                      <input className="form-control" type="date" value={form.issueOrderDate}
-                        onChange={e => fld('issueOrderDate', e.target.value)} required />
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'الكمية المنقولة (لتر) *' : 'Transfer Qty (L) *'}</label>
-                    <input className="form-control" type="number" min="0.001" step="0.001"
-                      value={form.quantityLiters} onChange={e => fld('quantityLiters', e.target.value)} required />
-                  </div>
+                   <div className="form-section-header">{ar ? 'أمر نقل وقود' : 'Fuel Transfer Order'}</div>
+                   <div className="form-row">
+                     <FormField label={ar ? 'من خزان *' : 'From Tank *'} required>
+                       <select className="form-select" value={form.tank}
+                         onChange={e => handleTankSelect(e.target.value)} required>
+                         <option value="">— {ar ? 'اختر المصدر' : 'Select Source'} —</option>
+                         {tanks.map(t => (
+                           <option key={t.id} value={t.id}>
+                             {t.name} ({t.fuelName || '—'}) — {t.subStationName || '—'}
+                           </option>
+                         ))}
+                       </select>
+                     </FormField>
+                     <FormField label={ar ? 'إلى موقع *' : 'To Site *'} required>
+                       <select className="form-select" value={form.targetSubStation}
+                         onChange={e => setForm(f => ({ ...f, targetSubStation: e.target.value }))} required>
+                         <option value="">— {ar ? 'اختر الوجهة' : 'Select Destination'} —</option>
+                         {transferDests
+                           .filter(s => String(s.id) !== String(form.subStation))
+                           .map(s => (
+                             <option key={s.id} value={s.id}>
+                               {subStationOptionLabel(s, stations)}
+                             </option>
+                           ))}
+                       </select>
+                     </FormField>
+                   </div>
+                   <div className="form-row">
+                     <FormField label={ar ? 'رقم أمر الصرف *' : 'Issue Order No. *'} required>
+                       <Input value={form.issueOrderNumber}
+                         onChange={e => fld('issueOrderNumber', e.target.value)} required />
+                     </FormField>
+                     <FormField label={ar ? 'تاريخ أمر الصرف *' : 'Issue Order Date *'} required>
+                       <Input type="date" value={form.issueOrderDate}
+                         onChange={e => fld('issueOrderDate', e.target.value)} required />
+                     </FormField>
+                   </div>
+                   <FormField label={ar ? 'الكمية المنقولة (لتر) *' : 'Transfer Qty (L) *'} required>
+                     <Input type="number" min="0.001" step="0.001"
+                       value={form.quantityLiters} onChange={e => fld('quantityLiters', e.target.value)} required />
+                   </FormField>
                 </>
               )}
 
               {/* ── Loss / Adjustment Form ── */}
               {(activeTab === 'loss' || activeTab === 'adjustment') && (
                 <>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">{ar ? 'الخزان *' : 'Tank *'}</label>
-                      <select className="form-select" value={form.tank}
-                        onChange={e => handleTankSelect(e.target.value)} required>
-                        <option value="">— {ar ? 'اختر الخزان' : 'Select Tank'} —</option>
-                        {tanks.map(t => (
-                          <option key={t.id} value={t.id}>
-                            {t.name} — {t.subStationName || '—'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">{ar ? 'الكمية (لتر) *' : 'Quantity (L) *'}</label>
-                      <input className="form-control" type="number" min="0.001" step="0.001"
-                        value={form.quantityLiters} onChange={e => fld('quantityLiters', e.target.value)} required />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">{ar ? 'تاريخ الحدث *' : 'Date *'}</label>
-                      <input className="form-control" type="date"
-                        value={form.movementDate?.slice(0, 10) || ''}
-                        onChange={e => fld('movementDate', e.target.value)} required />
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">{ar ? 'السبب / التفاصيل *' : 'Reason *'}</label>
-                    <textarea className="form-control" value={form.reason}
-                      onChange={e => fld('reason', e.target.value)} required rows={2} />
-                  </div>
+                   <div className="form-row">
+                     <FormField label={ar ? 'الخزان *' : 'Tank *'} required>
+                       <select className="form-select" value={form.tank}
+                         onChange={e => handleTankSelect(e.target.value)} required>
+                         <option value="">— {ar ? 'اختر الخزان' : 'Select Tank'} —</option>
+                         {tanks.map(t => (
+                           <option key={t.id} value={t.id}>
+                             {t.name} — {t.subStationName || '—'}
+                           </option>
+                         ))}
+                       </select>
+                     </FormField>
+                     <FormField label={ar ? 'الكمية (لتر) *' : 'Quantity (L) *'} required>
+                       <Input type="number" min="0.001" step="0.001"
+                         value={form.quantityLiters} onChange={e => fld('quantityLiters', e.target.value)} required />
+                     </FormField>
+                     <FormField label={ar ? 'تاريخ الحدث *' : 'Date *'} required>
+                       <Input type="date"
+                         value={form.movementDate?.slice(0, 10) || ''}
+                         onChange={e => fld('movementDate', e.target.value)} required />
+                     </FormField>
+                   </div>
+                   <FormField label={ar ? 'السبب / التفاصيل *' : 'Reason *'} required>
+                     <textarea className="form-control" value={form.reason}
+                       onChange={e => fld('reason', e.target.value)} required rows={2} />
+                   </FormField>
                 </>
               )}
 
               {/* ── Notes ── */}
-              <div className="form-group" style={{ marginTop: 16 }}>
-                <label className="form-label">{ar ? 'ملاحظات إضافية' : 'Extra Notes'}</label>
+              <FormField label={ar ? 'ملاحظات إضافية' : 'Extra Notes'}>
                 <textarea className="form-control" value={form.notes}
                   onChange={e => fld('notes', e.target.value)} rows={2} />
-              </div>
+              </FormField>
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
                 <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>
@@ -974,29 +959,26 @@ function FuelMovements({ lang, currentUser }) {
 
       {/* ── Reject Modal ── */}
       {showRejectModal && (
-        <div className="ft-modal-overlay">
-          <div className="ft-modal glass-card" style={{ maxWidth: 400 }}>
-            <div className="glass-card-header">
-              <div className="glass-card-title">{ar ? 'سبب الرفض' : 'Rejection Reason'}</div>
-              <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setShowRejectModal(null)}>
-                <X size={16} />
-              </button>
-            </div>
-            <div className="glass-card-body">
-              <textarea className="form-control" rows={3} value={rejectReason}
-                onChange={e => setRejectReason(e.target.value)}
-                placeholder={ar ? 'لماذا تم رفض هذه الحركة؟' : 'Why reject?'} />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 15 }}>
-                <button className="btn btn-ghost" onClick={() => setShowRejectModal(null)}>
-                  {ar ? 'إلغاء' : 'Cancel'}
-                </button>
-                <button className="btn btn-danger" onClick={handleReject}>
-                  {ar ? 'تأكيد الرفض' : 'Confirm Reject'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <Modal
+          open={!!showRejectModal}
+          onClose={() => setShowRejectModal(null)}
+          title={ar ? 'سبب الرفض' : 'Rejection Reason'}
+          maxWidth={400}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setShowRejectModal(null)}>
+                {ar ? 'إلغاء' : 'Cancel'}
+              </Button>
+              <Button variant="danger" onClick={handleReject}>
+                {ar ? 'تأكيد الرفض' : 'Confirm Reject'}
+              </Button>
+            </>
+          }
+        >
+          <textarea className="form-control" rows={3} value={rejectReason}
+            onChange={e => setRejectReason(e.target.value)}
+            placeholder={ar ? 'لماذا تم رفض هذه الحركة؟' : 'Why reject?'} />
+        </Modal>
       )}
 
       {/* ── Approve Confirmation ── */}

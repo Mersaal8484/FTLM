@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 
 namespace FuelTrack.API.Services;
@@ -8,7 +10,10 @@ public class FuelTrackMetrics
     private readonly Counter<long> _readingsSubmitted;
     private readonly Counter<long> _inventoryCreated;
     private readonly Histogram<double> _apiRequestDuration;
+    private readonly Histogram<double> _dbQueryDuration;
     private readonly Counter<long> _authAttempts;
+    private readonly Counter<long> _recordsArchived;
+    private static readonly DateTime _startTimeUtc = DateTime.UtcNow;
 
     public FuelTrackMetrics(IMeterFactory meterFactory)
     {
@@ -31,9 +36,24 @@ public class FuelTrackMetrics
             unit: "ms",
             description: "API request duration in milliseconds");
 
+        _dbQueryDuration = meter.CreateHistogram<double>(
+            "fueltrack.db.query_duration_ms",
+            unit: "ms",
+            description: "Database query execution duration in milliseconds");
+
         _authAttempts = meter.CreateCounter<long>(
             "fueltrack.auth.attempts",
             description: "Total authentication attempts");
+
+        _recordsArchived = meter.CreateCounter<long>(
+            "fueltrack.archival.records_archived",
+            description: "Total historical records moved to archive");
+
+        meter.CreateObservableGauge(
+            "fueltrack.system.uptime_seconds",
+            () => (DateTime.UtcNow - _startTimeUtc).TotalSeconds,
+            unit: "s",
+            description: "Total application uptime in seconds for SLA tracking");
     }
 
     public void FuelMovementCreated(string subStation) =>
@@ -57,6 +77,18 @@ public class FuelTrackMetrics
             new KeyValuePair<string, object?>("status", statusCode.ToString())
         ]);
 
+    public void RecordDbQuery(double durationMs, string operation) =>
+        _dbQueryDuration.Record(durationMs,
+        [
+            new KeyValuePair<string, object?>("operation", operation)
+        ]);
+
     public void AuthAttempt(string result) =>
         _authAttempts.Add(1, [new KeyValuePair<string, object?>("result", result)]);
+
+    public void RecordsArchived(long count, string entityType) =>
+        _recordsArchived.Add(count,
+        [
+            new KeyValuePair<string, object?>("entity_type", entityType)
+        ]);
 }

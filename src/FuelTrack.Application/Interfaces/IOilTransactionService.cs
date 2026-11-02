@@ -11,4 +11,7 @@ public interface IOilTransactionService
     Task<List<OilTransactionListDto>> GetBySubStationAsync(int subStationId);
     Task<List<OilTransactionListDto>> GetByStationAsync(int stationId);
     Task<List<OilTransactionListDto>> GetByGeneratorAsync(int generatorId);
+    Task<OilTransactionDetailDto> SubmitForApprovalAsync(int id, int userId);
+    Task<OilTransactionDetailDto> ApproveAsync(int id, int authorizedBy);
+    Task<OilTransactionDetailDto> RejectAsync(int id, int rejectedById, string? rejectionReason = null);
 }

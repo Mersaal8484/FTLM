@@ -1,36 +1,54 @@
-import React from 'react';
-import { Navbar, Nav, Container, Button } from 'react-bootstrap';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 
-function NavigationBar({ t, onToggleLanguage, isAuthenticated, onLogout }) {
+function NavigationBar({ t = {}, onToggleLanguage, isAuthenticated, onLogout }) {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
-    <Navbar expand="lg" className="navbar-custom shadow-sm">
-      <Container>
-        <Navbar.Brand as={NavLink} to="/">{t.brand}</Navbar.Brand>
-        <Navbar.Toggle aria-controls="basic-navbar-nav" />
-        <Navbar.Collapse id="basic-navbar-nav">
-          <Nav className="me-auto">
-            <Nav.Link as={NavLink} to="/">{t.dashboard}</Nav.Link>
-            <Nav.Link as={NavLink} to="/fuel">{t.fuelInventory}</Nav.Link>
-            <Nav.Link as={NavLink} to="/generators">{t.generators}</Nav.Link>
-            <Nav.Link as={NavLink} to="/reports">{t.reports}</Nav.Link>
-            {isAuthenticated && <Nav.Link as={NavLink} to="/users">{t.userManagement}</Nav.Link>}
-          </Nav>
-          <Nav className="align-items-center">
-            <Button variant="outline-light" size="sm" className="btn-outline-toggle me-2" onClick={onToggleLanguage}>
-              {t.switchLanguage}
-            </Button>
-            {isAuthenticated ? (
-              <Button variant="outline-secondary" size="sm" onClick={onLogout}>{t.logout}</Button>
-            ) : (
-              <Button as={NavLink} to="/login" variant="outline-secondary" size="sm">
-                {t.login}
-              </Button>
-            )}
-          </Nav>
-        </Navbar.Collapse>
-      </Container>
-    </Navbar>
+    <header className="navbar-custom shadow-sm" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '10px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: 1200, margin: '0 auto' }}>
+        <NavLink to="/" style={{ fontSize: 18, fontWeight: 700, color: 'var(--primary)', textDecoration: 'none' }}>
+          {t.brand || 'FuelTrack'}
+        </NavLink>
+        
+        <nav style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <NavLink to="/" className={({ isActive }) => `btn btn-sm ${isActive ? 'btn-primary' : 'btn-outline-secondary'}`}>
+            {t.dashboard || 'Dashboard'}
+          </NavLink>
+          <NavLink to="/fuel-movements" className={({ isActive }) => `btn btn-sm ${isActive ? 'btn-primary' : 'btn-outline-secondary'}`}>
+            {t.fuelInventory || 'Fuel'}
+          </NavLink>
+          <NavLink to="/generators" className={({ isActive }) => `btn btn-sm ${isActive ? 'btn-primary' : 'btn-outline-secondary'}`}>
+            {t.generators || 'Generators'}
+          </NavLink>
+          <NavLink to="/reports" className={({ isActive }) => `btn btn-sm ${isActive ? 'btn-primary' : 'btn-outline-secondary'}`}>
+            {t.reports || 'Reports'}
+          </NavLink>
+          {isAuthenticated && (
+            <NavLink to="/users" className={({ isActive }) => `btn btn-sm ${isActive ? 'btn-primary' : 'btn-outline-secondary'}`}>
+              {t.userManagement || 'Users'}
+            </NavLink>
+          )}
+        </nav>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {onToggleLanguage && (
+            <button className="btn btn-sm btn-outline-toggle" onClick={onToggleLanguage}>
+              {t.switchLanguage || 'AR/EN'}
+            </button>
+          )}
+          {isAuthenticated ? (
+            <button className="btn btn-sm btn-danger" onClick={onLogout}>
+              {t.logout || 'Logout'}
+            </button>
+          ) : (
+            <NavLink to="/login" className="btn btn-sm btn-primary">
+              {t.login || 'Login'}
+            </NavLink>
+          )}
+        </div>
+      </div>
+    </header>
   );
 }
 

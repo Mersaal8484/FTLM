@@ -8,5 +8,6 @@ public interface IMeterService
     Task<MeterDetailDto> UpdateAsync(int id, CreateMeterDto dto);
     Task<MeterDetailDto?> GetByIdAsync(int id);
     Task<List<MeterListDto>> GetAllAsync();
+    Task<List<MeterListDto>> GetBySubStationAsync(int subStationId);
     Task DeleteAsync(int id);
 }

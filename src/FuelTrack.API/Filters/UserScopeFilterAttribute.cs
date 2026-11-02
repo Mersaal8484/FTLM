@@ -20,7 +20,8 @@ public class UserScopeFilterAttribute : Attribute, IAsyncAuthorizationFilter
         if (context.HttpContext.User.Identity?.IsAuthenticated != true)
             return;
 
-        if (context.HttpContext.User.IsInRole("SystemOwner"))
+        if (context.HttpContext.User.IsInRole("SystemOwner") ||
+            context.HttpContext.User.IsInRole("Admin"))
             return;
 
         var userIdStr = context.HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);

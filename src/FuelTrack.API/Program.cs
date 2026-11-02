@@ -1,6 +1,7 @@
 using System.Text;
 using System.Threading.RateLimiting;
 using Asp.Versioning;
+using FuelTrack.API.HealthChecks;
 using FuelTrack.API.Hubs;
 using FuelTrack.API.Jobs;
 using FuelTrack.API.Middleware;
@@ -10,7 +11,9 @@ using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
 using FuelTrack.Infrastructure;
 using FuelTrack.Infrastructure.Data;
+using FuelTrack.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 using Hangfire;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -44,12 +47,38 @@ builder.Services.AddControllers(options =>
     {
         options.SerializerSettings.ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore;
         options.SerializerSettings.NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore;
+        options.SerializerSettings.ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver();
     });
 
 builder.Services.AddScoped<IRealtimeNotifier, RealtimeNotifier>();
 builder.Services.AddSignalR();
 
-var jwtKey = builder.Configuration["JwtSettings:Key"] ?? throw new InvalidOperationException("JwtSettings:Key not configured");
+builder.Services.AddScoped<ISparePartService, SparePartService>();
+builder.Services.AddScoped<IWarehouseStockService, WarehouseStockService>();
+builder.Services.AddScoped<IWarehouseSupplyService, WarehouseSupplyService>();
+builder.Services.AddScoped<IDispatchRequestService, DispatchRequestService>();
+builder.Services.AddScoped<IWarehouseTransactionService, WarehouseTransactionService>();
+builder.Services.AddScoped<IWarehouseReportService, WarehouseReportService>();
+builder.Services.AddScoped<IWorkPermitService, WorkPermitService>();
+builder.Services.AddScoped<IInstalledPartService, InstalledPartService>();
+builder.Services.AddScoped<IMaintenanceDashboardService, MaintenanceDashboardService>();
+
+var jwtKey = builder.Configuration["JwtSettings:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.StartsWith("{"))
+{
+    jwtKey = Environment.GetEnvironmentVariable("JWT_KEY");
+}
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    if (!builder.Environment.IsProduction())
+    {
+        jwtKey = "FuelTrack2026!SecureJwtKey12345678901234567890";
+    }
+    else
+    {
+        throw new InvalidOperationException("JwtSettings:Key is not configured. Set it via environment variable JWT_KEY or user secrets.");
+    }
+}
 var jwtIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "FuelTrack.API";
 var jwtAudience = builder.Configuration["JwtSettings:Audience"] ?? "FuelTrack.Clients";
 
@@ -159,9 +188,18 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-builder.Services.AddHealthChecks()
-    .AddDbContextCheck<FuelTrackDbContext>(name: "database", tags: ["ready"])
-    .AddRedis(builder.Configuration.GetConnectionString("Redis") ?? "", name: "redis", tags: ["ready", "infrastructure"]);
+builder.Services.AddHttpClient();
+
+var healthChecks = builder.Services.AddHealthChecks()
+    .AddDbContextCheck<FuelTrackDbContext>(name: "database", tags: ["ready"]);
+
+var redisConn = builder.Configuration.GetConnectionString("Redis");
+if (!string.IsNullOrWhiteSpace(redisConn))
+{
+    healthChecks.AddRedis(redisConn, name: "redis", tags: ["ready", "infrastructure"]);
+}
+
+healthChecks.AddCheck<ModbusGatewayHealthCheck>("modbus-gateway", tags: ["ready", "iot"]);
 
 builder.Services.AddResponseCompression();
 
@@ -229,7 +267,7 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-if (!builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))
+if (!builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase) && !builder.Environment.IsDevelopment())
 {
     builder.Services.AddHangfire(config => config
         .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -237,11 +275,13 @@ if (!builder.Environment.EnvironmentName.Equals("Testing", StringComparison.Ordi
         .UseRecommendedSerializerSettings()
         .UseSqlServerStorage(builder.Configuration.GetConnectionString("DefaultConnection"), new SqlServerStorageOptions
         {
+            CommandTimeout = TimeSpan.FromMinutes(10),
             CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
             SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
             QueuePollInterval = TimeSpan.FromSeconds(15),
             UseRecommendedIsolationLevel = true,
-            SchemaName = "Hangfire"
+            SchemaName = "Hangfire",
+            PrepareSchemaIfNecessary = true
         }));
 
     builder.Services.AddHangfireServer(options =>
@@ -282,8 +322,23 @@ app.UseMiddleware<TokenCookieToHeaderMiddleware>();
 app.UseCors("AllowFrontend");
 app.UseRateLimiter();
 
-if (app.Environment.IsDevelopment())
+var enableSwagger = builder.Configuration.GetValue<bool>("EnableSwagger");
+if (app.Environment.IsDevelopment() || enableSwagger)
 {
+    if (!app.Environment.IsDevelopment())
+    {
+        app.Use(async (context, next) =>
+        {
+            if (!context.User.Identity?.IsAuthenticated ?? true)
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new { error = "Unauthorized" });
+                return;
+            }
+            await next();
+        });
+    }
+
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
@@ -306,6 +361,16 @@ if (app.Services.GetService(typeof(Hangfire.IRecurringJobManager)) != null)
         DashboardTitle = "FuelTrack Jobs",
         Authorization = new[] { new FuelTrack.API.Services.HangfireAllowAdminFilter() }
     });
+
+    RecurringJob.AddOrUpdate<DatabaseMaintenanceJob>(
+        "database-maintenance",
+        job => job.ExecuteAsync(CancellationToken.None),
+        Cron.Weekly(DayOfWeek.Sunday, 2));
+
+    RecurringJob.AddOrUpdate<DataArchivalJob>(
+        "data-retention-archival",
+        job => job.ExecuteAsync(CancellationToken.None),
+        Cron.Monthly(1, 3));
 }
 
 app.MapControllers();
@@ -348,6 +413,7 @@ if (!string.IsNullOrEmpty(otelEndpoint) && app.Services.GetService<OpenTelemetry
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<FuelTrackDbContext>();
+    var startupLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
 
     // SQL cold-start warm-up with retry (skip for non-relational providers like InMemory)
     if (dbContext.Database.IsRelational())
@@ -368,24 +434,72 @@ using (var scope = app.Services.CreateScope())
                 await Task.Delay(5000 * attempt);
             }
 
-            // Increase EF Core command timeout for cold SQL Server startup
-            dbContext.Database.SetCommandTimeout(120);
+        }
+        dbContext.Database.SetCommandTimeout(180);
+    }
+
+    if (dbContext.Database.IsSqlite())
+    {
+        startupLogger.LogInformation("Ensuring SQLite database schema is created...");
+        await dbContext.Database.EnsureCreatedAsync();
+        startupLogger.LogInformation("SQLite database schema verified");
+    }
+    else if (dbContext.Database.IsRelational())
+    {
+        startupLogger.LogInformation("Applying EF Core migrations...");
+        await dbContext.Database.MigrateAsync();
+        startupLogger.LogInformation("EF Core migrations completed successfully");
+    }
+
+    async Task RetryAsync(string name, Func<Task> operation, int maxAttempts = 5)
+    {
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                await operation();
+                return;
+            }
+            catch (Exception ex)
+            {
+                startupLogger.LogWarning("Startup operation '{Name}' failed on attempt {Attempt}: {Message}", name, attempt, ex.Message);
+                if (attempt == maxAttempts) throw;
+                await Task.Delay(5000 * attempt);
+            }
         }
     }
 
     // Seed module registry and generate permissions from it
-    await FuelTrack.Infrastructure.Data.ModuleRegistrySeed.SeedAsync(dbContext);
+    await RetryAsync("ModuleRegistrySeed", () => FuelTrack.Infrastructure.Data.ModuleRegistrySeed.SeedAsync(dbContext));
     var permGen = new FuelTrack.Infrastructure.Data.PermissionGenerator(dbContext);
-    await permGen.GenerateAllPermissionsAsync();
+    await RetryAsync("PermissionGenerator", () => permGen.GenerateAllPermissionsAsync());
+    if (dbContext.Database.IsRelational())
+    {
+        await Task.Delay(1000);
+    }
 
     // Seed roles and admin user
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
     var roleService = new FuelTrack.Infrastructure.Services.RoleService(roleManager, userManager, dbContext, scope.ServiceProvider.GetRequiredService<ICacheService>());
-    await roleService.InitAsync();
+    await RetryAsync("RoleService.Init", () => roleService.InitAsync());
 
-    // Ensure admin@ft.com exists with Admin role and full scope
+    // Validate secrets in production before proceeding
+    if (app.Environment.IsProduction())
+    {
+        var secretsValidator = app.Services.GetRequiredService<ISecretsValidator>();
+        var validationResult = secretsValidator.Validate();
+        if (!validationResult.IsValid)
+        {
+            var errorMessages = string.Join("; ", validationResult.Errors);
+            startupLogger.LogCritical("Startup secrets validation failed: {Errors}", errorMessages);
+            throw new InvalidOperationException($"Startup secrets validation failed: {errorMessages}");
+        }
+    }
+
+    // Ensure admin@ft.com exists with SystemOwner (and Admin) role and full scope
     const string adminEmail = "admin@ft.com";
+    const string adminPassword = "Admin@123";
     var adminUser = await userManager.FindByEmailAsync(adminEmail);
     if (adminUser == null)
     {
@@ -397,12 +511,13 @@ using (var scope = app.Services.CreateScope())
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
-        var createResult = await userManager.CreateAsync(adminUser, "Admin@123");
+        var createResult = await userManager.CreateAsync(adminUser, adminPassword);
         if (createResult.Succeeded)
         {
             adminUser.CreatedBy = adminUser.Id;
             await userManager.UpdateAsync(adminUser);
             await userManager.AddToRoleAsync(adminUser, "Admin");
+            await userManager.AddToRoleAsync(adminUser, "SystemOwner");
 
             // Full scope = all null IDs = Admin (All)
             dbContext.UserScopes.Add(new UserScope
@@ -411,12 +526,18 @@ using (var scope = app.Services.CreateScope())
             });
             await dbContext.SaveChangesAsync();
         }
+        else
+        {
+            startupLogger.LogCritical("Failed to create admin user: {Errors}", string.Join("; ", createResult.Errors.Select(e => e.Description)));
+        }
     }
     else
     {
-        // Ensure existing admin has Admin role
+        // Ensure existing admin has Admin and SystemOwner roles
         if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
             await userManager.AddToRoleAsync(adminUser, "Admin");
+        if (!await userManager.IsInRoleAsync(adminUser, "SystemOwner"))
+            await userManager.AddToRoleAsync(adminUser, "SystemOwner");
 
         // Ensure admin has full scope
         var hasScope = await dbContext.UserScopes.AnyAsync(s => s.UserId == adminUser.Id);
@@ -455,6 +576,16 @@ using (var scope = app.Services.CreateScope())
 
     recurringJobManager.AddOrUpdate<FuelStockAlertJob>(
         "fuel-stock-alerts",
+        job => job.ExecuteAsync(CancellationToken.None),
+        Cron.Daily);
+
+    recurringJobManager.AddOrUpdate<OilStockAlertJob>(
+        "oil-stock-alerts",
+        job => job.ExecuteAsync(CancellationToken.None),
+        Cron.Daily);
+
+    recurringJobManager.AddOrUpdate<SparePartReplacementAlertJob>(
+        "spare-part-replacement-alerts",
         job => job.ExecuteAsync(CancellationToken.None),
         Cron.Daily);
 

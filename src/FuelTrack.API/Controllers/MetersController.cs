@@ -50,6 +50,13 @@ public class MetersController : BaseApiController
         return Ok(result);
     }
 
+    [HttpGet("by-substation/{subStationId:int}")]
+    public async Task<IActionResult> GetBySubStation(int subStationId)
+    {
+        var result = await _service.GetBySubStationAsync(subStationId);
+        return Ok(result);
+    }
+
     [Authorize(Roles = "Admin")]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)

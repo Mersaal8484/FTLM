@@ -76,7 +76,7 @@ const PeriodicInventoryReport = ({ lang = 'ar' }) => {
             { label: isAr ? 'إجمالي السجلات' : 'Total Records', value: summary.totalRecords },
             { label: isAr ? 'الموثقة' : 'Verified', value: summary.verifiedCount, color: '#10b981' },
             { label: isAr ? 'الوقود المستلم (لتر)' : 'Fuel Received (L)', value: fmt(summary.totalFuelReceivedLiters), color: '#3b82f6' },
-            { label: isAr ? 'الزيت المستلم (لتر)' : 'Oil Received (L)', value: fmt(summary.totalOilReceivedLiters), color: '#f59e0b' },
+            { label: isAr ? 'الزيت المستلم (لتر)' : 'Oil Received (L)', value: fmt(summary.totalOilReceivedLiters), color: 'var(--warning)' },
           ].map((s, i) => (
             <div key={i} className="modern-card animate-fade-up" style={{ padding: '1rem', animationDelay: `${i * 0.05}s` }}>
               <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary, #6b7280)', marginBottom: '0.25rem' }}>{s.label}</div>
@@ -92,7 +92,7 @@ const PeriodicInventoryReport = ({ lang = 'ar' }) => {
             <thead>
               <tr style={{ background: 'var(--color-bg-secondary, #f9fafb)' }}>
                 {[isAr ? 'الفترة' : 'Period', isAr ? 'المحطة الفرعية' : 'Sub Station', isAr ? 'الوقود المستلم' : 'Fuel Recv', isAr ? 'الوقود المستهلك' : 'Fuel Used', isAr ? 'الزيت المستلم' : 'Oil Recv', isAr ? 'الزيت المستهلك' : 'Oil Used', isAr ? 'الحالة' : 'Status'].map((h, i) => (
-                  <th key={i} style={{ padding: '0.75rem', textAlign: i <= 1 ? (dir === 'rtl' ? 'right' : 'left') : 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h}</th>
+                  <th key={i} style={{ padding: '0.75rem', textAlign: i <= 1 ? 'start' : 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -102,9 +102,9 @@ const PeriodicInventoryReport = ({ lang = 'ar' }) => {
                   <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{inv.periodTypeName} {inv.year}/{inv.month}</td>
                   <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{inv.subStationName}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#10b981' }}>{fmt(inv.fuelReceivedLiters)}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#f59e0b' }}>{fmt(inv.fuelConsumedLiters)}</td>
+                  <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--warning)' }}>{fmt(inv.fuelConsumedLiters)}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#10b981' }}>{fmt(inv.oilReceivedLiters)}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#f59e0b' }}>{fmt(inv.oilConsumedLiters)}</td>
+                  <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--warning)' }}>{fmt(inv.oilConsumedLiters)}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-primary, #111827)' }}>{inv.statusName || '-'}</td>
                 </tr>
               )) : (

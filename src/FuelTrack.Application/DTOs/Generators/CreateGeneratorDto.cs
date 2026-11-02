@@ -23,7 +23,8 @@ public record CreateGeneratorDto(
     string? VoltageLookupName,
     string? FrequencyLookupName,
     string? OwnershipTypeLookupName,
-    string? StatusLookupName);
+    string? StatusLookupName,
+    bool IsActive = true);
 
 public record CreateGeneratorRequest(
     int? SubStationId,
@@ -48,4 +49,5 @@ public record CreateGeneratorRequest(
     string? VoltageLookupName,
     string? FrequencyLookupName,
     string? OwnershipTypeLookupName,
-    string? StatusLookupName);
+    string? StatusLookupName,
+    bool? IsActive);
