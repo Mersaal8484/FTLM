@@ -18,6 +18,8 @@ services:
     build:
       context: .
       dockerfile: src/FuelTrack.API/Dockerfile
+      args:
+        NUGET_SOURCE: "${NUGET_SOURCE:-https://api.nuget.org/v3/index.json}"
     restart: unless-stopped
     depends_on:
       sqlserver:

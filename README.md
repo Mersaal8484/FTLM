@@ -68,4 +68,6 @@ docker compose logs -f
 
 إعداد Nginx مستقل في `frontend/nginx.conf` ومربوط بالحاوية للقراءة فقط. بعد تعديله، أعد تشغيل الواجهة باستخدام `docker compose restart frontend` لتطبيق التغييرات.
 
+إذا تعذر الوصول إلى مصدر NuGet الافتراضي أثناء البناء، يمكن ضبط `NUGET_SOURCE` في `.env` على مصدر NuGet متاح.
+
 الإعداد الافتراضي للتطوير المحلي عبر HTTP. عند التشغيل في الإنتاج اضبط `ASPNETCORE_ENVIRONMENT=Production` و`CORS_ORIGIN` على عنوان HTTPS الفعلي، وضع الخدمات خلف وكيل HTTPS مناسب؛ ملفات تعريف الارتباط في الإنتاج تتطلب HTTPS.

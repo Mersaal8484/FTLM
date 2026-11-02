@@ -5,7 +5,8 @@ COPY src/FuelTrack.API/*.csproj src/FuelTrack.API/
 COPY src/FuelTrack.Application/*.csproj src/FuelTrack.Application/
 COPY src/FuelTrack.Domain/*.csproj src/FuelTrack.Domain/
 COPY src/FuelTrack.Infrastructure/*.csproj src/FuelTrack.Infrastructure/
-RUN dotnet restore src/FuelTrack.API/FuelTrack.API.csproj
+ARG NUGET_SOURCE=https://api.nuget.org/v3/index.json
+RUN dotnet restore src/FuelTrack.API/FuelTrack.API.csproj --source "$NUGET_SOURCE"
 
 COPY . .
 RUN dotnet publish src/FuelTrack.API/FuelTrack.API.csproj -c Release -o /app --no-restore /p:UseAppHost=false

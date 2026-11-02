@@ -22,7 +22,7 @@ const OilInventory = lazy(() => import('./pages/OilInventory'));
 const LocationsManagement = lazy(() => import('./pages/LocationsManagement'));
 const MetersManagement = lazy(() => import('./pages/MetersManagement'));
 const Users = lazy(() => import('./pages/Users'));
-const Reports = lazy(() => import('./pages/Reports'));
+const Reports = lazy(() => import('./pages/reports'));
 const Controllers = lazy(() => import('./pages/Controllers'));
 const RolesManagement = lazy(() => import('./pages/RolesManagement'));
 const AuditLogs = lazy(() => import('./pages/AuditLogs'));

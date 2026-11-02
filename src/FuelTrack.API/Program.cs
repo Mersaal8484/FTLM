@@ -415,15 +415,19 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<FuelTrackDbContext>();
     var startupLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
 
-    // SQL cold-start warm-up with retry (skip for non-relational providers like InMemory)
-    if (dbContext.Database.IsRelational())
+    // SQL Server cold-start warm-up with retry; other providers use their own initialization.
+    if (dbContext.Database.IsSqlServer())
     {
         for (int attempt = 1; attempt <= 5; attempt++)
         {
             try
             {
-                await dbContext.Database.OpenConnectionAsync();
-                await dbContext.Database.CloseConnectionAsync();
+                var connectionString = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(dbContext.Database.GetConnectionString())
+                {
+                    InitialCatalog = "master"
+                };
+                await using var connection = new Microsoft.Data.SqlClient.SqlConnection(connectionString.ConnectionString);
+                await connection.OpenAsync();
                 Console.WriteLine($"[Startup] SQL warm-up OK on attempt {attempt}");
                 break;
             }
@@ -499,7 +503,8 @@ using (var scope = app.Services.CreateScope())
 
     // Ensure admin@ft.com exists with SystemOwner (and Admin) role and full scope
     const string adminEmail = "admin@ft.com";
-    const string adminPassword = "Admin@123";
+    var adminPassword = builder.Configuration["AdminSettings:DefaultPassword"]
+        ?? throw new InvalidOperationException("AdminSettings:DefaultPassword is not configured.");
     var adminUser = await userManager.FindByEmailAsync(adminEmail);
     if (adminUser == null)
     {
