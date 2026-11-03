@@ -12,6 +12,7 @@ public sealed class SubscriptionsModel(PlatformDbContext db) : PageModel
     [BindProperty] public DateOnly Start { get; set; }
     [BindProperty] public DateOnly End { get; set; }
     public string? Error { get; private set; }
+    [TempData] public string? Success { get; set; }
     public List<PlatformTenant> Tenants { get; private set; } = [];
     public List<SubscriptionPlan> Plans { get; private set; } = [];
     public List<SubscriptionRow> Rows { get; private set; } = [];
@@ -37,11 +38,15 @@ public sealed class SubscriptionsModel(PlatformDbContext db) : PageModel
             db.Subscriptions.Add(subscription);
             await db.SaveChangesAsync();
             await transaction.CommitAsync();
+            Success = "تم تسجيل الاشتراك بنجاح.";
             return RedirectToPage();
         }
         catch (ArgumentException) { Error = "تحقق من المستأجر والباقة والتواريخ، وتأكد من عدم تداخل الاشتراكات."; }
         await OnGetAsync();
         return Page();
     }
-    public sealed record SubscriptionRow(string Tenant, string Plan, DateTimeOffset Start, DateTimeOffset End);
+    public sealed record SubscriptionRow(string Tenant, string Plan, DateTimeOffset Start, DateTimeOffset End)
+    {
+        public string State(DateTimeOffset now) => now < Start ? "upcoming" : now < End ? "active" : "expired";
+    }
 }

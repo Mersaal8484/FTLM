@@ -10,10 +10,37 @@ public sealed class IndexModel(PlatformDbContext db, IServiceProvider services, 
 {
     [BindProperty] public string Name { get; set; } = "";
     [BindProperty] public string Host { get; set; } = "";
+    [BindProperty(SupportsGet = true)] public string? Q { get; set; }
+    [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
     public string? Error { get; private set; }
-    public List<PlatformTenant> Tenants { get; private set; } = [];
+    [TempData] public string? Success { get; set; }
+    public List<TenantRow> Tenants { get; private set; } = [];
+    public int TotalTenants { get; private set; }
+    public int ProvisioningCount { get; private set; }
+    public int ActiveCount { get; private set; }
+    public int ResultCount { get; private set; }
+    public int PageCount => Math.Max(1, (ResultCount + 19) / 20);
     public bool CanProvision => services.GetService<TenantProvisioningService>() is not null;
-    public async Task OnGetAsync() => Tenants = await db.Tenants.AsNoTracking().OrderBy(t => t.Name).ToListAsync();
+    public async Task OnGetAsync()
+    {
+        Q = string.IsNullOrWhiteSpace(Q) ? null : Q.Trim();
+        if (Q?.Length > 100) Q = Q[..100];
+        var tenants = db.Tenants.AsNoTracking();
+        TotalTenants = await tenants.CountAsync();
+        ProvisioningCount = await tenants.CountAsync(t => t.Status == PlatformTenantStatus.Provisioning);
+        ActiveCount = await tenants.CountAsync(t => t.Status == PlatformTenantStatus.Active);
+        if (Q is not null)
+        {
+            var pattern = $"%{Q.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_")}%";
+            tenants = tenants.Where(t => EF.Functions.ILike(t.Name, pattern, "\\") || EF.Functions.ILike(t.Host, pattern, "\\"));
+        }
+        ResultCount = await tenants.CountAsync();
+        PageNumber = Math.Clamp(PageNumber, 1, PageCount);
+        Tenants = await tenants.OrderBy(t => t.Name).ThenBy(t => t.Id)
+            .Skip((PageNumber - 1) * 20).Take(20)
+            .Select(t => new TenantRow(t.Id, t.Name, t.Host, t.Status, db.TenantCredentials.Any(c => c.TenantId == t.Id)))
+            .ToListAsync();
+    }
     public async Task<IActionResult> OnPostAsync()
     {
         try
@@ -21,6 +48,7 @@ public sealed class IndexModel(PlatformDbContext db, IServiceProvider services, 
             if (!ModelState.IsValid || string.IsNullOrWhiteSpace(Name) || Name.Length > 200) throw new ArgumentException("Invalid name.");
             db.Tenants.Add(new PlatformTenant(Guid.NewGuid(), Name, Host));
             await db.SaveChangesAsync();
+            Success = "تمت إضافة المستأجر. يمكنك تجهيز قاعدة بياناته من القائمة.";
             return RedirectToPage();
         }
         catch (ArgumentException) { Error = "تحقق من الاسم والنطاق."; }
@@ -35,7 +63,8 @@ public sealed class IndexModel(PlatformDbContext db, IServiceProvider services, 
         if (provisioner is null) return BadRequest("Tenant provisioning is not configured.");
         try
         {
-            await provisioner.ProvisionAsync(id, adminEmail, adminPassword, cancellationToken);
+            var created = await provisioner.ProvisionAsync(id, adminEmail, adminPassword, cancellationToken);
+            Success = created ? "تم تجهيز قاعدة بيانات المستأجر ومديره. وصول العملاء غير مفعّل بعد." : "قاعدة بيانات هذا المستأجر مجهّزة مسبقاً.";
             return RedirectToPage();
         }
         catch (ArgumentException ex) when (ex.ParamName is "adminEmail" or "adminPassword")
@@ -54,4 +83,5 @@ public sealed class IndexModel(PlatformDbContext db, IServiceProvider services, 
             return Page();
         }
     }
+    public sealed record TenantRow(Guid Id, string Name, string Host, PlatformTenantStatus Status, bool IsProvisioned);
 }

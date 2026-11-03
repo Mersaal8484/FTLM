@@ -15,8 +15,27 @@ public sealed class TenantAwareCacheService(HybridCacheService inner, IConfigura
             throw new InvalidOperationException("A trusted tenant context is required for cache access.");
         return $"tenant:{id:N}:{key}";
     }
-    public Task<T?> GetAsync<T>(string key, CancellationToken ct = default) => inner.GetAsync<T>(Key(key), ct);
-    public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default) => inner.SetAsync(Key(key), value, expiry, ct);
-    public Task RemoveAsync(string key, CancellationToken ct = default) => inner.RemoveAsync(Key(key), ct);
-    public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default) => inner.RemoveByPrefixAsync(Key(prefix), ct);
+    // The legacy hybrid cache keeps a process-local key index and memory layer.
+    // Prefix invalidation is therefore not coherent across replicas. In tenant
+    // mode bypass it until a shared cache with distributed invalidation exists.
+    public Task<T?> GetAsync<T>(string key, CancellationToken ct = default)
+    {
+        var scopedKey = Key(key);
+        return configuration.GetValue<bool>("MultiTenancy:Enabled") ? Task.FromResult<T?>(default) : inner.GetAsync<T>(scopedKey, ct);
+    }
+    public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default)
+    {
+        var scopedKey = Key(key);
+        return configuration.GetValue<bool>("MultiTenancy:Enabled") ? Task.CompletedTask : inner.SetAsync(scopedKey, value, expiry, ct);
+    }
+    public Task RemoveAsync(string key, CancellationToken ct = default)
+    {
+        var scopedKey = Key(key);
+        return configuration.GetValue<bool>("MultiTenancy:Enabled") ? Task.CompletedTask : inner.RemoveAsync(scopedKey, ct);
+    }
+    public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default)
+    {
+        var scopedKey = Key(prefix);
+        return configuration.GetValue<bool>("MultiTenancy:Enabled") ? Task.CompletedTask : inner.RemoveByPrefixAsync(scopedKey, ct);
+    }
 }

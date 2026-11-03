@@ -68,6 +68,8 @@ if (builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
     builder.Services.AddScoped<TenantRequestContext>();
     builder.Services.AddScoped<ITenantRequestContext>(sp => sp.GetRequiredService<TenantRequestContext>());
     builder.Services.AddSingleton<TenantArchivalRunner>();
+    if (builder.Configuration.GetValue<bool>("MultiTenancy:EnableMaintenanceJobs"))
+        builder.Services.AddHostedService<TenantMaintenanceScheduler>();
 }
 
 builder.Services.AddInfrastructureServices(builder.Configuration);
@@ -302,7 +304,8 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-if (!builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase) && !builder.Environment.IsDevelopment())
+if (!builder.Configuration.GetValue<bool>("MultiTenancy:Enabled") &&
+    !builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase) && !builder.Environment.IsDevelopment())
 {
     builder.Services.AddHangfire(config => config
         .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)

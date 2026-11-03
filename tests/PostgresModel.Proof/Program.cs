@@ -442,11 +442,13 @@ if (nextCalled || realCrossRequest.Response.StatusCode != StatusCodes.Status403F
 await using (var tenantDb = NewContext(provisionedConn.ConnectionString))
 {
     tenantDb.AuditLogs.Add(new AuditLog { UserId = 1, Action = "job-a", EntityName = "proof", Timestamp = DateTime.UtcNow.AddDays(-100), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+    tenantDb.RefreshTokens.Add(new RefreshToken { UserId = 1, Token = "expired-job-a", ExpiresAt = DateTime.UtcNow.AddDays(-10) });
     await tenantDb.SaveChangesAsync();
 }
 await using (var tenantDb = NewContext(oldConnection.ConnectionString))
 {
     tenantDb.AuditLogs.Add(new AuditLog { UserId = 1, Action = "job-b", EntityName = "proof", Timestamp = DateTime.UtcNow.AddDays(-100), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+    tenantDb.RefreshTokens.Add(new RefreshToken { UserId = 1, Token = "expired-job-b", ExpiresAt = DateTime.UtcNow.AddDays(-10) });
     await tenantDb.SaveChangesAsync();
 }
 var jobSettings = new Dictionary<string, string?>
@@ -467,13 +469,45 @@ jobServices.AddInfrastructureServices(jobConfig);
 using (var jobProvider = jobServices.BuildServiceProvider())
 {
     var runner = new TenantArchivalRunner(jobProvider.GetRequiredService<IServiceScopeFactory>(), jobConfig);
+    if (await runner.RunAsync(Guid.NewGuid()) || await runner.CleanupExpiredTokensAsync(Guid.NewGuid()))
+        throw new InvalidOperationException("A job ran for an unknown tenant.");
     if (!await runner.RunAsync(provisionTenantId)) throw new InvalidOperationException("Tenant archival runner did not execute.");
+    if (!await runner.CleanupExpiredTokensAsync(provisionTenantId)) throw new InvalidOperationException("Tenant token cleanup did not execute.");
 }
 await using (var db = NewContext(provisionedConn.ConnectionString))
+{
     if (!await db.AuditLogArchives.AnyAsync(a => a.Action == "job-a")) throw new InvalidOperationException("Tenant job failed to archive its record.");
+    if (await db.RefreshTokens.AnyAsync(t => t.Token == "expired-job-a")) throw new InvalidOperationException("Expired tenant token was not removed.");
+}
 await using (var db = NewContext(oldConnection.ConnectionString))
+{
     if (!await db.AuditLogs.AnyAsync(a => a.Action == "job-b") || await db.AuditLogArchives.AnyAsync(a => a.Action == "job-b"))
         throw new InvalidOperationException("Tenant job touched another tenant's records.");
+    if (!await db.RefreshTokens.AnyAsync(t => t.Token == "expired-job-b")) throw new InvalidOperationException("Token cleanup crossed tenant boundaries.");
+}
+using (var jobProvider = jobServices.BuildServiceProvider())
+{
+    var factory = jobProvider.GetRequiredService<IServiceScopeFactory>();
+    var runner = new TenantArchivalRunner(factory, jobConfig);
+    var dispatcher = new TenantMaintenanceScheduler(factory, runner, NullLogger<TenantMaintenanceScheduler>.Instance);
+    await dispatcher.RunOnceAsync();
+}
+await using (var db = NewContext(oldConnection.ConnectionString))
+    if (await db.RefreshTokens.AnyAsync(t => t.Token == "expired-job-b") ||
+        !await db.AuditLogArchives.AnyAsync(a => a.Action == "job-b"))
+        throw new InvalidOperationException("Tenant maintenance dispatcher failed to process the other active tenant.");
+await using (var jobPlatform = new PlatformDbContext(platformOptions))
+{
+    var suspendedTenant = await jobPlatform.Tenants.SingleAsync(t => t.Id == provisionTenantId);
+    suspendedTenant.Suspend();
+    await jobPlatform.SaveChangesAsync();
+    using var jobProvider = jobServices.BuildServiceProvider();
+    var runner = new TenantArchivalRunner(jobProvider.GetRequiredService<IServiceScopeFactory>(), jobConfig);
+    if (await runner.RunAsync(provisionTenantId) || await runner.CleanupExpiredTokensAsync(provisionTenantId))
+        throw new InvalidOperationException("A job ran for a suspended tenant.");
+    suspendedTenant.Activate();
+    await jobPlatform.SaveChangesAsync();
+}
 nextCalled = false;
 var crossRequest = new DefaultHttpContext();
 crossRequest.Request.Host = new HostString("provision.example.test");

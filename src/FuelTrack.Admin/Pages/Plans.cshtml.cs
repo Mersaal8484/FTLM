@@ -11,6 +11,7 @@ public sealed class PlansModel(PlatformDbContext db) : PageModel
     [BindProperty] public decimal Price { get; set; }
     [BindProperty] public string Currency { get; set; } = "";
     public string? Error { get; private set; }
+    [TempData] public string? Success { get; set; }
     public List<SubscriptionPlan> Plans { get; private set; } = [];
     public async Task OnGetAsync() => Plans = await db.Plans.AsNoTracking().OrderBy(p => p.Name).ToListAsync();
     public async Task<IActionResult> OnPostAsync()
@@ -20,6 +21,7 @@ public sealed class PlansModel(PlatformDbContext db) : PageModel
             if (!ModelState.IsValid || string.IsNullOrWhiteSpace(Name) || Name.Length > 200 || Price > 9999999999999999m || decimal.Round(Price, 2) != Price) throw new ArgumentException();
             db.Plans.Add(new SubscriptionPlan(Guid.NewGuid(), Name, Price, Currency));
             await db.SaveChangesAsync();
+            Success = "تمت إضافة الباقة بنجاح.";
             return RedirectToPage();
         }
         catch (ArgumentException) { Error = "تحقق من اسم الباقة والسعر ورمز العملة."; }
