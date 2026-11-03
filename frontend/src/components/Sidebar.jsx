@@ -234,7 +234,7 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
 
           <div className="sidebar-section-title">{ar ? 'القائمة الرئيسية' : 'Main Menu'}</div>
           {mainNav.map(({ to, icon: Icon, label }) => (
-            <NavLink key={to} to={to} end={to === '/'} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+            <NavLink key={to} to={to} end={to === '/' || to === '/maintenance'} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
               <Icon size={18} strokeWidth={1.8} />
               <span>{label}</span>
             </NavLink>
