@@ -13,6 +13,13 @@ const indicatorCfg = {
 
 const fmt = (v, d = 1) => v != null ? Number(v).toLocaleString('en-US', { maximumFractionDigits: d }) : '—';
 
+function responseList(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.data)) return data.data;
+  throw new Error('Unexpected list response');
+}
+
 const initialForm = {
   generatorId: '',
   sparePartId: '',
@@ -58,11 +65,13 @@ function InstalledParts({ lang, currentUser }) {
         client.get('/api/work-permits', { params: { _t: Date.now() } }),
         client.get('/api/warehouse/dispatch', { params: { _t: Date.now() } }),
       ]);
-      if (partRes.status === 'fulfilled') setParts(partRes.value.data?.items || partRes.value.data || []);
-      if (genRes.status === 'fulfilled') setGenerators(genRes.value.data || []);
-      if (spRes.status === 'fulfilled') setSpareParts(spRes.value.data?.items || spRes.value.data || []);
-      if (wpRes.status === 'fulfilled') setWorkPermits(wpRes.value.data?.items || wpRes.value.data || []);
-      if (drRes.status === 'fulfilled') setDispatchRequests(drRes.value.data?.items || drRes.value.data || []);
+      if (partRes.status === 'fulfilled') setParts(responseList(partRes.value.data));
+      if (genRes.status === 'fulfilled') setGenerators(responseList(genRes.value.data));
+      if (spRes.status === 'fulfilled') setSpareParts(responseList(spRes.value.data));
+      if (wpRes.status === 'fulfilled') setWorkPermits(responseList(wpRes.value.data));
+      if (drRes.status === 'fulfilled') setDispatchRequests(responseList(drRes.value.data));
+      if ([partRes, genRes, spRes, wpRes, drRes].some(result => result.status === 'rejected'))
+        setError(ar ? 'تعذر تحميل بعض البيانات. حاول مجدداً.' : 'Some data could not be loaded. Please try again.');
     } catch { setError(ar ? 'فشل تحميل البيانات' : 'Failed to load data'); }
     finally { setLoading(false); }
   };
