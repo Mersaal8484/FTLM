@@ -3,6 +3,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY . .
+ARG VITE_LOCAL_DEMO=false
+ENV VITE_LOCAL_DEMO=$VITE_LOCAL_DEMO
 RUN npm run build
 
 FROM nginx:alpine AS runtime

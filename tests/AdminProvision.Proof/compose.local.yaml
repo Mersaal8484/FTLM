@@ -1,0 +1,6 @@
+services:
+  admin:
+    environment:
+      Platform__LocalDemoEnabled: "true"
+    ports:
+      - "127.0.0.1:31371:8080"

@@ -27,3 +27,19 @@ it('waits for the second factor before requesting the authenticated profile', as
   await waitFor(() => expect(onLogin).toHaveBeenCalledWith({ name: 'Admin' }));
   expect(client.post).toHaveBeenLastCalledWith('/api/auth/login/2fa', { tempToken: 'challenge', code: '123456' });
 });
+
+it('accepts and submits a recovery code', async () => {
+  const user = userEvent.setup();
+  client.post.mockResolvedValueOnce({ data: { requiresTwoFactor: true, tempToken: 'challenge' } });
+  client.post.mockResolvedValueOnce({ data: {} });
+  client.get.mockResolvedValue({ data: { name: 'Admin' } });
+  const { container } = render(<MemoryRouter><Login /></MemoryRouter>);
+  await user.type(container.querySelector('input[type="email"]'), 'admin@example.test');
+  await user.type(container.querySelector('input[type="password"]'), 'Password-123!');
+  await user.click(screen.getByRole('button', { name: 'common.login' }));
+  await user.type(await screen.findByLabelText('auth.twoFactorCode'), '0123456789abcdef0123456789abcdef');
+  await user.click(screen.getByRole('button', { name: 'common.login' }));
+  await waitFor(() => expect(client.post).toHaveBeenLastCalledWith('/api/auth/login/2fa', {
+    tempToken: 'challenge', code: '0123456789abcdef0123456789abcdef'
+  }));
+});

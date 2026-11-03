@@ -6,7 +6,7 @@ using FuelTrack.API.Services;
 namespace FuelTrack.API.Hubs;
 
 [Authorize(AuthenticationSchemes = "SignalR")]
-public class DashboardHub(IConfiguration configuration, ITenantRequestContext? tenant = null) : Hub
+public class DashboardHub(IConfiguration configuration, IServiceProvider services) : Hub
 {
     public async Task JoinDashboard()
     {
@@ -20,7 +20,10 @@ public class DashboardHub(IConfiguration configuration, ITenantRequestContext? t
 
     private string DashboardGroup()
     {
-        var tenantId = TenantRealtimeScope.GetTenant(configuration, tenant);
+        // Each invocation has its own DI scope; the trusted tenant belongs to
+        // the HTTP connection scope selected by the resolution middleware.
+        var requestServices = Context.GetHttpContext()?.RequestServices ?? services;
+        var tenantId = TenantRealtimeScope.GetTenant(configuration, requestServices.GetService<ITenantRequestContext>());
         if (tenantId is Guid id)
         {
             var claims = Context.User?.FindAll("tenant_id").ToArray() ?? [];

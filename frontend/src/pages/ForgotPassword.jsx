@@ -3,8 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, CheckCircle, KeyRound } from 'lucide-react';
 import client from '../api/client';
+import useTenantBranding from '../hooks/useTenantBranding';
 
 function ForgotPassword() {
+  const branding = useTenantBranding();
   const { t, i18n } = useTranslation();
   const ar = i18n.language === 'ar';
   const navigate = useNavigate();
@@ -97,13 +99,13 @@ function ForgotPassword() {
     <div className="login-page">
       <div className="login-card" style={{ maxWidth: 440 }}>
         {/* Logo */}
-        <div className="login-logo">
+        {branding.logoUrl && <div className="login-logo">
           <img
-            src="/pec-logo.png"
-            alt="PEC"
+            src={branding.logoUrl}
+            alt={branding.name}
             onError={e => { e.target.style.display = 'none'; }}
           />
-        </div>
+        </div>}
 
         {/* Icon */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>

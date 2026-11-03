@@ -1,4 +1,5 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0
+FROM ${DOTNET_SDK_IMAGE} AS build
 WORKDIR /src
 COPY src/FuelTrack.Domain/FuelTrack.Domain.csproj src/FuelTrack.Domain/
 COPY src/FuelTrack.Platform/FuelTrack.Platform.csproj src/FuelTrack.Platform/

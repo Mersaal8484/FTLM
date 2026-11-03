@@ -1,4 +1,4 @@
-const base = 'http://admin:8080';
+const base = process.env.PROOF_BASE_URL || 'http://admin:8080';
 const jar = new Map();
 const request = async (path, body) => {
   const options = { redirect: 'manual', headers: { cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; ') } };
@@ -48,4 +48,8 @@ for (let attempt = 0; attempt < 2; attempt++) {
 }
 if (!page.html.includes('Provisioning')) throw new Error('Tenant was activated prematurely');
 if (page.html.includes('name="adminPassword"')) throw new Error('A provisioned tenant still requests a new administrator password');
+result = await request('/?handler=Resume', { id, __RequestVerificationToken: token(page.html) });
+if (result.response.status !== 200 || !result.html.includes('Provisioning')) throw new Error('Provisioning tenant could be resumed or readiness gate was bypassed');
+result = await request('/?handler=Suspend', { id });
+if (result.response.status !== 400) throw new Error('Tenant lifecycle action accepted a request without an antiforgery token');
 console.log('PASS: admin login, registration, provisioning, retry and inactive status');

@@ -19,15 +19,27 @@ public sealed class PlatformTenant
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         Id = id;
         Name = name.Trim();
+        DisplayName = Name;
         Host = TenantIdentity.NormalizeHost(host);
         Status = PlatformTenantStatus.Provisioning;
     }
 
     public Guid Id { get; private set; }
     public string Name { get; private set; } = "";
+    public string DisplayName { get; private set; } = "";
     public string Host { get; private set; } = "";
+    public byte[]? Logo { get; private set; }
+    public string? LogoContentType { get; private set; }
     public PlatformTenantStatus Status { get; private set; }
     public string Schema => TenantIdentity.SchemaName(Id);
+
+    public void UpdateBranding(string name, byte[]? logo, string? contentType, bool removeLogo)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 200) throw new ArgumentException("Invalid tenant name.");
+        DisplayName = name.Trim();
+        if (removeLogo) { Logo = null; LogoContentType = null; }
+        else if (logo is not null) { Logo = logo; LogoContentType = contentType ?? throw new ArgumentException("Logo content type required."); }
+    }
 
     public void Activate()
     {

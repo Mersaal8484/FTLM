@@ -13,7 +13,7 @@ services:
       timeout: 5s
       retries: 30
   admin:
-    image: ftm-platform-admin
+    image: "${PROOF_ADMIN_IMAGE:-ftm-platform-admin}"
     user: "0:0"
     entrypoint: ["/bin/sh", "-c"]
     command:

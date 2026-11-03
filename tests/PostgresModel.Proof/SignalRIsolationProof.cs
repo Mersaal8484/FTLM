@@ -57,6 +57,7 @@ internal static class SignalRIsolationProof
         });
         app.UseAuthorization();
         app.MapHub<FuelTrackHub>("/hubs/fueltrack");
+        app.MapHub<DashboardHub>("/hubs/dashboard");
         await app.StartAsync();
         try
         {
@@ -64,10 +65,10 @@ internal static class SignalRIsolationProof
             string Token(Guid tenant) => new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(
                 claims: [new Claim(ClaimTypes.NameIdentifier, "7"), new Claim("tenant_id", tenant.ToString())],
                 expires: DateTime.UtcNow.AddMinutes(5), signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256)));
-            async Task<ClientWebSocket> Connect(Guid contextTenant, Guid claimTenant)
+            async Task<ClientWebSocket> Connect(Guid contextTenant, Guid claimTenant, string hub = "fueltrack")
             {
                 var socket = new ClientWebSocket();
-                var url = address.Replace("http://", "ws://") + "/hubs/fueltrack?test_tenant=" + contextTenant + "&access_token=" + Uri.EscapeDataString(Token(claimTenant));
+                var url = address.Replace("http://", "ws://") + "/hubs/" + hub + "?test_tenant=" + contextTenant + "&access_token=" + Uri.EscapeDataString(Token(claimTenant));
                 await socket.ConnectAsync(new Uri(url), CancellationToken.None);
                 await Send(socket, "{\"protocol\":\"json\",\"version\":1}");
                 if (await Receive(socket) != "{}") throw new InvalidOperationException("SignalR handshake failed.");
@@ -106,6 +107,21 @@ internal static class SignalRIsolationProof
                 if (IsCompletion(response, "bad")) throw new InvalidOperationException("Mismatched tenant connected to SignalR.");
             }
             catch (WebSocketException) { /* hub rejected connection */ }
+            using var dashboardA = await Connect(tenantA, tenantA, "dashboard");
+            using var dashboardB = await Connect(tenantB, tenantB, "dashboard");
+            await Send(dashboardA, "{\"type\":1,\"invocationId\":\"da\",\"target\":\"JoinDashboard\",\"arguments\":[]}");
+            await Send(dashboardB, "{\"type\":1,\"invocationId\":\"db\",\"target\":\"JoinDashboard\",\"arguments\":[]}");
+            if (!IsCompletion(await Receive(dashboardA), "da") || !IsCompletion(await Receive(dashboardB), "db"))
+                throw new InvalidOperationException("Dashboard tenant groups failed to join.");
+            var dashboardHub = app.Services.GetRequiredService<Microsoft.AspNetCore.SignalR.IHubContext<DashboardHub>>();
+            await dashboardHub.Clients.Group($"tenant:{tenantA:N}:group:dashboard").SendCoreAsync("isolation", ["dashboard-a"]);
+            await dashboardHub.Clients.Group($"tenant:{tenantB:N}:group:dashboard").SendCoreAsync("isolation", ["dashboard-b"]);
+            if (!IsEvent(await Receive(dashboardA), "dashboard-a") || !IsEvent(await Receive(dashboardB), "dashboard-b"))
+                throw new InvalidOperationException("Dashboard events crossed tenant boundaries.");
+            using var dashboardMismatch = await Connect(tenantA, tenantB, "dashboard");
+            await Send(dashboardMismatch, "{\"type\":1,\"invocationId\":\"bad-dashboard\",\"target\":\"JoinDashboard\",\"arguments\":[]}");
+            if (IsCompletion(await Receive(dashboardMismatch), "bad-dashboard"))
+                throw new InvalidOperationException("Mismatched tenant joined the dashboard.");
             Console.WriteLine("PASS: real SignalR WebSocket broadcast, user and group isolation.");
         }
         finally { await app.StopAsync(); }

@@ -491,7 +491,6 @@ function Users({ t, lang, currentUser }) {
               </div>
             </Modal>
           )}
-        )}
 
         {/* ─── Reset Password Modal ─── */}
       {resetUser && (

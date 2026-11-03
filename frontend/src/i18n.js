@@ -32,7 +32,7 @@ export const appTranslations = {
       },
       auth: {
         invalidCredentials: 'Invalid credentials',
-        twoFactorCode: 'Authenticator code',
+        twoFactorCode: 'Authenticator or recovery code',
         twoFactorRetry: 'The code was invalid or expired. Sign in again.',
         passwordChangeRequired: 'Password Change Required',
         passwordChangeDescription: 'For account security, set a new password before continuing.',
@@ -179,7 +179,7 @@ export const appTranslations = {
       },
       auth: {
         invalidCredentials: 'بيانات غير صحيحة',
-        twoFactorCode: 'رمز تطبيق المصادقة',
+        twoFactorCode: 'رمز تطبيق المصادقة أو رمز الاسترداد',
         twoFactorRetry: 'الرمز غير صحيح أو منتهي الصلاحية. سجّل الدخول مجدداً.',
         passwordChangeRequired: 'تغيير كلمة المرور مطلوب',
         passwordChangeDescription: 'لأمان حسابك، يجب تعيين كلمة مرور جديدة قبل الدخول إلى النظام.',

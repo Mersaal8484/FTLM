@@ -27,6 +27,7 @@ if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(passwordHas
 
 builder.Services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(connection,
     postgres => postgres.MigrationsHistoryTable("__EFMigrationsHistory", "platform")));
+builder.Services.AddScoped<TenantLifecycleService>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
 {
     options.Cookie.Name = "fueltrack.platform";

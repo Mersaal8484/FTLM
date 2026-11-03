@@ -22,7 +22,9 @@ public class AuthService : IAuthService
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ITenantRequestContext? _tenant;
     private readonly ITwoFactorService? _twoFactor;
+    private readonly ITwoFactorSecretProtector? _twoFactorProtector;
     private const string TwoFactorMarker = "two-factor-challenge-v1";
+    private const string UsedTotpMarker = "two-factor-used-totp-v1";
 
     public AuthService(
         UserManager<User> userManager,
@@ -30,7 +32,8 @@ public class AuthService : IAuthService
         IConfiguration configuration,
         IHttpContextAccessor httpContextAccessor,
         ITenantRequestContext? tenant = null,
-        ITwoFactorService? twoFactor = null)
+        ITwoFactorService? twoFactor = null,
+        ITwoFactorSecretProtector? twoFactorProtector = null)
     {
         _userManager = userManager;
         _context = context;
@@ -38,6 +41,7 @@ public class AuthService : IAuthService
         _httpContextAccessor = httpContextAccessor;
         _tenant = tenant;
         _twoFactor = twoFactor;
+        _twoFactorProtector = twoFactorProtector;
     }
 
     public async Task<TokenResponseDto> LoginAsync(string userName, string password, string? ipAddress)
@@ -112,10 +116,59 @@ public class AuthService : IAuthService
         if (user is null || !user.IsActive || !user.TwoFactorEnabled || string.IsNullOrEmpty(user.TwoFactorSecret) ||
             user.SecurityStamp != item.ReplacedByToken || await _userManager.IsLockedOutAsync(user))
             throw new UnauthorizedAccessException("Invalid two-factor code");
-        if (!_twoFactor.VerifyCode(user.TwoFactorSecret, code))
+        var secret = _configuration.GetValue<bool>("MultiTenancy:Enabled")
+            ? await (_twoFactorProtector ?? throw new InvalidOperationException("Two-factor secret protection is required.")).UnprotectAsync(user.Id, user.TwoFactorSecret)
+            : user.TwoFactorSecret;
+        var multiTenant = _configuration.GetValue<bool>("MultiTenancy:Enabled");
+        var isTotp = _twoFactor.VerifyCode(secret, code);
+        var isRecovery = multiTenant && FuelTrack.Application.Services.RecoveryCodes.Consume(user.TwoFactorBackupCodes, code) is not null;
+        if (!isTotp && !isRecovery)
         {
             await _userManager.AccessFailedAsync(user);
             throw new UnauthorizedAccessException("Invalid two-factor code");
+        }
+        if (multiTenant)
+        {
+            if (!_context.Database.IsNpgsql() || _tenant?.TenantId is not Guid tenantId || tenantId == Guid.Empty)
+                throw new InvalidOperationException("A trusted PostgreSQL tenant is required for two-factor authentication.");
+            // A one-use challenge alone does not stop the same TOTP being submitted
+            // through two separate challenges. Serialize checks per tenant and user,
+            // and record only a hash until the accepted TOTP window has elapsed.
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var lockKey = $"fueltrack:totp:{tenantId:N}:{user.Id}";
+            await _context.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0))");
+            var currentUser = await _context.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == user.Id);
+            if (currentUser is null || !currentUser.IsActive || !currentUser.TwoFactorEnabled ||
+                currentUser.SecurityStamp != item.ReplacedByToken || currentUser.TwoFactorSecret != user.TwoFactorSecret ||
+                await _userManager.IsLockedOutAsync(currentUser))
+                throw new UnauthorizedAccessException("Invalid two-factor code");
+            if (isRecovery)
+            {
+                var remaining = FuelTrack.Application.Services.RecoveryCodes.Consume(currentUser.TwoFactorBackupCodes, code);
+                if (remaining is null) throw new UnauthorizedAccessException("Invalid two-factor code");
+                var stamp = Guid.NewGuid().ToString();
+                var changed = await _context.Users.Where(u => u.Id == user.Id && u.TwoFactorBackupCodes == currentUser.TwoFactorBackupCodes &&
+                    u.ConcurrencyStamp == currentUser.ConcurrencyStamp && u.SecurityStamp == currentUser.SecurityStamp && u.TwoFactorEnabled && u.IsActive)
+                    .ExecuteUpdateAsync(s => s.SetProperty(u => u.TwoFactorBackupCodes, remaining).SetProperty(u => u.ConcurrencyStamp, stamp));
+                if (changed != 1) throw new UnauthorizedAccessException("Invalid two-factor code");
+                await _context.Entry(user).ReloadAsync();
+            }
+            else
+            {
+                if (!_twoFactor.VerifyCode(secret, code)) throw new UnauthorizedAccessException("Invalid two-factor code");
+                var codeHash = HashToken($"two-factor-used:{user.Id}:{code}");
+                var checkedAt = DateTime.UtcNow;
+                if (await _context.RefreshTokens.AnyAsync(t => t.UserId == user.Id && t.DeviceInfo == UsedTotpMarker &&
+                    t.Token == codeHash && t.ExpiresAt > checkedAt))
+                    throw new UnauthorizedAccessException("Invalid two-factor code");
+                _context.RefreshTokens.Add(new RefreshToken
+                {
+                    UserId = user.Id, Token = codeHash, DeviceInfo = UsedTotpMarker,
+                    ExpiresAt = checkedAt.AddMinutes(2), IsRevoked = true, RevokedAt = checkedAt
+                });
+                await _context.SaveChangesAsync();
+            }
+            await transaction.CommitAsync();
         }
         return await IssueAuthenticatedTokenAsync(user, ipAddress);
     }

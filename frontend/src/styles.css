@@ -1511,7 +1511,8 @@ input[type="email"] {
 .login-logo img {
   width: 90px;
   height: 90px;
-  object-fit: contain;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .login-title {

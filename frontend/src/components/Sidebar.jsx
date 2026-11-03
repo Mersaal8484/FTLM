@@ -8,9 +8,11 @@ import {
 } from 'lucide-react';
 import usePermissions from '../permissions/usePermissions';
 import useUiStore from '../store/uiStore';
+import useTenantBranding from '../hooks/useTenantBranding';
 
 
 function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onLogout }) {
+  const branding = useTenantBranding();
   const navigate = useNavigate();
   const ar = lang === 'ar';
   const { setLang } = useUiStore();
@@ -144,11 +146,11 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
       <div className={`mobile-sidebar-overlay${mobileOpen ? ' open' : ''}`} onClick={closeMobile} />
       <aside className={`sidebar${mobileOpen ? ' open' : ''}`}>
         <div className="sidebar-logo" onClick={() => { navigate('/'); closeMobile(); }} style={{ cursor: 'pointer' }}>
-          <div className="sidebar-logo-icon">
-             <img src="/pec-logo.png" alt="PEC" onError={e => e.target.style.display = 'none'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-          </div>
+          {branding.logoUrl && <div className="sidebar-logo-icon">
+             <img src={branding.logoUrl} alt={branding.name} onError={e => e.target.style.display = 'none'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>}
           <div className="sidebar-logo-text" style={{ flex: 1 }}>
-            <div className="sidebar-logo-name">FuelTrack</div>
+            <div className="sidebar-logo-name">{branding.name}</div>
             <div className="sidebar-logo-sub">{ar ? 'نظام تتبع الوقود والطاقة' : 'Energy Tracking'}</div>
           </div>
         </div>

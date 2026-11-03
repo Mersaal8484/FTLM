@@ -29,6 +29,26 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 
+// Offline maintenance command. All customer API replicas must be stopped and the
+// tenant suspended before invoking it; existing requests cannot be drained here.
+if (args.Length > 0 && args[0] == "--rotate-tenant-key")
+{
+    if (args.Length != 4 || !Guid.TryParse(args[1], out var rotationTenantId) || args[3] != "--traffic-drained")
+        throw new InvalidOperationException("Usage: --rotate-tenant-key TENANT_ID NEW_KEY_ID --traffic-drained");
+    var connection = Environment.GetEnvironmentVariable("ConnectionStrings__Platform")
+        ?? throw new InvalidOperationException("ConnectionStrings__Platform is required.");
+    var keyDirectory = Environment.GetEnvironmentVariable("TenantCredentials__KeyDirectory")
+        ?? throw new InvalidOperationException("TenantCredentials__KeyDirectory is required.");
+    var options = new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(connection).Options;
+    await using var platform = new PlatformDbContext(options);
+    var tenant = new TenantRequestContext();
+    tenant.Initialize(rotationTenantId, connection);
+    var count = await new TenantKeyRotationCoordinator(platform, tenant, new FileTenantCredentialKeyProvider(keyDirectory))
+        .RotateAsync(rotationTenantId, args[2]);
+    Console.WriteLine($"Rotation completed for {count} two-factor secrets. Retain old keys until backups and rollback policy allow removal.");
+    return;
+}
+
 Log.Logger = new LoggerConfiguration()
     // Hosting diagnostics include the raw query string, including SignalR bearer tokens.
     .MinimumLevel.Override("Microsoft.AspNetCore.Hosting.Diagnostics", Serilog.Events.LogEventLevel.Warning)
@@ -41,6 +61,11 @@ var builder = WebApplication.CreateBuilder(args);
 // tenant-scoped SignalR and background jobs are integrated and verified together.
 var tenantProofMode = builder.Environment.IsEnvironment("Testing") &&
     builder.Configuration.GetValue<bool>("MultiTenancy:DisposableProof");
+// Local demonstration is deliberately limited to registered localhost hosts. Its
+// container ports must be published to loopback only; realtime is unavailable.
+var localDemoMode = builder.Environment.IsDevelopment() &&
+    builder.Configuration.GetValue<bool>("MultiTenancy:LocalDemo") &&
+    builder.Configuration.GetValue<bool>("MultiTenancy:Enabled");
 if (tenantProofMode)
 {
     var testUrl = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
@@ -49,7 +74,7 @@ if (tenantProofMode)
         !bindAddress.IsLoopback || !string.Equals(testDatabase.Database, "model_proof", StringComparison.Ordinal))
         throw new InvalidOperationException("Tenant proof mode requires a loopback listener and the disposable model_proof database.");
 }
-if (builder.Configuration.GetValue<bool>("MultiTenancy:Enabled") && !tenantProofMode)
+if (builder.Configuration.GetValue<bool>("MultiTenancy:Enabled") && !tenantProofMode && !localDemoMode)
     throw new InvalidOperationException("Multi-tenant API access is not enabled until tenant isolation is fully integrated.");
 
 builder.Host.UseSerilog();
@@ -67,6 +92,8 @@ if (builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
     builder.Services.AddScoped<TenantAccessResolver>();
     builder.Services.AddScoped<TenantRequestContext>();
     builder.Services.AddScoped<ITenantRequestContext>(sp => sp.GetRequiredService<TenantRequestContext>());
+    builder.Services.AddScoped<ITwoFactorSecretProtector, TenantTwoFactorSecretProtector>();
+    builder.Services.AddScoped<TenantTwoFactorKeyRotator>();
     builder.Services.AddSingleton<TenantArchivalRunner>();
     if (builder.Configuration.GetValue<bool>("MultiTenancy:EnableMaintenanceJobs"))
         builder.Services.AddHostedService<TenantMaintenanceScheduler>();
@@ -350,6 +377,23 @@ if (!string.IsNullOrEmpty(otelEndpoint))
 
 var app = builder.Build();
 
+if (localDemoMode)
+{
+    app.Use(async (context, next) =>
+    {
+        var host = context.Request.Host.Host;
+        var label = host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase) ? host[..^".localhost".Length] : "";
+        if (label.Length is < 1 or > 63 || label[0] == '-' || label[^1] == '-' ||
+            label.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-') ||
+            context.Request.Path.StartsWithSegments("/hubs"))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+        await next();
+    });
+}
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
@@ -450,7 +494,9 @@ if (!string.IsNullOrEmpty(otelEndpoint) && app.Services.GetService<OpenTelemetry
     app.MapPrometheusScrapingEndpoint("/metrics");
 }
 
-if (!tenantProofMode)
+// Tenant schemas are provisioned separately; startup has no tenant request context
+// and must never run single-database migrations or seed a shared administrator.
+if (!builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<FuelTrackDbContext>();

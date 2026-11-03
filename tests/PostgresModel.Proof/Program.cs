@@ -289,6 +289,46 @@ var apiOtherTenant = await platform.Tenants.SingleAsync(t => t.Id == firstTenant
 apiOtherTenant.Activate();
 platform.Subscriptions.Add(new PlatformSubscription(Guid.NewGuid(), firstTenantId, testPlan.Id, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1)));
 await platform.SaveChangesAsync();
+platform.ChangeTracker.Clear();
+var lifecycle = new TenantLifecycleService(platform);
+await lifecycle.SuspendAsync(provisionTenantId);
+if (await new TenantAccessResolver(platform).ResolveAsync("provision.example.test", DateTimeOffset.UtcNow) is not null)
+    throw new InvalidOperationException("Suspended tenant retained access.");
+try { await lifecycle.ResumeAsync(provisionTenantId, false); throw new InvalidOperationException("Tenant resumed while customer API is not ready."); }
+catch (InvalidOperationException ex) when (ex.Message.Contains("not ready")) { }
+platform.ChangeTracker.Clear();
+await platform.Database.ExecuteSqlInterpolatedAsync($"UPDATE platform.\"Subscriptions\" SET \"EndsAt\" = now() - interval '1 second' WHERE \"TenantId\" = {provisionTenantId}");
+try { await lifecycle.ResumeAsync(provisionTenantId, true); throw new InvalidOperationException("Tenant resumed with expired subscription."); }
+catch (InvalidOperationException ex) when (ex.Message.Contains("subscription")) { }
+platform.ChangeTracker.Clear();
+await platform.Database.ExecuteSqlInterpolatedAsync($"UPDATE platform.\"Subscriptions\" SET \"EndsAt\" = now() + interval '1 day' WHERE \"TenantId\" = {provisionTenantId}");
+await lifecycle.ResumeAsync(provisionTenantId, true);
+if (await new TenantAccessResolver(platform).ResolveAsync("provision.example.test", DateTimeOffset.UtcNow) is null)
+    throw new InvalidOperationException("Resumed tenant was not accessible.");
+platform.ChangeTracker.Clear();
+Console.WriteLine("PASS: suspension and guarded subscription-aware resumption.");
+var localDemoId = Guid.NewGuid();
+platform.Tenants.Add(new PlatformTenant(localDemoId, "Local demo proof", "demo.localhost"));
+platform.Subscriptions.Add(new PlatformSubscription(Guid.NewGuid(), localDemoId, testPlan.Id, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1)));
+await platform.SaveChangesAsync();
+await new TenantProvisioningService(platform, keyProvider, "test-key-1").ProvisionAsync(localDemoId, "demo@example.test", "Demo-Password-123!");
+platform.ChangeTracker.Clear();
+try { await lifecycle.ActivateLocalDemoAsync(localDemoId, false); throw new InvalidOperationException("Local demo gate was bypassed."); }
+catch (InvalidOperationException ex) when (ex.Message.Contains("not enabled")) { }
+await lifecycle.ActivateLocalDemoAsync(localDemoId, true);
+if (await new TenantAccessResolver(platform).ResolveAsync("demo.localhost", DateTimeOffset.UtcNow) is null)
+    throw new InvalidOperationException("Local demo activation failed.");
+platform.ChangeTracker.Clear();
+var localSecondId = Guid.NewGuid();
+platform.Tenants.Add(new PlatformTenant(localSecondId, "Second local tenant", "second.localhost"));
+platform.Subscriptions.Add(new PlatformSubscription(Guid.NewGuid(), localSecondId, testPlan.Id, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1)));
+await platform.SaveChangesAsync();
+await new TenantProvisioningService(platform, keyProvider, "test-key-1").ProvisionAsync(localSecondId, "second@example.test", "Second-Password-123!");
+platform.ChangeTracker.Clear();
+await lifecycle.ActivateLocalDemoAsync(localSecondId, true);
+if (await new TenantAccessResolver(platform).ResolveAsync("second.localhost", DateTimeOffset.UtcNow) is null)
+    throw new InvalidOperationException("Second local tenant activation failed.");
+platform.ChangeTracker.Clear();
 await ApiIsolationProof.RunAsync(adminString, key, provisionTenantId);
 var middlewareConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
 {
@@ -320,6 +360,9 @@ var services = new ServiceCollection();
 services.AddLogging();
 services.AddSingleton<IConfiguration>(tokenConfig);
 services.AddSingleton<ITenantRequestContext>(requestState);
+services.AddSingleton<ITenantCredentialKeyProvider>(keyProvider);
+services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(adminString));
+services.AddScoped<ITwoFactorSecretProtector, TenantTwoFactorSecretProtector>();
 services.AddHttpContextAccessor();
 services.AddDbContext<FuelTrackDbContext>(options => options.UseNpgsql(selected.ConnectionString));
 services.AddIdentityCore<User>().AddRoles<Role>().AddEntityFrameworkStores<FuelTrackDbContext>();
@@ -358,8 +401,18 @@ using (var authScope = provider.CreateScope())
         throw new InvalidOperationException("SignalR token is not bound to the tenant.");
 
     var totpSecret = new TwoFactorService().GenerateSecretKey();
+    var protector = authScope.ServiceProvider.GetRequiredService<ITwoFactorSecretProtector>();
+    var protectedSecret = await protector.ProtectAsync(administrator.Id, totpSecret);
+    if (protectedSecret.Contains(totpSecret, StringComparison.Ordinal) || await protector.UnprotectAsync(administrator.Id, protectedSecret) != totpSecret)
+        throw new InvalidOperationException("Two-factor secret protection failed.");
+    try { await protector.UnprotectAsync(administrator.Id + 1, protectedSecret); throw new InvalidOperationException("Two-factor secret was accepted for another user."); }
+    catch (CryptographicException) { }
     administrator.TwoFactorEnabled = true;
-    administrator.TwoFactorSecret = totpSecret;
+    administrator.TwoFactorSecret = protectedSecret;
+    var recoveryCodes = FuelTrack.Application.Services.RecoveryCodes.Generate();
+    administrator.TwoFactorBackupCodes = FuelTrack.Application.Services.RecoveryCodes.Store(recoveryCodes);
+    if (administrator.TwoFactorBackupCodes.Contains(recoveryCodes[0], StringComparison.Ordinal))
+        throw new InvalidOperationException("Recovery code was stored in plaintext.");
     if (!(await manager.UpdateAsync(administrator)).Succeeded) throw new InvalidOperationException("Could not configure 2FA test user.");
     try { await auth.BeginTwoFactorAsync("tenant-admin@example.test", "wrong-password"); throw new InvalidOperationException("2FA challenge was issued for an invalid password."); }
     catch (UnauthorizedAccessException) { }
@@ -386,6 +439,32 @@ using (var authScope = provider.CreateScope())
         throw new InvalidOperationException("2FA token was not bound to its tenant.");
     try { await auth.CompleteTwoFactorAsync(successfulChallenge, validCode, null); throw new InvalidOperationException("Successful challenge was reused."); }
     catch (UnauthorizedAccessException) { }
+    var reusedCodeChallenge = await auth.BeginTwoFactorAsync("tenant-admin@example.test", "Tenant-Admin-Password-123!");
+    try { await auth.CompleteTwoFactorAsync(reusedCodeChallenge, validCode, null); throw new InvalidOperationException("TOTP was reused across separate challenges."); }
+    catch (UnauthorizedAccessException) { }
+    var recoveryChallenge1 = await auth.BeginTwoFactorAsync("tenant-admin@example.test", "Tenant-Admin-Password-123!");
+    var recoveryChallenge2 = await auth.BeginTwoFactorAsync("tenant-admin@example.test", "Tenant-Admin-Password-123!");
+    async Task<bool> UseRecovery(string challenge)
+    {
+        using var scope = provider.CreateScope();
+        try { await scope.ServiceProvider.GetRequiredService<AuthService>().CompleteTwoFactorAsync(challenge, recoveryCodes[0], null); return true; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
+    var recoveryResults = await Task.WhenAll(UseRecovery(recoveryChallenge1), UseRecovery(recoveryChallenge2));
+    if (recoveryResults.Count(result => result) != 1) throw new InvalidOperationException("Recovery code was not consumed atomically.");
+    await authScope.ServiceProvider.GetRequiredService<FuelTrackDbContext>().Entry(administrator).ReloadAsync();
+    if (FuelTrack.Application.Services.RecoveryCodes.Consume(administrator.TwoFactorBackupCodes, recoveryCodes[0]) is not null ||
+        FuelTrack.Application.Services.RecoveryCodes.Consume(administrator.TwoFactorBackupCodes, recoveryCodes[1]) is null)
+        throw new InvalidOperationException("Recovery code consumption did not persist correctly.");
+    async Task<string> ReplaceTotpSecret()
+    {
+        var secret = new TwoFactorService().GenerateSecretKey();
+        await authScope.ServiceProvider.GetRequiredService<FuelTrackDbContext>().Entry(administrator).ReloadAsync();
+        administrator.TwoFactorSecret = await protector.ProtectAsync(administrator.Id, secret);
+        if (!(await manager.UpdateAsync(administrator)).Succeeded) throw new InvalidOperationException("Could not refresh 2FA test secret.");
+        return new Totp(Base32Encoding.ToBytes(secret)).ComputeTotp();
+    }
+    validCode = await ReplaceTotpSecret();
     accessor.HttpContext = null;
     var concurrentChallenge = await auth.BeginTwoFactorAsync("tenant-admin@example.test", "Tenant-Admin-Password-123!");
     async Task<bool> CompleteOnce()
@@ -396,11 +475,26 @@ using (var authScope = provider.CreateScope())
     }
     var concurrentResults = await Task.WhenAll(CompleteOnce(), CompleteOnce());
     if (concurrentResults.Count(result => result) != 1) throw new InvalidOperationException("Concurrent challenge reuse was not prevented.");
+    validCode = await ReplaceTotpSecret();
+    var firstChallenge = await auth.BeginTwoFactorAsync("tenant-admin@example.test", "Tenant-Admin-Password-123!");
+    var secondChallenge = await auth.BeginTwoFactorAsync("tenant-admin@example.test", "Tenant-Admin-Password-123!");
+    async Task<bool> CompleteSeparate(string challenge)
+    {
+        using var concurrentScope = provider.CreateScope();
+        try { await concurrentScope.ServiceProvider.GetRequiredService<AuthService>().CompleteTwoFactorAsync(challenge, validCode, null); return true; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
+    var separateResults = await Task.WhenAll(CompleteSeparate(firstChallenge), CompleteSeparate(secondChallenge));
+    if (separateResults.Count(result => result) != 1) throw new InvalidOperationException("Concurrent TOTP reuse across challenges was not prevented.");
+    validCode = await ReplaceTotpSecret();
     var crossTenantChallenge = await auth.BeginTwoFactorAsync("tenant-admin@example.test", "Tenant-Admin-Password-123!");
     var otherServices = new ServiceCollection();
     otherServices.AddLogging();
     otherServices.AddSingleton<IConfiguration>(tokenConfig);
     otherServices.AddSingleton<ITenantRequestContext>(new TestTenant(firstTenantId, oldConnection.ConnectionString));
+    otherServices.AddSingleton<ITenantCredentialKeyProvider>(keyProvider);
+    otherServices.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(adminString));
+    otherServices.AddScoped<ITwoFactorSecretProtector, TenantTwoFactorSecretProtector>();
     otherServices.AddHttpContextAccessor();
     otherServices.AddDbContext<FuelTrackDbContext>(options => options.UseNpgsql(oldConnection.ConnectionString));
     otherServices.AddIdentityCore<User>().AddRoles<Role>().AddEntityFrameworkStores<FuelTrackDbContext>();
@@ -409,13 +503,16 @@ using (var authScope = provider.CreateScope())
     using (var otherProvider = otherServices.BuildServiceProvider())
     using (var otherScope = otherProvider.CreateScope())
     {
+        try { await otherScope.ServiceProvider.GetRequiredService<ITwoFactorSecretProtector>().UnprotectAsync(administrator.Id, protectedSecret); throw new InvalidOperationException("Two-factor secret crossed tenant boundaries."); }
+        catch (CryptographicException) { }
         try { await otherScope.ServiceProvider.GetRequiredService<AuthService>().CompleteTwoFactorAsync(crossTenantChallenge, validCode, null); throw new InvalidOperationException("2FA challenge crossed tenant schemas."); }
         catch (UnauthorizedAccessException) { }
     }
     await auth.CompleteTwoFactorAsync(crossTenantChallenge, validCode, null);
+    validCode = await ReplaceTotpSecret();
     var controller = new AuthController(manager, authScope.ServiceProvider.GetRequiredService<RoleManager<Role>>(), auth,
         authScope.ServiceProvider.GetRequiredService<FuelTrackDbContext>(), null!, tokenConfig,
-        authScope.ServiceProvider.GetRequiredService<ITwoFactorService>())
+        authScope.ServiceProvider.GetRequiredService<ITwoFactorService>(), protector)
     {
         ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
@@ -429,6 +526,44 @@ using (var authScope = provider.CreateScope())
     if (secondFactor is not OkObjectResult) throw new InvalidOperationException("2FA endpoint rejected a valid code.");
     if (await controller.LoginWithTwoFactor(new TwoFactorVerifyRequest { TempToken = challengeResponse.TempToken, Code = validCode }) is not UnauthorizedObjectResult)
         throw new InvalidOperationException("2FA endpoint accepted a replayed challenge.");
+    var beforeRotation = administrator.TwoFactorSecret!;
+    var beforePlain = await protector.UnprotectAsync(administrator.Id, beforeRotation);
+    await new TenantCredentialKeyRotator(platform, keyProvider).RewrapAsync(provisionTenantId, "test-key-2");
+    var tenantDb = authScope.ServiceProvider.GetRequiredService<FuelTrackDbContext>();
+    await tenantDb.Entry(administrator).ReloadAsync();
+    if (await new TenantTwoFactorKeyRotator(tenantDb, requestState, protector).RewrapAsync() != 1)
+        throw new InvalidOperationException("2FA key rotation did not process the account.");
+    var afterRotation = administrator.TwoFactorSecret!;
+    using var rotatedEnvelope = System.Text.Json.JsonDocument.Parse(Convert.FromBase64String(afterRotation["ft2fa1:".Length..]));
+    if (afterRotation == beforeRotation || rotatedEnvelope.RootElement.GetProperty("KeyId").GetString() != "test-key-2" ||
+        await protector.UnprotectAsync(administrator.Id, afterRotation) != beforePlain)
+        throw new InvalidOperationException("2FA key rotation failed.");
+    platform.ChangeTracker.Clear();
+    try { await new TenantKeyRotationCoordinator(platform, requestState, keyProvider).RotateAsync(provisionTenantId, "test-key-1"); throw new InvalidOperationException("Active tenant rotation was allowed."); }
+    catch (InvalidOperationException ex) when (ex.Message.Contains("suspended")) { }
+    platform.ChangeTracker.Clear();
+    var rotationTenant = await platform.Tenants.SingleAsync(t => t.Id == provisionTenantId);
+    rotationTenant.Suspend();
+    await platform.SaveChangesAsync();
+    platform.ChangeTracker.Clear();
+    try { await new TenantKeyRotationCoordinator(platform, requestState, keyProvider).RotateAsync(provisionTenantId, "missing"); throw new InvalidOperationException("Missing key was accepted."); }
+    catch (InvalidOperationException ex) when (ex.Message.Contains("New encryption key")) { }
+    platform.ChangeTracker.Clear();
+    if ((await platform.TenantCredentials.SingleAsync(c => c.TenantId == provisionTenantId)).KeyId != "test-key-2")
+        throw new InvalidOperationException("Failed coordinated rotation changed the credential.");
+    platform.ChangeTracker.Clear();
+    if (await new TenantKeyRotationCoordinator(platform, requestState, keyProvider).RotateAsync(provisionTenantId, "test-key-1") != 1)
+        throw new InvalidOperationException("Coordinated rotation missed the TOTP secret.");
+    await tenantDb.Entry(administrator).ReloadAsync();
+    using var coordinatedEnvelope = System.Text.Json.JsonDocument.Parse(Convert.FromBase64String(administrator.TwoFactorSecret!["ft2fa1:".Length..]));
+    if (coordinatedEnvelope.RootElement.GetProperty("KeyId").GetString() != "test-key-1" ||
+        await protector.UnprotectAsync(administrator.Id, administrator.TwoFactorSecret!) != beforePlain)
+        throw new InvalidOperationException("Coordinated rotation did not preserve the TOTP secret.");
+    platform.ChangeTracker.Clear();
+    rotationTenant = await platform.Tenants.SingleAsync(t => t.Id == provisionTenantId);
+    rotationTenant.Activate();
+    await platform.SaveChangesAsync();
+    Console.WriteLine("PASS: recovery code single-use concurrency and TOTP key rewrap.");
 }
 var realCrossRequest = new DefaultHttpContext();
 realCrossRequest.Request.Host = new HostString("proof.example.test");

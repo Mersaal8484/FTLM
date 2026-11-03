@@ -46,8 +46,11 @@ export default defineConfig({
     port: parseInt(process.env.VITE_FRONTEND_PORT || '3000', 10),
     proxy: {
       '/api': {
-        target: `http://localhost:${process.env.VITE_API_PORT || '5000'}`,
+        target: `http://127.0.0.1:${process.env.VITE_API_PORT || '5000'}`,
         changeOrigin: true,
+        ...(process.env.VITE_LOCAL_DEMO === 'true' ? {
+          configure: proxy => proxy.on('proxyReq', (proxyRequest, request) => proxyRequest.setHeader('Host', request.headers.host)),
+        } : {}),
       },
       '/hubs': {
         target: `http://localhost:${process.env.VITE_API_PORT || '5000'}`,

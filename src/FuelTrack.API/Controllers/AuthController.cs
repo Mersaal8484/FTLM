@@ -25,6 +25,7 @@ public class AuthController : ControllerBase
     private readonly IEmailService _emailService;
     private readonly IConfiguration _configuration;
     private readonly ITwoFactorService _twoFactorService;
+    private readonly ITwoFactorSecretProtector? _twoFactorProtector;
 
     public AuthController(
         UserManager<User> userManager,
@@ -33,7 +34,8 @@ public class AuthController : ControllerBase
         FuelTrackDbContext context,
         IEmailService emailService,
         IConfiguration configuration,
-        ITwoFactorService twoFactorService)
+        ITwoFactorService twoFactorService,
+        ITwoFactorSecretProtector? twoFactorProtector = null)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -42,6 +44,7 @@ public class AuthController : ControllerBase
         _emailService = emailService;
         _configuration = configuration;
         _twoFactorService = twoFactorService;
+        _twoFactorProtector = twoFactorProtector;
     }
 
     [AllowAnonymous]
@@ -136,17 +139,25 @@ public class AuthController : ControllerBase
         var user = await _userManager.FindByIdAsync(userId);
         if (user == null) return NotFound();
 
+        if (user.TwoFactorEnabled)
+            return BadRequest(new { msg = "Two-factor authentication is already enabled" });
+
         var secretKey = _twoFactorService.GenerateSecretKey();
-        user.TwoFactorSecret = secretKey;
+        user.TwoFactorSecret = _configuration.GetValue<bool>("MultiTenancy:Enabled")
+            ? await (_twoFactorProtector ?? throw new InvalidOperationException("Two-factor secret protection is required.")).ProtectAsync(user.Id, secretKey)
+            : secretKey;
 
         var email = user.Email ?? user.UserName ?? "user";
         var issuer = _configuration["TwoFactor:Issuer"] ?? "FuelTrack";
         var qrCodeUri = _twoFactorService.GetQrCodeUri(secretKey, email, issuer);
 
-        var backupCodes = _twoFactorService.GenerateBackupCodes();
-        user.TwoFactorBackupCodes = JsonSerializer.Serialize(backupCodes);
+        var backupCodes = _configuration.GetValue<bool>("MultiTenancy:Enabled")
+            ? FuelTrack.Application.Services.RecoveryCodes.Generate() : _twoFactorService.GenerateBackupCodes();
+        user.TwoFactorBackupCodes = _configuration.GetValue<bool>("MultiTenancy:Enabled")
+            ? FuelTrack.Application.Services.RecoveryCodes.Store(backupCodes) : JsonSerializer.Serialize(backupCodes);
 
-        await _userManager.UpdateAsync(user);
+        if (!(await _userManager.UpdateAsync(user)).Succeeded)
+            return Conflict(new { msg = "The account changed; please try again." });
 
         return Ok(new TwoFactorSetupResponse
         {
@@ -169,7 +180,7 @@ public class AuthController : ControllerBase
         if (string.IsNullOrEmpty(user.TwoFactorSecret))
             return BadRequest(new { msg = "2FA setup required. Call /api/auth/2fa/setup first." });
 
-        var isValid = _twoFactorService.VerifyCode(user.TwoFactorSecret, request.Code);
+        var isValid = _twoFactorService.VerifyCode(await ReadTwoFactorSecretAsync(user), request.Code);
         return Ok(new { valid = isValid });
     }
 
@@ -186,11 +197,12 @@ public class AuthController : ControllerBase
         if (string.IsNullOrEmpty(user.TwoFactorSecret))
             return BadRequest(new { msg = "2FA setup required. Call /api/auth/2fa/setup first." });
 
-        if (!_twoFactorService.VerifyCode(user.TwoFactorSecret, request.Code))
+        if (!_twoFactorService.VerifyCode(await ReadTwoFactorSecretAsync(user), request.Code))
             return BadRequest(new { msg = "Invalid 2FA code" });
 
         user.TwoFactorEnabled = true;
-        await _userManager.UpdateAsync(user);
+        if (!(await _userManager.UpdateAsync(user)).Succeeded)
+            return Conflict(new { msg = "The account changed; please try again." });
 
         return Ok(new { msg = "Two-factor authentication enabled" });
     }
@@ -211,13 +223,14 @@ public class AuthController : ControllerBase
         if (string.IsNullOrEmpty(user.TwoFactorSecret))
             return BadRequest(new { msg = "2FA secret not found" });
 
-        if (!_twoFactorService.VerifyCode(user.TwoFactorSecret, request.Code))
+        if (!_twoFactorService.VerifyCode(await ReadTwoFactorSecretAsync(user), request.Code))
             return BadRequest(new { msg = "Invalid 2FA code" });
 
         user.TwoFactorEnabled = false;
         user.TwoFactorSecret = null;
         user.TwoFactorBackupCodes = null;
-        await _userManager.UpdateAsync(user);
+        if (!(await _userManager.UpdateAsync(user)).Succeeded)
+            return Conflict(new { msg = "The account changed; please try again." });
 
         return Ok(new { msg = "Two-factor authentication disabled" });
     }
@@ -238,12 +251,15 @@ public class AuthController : ControllerBase
         if (string.IsNullOrEmpty(user.TwoFactorSecret))
             return BadRequest(new { msg = "2FA secret not found" });
 
-        if (!_twoFactorService.VerifyCode(user.TwoFactorSecret, request.Code))
+        if (!_twoFactorService.VerifyCode(await ReadTwoFactorSecretAsync(user), request.Code))
             return BadRequest(new { msg = "Invalid 2FA code" });
 
-        var backupCodes = _twoFactorService.GenerateBackupCodes();
-        user.TwoFactorBackupCodes = JsonSerializer.Serialize(backupCodes);
-        await _userManager.UpdateAsync(user);
+        var backupCodes = _configuration.GetValue<bool>("MultiTenancy:Enabled")
+            ? FuelTrack.Application.Services.RecoveryCodes.Generate() : _twoFactorService.GenerateBackupCodes();
+        user.TwoFactorBackupCodes = _configuration.GetValue<bool>("MultiTenancy:Enabled")
+            ? FuelTrack.Application.Services.RecoveryCodes.Store(backupCodes) : JsonSerializer.Serialize(backupCodes);
+        if (!(await _userManager.UpdateAsync(user)).Succeeded)
+            return Conflict(new { msg = "The account changed; please try again." });
 
         return Ok(new { backupCodes });
     }
@@ -464,6 +480,14 @@ public class AuthController : ControllerBase
             Console.WriteLine($"[Auth] BuildPermissionsDictAsync error: {ex.Message}");
             return new Dictionary<string, Dictionary<string, bool>>();
         }
+    }
+
+    private Task<string> ReadTwoFactorSecretAsync(User user)
+    {
+        var value = user.TwoFactorSecret ?? throw new InvalidOperationException("Two-factor secret is missing.");
+        return _configuration.GetValue<bool>("MultiTenancy:Enabled")
+            ? (_twoFactorProtector ?? throw new InvalidOperationException("Two-factor secret protection is required.")).UnprotectAsync(user.Id, value)
+            : Task.FromResult(value);
     }
 
     private void SetTokenCookie(string token)

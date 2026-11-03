@@ -18,6 +18,12 @@ public sealed class SubscriptionsModel(PlatformDbContext db) : PageModel
     public List<SubscriptionRow> Rows { get; private set; } = [];
     public async Task OnGetAsync()
     {
+        Start = DateOnly.FromDateTime(DateTime.UtcNow);
+        End = Start.AddMonths(1);
+        await LoadAsync();
+    }
+    private async Task LoadAsync()
+    {
         Tenants = await db.Tenants.AsNoTracking().OrderBy(x => x.Name).ToListAsync();
         Plans = await db.Plans.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Name).ToListAsync();
         Rows = await (from s in db.Subscriptions.AsNoTracking() join t in db.Tenants on s.TenantId equals t.Id join p in db.Plans on s.PlanId equals p.Id orderby s.StartsAt descending select new SubscriptionRow(t.Name, p.Name, s.StartsAt, s.EndsAt)).ToListAsync();
@@ -26,7 +32,7 @@ public sealed class SubscriptionsModel(PlatformDbContext db) : PageModel
     {
         try
         {
-            if (!ModelState.IsValid || !await db.Tenants.AnyAsync(x => x.Id == TenantId) || !await db.Plans.AnyAsync(x => x.Id == PlanId && x.IsActive)) throw new ArgumentException();
+            if (!ModelState.IsValid || Start == default || End == default || !await db.Tenants.AnyAsync(x => x.Id == TenantId) || !await db.Plans.AnyAsync(x => x.Id == PlanId && x.IsActive)) throw new ArgumentException();
             var start = new DateTimeOffset(Start.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
             var end = new DateTimeOffset(End.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
             var subscription = new PlatformSubscription(Guid.NewGuid(), TenantId, PlanId, start, end);
@@ -42,7 +48,7 @@ public sealed class SubscriptionsModel(PlatformDbContext db) : PageModel
             return RedirectToPage();
         }
         catch (ArgumentException) { Error = "تحقق من المستأجر والباقة والتواريخ، وتأكد من عدم تداخل الاشتراكات."; }
-        await OnGetAsync();
+        await LoadAsync();
         return Page();
     }
     public sealed record SubscriptionRow(string Tenant, string Plan, DateTimeOffset Start, DateTimeOffset End)

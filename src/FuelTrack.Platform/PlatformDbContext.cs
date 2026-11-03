@@ -20,7 +20,9 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             tenant.HasKey(x => x.Id);
             tenant.Property(x => x.Id).ValueGeneratedNever();
             tenant.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            tenant.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
             tenant.Property(x => x.Host).HasMaxLength(253).IsRequired();
+            tenant.Property(x => x.LogoContentType).HasMaxLength(40);
             tenant.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
             tenant.HasIndex(x => x.Host).IsUnique();
             tenant.Ignore(x => x.Schema);

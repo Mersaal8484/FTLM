@@ -3,9 +3,11 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import client from '../api/client';
 import { Eye, EyeOff } from 'lucide-react';
+import useTenantBranding from '../hooks/useTenantBranding';
 
 function Login({ onLogin }) {
   const { t } = useTranslation();
+  const branding = useTenantBranding();
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -48,20 +50,17 @@ function Login({ onLogin }) {
   return (
     <div className="login-page">
       <div className="login-card">
-        <div className="login-logo">
+        {branding.logoUrl && <div className="login-logo">
           <img
-            src="/pec-logo.png"
-            alt="PEC"
+            src={branding.logoUrl}
+            alt={branding.name}
             onError={e => { e.target.style.display = 'none'; }}
           />
-        </div>
+        </div>}
 
         <h1 className="login-title">
-          {t('common.appName')}
+          {branding.name}
         </h1>
-        <p className="login-sub">
-          {t('common.pec')}
-        </p>
         <p className="login-desc">
           {t('common.systemName')}
         </p>
@@ -118,7 +117,7 @@ function Login({ onLogin }) {
           </>}
           {challenge && <div className="form-group" style={{ marginBottom: 24 }}>
             <label className="form-label" htmlFor="two-factor-code">{t('auth.twoFactorCode')}</label>
-            <input id="two-factor-code" className="form-control" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e => setCode(e.target.value)} required />
+            <input id="two-factor-code" className="form-control" autoComplete="one-time-code" pattern="([0-9]{6}|[0-9a-fA-F]{32})" maxLength={32} value={code} onChange={e => setCode(e.target.value)} required />
           </div>}
 
           <button

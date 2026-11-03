@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
+import useTenantBranding from '../hooks/useTenantBranding';
 
 export function canReviewInventory(currentUser, inventory) {
   const role = currentUser?.role;
@@ -50,6 +51,7 @@ export function buildInventoryStatusPayload(inventory, status) {
 }
 
 function PeriodicInventoryPage({ lang, currentUser }) {
+  const branding = useTenantBranding();
   const ar = lang === 'ar';
   
   // Permission helpers
@@ -471,7 +473,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
         <div className="print-wrapper">
         <div className="print-only print-header">
           <div className="print-logo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '15px' }}>
-            <img src="/pec-logo.png" alt="Logo" onError={(e) => e.target.style.display='none'} style={{ width: 80, height: 80, objectFit: 'contain' }} />
+            {branding.logoUrl && <img src={branding.logoUrl} alt={branding.name} onError={(e) => e.target.style.display='none'} style={{ width: 80, height: 80, objectFit: 'contain' }} />}
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '16px', fontWeight: '900', color: '#000', lineHeight: 1.2, whiteSpace: 'nowrap' }}>Fuel & Energy Tracking</div>
               <div style={{ fontSize: '12px', color: '#555', fontWeight: '600', textAlign: 'center' }}>نظام تتبع الوقود والطاقة</div>
