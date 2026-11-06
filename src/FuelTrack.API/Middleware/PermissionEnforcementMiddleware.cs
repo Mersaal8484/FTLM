@@ -27,6 +27,9 @@ public static class PermissionMapping
         ["SubStationReadings"] = "station_readings",
         ["Attachments"] = "operational_data",
         ["StationOperationalSettings"] = "operational_data",
+        ["OperationalCaptures"] = "operational_data",
+        ["TankCalibrations"] = "operational_data",
+        ["OperationalFeeders"] = "operational_data",
         ["CustomerFeatures"] = "settings",
         ["FuelMovements"] = "fuel_movements",
         ["OilTransactions"] = "oil_transactions",
@@ -97,6 +100,13 @@ public static class PermissionMapping
             actionKey = "capture";
         else if (controllerName.Equals("StationOperationalSettings", StringComparison.OrdinalIgnoreCase) &&
                  !httpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase))
+            actionKey = "configure";
+        else if (controllerName.Equals("OperationalCaptures", StringComparison.OrdinalIgnoreCase) &&
+                 httpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase))
+            actionKey = "capture";
+        else if (controllerName.Equals("TankCalibrations", StringComparison.OrdinalIgnoreCase))
+            actionKey = "configure";
+        else if (controllerName.Equals("OperationalFeeders", StringComparison.OrdinalIgnoreCase) && httpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase))
             actionKey = "configure";
 
         // Privileged sub-actions (e.g. POST /api/fuel-movements/1/approve,

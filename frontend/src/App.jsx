@@ -49,6 +49,8 @@ const WorkPermits = lazy(() => import('./pages/WorkPermits'));
 const InstalledParts = lazy(() => import('./pages/InstalledParts'));
 const MaintenanceDashboard = lazy(() => import('./pages/MaintenanceDashboard'));
 const OperationsHub = lazy(() => import('./pages/OperationsHub'));
+const OperationalCapture = lazy(() => import('./pages/OperationalCapture'));
+const OperationalHistory = lazy(() => import('./pages/OperationalHistory'));
 
 
 
@@ -279,6 +281,8 @@ function App() {
               {/* Dashboard */}
               <Route path="/" element={<Protected module="dashboard"><Dashboard lang={lang} t={t} currentUser={user} /></Protected>} />
               <Route path="/operations" element={<Protected module="operational_data"><OperationsHub /></Protected>} />
+              <Route path="/operations/capture" element={<Protected module="operational_data" action="capture"><OperationalCapture /></Protected>} />
+              <Route path="/operations/history" element={<Protected module="operational_data"><OperationalHistory /></Protected>} />
 
               {/* Notifications */}
               <Route path="/notifications" element={<Protected module="alerts"><Notifications lang={lang} onRead={() => setUnreadCount(Math.max(0, unreadCount - 1))} /></Protected>} />

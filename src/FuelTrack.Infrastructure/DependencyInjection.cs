@@ -117,6 +117,9 @@ public static class DependencyInjection
         services.Configure<AttachmentStorageOptions>(configuration.GetSection(AttachmentStorageOptions.SectionName));
         services.AddSingleton<IAttachmentStorage, PrivateFileAttachmentStorage>();
         services.AddScoped<IAttachmentService, AttachmentService>();
+        services.AddScoped<IOperationalCaptureService, OperationalCaptureService>();
+        services.AddScoped<ITankCalibrationService, TankCalibrationService>();
+        services.AddScoped<IFeederService, FeederService>();
 
         // Migration lock
         services.AddScoped<MigrationLockService>();

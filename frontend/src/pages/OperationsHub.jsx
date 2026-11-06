@@ -1,10 +1,11 @@
 import { ClipboardCheck, Gauge, History, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 
 const actions = [
-  { key: 'capture', icon: Zap },
+  { key: 'capture', icon: Zap, route: '/operations/capture' },
   { key: 'review', icon: ClipboardCheck },
-  { key: 'history', icon: History },
+  { key: 'history', icon: History, route: '/operations/history' },
 ];
 
 export default function OperationsHub() {
@@ -20,12 +21,12 @@ export default function OperationsHub() {
         {t('operational.foundationStatus')}
       </div>
       <div className="operational-action-grid">
-        {actions.map(({ key, icon: Icon }) => (
+        {actions.map(({ key, icon: Icon, route }) => (
           <article className="operational-action-card" key={key}>
             <div className="operational-action-icon"><Icon size={22} /></div>
             <h2>{t(`operational.actions.${key}.title`)}</h2>
             <p>{t(`operational.actions.${key}.description`)}</p>
-            <span>{t('operational.comingNext')}</span>
+            {route ? <Link to={route}>{t('operational.actions.open')}</Link> : <span>{t('operational.actions.comingNext')}</span>}
           </article>
         ))}
       </div>

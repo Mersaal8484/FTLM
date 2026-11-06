@@ -34,14 +34,19 @@ export const appTranslations = {
         eyebrow: 'Operations workspace',
         title: 'Operational Data',
         description: 'A controlled workspace for field capture, review, and approved operational history.',
-        foundationStatus: 'Operational controls are configured; capture opens in the next phase.',
-        comingNext: 'Coming next',
+        foundationStatus: 'Capture is available; submitted records remain pending until review.',
         navigation: 'Operations',
         actions: {
           capture: { title: 'Capture readings', description: 'Record field values with verified photos.' },
           review: { title: 'Review submissions', description: 'Approve or reject pending field submissions.' },
           history: { title: 'Approved history', description: 'View official readings and derived results.' },
+          open: 'Open',
+          comingNext: 'Coming next',
         },
+        capture: {
+          eyebrow: 'Field capture', title: 'Submit operational readings', pendingNote: 'Each line needs a verified photo. Captures remain pending until a later review phase.', myHistory: 'My submissions', site: 'Site', chooseSite: 'Choose a site', generator: 'Generator', tank: 'Tank', feeder: 'Feeder', meter: 'Meter', capturedAt: 'Capture time', addPhoto: 'Add meter photo', compressing: 'Compressing photo…', photoReady: 'Photo ready', remove: 'Remove line', running: 'Generator running', voltage: 'Voltage (V)', current: 'Current (A)', waterTemp: 'Water temperature (°C)', oilPressure: 'Oil pressure', oilTemp: 'Oil temperature (°C)', activeKw: 'Active load (kW)', apparentKva: 'Apparent load (kVA)', frequency: 'Frequency (Hz)', levelCm: 'Liquid level (cm)', rawValue: 'Raw meter value', multiplier: 'Multiplier', subjectType: 'Meter type', subject: 'Meter subject', energy: 'Produced energy', hours: 'Running hours', sent: 'Sent energy', meterReset: 'Meter reset', resetNote: 'Reset note', submit: 'Submit for review', submitting: 'Submitting…', success: 'The capture was submitted as pending.', failed: 'Unable to submit the capture.'
+        },
+        history: { title: 'My pending submissions', note: 'These raw captures do not affect official values until they are reviewed.', newCapture: 'New capture', pending: 'Pending', lines: 'lines', empty: 'No operational submissions yet.' },
       },
       auth: {
         invalidCredentials: 'Invalid credentials',
@@ -194,13 +199,18 @@ export const appTranslations = {
         eyebrow: 'مساحة العمل التشغيلية',
         title: 'البيانات التشغيلية',
         description: 'مساحة عمل مضبوطة للإدخال الميداني والمراجعة وسجل البيانات التشغيلية المعتمدة.',
-        foundationStatus: 'تم تجهيز ضوابط التشغيل؛ يبدأ الإدخال في المرحلة التالية.',
-        comingNext: 'قريباً',
+        foundationStatus: 'الإدخال متاح الآن؛ تبقى السجلات معلّقة حتى مرحلة المراجعة.',
+        capture: {
+          eyebrow: 'إدخال ميداني', title: 'إرسال القراءات التشغيلية', pendingNote: 'كل سطر يحتاج صورة متحققة. تبقى القراءات معلّقة حتى مرحلة المراجعة.', myHistory: 'إرسالاتي', site: 'الموقع', chooseSite: 'اختر موقعاً', generator: 'مولد', tank: 'خزان', feeder: 'فيدر', meter: 'عداد', capturedAt: 'وقت الالتقاط', addPhoto: 'إضافة صورة العداد', compressing: 'يجري ضغط الصورة…', photoReady: 'الصورة جاهزة', remove: 'حذف السطر', running: 'المولد يعمل', voltage: 'الجهد (فولت)', current: 'التيار (أمبير)', waterTemp: 'حرارة الماء (°م)', oilPressure: 'ضغط الزيت', oilTemp: 'حرارة الزيت (°م)', activeKw: 'الحمل الفعال (kW)', apparentKva: 'الحمل الظاهري (kVA)', frequency: 'التردد (Hz)', levelCm: 'مستوى السائل (سم)', rawValue: 'قيمة العداد الخام', multiplier: 'المضاعف', subjectType: 'نوع العداد', subject: 'مرتبط العداد', energy: 'الطاقة المنتجة', hours: 'ساعات التشغيل', sent: 'الطاقة المرسلة', meterReset: 'إعادة ضبط العداد', resetNote: 'ملاحظة إعادة الضبط', submit: 'إرسال للمراجعة', submitting: 'جارٍ الإرسال…', success: 'تم إرسال القراءة بحالة معلّقة.', failed: 'تعذر إرسال القراءة.'
+        },
+        history: { title: 'إرسالاتي المعلّقة', note: 'هذه القراءات الخام لا تؤثر على القيم الرسمية حتى مراجعتها.', newCapture: 'إدخال جديد', pending: 'معلّق', lines: 'أسطر', empty: 'لا توجد إرسالات تشغيلية بعد.' },
         navigation: 'التشغيل',
         actions: {
           capture: { title: 'إدخال القراءات', description: 'تسجيل القيم الميدانية مع صور متحقق منها.' },
           review: { title: 'مراجعة الطلبات', description: 'اعتماد أو رفض الطلبات الميدانية المعلقة.' },
           history: { title: 'السجل المعتمد', description: 'استعراض القراءات الرسمية والنتائج المشتقة.' },
+          open: 'فتح',
+          comingNext: 'قريباً',
         },
       },
       auth: {
