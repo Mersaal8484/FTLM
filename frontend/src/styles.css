@@ -71,6 +71,11 @@
   --chart-6:        hsl(330, 65%, 50%);
   --chart-7:        hsl(190, 75%, 45%);
   --chart-8:        hsl(24, 85%, 50%);
+  /* Operational-data design mapping: the approved dark, amber and teal language. */
+  --operational-amber: hsl(38, 94%, 56%);
+  --operational-amber-subtle: hsla(38, 94%, 56%, 0.14);
+  --operational-teal: hsl(158, 72%, 47%);
+  --operational-grid: hsla(215, 20%, 88%, 0.035);
 
    /* Layout */
   --sidebar-w:      252px;
@@ -176,6 +181,33 @@
 }
 
 html { scroll-behavior: smooth; }
+
+/* Operational foundation shell. These use the shared tokens above rather than
+   creating a competing theme, and become the frame for capture/review screens. */
+.operational-shell {
+  min-height: min(560px, 72vh);
+  padding: clamp(24px, 4vw, 52px);
+  border: 1px solid var(--border-strong);
+  border-radius: calc(var(--radius, 10px) * 1.5);
+  background:
+    linear-gradient(90deg, var(--operational-grid) 1px, transparent 1px) 0 0 / 28px 28px,
+    linear-gradient(var(--operational-grid) 1px, transparent 1px) 0 0 / 28px 28px,
+    radial-gradient(circle at 92% 0%, var(--operational-amber-subtle), transparent 34%),
+    var(--surface);
+}
+.operational-eyebrow { display: inline-flex; align-items: center; gap: 8px; color: var(--operational-amber); font-weight: 700; font-size: var(--text-sm); letter-spacing: .04em; }
+.operational-shell h1 { margin-top: 14px; color: var(--text); font-size: clamp(26px, 4vw, 42px); line-height: 1.16; }
+.operational-intro { max-width: 620px; margin-top: 12px; color: var(--text-muted); font-size: var(--text-lg); line-height: 1.8; }
+.operational-status { display: inline-flex; align-items: center; gap: 9px; margin-top: 24px; padding: 9px 13px; border: 1px solid color-mix(in srgb, var(--operational-teal) 35%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--operational-teal) 10%, transparent); color: var(--text); font-size: var(--text-sm); }
+.operational-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--operational-teal); box-shadow: 0 0 0 4px color-mix(in srgb, var(--operational-teal) 16%, transparent); }
+.operational-action-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 36px; }
+.operational-action-card { position: relative; overflow: hidden; min-height: 195px; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius, 10px); background: color-mix(in srgb, var(--surface-2) 78%, transparent); }
+.operational-action-card::after { position: absolute; top: 0; inset-inline-end: 0; width: 62px; height: 3px; content: ''; background: var(--operational-amber); }
+.operational-action-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 12px; background: var(--operational-amber-subtle); color: var(--operational-amber); }
+.operational-action-card h2 { margin-top: 18px; font-size: var(--text-xl); }
+.operational-action-card p { min-height: 45px; margin-top: 8px; color: var(--text-muted); line-height: 1.55; }
+.operational-action-card > span { display: block; margin-top: 14px; color: var(--operational-amber); font-size: var(--text-sm); font-weight: 700; }
+@media (max-width: 760px) { .operational-action-grid { grid-template-columns: 1fr; } .operational-shell { margin-inline: -4px; padding: 24px 18px; } }
 
 body {
   background: var(--bg);

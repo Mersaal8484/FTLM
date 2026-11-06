@@ -62,6 +62,13 @@ namespace FuelTrack.Infrastructure
         public DbSet<InstalledPart> InstalledParts => Set<InstalledPart>();
         public DbSet<MaintenanceLog> MaintenanceLogs => Set<MaintenanceLog>();
 
+        // Operational foundations
+        public DbSet<StationOperationalSettings> StationOperationalSettings => Set<StationOperationalSettings>();
+        public DbSet<Attachment> Attachments => Set<Attachment>();
+        public DbSet<AttachmentLink> AttachmentLinks => Set<AttachmentLink>();
+        public DbSet<CustomerFeatureSetting> CustomerFeatureSettings => Set<CustomerFeatureSetting>();
+        public DbSet<IdempotencyRequest> IdempotencyRequests => Set<IdempotencyRequest>();
+
         // Permission system (Module Registry)
         public DbSet<ModuleDefinition> ModuleDefinitions => Set<ModuleDefinition>();
         public DbSet<PagePermission> PagePermissions => Set<PagePermission>();
@@ -129,6 +136,11 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<WorkTask>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<InstalledPart>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<MaintenanceLog>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<StationOperationalSettings>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<Attachment>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<AttachmentLink>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<CustomerFeatureSetting>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<IdempotencyRequest>().HasQueryFilter(e => e.DeletedAt == null);
 
             // === Oil relationships ===
             modelBuilder.Entity<Oil>()
@@ -160,6 +172,18 @@ namespace FuelTrack.Infrastructure
                 .HasMany(s => s.SubStations)
                 .WithOne(ss => ss.Station)
                 .HasForeignKey(ss => ss.StationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Station>()
+                .HasOne(s => s.OperationalSettings)
+                .WithOne(s => s.Station)
+                .HasForeignKey<StationOperationalSettings>(s => s.StationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AttachmentLink>()
+                .HasOne(link => link.Attachment)
+                .WithMany(attachment => attachment.Links)
+                .HasForeignKey(link => link.AttachmentId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // === SubStation children ===
@@ -2367,6 +2391,62 @@ namespace FuelTrack.Infrastructure
                 new Lookup { Id = 109, CategoryId = 29, Name = "عالية", Code = "High", SortOrder = 2, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
                 new Lookup { Id = 110, CategoryId = 29, Name = "متوسطة", Code = "Medium", SortOrder = 3, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 },
                 new Lookup { Id = 111, CategoryId = 29, Name = "منخفضة", Code = "Low", SortOrder = 4, IsActive = true, CreatedAt = seedDate, CreatedBy = 0, UpdatedAt = seedDate, UpdatedBy = 0 });
+
+            // === Operational foundations ===
+            modelBuilder.Entity<StationOperationalSettings>(entity =>
+            {
+                entity.HasIndex(e => e.StationId)
+                    .IsUnique()
+                    .HasDatabaseName("UX_StationOperationalSettings_Station")
+                    .HasFilter(activeFilter);
+                entity.Property(e => e.TimeZone).HasMaxLength(80);
+                entity.Property(e => e.OilPressureUnit).HasMaxLength(16);
+                entity.Property(e => e.ProducedVsSentWarningThresholdPercent).HasPrecision(5, 2);
+            });
+
+            modelBuilder.Entity<Attachment>(entity =>
+            {
+                entity.HasIndex(e => e.StorageKey)
+                    .IsUnique()
+                    .HasDatabaseName("UX_Attachments_StorageKey")
+                    .HasFilter(activeFilter);
+                entity.Property(e => e.StorageKey).HasMaxLength(500);
+                entity.Property(e => e.OriginalFileName).HasMaxLength(260);
+                entity.Property(e => e.ContentType).HasMaxLength(100);
+                entity.Property(e => e.Sha256).HasMaxLength(64);
+            });
+
+            modelBuilder.Entity<AttachmentLink>(entity =>
+            {
+                entity.HasIndex(e => new { e.EntityType, e.EntityId, e.SortOrder })
+                    .HasDatabaseName("IX_AttachmentLinks_Entity_Sort")
+                    .HasFilter(activeFilter);
+                entity.Property(e => e.EntityType).HasMaxLength(100);
+            });
+
+            modelBuilder.Entity<CustomerFeatureSetting>(entity =>
+            {
+                entity.HasIndex(e => e.Key)
+                    .IsUnique()
+                    .HasDatabaseName("UX_CustomerFeatureSettings_Key")
+                    .HasFilter(activeFilter);
+                entity.Property(e => e.Key).HasMaxLength(100);
+                entity.Property(e => e.Value).HasMaxLength(500);
+            });
+
+            modelBuilder.Entity<IdempotencyRequest>(entity =>
+            {
+                entity.HasIndex(e => e.ClientRequestId)
+                    .IsUnique()
+                    .HasDatabaseName("UX_IdempotencyRequests_ClientRequestId")
+                    .HasFilter(activeFilter);
+                entity.HasIndex(e => new { e.Operation, e.CreatedAt })
+                    .HasDatabaseName("IX_IdempotencyRequests_Operation_Created");
+                entity.Property(e => e.Operation).HasMaxLength(100);
+                entity.Property(e => e.RequestHash).HasMaxLength(64);
+                entity.Property(e => e.Status).HasMaxLength(32);
+                entity.Property(e => e.ResponsePayload).HasMaxLength(8000);
+            });
 
             // === Module Registry System ===
 

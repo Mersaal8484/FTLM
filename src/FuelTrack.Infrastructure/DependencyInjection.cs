@@ -2,6 +2,7 @@ using FuelTrack.Application.Common;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Infrastructure.Migrations;
 using FuelTrack.Infrastructure.Services;
+using FuelTrack.Infrastructure.Storage;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -110,6 +111,12 @@ public static class DependencyInjection
         services.AddScoped<IDataArchivalService, DataArchivalService>();
         services.AddScoped<IComplianceService, ComplianceService>();
         services.AddScoped<ITwoFactorService, TwoFactorService>();
+        services.AddScoped<IStationOperationalSettingsService, StationOperationalSettingsService>();
+        services.AddScoped<ICustomerFeatureService, CustomerFeatureService>();
+        services.AddScoped<IIdempotencyService, IdempotencyService>();
+        services.Configure<AttachmentStorageOptions>(configuration.GetSection(AttachmentStorageOptions.SectionName));
+        services.AddSingleton<IAttachmentStorage, PrivateFileAttachmentStorage>();
+        services.AddScoped<IAttachmentService, AttachmentService>();
 
         // Migration lock
         services.AddScoped<MigrationLockService>();

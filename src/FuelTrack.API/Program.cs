@@ -564,6 +564,8 @@ using (var scope = app.Services.CreateScope())
     await RetryAsync("ModuleRegistrySeed", () => FuelTrack.Infrastructure.Data.ModuleRegistrySeed.SeedAsync(dbContext));
     var permGen = new FuelTrack.Infrastructure.Data.PermissionGenerator(dbContext);
     await RetryAsync("PermissionGenerator", () => permGen.GenerateAllPermissionsAsync());
+    await RetryAsync("CustomerFeatureSettingsSeed", () => FuelTrack.Infrastructure.Data.CustomerFeatureSettingsSeed.SeedAsync(dbContext));
+    await RetryAsync("OperationalReferenceDataSeed", () => FuelTrack.Infrastructure.Data.OperationalReferenceDataSeed.SeedAsync(dbContext));
     if (dbContext.Database.IsRelational())
     {
         await Task.Delay(1000);

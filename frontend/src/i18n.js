@@ -11,7 +11,7 @@ export const appTranslations = {
       activeGenerators: 'Active Generators', activeGeneratorsDesc: 'Active generators linked to control screens',
       edit: 'Edit', delete: 'Delete', close: 'Close', save: 'Save', loading: 'Saving...',
       userManagement: 'Users Management', manageUsers: 'Manage Users & Roles',
-      confirmDeleteUser: 'Delete user?', loginFirst: 'Please login first',
+      confirmDeleteUser: 'Delete user?', loginFirst: 'Please login first', login: 'Sign In',
       reports: 'Reports', reportsDescription: 'Fuel Consumption Reports',
       generator: 'Generator', quantity: 'Quantity', operator: 'Operator', notes: 'Notes', date: 'Date',
       demote: 'Demote Role', promote: 'Promote Role',
@@ -29,6 +29,19 @@ export const appTranslations = {
         loadingLogin: 'Signing in...',
         sending: 'Sending...',
         saving: 'Saving...',
+      },
+      operational: {
+        eyebrow: 'Operations workspace',
+        title: 'Operational Data',
+        description: 'A controlled workspace for field capture, review, and approved operational history.',
+        foundationStatus: 'Operational controls are configured; capture opens in the next phase.',
+        comingNext: 'Coming next',
+        navigation: 'Operations',
+        actions: {
+          capture: { title: 'Capture readings', description: 'Record field values with verified photos.' },
+          review: { title: 'Review submissions', description: 'Approve or reject pending field submissions.' },
+          history: { title: 'Approved history', description: 'View official readings and derived results.' },
+        },
       },
       auth: {
         invalidCredentials: 'Invalid credentials',
@@ -176,6 +189,19 @@ export const appTranslations = {
         loadingLogin: 'جارٍ الدخول...',
         sending: 'جارٍ الإرسال...',
         saving: 'جاري الحفظ...',
+      },
+      operational: {
+        eyebrow: 'مساحة العمل التشغيلية',
+        title: 'البيانات التشغيلية',
+        description: 'مساحة عمل مضبوطة للإدخال الميداني والمراجعة وسجل البيانات التشغيلية المعتمدة.',
+        foundationStatus: 'تم تجهيز ضوابط التشغيل؛ يبدأ الإدخال في المرحلة التالية.',
+        comingNext: 'قريباً',
+        navigation: 'التشغيل',
+        actions: {
+          capture: { title: 'إدخال القراءات', description: 'تسجيل القيم الميدانية مع صور متحقق منها.' },
+          review: { title: 'مراجعة الطلبات', description: 'اعتماد أو رفض الطلبات الميدانية المعلقة.' },
+          history: { title: 'السجل المعتمد', description: 'استعراض القراءات الرسمية والنتائج المشتقة.' },
+        },
       },
       auth: {
         invalidCredentials: 'بيانات غير صحيحة',
