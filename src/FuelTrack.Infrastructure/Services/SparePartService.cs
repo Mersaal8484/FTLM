@@ -170,7 +170,7 @@ public class SparePartService : ISparePartService
         if (categoryId.HasValue)
             query = query.Where(sp => sp.PartCategoryLookupId == categoryId.Value);
         else if (!string.IsNullOrWhiteSpace(category))
-            query = query.Where(sp => sp.PartCategoryLookup.Name == category);
+            query = query.Where(sp => sp.PartCategoryLookup.Name == category || sp.PartCategoryLookup.Code == category);
 
         var total = await query.CountAsync(ct);
         var items = await query

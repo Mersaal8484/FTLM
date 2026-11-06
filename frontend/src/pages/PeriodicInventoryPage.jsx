@@ -31,7 +31,7 @@ export function getMissingFuelReason(inventory) {
 
 export function formatEnergyReading(value, noMeter) {
   const numeric = parseFloat(value);
-  if (Number.isFinite(numeric) && numeric > 0) return numeric.toLocaleString();
+  if (Number.isFinite(numeric) && numeric > 0) return numeric.toLocaleString('en-US');
   return noMeter ? '-' : '0';
 }
 

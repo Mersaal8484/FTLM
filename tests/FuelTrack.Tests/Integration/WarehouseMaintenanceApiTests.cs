@@ -527,7 +527,7 @@ public class WarehouseMaintenanceApiTests : IntegrationTestBase
         Assert.Single(stock);
         Assert.Equal(station1.Id, stock[0].StationId);
         Assert.Equal("Test Spare Part", stock[0].SparePartName);
-        Assert.Equal("ميكانيكية", stock[0].Category);
+        Assert.Equal("ميكانيكي", stock[0].Category);
         Assert.Equal("قطعة", stock[0].UnitName);
     }
 

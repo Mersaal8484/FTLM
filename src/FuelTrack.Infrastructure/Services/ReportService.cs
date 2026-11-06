@@ -545,6 +545,16 @@ public class ReportService : IReportService
         DateTime? dateFrom, DateTime? dateTo,
         int page, int pageSize, string timeZoneId = "Asia/Riyadh")
     {
+        // Inventory is a business-day snapshot (normally stored at midnight), rather
+        // than an event timestamp.  Use the station's current business date when no
+        // end date is supplied so today's snapshot is not excluded while it is still
+        // the previous UTC day.
+        if (!dateTo.HasValue)
+        {
+            var timeZone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            dateTo = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timeZone).Date;
+        }
+
         (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
         var accessibleIds = await GetAccessibleSubStationIdsAsync();
