@@ -2436,12 +2436,14 @@ namespace FuelTrack.Infrastructure
 
             modelBuilder.Entity<IdempotencyRequest>(entity =>
             {
-                entity.HasIndex(e => e.ClientRequestId)
+                entity.HasIndex(e => new { e.TenantId, e.UserId, e.ClientRequestId })
                     .IsUnique()
-                    .HasDatabaseName("UX_IdempotencyRequests_ClientRequestId")
+                    .HasDatabaseName("UX_IdempotencyRequests_Tenant_User_ClientRequestId")
                     .HasFilter(activeFilter);
                 entity.HasIndex(e => new { e.Operation, e.CreatedAt })
                     .HasDatabaseName("IX_IdempotencyRequests_Operation_Created");
+                entity.Property(e => e.TenantId).IsRequired();
+                entity.Property(e => e.UserId).IsRequired();
                 entity.Property(e => e.Operation).HasMaxLength(100);
                 entity.Property(e => e.RequestHash).HasMaxLength(64);
                 entity.Property(e => e.Status).HasMaxLength(32);

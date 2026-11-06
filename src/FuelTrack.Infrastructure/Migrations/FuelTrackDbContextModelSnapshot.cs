@@ -1096,6 +1096,12 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<Guid>("ClientRequestId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("datetime2");
 
@@ -1141,9 +1147,9 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ClientRequestId")
+                    b.HasIndex("TenantId", "UserId", "ClientRequestId")
                         .IsUnique()
-                        .HasDatabaseName("UX_IdempotencyRequests_ClientRequestId")
+                        .HasDatabaseName("UX_IdempotencyRequests_Tenant_User_ClientRequestId")
                         .HasFilter("[DeletedAt] IS NULL");
 
                     b.HasIndex("Operation", "CreatedAt")

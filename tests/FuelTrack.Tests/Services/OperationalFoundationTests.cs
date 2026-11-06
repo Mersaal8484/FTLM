@@ -58,6 +58,26 @@ public sealed class OperationalFoundationTests
     }
 
     [Fact]
+    public async Task IdempotencyService_AllowsTheSameKeyForDifferentTenantOrUserScopes()
+    {
+        await using var db = CreateDatabase();
+        var requestId = Guid.NewGuid();
+        const string hash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+        var firstTenant = new IdempotencyService(db, new StubTenantContext(Guid.NewGuid()));
+        var secondTenant = new IdempotencyService(db, new StubTenantContext(Guid.NewGuid()));
+
+        var first = await firstTenant.StartAsync(requestId, "operational-submission", hash, 12);
+        var otherTenant = await secondTenant.StartAsync(requestId, "operational-submission", hash, 12);
+        var otherUser = await firstTenant.StartAsync(requestId, "operational-submission", hash, 13);
+
+        Assert.True(first.Value!.IsNew);
+        Assert.True(otherTenant.Value!.IsNew);
+        Assert.True(otherUser.Value!.IsNew);
+        Assert.Equal(3, await db.IdempotencyRequests.CountAsync());
+    }
+
+    [Fact]
     public async Task OperationalReferenceSeed_IsIdempotentAndProvidesBilingualCodes()
     {
         await using var db = CreateDatabase();
@@ -72,6 +92,44 @@ public sealed class OperationalFoundationTests
 
         Assert.Equal(["OilChangeSet", "OilFilter", "AirFilter", "Nozzles"], serviceItems.Select(x => x.Code));
         Assert.All(serviceItems, item => Assert.False(string.IsNullOrWhiteSpace(item.Name)));
+    }
+
+    [Fact]
+    public async Task OperationalReferenceSeed_IsScopedToItsOwnLookupCategories()
+    {
+        await using var db = CreateDatabase();
+        var legacyCategory = new LookupCategory
+        {
+            Name = "LegacyOnly",
+            DisplayName = "Legacy only",
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        };
+        db.LookupCategories.Add(legacyCategory);
+        await db.SaveChangesAsync();
+        db.Lookups.Add(new Lookup
+        {
+            CategoryId = legacyCategory.Id,
+            Name = "Unrelated",
+            Code = "Legacy",
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
+        await OperationalReferenceDataSeed.SeedAsync(db);
+
+        var legacyItems = await db.Lookups.Where(x => x.CategoryId == legacyCategory.Id).ToListAsync();
+        var operationalCategories = await db.LookupCategories
+            .Where(x => x.Name == "PartCategory" || x.Name == "MaintenanceDepartment" || x.Name == "ServiceItem")
+            .Select(x => x.Name)
+            .ToListAsync();
+
+        Assert.Single(legacyItems);
+        Assert.Equal("Legacy", legacyItems[0].Code);
+        Assert.Equal(3, operationalCategories.Count);
     }
 
     [Fact]
@@ -152,5 +210,11 @@ public sealed class OperationalFoundationTests
         public Task<List<int>> GetUserIdsWithAccessToSubStationAsync(int subStationId) => Task.FromResult(new List<int>());
         public Task<bool> HasAccessToSubStationAsync(int userId, int subStationId) => Task.FromResult(false);
         public Task<bool> HasFullAccessToStationAsync(int userId, int stationId) => Task.FromResult(stationId == 1);
+    }
+
+    private sealed record StubTenantContext(Guid Id) : ITenantRequestContext
+    {
+        public Guid? TenantId => Id;
+        public string? DatabaseConnection => null;
     }
 }
