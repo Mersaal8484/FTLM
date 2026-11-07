@@ -7,6 +7,8 @@ public sealed class OperationalSubmission : BaseEntity
 {
     public int SubStationId { get; set; }
     public Guid ClientRequestId { get; set; }
+    public DateTime? SubmissionCapturedAtUtc { get; set; }
+    public DateTime? ClientSentAtUtc { get; set; }
     public DateTime ReceivedAtUtc { get; set; }
     public OperationalReadingStatus Status { get; set; } = OperationalReadingStatus.Pending;
 

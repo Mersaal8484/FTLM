@@ -6,6 +6,7 @@ namespace FuelTrack.Domain.Models;
 public sealed class MeterReading : BaseEntity
 {
     public int OperationalSubmissionId { get; set; }
+    public Guid ClientLineId { get; set; }
     public MeterReadingSubjectType SubjectType { get; set; }
     public int SubjectId { get; set; }
     public int? MeterId { get; set; }
@@ -19,6 +20,7 @@ public sealed class MeterReading : BaseEntity
     public bool IsMeterReset { get; set; }
     public string? ResetNote { get; set; }
     public string? WarningsJson { get; set; }
+    public string? VoidReason { get; set; }
 
     public OperationalSubmission OperationalSubmission { get; set; } = null!;
     public Meter? Meter { get; set; }

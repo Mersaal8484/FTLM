@@ -59,6 +59,7 @@ public sealed class StationOperationalSettingsService(
         settings.IsReadingPhotoRequired = dto.IsReadingPhotoRequired;
         settings.ReadingPhotoMaxBytes = dto.ReadingPhotoMaxBytes;
         settings.RequiresDifferentReviewer = dto.RequiresDifferentReviewer;
+        settings.Tier1RequiresApproval = dto.Tier1RequiresApproval;
         settings.UpdatedAt = DateTime.UtcNow;
         settings.UpdatedBy = userId;
 
@@ -88,7 +89,8 @@ public sealed class StationOperationalSettingsService(
         StationOperationalSettings.DefaultOilPressureUnit,
         true,
         StationOperationalSettings.DefaultReadingPhotoMaxBytes,
-        true);
+        true,
+        false);
 
     private static StationOperationalSettingsDto ToDto(StationOperationalSettings entity) => new(
         entity.StationId,
@@ -97,5 +99,6 @@ public sealed class StationOperationalSettingsService(
         entity.OilPressureUnit,
         entity.IsReadingPhotoRequired,
         entity.ReadingPhotoMaxBytes,
-        entity.RequiresDifferentReviewer);
+        entity.RequiresDifferentReviewer,
+        entity.Tier1RequiresApproval);
 }

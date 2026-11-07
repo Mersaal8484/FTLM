@@ -17,6 +17,8 @@ public sealed class StationOperationalSettings : BaseEntity
     public bool IsReadingPhotoRequired { get; set; } = true;
     public int ReadingPhotoMaxBytes { get; set; } = DefaultReadingPhotoMaxBytes;
     public bool RequiresDifferentReviewer { get; set; } = true;
+    /// <summary>Exceptional station policy that sends monitoring lines through review.</summary>
+    public bool Tier1RequiresApproval { get; set; }
 
     public Station Station { get; set; } = null!;
 }

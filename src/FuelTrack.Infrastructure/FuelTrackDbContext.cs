@@ -216,6 +216,9 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<TankLevelReading>()
                 .HasOne(x => x.FuelTank).WithMany(x => x.LevelReadings).HasForeignKey(x => x.FuelTankId)
                 .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<TankLevelReading>()
+                .HasOne(x => x.LinkedEvent).WithMany().HasForeignKey(x => x.LinkedEventId)
+                .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<Feeder>()
                 .HasOne(x => x.SubStation).WithMany(x => x.Feeders).HasForeignKey(x => x.SubStationId)
                 .OnDelete(DeleteBehavior.Restrict);
@@ -232,6 +235,12 @@ namespace FuelTrack.Infrastructure
                 .HasForeignKey(x => x.OperationalSubmissionId).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<MeterReading>()
                 .HasOne(x => x.Meter).WithMany().HasForeignKey(x => x.MeterId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<FuelTank>()
+                .HasOne(x => x.ParentTank).WithMany(x => x.DailyTanks).HasForeignKey(x => x.ParentTankId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<FuelTank>()
+                .HasOne(x => x.Generator).WithMany().HasForeignKey(x => x.GeneratorId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             // === SubStation children ===
             modelBuilder.Entity<SubStation>()
@@ -2501,8 +2510,8 @@ namespace FuelTrack.Infrastructure
             // Rejected records are excluded deliberately: Phase 3 may permit a
             // corrected recapture at the same instant without mutating raw history.
             var activeNonRejectedOperationalFilter = Database.IsNpgsql()
-                ? "\"DeletedAt\" IS NULL AND \"Status\" <> 2"
-                : "[DeletedAt] IS NULL AND [Status] <> 2";
+                ? "\"DeletedAt\" IS NULL AND \"Status\" NOT IN (2, 4)"
+                : "[DeletedAt] IS NULL AND [Status] NOT IN (2, 4)";
 
             modelBuilder.Entity<OperationalSubmission>(entity =>
             {
@@ -2532,6 +2541,10 @@ namespace FuelTrack.Infrastructure
                 entity.Property(x => x.FrequencyHz).HasPrecision(18, 4);
                 entity.Property(x => x.OilAddedLitres).HasPrecision(18, 4);
                 entity.Property(x => x.PowerFactor).HasPrecision(9, 6);
+                entity.Property(x => x.PeakLoadKw).HasPrecision(18, 4);
+                entity.Property(x => x.AirPressureBar).HasPrecision(18, 4);
+                entity.HasIndex(x => x.ClientLineId).IsUnique().HasDatabaseName("UX_OperationalGeneratorReadings_ClientLine")
+                    .HasFilter(activeFilter);
             });
 
             modelBuilder.Entity<TankLevelReading>(entity =>
@@ -2548,6 +2561,12 @@ namespace FuelTrack.Infrastructure
                 entity.Property(x => x.CylinderHeightCmSnapshot).HasPrecision(18, 4);
                 entity.Property(x => x.ConeHeightCmSnapshot).HasPrecision(18, 4);
                 entity.Property(x => x.MultiplicationFactorSnapshot).HasPrecision(18, 6);
+                entity.Property(x => x.BeforeLiquidLevelCm).HasPrecision(18, 4);
+                entity.Property(x => x.BeforeComputedLitres).HasPrecision(18, 4);
+                entity.Property(x => x.DeliveryNoteLitres).HasPrecision(18, 4);
+                entity.Property(x => x.DeadStockLitresSnapshot).HasPrecision(18, 4);
+                entity.HasIndex(x => x.ClientLineId).IsUnique().HasDatabaseName("UX_TankLevelReadings_ClientLine")
+                    .HasFilter(activeFilter);
             });
 
             modelBuilder.Entity<Feeder>(entity =>
@@ -2570,6 +2589,8 @@ namespace FuelTrack.Infrastructure
                 entity.Property(x => x.ActiveLoadKw).HasPrecision(18, 4);
                 entity.Property(x => x.ApparentLoadKva).HasPrecision(18, 4);
                 entity.Property(x => x.MeterMultiplierSnapshot).HasPrecision(18, 6);
+                entity.HasIndex(x => x.ClientLineId).IsUnique().HasDatabaseName("UX_FeederLoadReadings_ClientLine")
+                    .HasFilter(activeFilter);
             });
 
             modelBuilder.Entity<MeterReading>(entity =>
@@ -2586,6 +2607,8 @@ namespace FuelTrack.Infrastructure
                 entity.Property(x => x.WarningsJson).HasMaxLength(2000);
                 entity.Property(x => x.RawValue).HasPrecision(18, 4);
                 entity.Property(x => x.MultiplierSnapshot).HasPrecision(18, 6);
+                entity.HasIndex(x => x.ClientLineId).IsUnique().HasDatabaseName("UX_MeterReadings_ClientLine")
+                    .HasFilter(activeFilter);
             });
 
             modelBuilder.Entity<FuelTank>(entity =>
@@ -2595,6 +2618,8 @@ namespace FuelTrack.Infrastructure
                 entity.Property(x => x.ConeHeightCm).HasPrecision(18, 4);
                 entity.Property(x => x.MultiplicationFactor).HasPrecision(18, 6);
                 entity.Property(x => x.ComputedCapacityLitres).HasPrecision(18, 4);
+                entity.HasIndex(x => x.GeneratorId).IsUnique().HasDatabaseName("UX_FuelTanks_ActiveDailyGenerator")
+                    .HasFilter(Database.IsNpgsql() ? "\"DeletedAt\" IS NULL AND \"GeneratorId\" IS NOT NULL" : "[DeletedAt] IS NULL AND [GeneratorId] IS NOT NULL");
             });
 
             // === Module Registry System ===

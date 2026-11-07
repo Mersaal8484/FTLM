@@ -10,6 +10,13 @@ namespace FuelTrack.API.Controllers;
 [Route("api/fuel-tanks/{fuelTankId:int}/calibration")]
 public sealed class TankCalibrationsController(ITankCalibrationService service) : BaseApiController
 {
+    [HttpPost("preview")]
+    public IActionResult Preview(UpdateTankCalibrationDto dto)
+    {
+        try { return Ok(service.Preview(dto)); }
+        catch (ArgumentOutOfRangeException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
     [HttpPut]
     public async Task<IActionResult> Put(int fuelTankId, UpdateTankCalibrationDto dto, CancellationToken cancellationToken)
     {

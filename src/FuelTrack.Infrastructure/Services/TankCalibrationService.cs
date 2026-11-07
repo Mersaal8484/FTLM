@@ -9,6 +9,18 @@ namespace FuelTrack.Infrastructure.Services;
 
 public sealed class TankCalibrationService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser) : ITankCalibrationService
 {
+    public TankCalibrationPreviewDto Preview(UpdateTankCalibrationDto dto)
+    {
+        if (dto.DiameterCm <= 0 || dto.CylinderHeightCm < 0 || dto.ConeHeightCm <= 0 || dto.MultiplicationFactor <= 0)
+            throw new ArgumentOutOfRangeException(nameof(dto), "Tank calibration values are invalid.");
+        var fullHeight = dto.ConeHeightCm + dto.CylinderHeightCm;
+        var points = new[] { 0m, 25m, 50m, 75m, 100m }
+            .Select(percent => new TankCalibrationPreviewPointDto(percent, fullHeight * percent / 100m,
+                TankGeometry.CalculateLitres(dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor, fullHeight * percent / 100m)))
+            .ToList();
+        return new TankCalibrationPreviewDto(TankGeometry.CalculateCapacityLitres(dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor), points);
+    }
+
     public async Task<Result<TankCalibrationDto>> UpsertAsync(int fuelTankId, UpdateTankCalibrationDto dto, int userId, CancellationToken cancellationToken = default)
     {
         if (dto.DiameterCm <= 0 || dto.CylinderHeightCm < 0 || dto.ConeHeightCm <= 0 || dto.MultiplicationFactor <= 0)

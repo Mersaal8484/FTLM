@@ -22,9 +22,15 @@ namespace FuelTrack.Domain.Models
         public decimal? ConeHeightCm { get; set; }
         public decimal? MultiplicationFactor { get; set; }
         public decimal? ComputedCapacityLitres { get; set; }
+        /// <summary>Daily tanks are supplied from their parent main tank.</summary>
+        public int? ParentTankId { get; set; }
+        public int? GeneratorId { get; set; }
 
         public SubStation SubStation { get; set; } = null!;
         public Lookup FuelLookup { get; set; } = null!;
         public ICollection<TankLevelReading> LevelReadings { get; set; } = new List<TankLevelReading>();
+        public FuelTank? ParentTank { get; set; }
+        public ICollection<FuelTank> DailyTanks { get; set; } = new List<FuelTank>();
+        public Generator? Generator { get; set; }
     }
 }

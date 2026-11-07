@@ -7,7 +7,8 @@ public sealed record StationOperationalSettingsDto(
     string OilPressureUnit,
     bool IsReadingPhotoRequired,
     int ReadingPhotoMaxBytes,
-    bool RequiresDifferentReviewer);
+    bool RequiresDifferentReviewer,
+    bool Tier1RequiresApproval = false);
 
 public sealed record UpdateStationOperationalSettingsDto(
     string TimeZone,
@@ -15,4 +16,5 @@ public sealed record UpdateStationOperationalSettingsDto(
     string OilPressureUnit,
     bool IsReadingPhotoRequired,
     int ReadingPhotoMaxBytes,
-    bool RequiresDifferentReviewer);
+    bool RequiresDifferentReviewer,
+    bool Tier1RequiresApproval = false);

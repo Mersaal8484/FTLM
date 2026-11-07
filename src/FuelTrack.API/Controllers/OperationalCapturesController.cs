@@ -22,4 +22,11 @@ public sealed class OperationalCapturesController(IOperationalCaptureService ser
         var result = await service.SubmitAsync(dto, GetUserId(), cancellationToken);
         return result.IsSuccess ? StatusCode(result.StatusCode, result.Value) : StatusCode(result.StatusCode, new { error = result.Error });
     }
+
+    [HttpPost("{lineType}/{lineId:int}/void")]
+    public async Task<IActionResult> Void(string lineType, int lineId, VoidOperationalReadingDto dto, CancellationToken cancellationToken)
+    {
+        var result = await service.VoidRecordedLineAsync(lineType, lineId, dto, GetUserId(), cancellationToken);
+        return result.IsSuccess ? NoContent() : StatusCode(result.StatusCode, new { error = result.Error });
+    }
 }

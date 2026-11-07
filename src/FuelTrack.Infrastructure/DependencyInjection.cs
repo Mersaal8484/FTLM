@@ -34,12 +34,13 @@ public static class DependencyInjection
             }
             else
             {
-                options.UseSqlServer(connStr,
-                    sqlOptions =>
-                    {
-                        sqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
-                        sqlOptions.CommandTimeout(120);
-                    });
+                // Bitbus is PostgreSQL-first in both single-tenant development and
+                // Platform tenant schemas. SQL Server is no longer a runtime target.
+                options.UseNpgsql(connStr, postgres =>
+                {
+                    postgres.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
+                    postgres.CommandTimeout(120);
+                });
             }
 
             options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));

@@ -10,7 +10,7 @@ namespace FuelTrack.Tests.Services;
 public sealed class OperationalCaptureServiceTests
 {
     [Fact]
-    public async Task SubmitAsync_CreatesPendingRawCaptureAndReplaysIdempotentRequest()
+    public async Task SubmitAsync_CreatesRecordedTierOneCaptureAndReplaysIdempotentRequest()
     {
         await using var db = CreateDatabase();
         var fixture = await SeedAsync(db);
@@ -24,7 +24,7 @@ public sealed class OperationalCaptureServiceTests
         Assert.True(replay.IsSuccess);
         Assert.Equal(first.Value!.Id, replay.Value!.Id);
         var saved = await db.OperationalGeneratorReadings.SingleAsync();
-        Assert.Equal(FuelTrack.Domain.Enums.OperationalReadingStatus.Pending, saved.Status);
+        Assert.Equal(FuelTrack.Domain.Enums.OperationalReadingStatus.Recorded, saved.Status);
         Assert.Equal(1, await db.AttachmentLinks.CountAsync(x => x.EntityType == nameof(OperationalGeneratorReading)));
     }
 
@@ -50,7 +50,7 @@ public sealed class OperationalCaptureServiceTests
     }
 
     [Fact]
-    public async Task SubmitAsync_RejectsSameGeneratorAndFreeCaptureTimeTwice()
+    public async Task SubmitAsync_ReturnsDuplicateTimeForSameGeneratorAndFreeCaptureMinute()
     {
         await using var db = CreateDatabase();
         var fixture = await SeedAsync(db);
@@ -62,8 +62,43 @@ public sealed class OperationalCaptureServiceTests
         Assert.True((await service.SubmitAsync(first, fixture.UserId)).IsSuccess);
         var result = await service.SubmitAsync(duplicate, fixture.UserId);
 
+        Assert.True(result.IsSuccess);
+        Assert.Contains(result.Value!.Lines!, x => x.Outcome == "duplicate_time");
+    }
+
+    [Fact]
+    public async Task SubmitAsync_RequiresDistinctDeviceLineIds()
+    {
+        await using var db = CreateDatabase();
+        var fixture = await SeedAsync(db);
+        var service = CreateService(db);
+        var dto = CreateGeneratorCapture(fixture, DateTime.UtcNow.AddMinutes(-1)) with
+        {
+            GeneratorReadings = [CreateGeneratorCapture(fixture, DateTime.UtcNow.AddMinutes(-1)).GeneratorReadings[0] with { ClientLineId = null }]
+        };
+
+        var result = await service.SubmitAsync(dto, fixture.UserId);
+
         Assert.False(result.IsSuccess);
-        Assert.Contains("already exists", result.Error!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("client line ID", result.Error!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SubmitAsync_AcceptsValidLinesWhenAnotherLineIsRejected()
+    {
+        await using var db = CreateDatabase();
+        var fixture = await SeedAsync(db);
+        var service = CreateService(db);
+        var valid = CreateGeneratorCapture(fixture, DateTime.UtcNow.AddMinutes(-1));
+        var invalid = CreateGeneratorCapture(fixture, DateTime.UtcNow.AddMinutes(6));
+        var dto = valid with { GeneratorReadings = [valid.GeneratorReadings[0], invalid.GeneratorReadings[0]] };
+
+        var result = await service.SubmitAsync(dto, fixture.UserId);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, result.Value!.GeneratorReadingCount);
+        Assert.Contains(result.Value.Lines!, x => x.Outcome == "accepted");
+        Assert.Contains(result.Value.Lines!, x => x.Outcome == "rejected");
     }
 
     [Fact]
@@ -96,7 +131,7 @@ public sealed class OperationalCaptureServiceTests
 
     private static SubmitOperationalCaptureDto CreateGeneratorCapture((int UserId, int SiteId, int GeneratorId, int AttachmentId) fixture, DateTime capturedAt) => new(
         Guid.NewGuid(), fixture.SiteId,
-        [new GeneratorCaptureLineDto(fixture.GeneratorId, capturedAt, [fixture.AttachmentId], true, 400m, 1m, 80m, 2m, 90m, 100m, null, null, null, null, null)], [], [], []);
+        [new GeneratorCaptureLineDto(fixture.GeneratorId, capturedAt, [fixture.AttachmentId], true, 400m, 1m, 80m, 2m, 90m, 100m, null, null, null, null, null, Guid.NewGuid())], [], [], []);
 
     private static FuelTrackDbContext CreateDatabase()
     {

@@ -6,6 +6,7 @@ public sealed class OperationalGeneratorReading : BaseEntity
 {
     public int OperationalSubmissionId { get; set; }
     public int GeneratorId { get; set; }
+    public Guid ClientLineId { get; set; }
     public DateTime CapturedAtUtc { get; set; }
     public DateTime ReceivedAtUtc { get; set; }
     public DateOnly BusinessDate { get; set; }
@@ -22,6 +23,9 @@ public sealed class OperationalGeneratorReading : BaseEntity
     public decimal? FrequencyHz { get; set; }
     public decimal? OilAddedLitres { get; set; }
     public decimal? PowerFactor { get; set; }
+    public decimal? PeakLoadKw { get; set; }
+    public decimal? AirPressureBar { get; set; }
+    public string? VoidReason { get; set; }
     public string? WarningsJson { get; set; }
 
     public OperationalSubmission OperationalSubmission { get; set; } = null!;
