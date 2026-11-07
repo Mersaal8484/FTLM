@@ -22,6 +22,13 @@ public sealed class MeterReading : BaseEntity
     public string? WarningsJson { get; set; }
     public string? VoidReason { get; set; }
 
+    // Phase 3 approval fields
+    public DateTime? ApprovedAt { get; set; }
+    public int? ApprovedByUserId { get; set; }
+    public DateTime? RejectedAt { get; set; }
+    public int? RejectedByUserId { get; set; }
+    public string? RejectionReason { get; set; }
+
     public OperationalSubmission OperationalSubmission { get; set; } = null!;
     public Meter? Meter { get; set; }
 }
