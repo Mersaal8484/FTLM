@@ -129,7 +129,7 @@ public sealed class OperationalCaptureService(
                 var tank = tankCalibration[line.FuelTankId];
                 var captured = ResolveCapturedAt(line.CapturedAtOverrideUtc ?? line.CapturedAtUtc, dto.SubmissionCapturedAtUtc, now);
                 var litres = TankGeometry.CalculateLitres(tank.DiameterCm!.Value, tank.CylinderHeightCm!.Value, tank.ConeHeightCm!.Value, tank.MultiplicationFactor!.Value, line.LiquidLevelCm);
-                var beforeLitres = line.BeforeLiquidLevelCm is null ? null : TankGeometry.CalculateLitres(tank.DiameterCm!.Value, tank.CylinderHeightCm!.Value, tank.ConeHeightCm!.Value, tank.MultiplicationFactor!.Value, line.BeforeLiquidLevelCm.Value);
+                var beforeLitres = line.BeforeLiquidLevelCm is null ? (decimal?)null : TankGeometry.CalculateLitres(tank.DiameterCm!.Value, tank.CylinderHeightCm!.Value, tank.ConeHeightCm!.Value, tank.MultiplicationFactor!.Value, line.BeforeLiquidLevelCm.Value);
                 var awaitingPhoto = dto.IsOfflineQueue && line.PhotoAttachmentIds.Count == 0;
                 var requiresApproval = ReadingApprovalPolicy.RequiresApproval(OperationalSubjectType.Tank, eventType: line.EventType, tier1RequiresApproval: tier1RequiresApproval);
                 var entity = new TankLevelReading
@@ -229,7 +229,7 @@ public sealed class OperationalCaptureService(
         var siteIds = currentUser.HasAnyAdminRole ? null : await scopeFilter.GetAccessibleSubStationIdsAsync(userId);
         var sites = db.SubStations.AsNoTracking().Where(x => siteIds == null || siteIds.Contains(x.Id));
         return await sites.OrderBy(x => x.Name).Select(x => new OperationalCaptureReferenceDto(
-            x.Id, x.Name, x.Code,
+            x.Id, x.Name, x.Code, db.StationOperationalSettings.Where(s => s.StationId == x.StationId).Select(s => s.TimeZone).FirstOrDefault() ?? StationOperationalSettings.DefaultTimeZone,
             x.Generators.OrderBy(g => g.Name).Select(g => new OperationalGeneratorReferenceDto(g.Id, g.Name, g.Model, db.Meters.Where(m => m.GeneratorId == g.Id).Select(m => (int?)m.Id).FirstOrDefault())).ToList(),
             x.FuelTanks.OrderBy(t => t.Name).Select(t => new OperationalTankReferenceDto(t.Id, t.Name, t.Code, t.Shape != null && t.DiameterCm != null && t.CylinderHeightCm != null && t.ConeHeightCm != null && t.MultiplicationFactor != null)).ToList(),
             x.Feeders.OrderBy(f => f.Name).Select(f => new OperationalFeederReferenceDto(f.Id, f.Name, f.Code, f.MeterMultiplier, f.MeterId)).ToList(),
@@ -330,16 +330,16 @@ public sealed class OperationalCaptureService(
             return "A subject may appear only once at the same capture time.";
 
         foreach (var line in dto.GeneratorReadings)
-            if (await db.OperationalGeneratorReadings.AnyAsync(x => x.GeneratorId == line.GeneratorId && x.CapturedAtUtc == NormalizeUtc(line.CapturedAtOverrideUtc ?? line.CapturedAtUtc) && x.Status is not OperationalReadingStatus.Rejected and not OperationalReadingStatus.Voided, cancellationToken))
+            if (await db.OperationalGeneratorReadings.AnyAsync(x => x.GeneratorId == line.GeneratorId && x.CapturedAtUtc == NormalizeUtc(line.CapturedAtOverrideUtc ?? line.CapturedAtUtc) && x.Status != OperationalReadingStatus.Rejected && x.Status != OperationalReadingStatus.Voided, cancellationToken))
                 return "A reading for the same equipment and capture time already exists.";
         foreach (var line in dto.TankLevelReadings)
-            if (await db.TankLevelReadings.AnyAsync(x => x.FuelTankId == line.FuelTankId && x.CapturedAtUtc == NormalizeUtc(line.CapturedAtOverrideUtc ?? line.CapturedAtUtc) && x.Status is not OperationalReadingStatus.Rejected and not OperationalReadingStatus.Voided, cancellationToken))
+            if (await db.TankLevelReadings.AnyAsync(x => x.FuelTankId == line.FuelTankId && x.CapturedAtUtc == NormalizeUtc(line.CapturedAtOverrideUtc ?? line.CapturedAtUtc) && x.Status != OperationalReadingStatus.Rejected && x.Status != OperationalReadingStatus.Voided, cancellationToken))
                 return "A reading for the same equipment and capture time already exists.";
         foreach (var line in dto.FeederLoadReadings)
-            if (await db.FeederLoadReadings.AnyAsync(x => x.FeederId == line.FeederId && x.CapturedAtUtc == NormalizeUtc(line.CapturedAtOverrideUtc ?? line.CapturedAtUtc) && x.Status is not OperationalReadingStatus.Rejected and not OperationalReadingStatus.Voided, cancellationToken))
+            if (await db.FeederLoadReadings.AnyAsync(x => x.FeederId == line.FeederId && x.CapturedAtUtc == NormalizeUtc(line.CapturedAtOverrideUtc ?? line.CapturedAtUtc) && x.Status != OperationalReadingStatus.Rejected && x.Status != OperationalReadingStatus.Voided, cancellationToken))
                 return "A reading for the same equipment and capture time already exists.";
         foreach (var line in dto.MeterReadings)
-            if (await db.MeterReadings.AnyAsync(x => x.SubjectType == line.SubjectType && x.SubjectId == line.SubjectId && x.CapturedAtUtc == NormalizeUtc(line.CapturedAtOverrideUtc ?? line.CapturedAtUtc) && x.Status is not OperationalReadingStatus.Rejected and not OperationalReadingStatus.Voided, cancellationToken))
+            if (await db.MeterReadings.AnyAsync(x => x.SubjectType == line.SubjectType && x.SubjectId == line.SubjectId && x.CapturedAtUtc == NormalizeUtc(line.CapturedAtOverrideUtc ?? line.CapturedAtUtc) && x.Status != OperationalReadingStatus.Rejected && x.Status != OperationalReadingStatus.Voided, cancellationToken))
                 return "A reading for the same equipment and capture time already exists.";
 
         var meterIds = dto.MeterReadings.Where(x => x.MeterId.HasValue).Select(x => x.MeterId!.Value).Distinct().ToList();
@@ -435,7 +435,7 @@ public sealed class OperationalCaptureService(
         var seenGeneratorSlots = new HashSet<(int GeneratorId, DateTime CapturedAtUtc)>();
         var seenTankSlots = new HashSet<(int FuelTankId, DateTime CapturedAtUtc)>();
         var seenFeederSlots = new HashSet<(int FeederId, DateTime CapturedAtUtc)>();
-        var seenMeterSlots = new HashSet<(OperationalSubjectType SubjectType, int SubjectId, DateTime CapturedAtUtc)>();
+        var seenMeterSlots = new HashSet<(MeterReadingSubjectType SubjectType, int SubjectId, DateTime CapturedAtUtc)>();
 
         foreach (var line in dto.GeneratorReadings.Where(x => x.ClientLineId is { } id && id != Guid.Empty))
         {

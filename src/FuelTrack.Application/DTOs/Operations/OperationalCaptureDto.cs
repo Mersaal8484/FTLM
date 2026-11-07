@@ -54,7 +54,7 @@ public sealed record OperationalHistoryItemDto(
     int GeneratorReadingCount, int TankLevelReadingCount, int FeederLoadReadingCount, int MeterReadingCount);
 
 public sealed record OperationalCaptureReferenceDto(
-    int SubStationId, string Name, string Code,
+    int SubStationId, string Name, string Code, string TimeZone,
     IReadOnlyList<OperationalGeneratorReferenceDto> Generators,
     IReadOnlyList<OperationalTankReferenceDto> Tanks,
     IReadOnlyList<OperationalFeederReferenceDto> Feeders,

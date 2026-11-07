@@ -30,4 +30,8 @@ public static class ReadingApprovalPolicy
 
     public static bool IsOfficial(OperationalReadingStatus status) =>
         status is OperationalReadingStatus.Recorded or OperationalReadingStatus.Approved;
+
+    /// <summary>Only a reviewable Tier-2 line may enter an approval decision.</summary>
+    public static bool CanApprove(OperationalReadingStatus status) =>
+        status == OperationalReadingStatus.Pending;
 }

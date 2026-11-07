@@ -17,7 +17,7 @@ export const appTranslations = {
       demote: 'Demote Role', promote: 'Promote Role',
       common: {
         appName: 'Fuel & Energy Tracking',
-        pec: 'Public Electricity Corporation',
+        pec: 'Bitbus Power Station',
         systemName: 'Fuel & Oil Management System',
         email: 'Email',
         password: 'Password',
@@ -182,7 +182,7 @@ export const appTranslations = {
       demote: 'تخفيض الصلاحية', promote: 'ترقية الصلاحية',
       common: {
         appName: 'Fuel & Energy Tracking',
-        pec: 'المؤسسة العامة للكهرباء',
+        pec: 'محطة بيت بوس للكهرباء',
         systemName: 'نظام إدارة الوقود والزيوت',
         email: 'البريد الإلكتروني',
         password: 'كلمة المرور',

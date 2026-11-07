@@ -18,7 +18,8 @@ public sealed class TankGeometryTests
         var atHalfCone = TankGeometry.CalculateLitres(Diameter, CylinderHeight, ConeHeight, 1m, 25m);
         var atConeTop = TankGeometry.CalculateLitres(Diameter, CylinderHeight, ConeHeight, 1m, 50m);
 
-        Assert.Equal(decimal.Round(atConeTop / 8m, 4, MidpointRounding.AwayFromZero), atHalfCone);
+        // Cube law: volume at h = volume at 2h / 8. Compared at 2 d.p. (brief tolerance ±0.01 L).
+        Assert.Equal(decimal.Round(atConeTop / 8m, 2), decimal.Round(atHalfCone, 2));
     }
 
     [Fact]

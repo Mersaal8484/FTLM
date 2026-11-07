@@ -6,6 +6,10 @@ describe('photo stamp', () => {
     expect(formatPhotoStamp('2026-11-07T12:34:56.000Z', 'G2', 'en-GB')).toContain('G2');
   });
 
+  it('uses the configured Asia/Aden station timezone', () => {
+    expect(formatPhotoStamp('2026-11-07T21:05:00.000Z', 'G2', 'en-GB', 'Asia/Aden')).toContain('08/11/2026, 00:05');
+  });
+
   it('keeps the stamp in a bottom strip', () => {
     const layout = getPhotoStampLayout(960, 640, '07/11/2026 12:34 · G2');
     expect(layout.y + layout.height).toBe(640);

@@ -4,6 +4,7 @@ using FuelTrack.Domain.Models;
 using FuelTrack.Infrastructure;
 using FuelTrack.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace FuelTrack.Tests.Services;
 
@@ -42,11 +43,11 @@ public sealed class OperationalCaptureServiceTests
 
         var futureResult = await service.SubmitAsync(future, fixture.UserId);
         var photoResult = await service.SubmitAsync(noPhoto, fixture.UserId);
-
-        Assert.False(futureResult.IsSuccess);
-        Assert.Contains("future", futureResult.Error!, StringComparison.OrdinalIgnoreCase);
-        Assert.False(photoResult.IsSuccess);
-        Assert.Contains("photo", photoResult.Error!, StringComparison.OrdinalIgnoreCase);
+        // Per-line rejection: submission itself succeeds (200) but all lines carry outcome="rejected".
+        Assert.True(futureResult.IsSuccess);
+        Assert.True(photoResult.IsSuccess);
+        Assert.Contains(futureResult.Value!.Lines!, x => x.Outcome == "rejected" && x.Reason != null && x.Reason.Contains("future", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(photoResult.Value!.Lines!, x => x.Outcome == "rejected" && x.Reason != null && x.Reason.Contains("photo", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -135,7 +136,10 @@ public sealed class OperationalCaptureServiceTests
 
     private static FuelTrackDbContext CreateDatabase()
     {
-        var options = new DbContextOptionsBuilder<FuelTrackDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString("N")).Options;
+        var options = new DbContextOptionsBuilder<FuelTrackDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
         var db = new FuelTrackDbContext(options);
         db.Database.EnsureCreated();
         return db;
