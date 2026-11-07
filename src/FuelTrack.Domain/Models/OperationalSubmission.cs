@@ -11,6 +11,8 @@ public sealed class OperationalSubmission : BaseEntity
     public DateTime? ClientSentAtUtc { get; set; }
     public DateTime ReceivedAtUtc { get; set; }
     public OperationalReadingStatus Status { get; set; } = OperationalReadingStatus.Pending;
+    /// <summary>Populated from CreatedBy at ingest; used for approver ≠ submitter rule (D18).</summary>
+    public int? SubmittedByUserId { get; set; }
 
     public SubStation SubStation { get; set; } = null!;
     public ICollection<OperationalGeneratorReading> GeneratorReadings { get; set; } = new List<OperationalGeneratorReading>();

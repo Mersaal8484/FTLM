@@ -127,6 +127,11 @@ builder.Services.AddScoped<IWorkPermitService, WorkPermitService>();
 builder.Services.AddScoped<IInstalledPartService, InstalledPartService>();
 builder.Services.AddScoped<IMaintenanceDashboardService, MaintenanceDashboardService>();
 
+// Phase 3: Review, approval and derived data
+builder.Services.AddScoped<IMeterDeltaService, MeterDeltaService>();
+builder.Services.AddScoped<IOperationalReviewService, OperationalReviewService>();
+builder.Services.AddScoped<IEnergyBalanceService, EnergyBalanceService>();
+
 var jwtKey = builder.Configuration["JwtSettings:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.StartsWith("{"))
 {

@@ -1,4 +1,4 @@
-import i18n from 'i18next';
+﻿import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 export const appTranslations = {
@@ -47,6 +47,26 @@ export const appTranslations = {
           eyebrow: 'Field capture', title: 'Submit operational readings', pendingNote: 'Each line needs a verified photo. Captures remain pending until a later review phase.', myHistory: 'My submissions', site: 'Site', chooseSite: 'Choose a site', generator: 'Generator', tank: 'Tank', feeder: 'Feeder', meter: 'Meter', capturedAt: 'Capture time', addPhoto: 'Add meter photo', compressing: 'Compressing photo…', photoReady: 'Photo ready', remove: 'Remove line', running: 'Generator running', voltage: 'Voltage (V)', current: 'Current (A)', waterTemp: 'Water temperature (°C)', oilPressure: 'Oil pressure', oilTemp: 'Oil temperature (°C)', activeKw: 'Active load (kW)', apparentKva: 'Apparent load (kVA)', frequency: 'Frequency (Hz)', levelCm: 'Liquid level (cm)', rawValue: 'Raw meter value', multiplier: 'Multiplier', subjectType: 'Meter type', subject: 'Meter subject', energy: 'Produced energy', hours: 'Running hours', sent: 'Sent energy', meterReset: 'Meter reset', resetNote: 'Reset note', submit: 'Submit for review', submitting: 'Submitting…', success: 'The capture was submitted as pending.', failed: 'Unable to submit the capture.'
         },
         history: { title: 'My pending submissions', note: 'These raw captures do not affect official values until they are reviewed.', newCapture: 'New capture', pending: 'Pending', lines: 'lines', empty: 'No operational submissions yet.' },
+        review: {
+          title: 'Review Submissions', queue: 'Pending Submissions', empty: 'No pending submissions.',
+          approveSubmission: 'Approve Submission', rejectLine: 'Reject Line', rejectReason: 'Rejection reason (required)',
+          skewWarning: 'Time skew warning: device clock differs by more than 12 hours.',
+          previousValue: 'Previous approved value', deltaPreview: 'Delta preview',
+          reuseWarning: 'This photo was used in another submission.',
+          plausibilityWarning: 'Plausibility warning', approverSameAsSubmitter: 'Approver must differ from submitter.',
+          linesCount: 'lines', submittedBy: 'Submitted by', receivedAt: 'Received at',
+          confirmApprove: 'Approve all non-rejected lines?', confirmReject: 'Reject this line?',
+          approveSuccess: 'Submission approved.', rejectSuccess: 'Line rejected.',
+          back: 'Back to queue',
+        },
+        balance: {
+          title: 'Energy Balance Board', import: 'Import (Generated)', generatorImport: 'Generator Import',
+          solarImport: 'Solar Import', export: 'Export (Sent)', internal: 'Internal Consumption',
+          unexplained: 'Unexplained Difference', notMeasured: '??? ?????? (???? ????????? ???????)',
+          solarShare: 'Solar Share', threshold: 'Threshold exceeded', date: 'Date', station: 'Station',
+          kwh: 'kWh', pct: '%',
+        },
+        load: { average: 'Average Load', instant: 'Instantaneous Load', peak: 'Peak Load' },
       },
       auth: {
         invalidCredentials: 'Invalid credentials',
@@ -203,7 +223,27 @@ export const appTranslations = {
         capture: {
           eyebrow: 'إدخال ميداني', title: 'إرسال القراءات التشغيلية', pendingNote: 'كل سطر يحتاج صورة متحققة. تبقى القراءات معلّقة حتى مرحلة المراجعة.', myHistory: 'إرسالاتي', site: 'الموقع', chooseSite: 'اختر موقعاً', generator: 'مولد', tank: 'خزان', feeder: 'فيدر', meter: 'عداد', capturedAt: 'وقت الالتقاط', addPhoto: 'إضافة صورة العداد', compressing: 'يجري ضغط الصورة…', photoReady: 'الصورة جاهزة', remove: 'حذف السطر', running: 'المولد يعمل', voltage: 'الجهد (فولت)', current: 'التيار (أمبير)', waterTemp: 'حرارة الماء (°م)', oilPressure: 'ضغط الزيت', oilTemp: 'حرارة الزيت (°م)', activeKw: 'الحمل الفعال (kW)', apparentKva: 'الحمل الظاهري (kVA)', frequency: 'التردد (Hz)', levelCm: 'مستوى السائل (سم)', rawValue: 'قيمة العداد الخام', multiplier: 'المضاعف', subjectType: 'نوع العداد', subject: 'مرتبط العداد', energy: 'الطاقة المنتجة', hours: 'ساعات التشغيل', sent: 'الطاقة المرسلة', meterReset: 'إعادة ضبط العداد', resetNote: 'ملاحظة إعادة الضبط', submit: 'إرسال للمراجعة', submitting: 'جارٍ الإرسال…', success: 'تم إرسال القراءة بحالة معلّقة.', failed: 'تعذر إرسال القراءة.'
         },
-        history: { title: 'إرسالاتي المعلّقة', note: 'هذه القراءات الخام لا تؤثر على القيم الرسمية حتى مراجعتها.', newCapture: 'إدخال جديد', pending: 'معلّق', lines: 'أسطر', empty: 'لا توجد إرسالات تشغيلية بعد.' },
+        history: { title: '\u0625\u0631\u0633\u0627\u0644\u0627\u062a\u064a \u0627\u0644\u0645\u0639\u0644\u0651\u0642\u0629', note: '\u0647\u0630\u0647 \u0627\u0644\u0642\u0631\u0627\u0621\u0627\u062a \u0627\u0644\u062e\u0627\u0645 \u0644\u0627 \u062a\u0624\u062b\u0631 \u0639\u0644\u0649 \u0627\u0644\u0642\u064a\u0645 \u0627\u0644\u0631\u0633\u0645\u064a\u0629 \u062d\u062a\u0649 \u0645\u0631\u0627\u062c\u0639\u062a\u0647\u0627.', newCapture: '\u0625\u062f\u062e\u0627\u0644 \u062c\u062f\u064a\u062f', pending: '\u0645\u0639\u0644\u0651\u0642', lines: '\u0623\u0633\u0637\u0631', empty: '\u0644\u0627 \u062a\u0648\u062c\u062f \u0625\u0631\u0633\u0627\u0644\u0627\u062a \u062a\u0634\u063a\u064a\u0644\u064a\u0629 \u0628\u0639\u062f.' },
+        review: {
+          title: '\u0645\u0631\u0627\u062c\u0639\u0629 \u0627\u0644\u0625\u0631\u0633\u0627\u0644\u0627\u062a', queue: '\u0627\u0644\u0625\u0631\u0633\u0627\u0644\u0627\u062a \u0627\u0644\u0645\u0639\u0644\u0651\u0642\u0629', empty: '\u0644\u0627 \u062a\u0648\u062c\u062f \u0625\u0631\u0633\u0627\u0644\u0627\u062a \u0645\u0639\u0644\u0651\u0642\u0629.',
+          approveSubmission: '\u0627\u0639\u062a\u0645\u0627\u062f \u0627\u0644\u0625\u0631\u0633\u0627\u0644', rejectLine: '\u0631\u0641\u0636 \u0627\u0644\u0633\u0637\u0631', rejectReason: '\u0633\u0628\u0628 \u0627\u0644\u0631\u0641\u0636 (\u0645\u0637\u0644\u0648\u0628)',
+          skewWarning: '\u062a\u062d\u0630\u064a\u0631 \u0627\u0646\u062d\u0631\u0627\u0641 \u0627\u0644\u062a\u0648\u0642\u064a\u062a: \u0633\u0627\u0639\u0629 \u0627\u0644\u062c\u0647\u0627\u0632 \u062a\u062e\u062a\u0644\u0641 \u0628\u0623\u0643\u062b\u0631 \u0645\u0646 12 \u0633\u0627\u0639\u0629.',
+          previousValue: '\u0627\u0644\u0642\u064a\u0645\u0629 \u0627\u0644\u0645\u0639\u062a\u0645\u062f\u0629 \u0627\u0644\u0633\u0627\u0628\u0642\u0629', deltaPreview: '\u0645\u0639\u0627\u064a\u0646\u0629 \u0627\u0644\u0641\u0627\u0631\u0642',
+          reuseWarning: '\u0647\u0630\u0647 \u0627\u0644\u0635\u0648\u0631\u0629 \u0645\u0633\u062a\u062e\u062f\u0645\u0629 \u0641\u064a \u0625\u0631\u0633\u0627\u0644 \u0622\u062e\u0631.',
+          plausibilityWarning: '\u062a\u062d\u0630\u064a\u0631 \u0645\u0646\u0637\u0642\u064a\u0629', approverSameAsSubmitter: '\u064a\u062c\u0628 \u0623\u0646 \u064a\u062e\u062a\u0644\u0641 \u0627\u0644\u0645\u0631\u0627\u062c\u0639 \u0639\u0646 \u0645\u0631\u0633\u0644 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a.',
+          linesCount: '\u0623\u0633\u0637\u0631', submittedBy: '\u0645\u0631\u0633\u0644 \u0628\u0648\u0627\u0633\u0637\u0629', receivedAt: '\u0648\u0642\u062a \u0627\u0644\u0627\u0633\u062a\u0644\u0627\u0645',
+          confirmApprove: '\u0627\u0639\u062a\u0645\u0627\u062f \u062c\u0645\u064a\u0639 \u0627\u0644\u0623\u0633\u0637\u0631 \u063a\u064a\u0631 \u0627\u0644\u0645\u0631\u0641\u0648\u0636\u0629\u061f', confirmReject: '\u0631\u0641\u0636 \u0647\u0630\u0627 \u0627\u0644\u0633\u0637\u0631\u061f',
+          approveSuccess: '\u062a\u0645 \u0627\u0639\u062a\u0645\u0627\u062f \u0627\u0644\u0625\u0631\u0633\u0627\u0644.', rejectSuccess: '\u062a\u0645 \u0631\u0641\u0636 \u0627\u0644\u0633\u0637\u0631.',
+          back: '\u0627\u0644\u0639\u0648\u062f\u0629 \u0625\u0644\u0649 \u0627\u0644\u0642\u0627\u0626\u0645\u0629',
+        },
+        balance: {
+          title: '\u0644\u0648\u062d\u0629 \u062a\u0648\u0627\u0632\u0646 \u0627\u0644\u0637\u0627\u0642\u0629', import: '\u0627\u0644\u0637\u0627\u0642\u0629 \u0627\u0644\u0645\u0646\u062a\u062c\u0629', generatorImport: '\u0637\u0627\u0642\u0629 \u0627\u0644\u0645\u0648\u0644\u062f\u0627\u062a',
+          solarImport: '\u0637\u0627\u0642\u0629 \u0634\u0645\u0633\u064a\u0629', export: '\u0627\u0644\u0637\u0627\u0642\u0629 \u0627\u0644\u0645\u0631\u0633\u0644\u0629', internal: '\u0627\u0644\u0627\u0633\u062a\u0647\u0644\u0627\u0643 \u0627\u0644\u062f\u0627\u062e\u0644\u064a',
+          unexplained: '\u0627\u0644\u0641\u0631\u0642 \u063a\u064a\u0631 \u0627\u0644\u0645\u0641\u0633\u0651\u064e\u0631', notMeasured: '\u063a\u064a\u0631 \u0645\u0641\u0633\u0651\u064e\u0631 (\u064a\u0634\u0645\u0644 \u0627\u0644\u0627\u0633\u062a\u0647\u0644\u0627\u0643 \u0627\u0644\u062f\u0627\u062e\u0644\u064a)',
+          solarShare: '\u062d\u0635\u0629 \u0627\u0644\u0637\u0627\u0642\u0629 \u0627\u0644\u0634\u0645\u0633\u064a\u0629', threshold: '\u0645\u062a\u062c\u0627\u0648\u0632 \u0627\u0644\u062d\u062f', date: '\u0627\u0644\u062a\u0627\u0631\u064a\u062e', station: '\u0627\u0644\u0645\u062d\u0637\u0629',
+          kwh: '\u0643\u064a\u0644\u0648\u0648\u0627\u062a\u0633\u0627\u0639\u0629', pct: '\u066a',
+        },
+        load: { average: '\u0645\u062a\u0648\u0633\u0637 \u0627\u0644\u062d\u0645\u0644', instant: '\u0627\u0644\u062d\u0645\u0644 \u0627\u0644\u0644\u062d\u0638\u064a', peak: '\u0623\u0639\u0644\u0649 \u062d\u0645\u0644' },
         navigation: 'التشغيل',
         actions: {
           capture: { title: 'إدخال القراءات', description: 'تسجيل القيم الميدانية مع صور متحقق منها.' },

@@ -91,6 +91,7 @@ public sealed class OperationalCaptureService(
                 ClientSentAtUtc = dto.ClientSentAtUtc is null ? null : NormalizeUtc(dto.ClientSentAtUtc.Value),
                 ReceivedAtUtc = now,
                 Status = OperationalReadingStatus.Recorded,
+                SubmittedByUserId = userId,
                 CreatedAt = now, UpdatedAt = now, CreatedBy = userId, UpdatedBy = userId,
             };
             db.OperationalSubmissions.Add(submission);

@@ -19,6 +19,12 @@ public sealed class StationOperationalSettings : BaseEntity
     public bool RequiresDifferentReviewer { get; set; } = true;
     /// <summary>Exceptional station policy that sends monitoring lines through review.</summary>
     public bool Tier1RequiresApproval { get; set; }
+    /// <summary>
+    /// Optional meter subject used as the internal-consumption source for the energy balance (§7.5).
+    /// When null the unexplained difference is labelled "غير مفسَّر (يشمل الاستهلاك الداخلي)"
+    /// and the warning threshold is suppressed.
+    /// </summary>
+    public int? InternalConsumptionMeterId { get; set; }
 
     public Station Station { get; set; } = null!;
 }
