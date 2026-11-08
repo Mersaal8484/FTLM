@@ -9,6 +9,7 @@ import {
 import usePermissions from '../permissions/usePermissions';
 import useUiStore from '../store/uiStore';
 import useTenantBranding from '../hooks/useTenantBranding';
+import { useTranslation } from 'react-i18next';
 
 
 function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onLogout }) {
@@ -16,6 +17,7 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
   const navigate = useNavigate();
   const ar = lang === 'ar';
   const { setLang } = useUiStore();
+  const { t } = useTranslation();
 
   const roleKey = currentUser?.role || 'operator';
   const userRoles = (currentUser?.roles || []).map(r => (typeof r === 'string' ? r.toLowerCase() : ''));
@@ -91,6 +93,7 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
 
   const mainNav = [
     { to: '/', icon: LayoutDashboard, label: ar ? 'لوحة التحكم' : 'Dashboard', show: can('dashboard') },
+    { to: '/operations', icon: Zap, label: t('operational.navigation'), show: can('operational_data', 'view') },
     { to: '/my-generators', icon: Zap, label: ar ? 'مولداتي' : 'My Generators', show: hasRole('operator') || roleKey === 'operator' },
     { to: '/generators/overview', icon: Zap, label: ar ? 'عرض المولدات' : 'Generators Overview', show: canExplicit('generators', 'view') },
     { to: '/stock/fuel', icon: Database, label: ar ? 'مخزون الوقود' : 'Fuel Stock', show: can('inventory') },

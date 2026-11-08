@@ -260,6 +260,22 @@ public static class ModuleRegistrySeed
             },
             new ModuleDefinition
             {
+                Key = "operational_data",
+                NameEn = "Operational Data",
+                NameAr = "البيانات التشغيلية",
+                Route = "/operations",
+                Icon = "Zap",
+                ParentKey = null,
+                Template = ModuleTemplate.ReadOnly,
+                ScopeType = ScopeType.SubStation,
+                SortOrder = 308,
+                IsVisible = true,
+                SupportsAuditLog = true,
+                SupportsGlobalSearch = false,
+                CustomActions = "capture,review,configure,export,flag_meter_reset"
+            },
+            new ModuleDefinition
+            {
                 Key = "fuel_movements",
                 NameEn = "Fuel Movements",
                 NameAr = "حركة الوقود",
@@ -522,6 +538,22 @@ public static class ModuleRegistrySeed
                 SupportsAuditLog = true,
                 SupportsGlobalSearch = true
             },
+            new ModuleDefinition
+            {
+                Key = "inventory",
+                NameEn = "Inventory",
+                NameAr = "المخزون",
+                Route = "/warehouse/stock",
+                Icon = "Boxes",
+                ParentKey = null,
+                Template = ModuleTemplate.CRUD,
+                ScopeType = ScopeType.Station,
+                SortOrder = 702,
+                IsVisible = true,
+                SupportsAuditLog = true,
+                SupportsGlobalSearch = true,
+                CustomActions = "approve_issue"
+            },
 
             // ============================================
             // MAINTENANCE
@@ -539,7 +571,23 @@ public static class ModuleRegistrySeed
                 SortOrder = 701,
                 IsVisible = true,
                 SupportsAuditLog = true,
-                SupportsGlobalSearch = true
+                SupportsGlobalSearch = true,
+                CustomActions = "close_permit"
+            },
+            new ModuleDefinition
+            {
+                Key = "solar",
+                NameEn = "Solar",
+                NameAr = "الطاقة الشمسية",
+                Route = "/solar",
+                Icon = "Sun",
+                ParentKey = null,
+                Template = ModuleTemplate.ReadOnly,
+                ScopeType = ScopeType.Station,
+                SortOrder = 703,
+                IsVisible = false,
+                SupportsAuditLog = true,
+                SupportsGlobalSearch = false
             },
         };
     }

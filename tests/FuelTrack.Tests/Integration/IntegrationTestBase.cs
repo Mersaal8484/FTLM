@@ -6,6 +6,7 @@ using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
 using FuelTrack.Infrastructure;
 using FuelTrack.Infrastructure.Migrations;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
@@ -80,6 +81,11 @@ public class IntegrationTestBase : IAsyncLifetime
                     .AddRoles<Role>()
                     .AddEntityFrameworkStores<FuelTrackDbContext>()
                     .AddDefaultTokenProviders();
+
+                    // Password-reset tokens are protected data. Keep test keys in
+                    // memory so the suite never touches the developer's DPAPI key
+                    // ring outside the workspace.
+                    services.AddDataProtection().UseEphemeralDataProtectionProvider();
 
                     // Replace MigrationRunner — skip SQL Server migrations entirely
                     services.RemoveAll<MigrationRunner>();

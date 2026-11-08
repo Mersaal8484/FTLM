@@ -25,6 +25,12 @@ public static class PermissionMapping
         ["Lookups"] = "lookups",
         ["StationReadings"] = "station_readings",
         ["SubStationReadings"] = "station_readings",
+        ["Attachments"] = "operational_data",
+        ["StationOperationalSettings"] = "operational_data",
+        ["OperationalCaptures"] = "operational_data",
+        ["TankCalibrations"] = "operational_data",
+        ["OperationalFeeders"] = "operational_data",
+        ["CustomerFeatures"] = "settings",
         ["FuelMovements"] = "fuel_movements",
         ["OilTransactions"] = "oil_transactions",
         ["Inventory"] = "periodic_inventory",
@@ -86,6 +92,22 @@ public static class PermissionMapping
 
         if (!MethodToAction.TryGetValue(httpMethod, out var actionKey))
             return null;
+
+        // Phase-one foundation endpoints are intentionally mapped to the
+        // granular operational permissions rather than generic CRUD verbs.
+        if (controllerName.Equals("Attachments", StringComparison.OrdinalIgnoreCase) &&
+            httpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase))
+            actionKey = "capture";
+        else if (controllerName.Equals("StationOperationalSettings", StringComparison.OrdinalIgnoreCase) &&
+                 !httpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase))
+            actionKey = "configure";
+        else if (controllerName.Equals("OperationalCaptures", StringComparison.OrdinalIgnoreCase) &&
+                 httpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase))
+            actionKey = "capture";
+        else if (controllerName.Equals("TankCalibrations", StringComparison.OrdinalIgnoreCase))
+            actionKey = "configure";
+        else if (controllerName.Equals("OperationalFeeders", StringComparison.OrdinalIgnoreCase) && httpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase))
+            actionKey = "configure";
 
         // Privileged sub-actions (e.g. POST /api/fuel-movements/1/approve,
         // POST /api/rollback/execute, POST /api/readings/1/review) are authorized
@@ -178,6 +200,13 @@ public class PermissionEnforcementMiddleware
             return;
         }
 
+        var moduleKey = permissionKey[..permissionKey.IndexOf('.')];
+        if (!await IsFeatureEnabledAsync(context, moduleKey))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
         var hasPermission = await CheckPermissionAsync(context, permissionKey);
         if (!hasPermission)
         {
@@ -195,6 +224,19 @@ public class PermissionEnforcementMiddleware
         }
 
         await _next(context);
+    }
+
+    private static async Task<bool> IsFeatureEnabledAsync(HttpContext context, string moduleKey)
+    {
+        // Legacy warehouse and maintenance endpoints retain their existing
+        // behavior. Only the new operational surface is feature-gated here;
+        // later phases opt their new controller mappings into the same gate.
+        if (!moduleKey.Equals("operational_data", StringComparison.OrdinalIgnoreCase)) return true;
+
+        var db = context.RequestServices.GetRequiredService<FuelTrackDbContext>();
+        return await db.CustomerFeatureSettings
+            .AsNoTracking()
+            .AnyAsync(x => x.Key == moduleKey && x.IsEnabled);
     }
 
     private static bool IsSystemOwner(ClaimsPrincipal user)

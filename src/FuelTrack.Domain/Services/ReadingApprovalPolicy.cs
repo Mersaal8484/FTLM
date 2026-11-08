@@ -1,0 +1,47 @@
+using FuelTrack.Domain.Enums;
+
+namespace FuelTrack.Domain.Services;
+
+/// <summary>
+/// The single policy boundary between monitoring records and official records.
+/// Tier 1 is recorded immediately; Tier 2 must be approved.  A station may
+/// deliberately promote Tier 1 to review, but no caller decides this ad hoc.
+/// </summary>
+public static class ReadingApprovalPolicy
+{
+    public static bool RequiresApproval(
+        OperationalSubjectType subjectType,
+        MeterReadingKind? kind = null,
+        TankEventType? eventType = null,
+        bool tier1RequiresApproval = false)
+    {
+        if (tier1RequiresApproval) return true;
+        return subjectType switch
+        {
+            OperationalSubjectType.Meter => kind == MeterReadingKind.DailyClosing,
+            OperationalSubjectType.Tank => eventType is TankEventType.Receipt or TankEventType.TransferIn or TankEventType.TransferOut,
+            _ => false,
+        };
+    }
+
+    public static OperationalReadingStatus InitialStatus(bool requiresApproval, bool awaitingPhoto) =>
+        awaitingPhoto ? OperationalReadingStatus.AwaitingPhoto :
+        requiresApproval ? OperationalReadingStatus.Pending : OperationalReadingStatus.Recorded;
+
+    /// <summary>
+    /// Shared official-status collection for EF Core queries (e.g. ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
+    /// and in-memory evaluation.
+    /// </summary>
+    public static readonly OperationalReadingStatus[] OfficialStatuses =
+    [
+        OperationalReadingStatus.Recorded,
+        OperationalReadingStatus.Approved
+    ];
+
+    public static bool IsOfficial(OperationalReadingStatus status) =>
+        status is OperationalReadingStatus.Recorded or OperationalReadingStatus.Approved;
+
+    /// <summary>Only a reviewable Tier-2 line may enter an approval decision.</summary>
+    public static bool CanApprove(OperationalReadingStatus status) =>
+        status == OperationalReadingStatus.Pending;
+}

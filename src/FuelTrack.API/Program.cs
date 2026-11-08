@@ -127,6 +127,12 @@ builder.Services.AddScoped<IWorkPermitService, WorkPermitService>();
 builder.Services.AddScoped<IInstalledPartService, InstalledPartService>();
 builder.Services.AddScoped<IMaintenanceDashboardService, MaintenanceDashboardService>();
 
+// Phase 3: Review, approval and derived data
+builder.Services.AddScoped<IMeterDeltaService, MeterDeltaService>();
+builder.Services.AddScoped<IOperationalReviewService, OperationalReviewService>();
+builder.Services.AddScoped<IEnergyBalanceService, EnergyBalanceService>();
+builder.Services.AddScoped<IFuelLoadSafetyService, FuelLoadSafetyService>();
+
 var jwtKey = builder.Configuration["JwtSettings:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.StartsWith("{"))
 {
@@ -564,6 +570,8 @@ using (var scope = app.Services.CreateScope())
     await RetryAsync("ModuleRegistrySeed", () => FuelTrack.Infrastructure.Data.ModuleRegistrySeed.SeedAsync(dbContext));
     var permGen = new FuelTrack.Infrastructure.Data.PermissionGenerator(dbContext);
     await RetryAsync("PermissionGenerator", () => permGen.GenerateAllPermissionsAsync());
+    await RetryAsync("CustomerFeatureSettingsSeed", () => FuelTrack.Infrastructure.Data.CustomerFeatureSettingsSeed.SeedAsync(dbContext));
+    await RetryAsync("OperationalReferenceDataSeed", () => FuelTrack.Infrastructure.Data.OperationalReferenceDataSeed.SeedAsync(dbContext));
     if (dbContext.Database.IsRelational())
     {
         await Task.Delay(1000);
@@ -675,6 +683,11 @@ using (var scope = app.Services.CreateScope())
         "oil-stock-alerts",
         job => job.ExecuteAsync(CancellationToken.None),
         Cron.Daily);
+
+    recurringJobManager.AddOrUpdate<OperatingLimitEvaluationJob>(
+        "operating-limit-evaluation",
+        job => job.ExecuteAsync(CancellationToken.None),
+        Cron.Hourly);
 
     recurringJobManager.AddOrUpdate<SparePartReplacementAlertJob>(
         "spare-part-replacement-alerts",

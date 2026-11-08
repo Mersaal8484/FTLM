@@ -13,5 +13,7 @@ namespace FuelTrack.Domain.Models
         public ICollection<Generator> Generators { get; set; } = new List<Generator>();
         public ICollection<FuelTank> FuelTanks { get; set; } = new List<FuelTank>();
         public ICollection<Meter> Meters { get; set; } = new List<Meter>();
+        public ICollection<Feeder> Feeders { get; set; } = new List<Feeder>();
+        public ICollection<OperationalSubmission> OperationalSubmissions { get; set; } = new List<OperationalSubmission>();
     }
 }

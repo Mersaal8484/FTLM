@@ -9,5 +9,6 @@ namespace FuelTrack.Domain.Models
 
         public Branch Branch { get; set; } = null!;
         public ICollection<SubStation> SubStations { get; set; } = new List<SubStation>();
+        public StationOperationalSettings? OperationalSettings { get; set; }
     }
 }

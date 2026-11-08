@@ -18,12 +18,13 @@ namespace FuelTrack.Infrastructure
                 .AddEnvironmentVariables()
                 .Build();
 
-            var connectionString = configuration.GetConnectionString("DefaultConnection");
+            var connectionString = configuration.GetConnectionString("DefaultConnection")
+                ?? configuration.GetConnectionString("Platform");
             if (string.IsNullOrEmpty(connectionString) || connectionString.Contains("Provide via"))
-                connectionString = "Server=localhost;Database=FuelTrack;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true";
+                throw new InvalidOperationException("A PostgreSQL DefaultConnection or Platform connection is required for EF design-time operations.");
 
             var optionsBuilder = new DbContextOptionsBuilder<FuelTrackDbContext>();
-            optionsBuilder.UseSqlServer(connectionString)
+            optionsBuilder.UseNpgsql(connectionString)
                 .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             return new FuelTrackDbContext(optionsBuilder.Options);
         }

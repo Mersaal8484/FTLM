@@ -40,7 +40,7 @@ public sealed class TenantProvisioningService(PlatformDbContext db, ITenantCrede
             if (!(bool)(await check.ExecuteScalarAsync(cancellationToken))!)
                 throw new InvalidOperationException("Stored credential does not match the database state.");
             check.Parameters.Clear();
-            check.CommandText = $"SELECT EXISTS (SELECT FROM \"{schema}\".\"__TenantSchemaVersions\" WHERE \"Version\" = 1)";
+            check.CommandText = $"SELECT EXISTS (SELECT FROM \"{schema}\".\"__TenantSchemaVersions\" WHERE \"Version\" = 2)";
             if (!(bool)(await check.ExecuteScalarAsync(cancellationToken))!)
                 throw new InvalidOperationException("Tenant schema version history is missing.");
             check.CommandText = $"""
@@ -77,6 +77,8 @@ public sealed class TenantProvisioningService(PlatformDbContext db, ITenantCrede
             var connection = (NpgsqlConnection)db.Database.GetDbConnection();
             await new TenantDatabaseBootstrapper().CreateWithinTransactionAsync(connection,
                 (NpgsqlTransaction)transaction.GetDbTransaction(), tenantId, password, cancellationToken);
+            await TenantSchemaUpgradeCatalog.ApplyCurrentWithinTransactionAsync(connection,
+                (NpgsqlTransaction)transaction.GetDbTransaction(), tenantId, cancellationToken);
             await SeedTenantAdminAsync(connection, (NpgsqlTransaction)transaction.GetDbTransaction(), adminEmail.Trim(), adminPassword, cancellationToken);
             db.TenantCredentials.Add(credential);
             await db.SaveChangesAsync(cancellationToken);

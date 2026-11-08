@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 export default function useTenantBranding() {
-  const [branding, setBranding] = useState({ name: 'FuelTrack', logoUrl: null });
+  const [branding, setBranding] = useState({ name: 'Bitbus', logoUrl: null });
   useEffect(() => {
     const controller = new AbortController();
     fetch('/api/tenant-branding', { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
