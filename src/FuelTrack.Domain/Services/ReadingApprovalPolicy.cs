@@ -28,6 +28,16 @@ public static class ReadingApprovalPolicy
         awaitingPhoto ? OperationalReadingStatus.AwaitingPhoto :
         requiresApproval ? OperationalReadingStatus.Pending : OperationalReadingStatus.Recorded;
 
+    /// <summary>
+    /// Shared official-status collection for EF Core queries (e.g. ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
+    /// and in-memory evaluation.
+    /// </summary>
+    public static readonly OperationalReadingStatus[] OfficialStatuses =
+    [
+        OperationalReadingStatus.Recorded,
+        OperationalReadingStatus.Approved
+    ];
+
     public static bool IsOfficial(OperationalReadingStatus status) =>
         status is OperationalReadingStatus.Recorded or OperationalReadingStatus.Approved;
 

@@ -9,5 +9,7 @@ public sealed class GeneratorOperatingLimit : BaseEntity
     public GeneratorOperatingParameter Parameter { get; set; }
     public decimal? Minimum { get; set; }
     public decimal? Maximum { get; set; }
+    public int? LastEvaluatedReadingId { get; set; }
+    public DateTime? LastEvaluatedCapturedAtUtc { get; set; }
     public Generator Generator { get; set; } = null!;
 }

@@ -21,6 +21,7 @@ public sealed class OperationalReviewService(
     IMeterDeltaService meterDelta) : IOperationalReviewService
 {
     private static readonly TimeSpan SkewThreshold = TimeSpan.FromHours(12);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> SubjectLocks = new();
 
     // ── Queue ────────────────────────────────────────────────────────────────
 
@@ -308,7 +309,17 @@ public sealed class OperationalReviewService(
         // Monotonicity check for each DailyClosing meter line before bulk-approve
         foreach (var r in meterLines.Where(r => r.Kind == MeterReadingKind.DailyClosing))
         {
-            var monoResult = await meterDelta.ValidateMonotonicityAsync(r.Id, cancellationToken);
+            var sem = SubjectLocks.GetOrAdd($"meter:{r.SubjectType}:{r.SubjectId}", _ => new SemaphoreSlim(1, 1));
+            await sem.WaitAsync(cancellationToken);
+            Result monoResult;
+            try
+            {
+                monoResult = await meterDelta.ValidateMonotonicityAsync(r.Id, cancellationToken);
+            }
+            finally
+            {
+                sem.Release();
+            }
             if (!monoResult.IsSuccess)
             {
                 await tx.RollbackAsync(cancellationToken);
@@ -439,6 +450,8 @@ public sealed class OperationalReviewService(
                 return Result.Failure($"Unknown line type '{lineType}'.");
         }
 
+        await db.SaveChangesAsync(cancellationToken);
+
         // If all lines are now rejected, mark the submission rejected too
         await UpdateSubmissionStatusIfAllRejectedAsync(submissionId, now, userId, cancellationToken);
 
@@ -464,15 +477,15 @@ public sealed class OperationalReviewService(
     private async Task UpdateSubmissionStatusIfAllRejectedAsync(
         int submissionId, DateTime now, int userId, CancellationToken ct)
     {
-        bool anyPending =
-            await db.OperationalGeneratorReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && r.Status == OperationalReadingStatus.Pending, ct)
-         || await db.TankLevelReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && r.Status == OperationalReadingStatus.Pending, ct)
-         || await db.FeederLoadReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && r.Status == OperationalReadingStatus.Pending, ct)
-         || await db.MeterReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && r.Status == OperationalReadingStatus.Pending, ct);
+        bool anyNonRejected =
+            await db.OperationalGeneratorReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && r.Status != OperationalReadingStatus.Rejected, ct)
+         || await db.TankLevelReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && r.Status != OperationalReadingStatus.Rejected, ct)
+         || await db.FeederLoadReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && r.Status != OperationalReadingStatus.Rejected, ct)
+         || await db.MeterReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && r.Status != OperationalReadingStatus.Rejected, ct);
 
-        if (!anyPending)
+        if (!anyNonRejected)
         {
-            var sub = await db.OperationalSubmissions.FindAsync(submissionId);
+            var sub = await db.OperationalSubmissions.FirstOrDefaultAsync(s => s.Id == submissionId, ct);
             if (sub is not null && sub.Status == OperationalReadingStatus.Pending)
             {
                 sub.Status = OperationalReadingStatus.Rejected;

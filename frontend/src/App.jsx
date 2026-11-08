@@ -1,4 +1,4 @@
-﻿import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import './styles.css';
@@ -53,10 +53,13 @@ const OperationalCapture = lazy(() => import('./pages/OperationalCapture'));
 const OperationalHistory = lazy(() => import('./pages/OperationalHistory'));
 const OperationalReview = lazy(() => import('./pages/OperationalReview'));
 const EnergyBalanceBoard = lazy(() => import('./pages/EnergyBalanceBoard'));
+const TankRefillTransfer = lazy(() => import('./pages/TankRefillTransfer'));
+const TankSetup = lazy(() => import('./pages/TankSetup'));
+const OperationalDailyLog = lazy(() => import('./pages/OperationalDailyLog'));
 
 
 
-/** Maps permission module keys to real app routes (movements â‰  /movements). */
+/** Maps permission module keys to real app routes (movements ≠ /movements). */
 const MODULE_HOME_PATHS = {
   dashboard: '/',
   generators: '/generators',
@@ -287,6 +290,9 @@ function App() {
               <Route path="/operations/history" element={<Protected module="operational_data"><OperationalHistory /></Protected>} />
               <Route path="/operations/review" element={<Protected module="operational_data" action="review"><OperationalReview /></Protected>} />
               <Route path="/energy-balance" element={<Protected module="operational_data"><EnergyBalanceBoard /></Protected>} />
+              <Route path="/operations/tanks/refill" element={<Protected module="operational_data"><TankRefillTransfer /></Protected>} />
+              <Route path="/operations/tanks/setup" element={<Protected module="operational_data"><TankSetup /></Protected>} />
+              <Route path="/operations/daily-log" element={<Protected module="operational_data"><OperationalDailyLog /></Protected>} />
 
               {/* Notifications */}
               <Route path="/notifications" element={<Protected module="alerts"><Notifications lang={lang} onRead={() => setUnreadCount(Math.max(0, unreadCount - 1))} /></Protected>} />

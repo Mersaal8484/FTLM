@@ -9,6 +9,8 @@ public sealed class OverloadEvent : BaseEntity
     public DateTime StartedAtUtc { get; set; }
     public DateTime? ResolvedAtUtc { get; set; }
     public decimal PeakPercent { get; set; }
+    public int ConsecutiveNormalReadings { get; set; }
+    public DateTime? LatestReadingCapturedAtUtc { get; set; }
     public Generator Generator { get; set; } = null!;
     public OperationalGeneratorReading TriggerReading { get; set; } = null!;
 }

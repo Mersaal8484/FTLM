@@ -24,8 +24,8 @@ export default defineConfig({
         name: 'FuelTrack',
         short_name: 'FuelTrack',
         description: 'Enterprise Fuel Management System',
-        theme_color: '#1976d2',
-        background_color: '#ffffff',
+        theme_color: '#1a1a2e',
+        background_color: '#0f172a',
         display: 'standalone',
         icons: [
           { src: 'logo192.svg', sizes: '192x192', type: 'image/svg+xml' },

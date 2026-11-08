@@ -225,4 +225,23 @@ public sealed class OperationalReviewServiceTests
         public Task<int> GetUnreadCountAsync(int userId) => Task.FromResult(0);
         public Task DeleteAsync(int id) => Task.CompletedTask;
     }
+
+    [Fact]
+    public async Task Approval_Concurrency_SerializedExecution_PreventsRaceConditions()
+    {
+        await using var db = CreateDb();
+        var (submissionId, submitterId, reviewerId, _, _) = await SeedPendingSubmissionAsync(db);
+        var service1 = CreateService(db);
+        var service2 = CreateService(db);
+
+        var task1 = service1.ApproveSubmissionAsync(submissionId, reviewerId);
+        var task2 = service2.ApproveSubmissionAsync(submissionId, reviewerId);
+
+        var results = await Task.WhenAll(task1, task2);
+
+        Assert.All(results, r => Assert.True(r.IsSuccess));
+
+        var sub = await db.OperationalSubmissions.FindAsync(submissionId);
+        Assert.Equal(OperationalReadingStatus.Approved, sub!.Status);
+    }
 }

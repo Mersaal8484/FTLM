@@ -47,3 +47,16 @@ CREATE TABLE IF NOT EXISTS "OperatingLimitEpisodes" (
 );
 CREATE INDEX IF NOT EXISTS "IX_OperatingLimitEpisodes_Limit_Open"
     ON "OperatingLimitEpisodes" ("GeneratorOperatingLimitId", "ResolvedAtUtc");
+
+
+ALTER TABLE IF EXISTS "OverloadEvents"
+    ADD COLUMN IF NOT EXISTS "ConsecutiveNormalReadings" integer NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "LatestReadingCapturedAtUtc" timestamp with time zone;
+
+ALTER TABLE IF EXISTS "StationOperationalSettings"
+    ADD COLUMN IF NOT EXISTS "OverloadThresholdPercent" numeric(18,4) NOT NULL DEFAULT 100.0,
+    ADD COLUMN IF NOT EXISTS "OverloadHysteresisReadings" integer NOT NULL DEFAULT 3;
+
+ALTER TABLE IF EXISTS "GeneratorOperatingLimits"
+    ADD COLUMN IF NOT EXISTS "LastEvaluatedReadingId" integer,
+    ADD COLUMN IF NOT EXISTS "LastEvaluatedCapturedAtUtc" timestamp with time zone;

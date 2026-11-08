@@ -1,11 +1,16 @@
-import { ClipboardCheck, Gauge, History, Zap } from 'lucide-react';
+import React from 'react';
+import { ClipboardCheck, Gauge, History, Zap, ArrowRightLeft, Settings, FileText, BarChart3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 const actions = [
   { key: 'capture', icon: Zap, route: '/operations/capture' },
-  { key: 'review', icon: ClipboardCheck },
+  { key: 'review', icon: ClipboardCheck, route: '/operations/review' },
   { key: 'history', icon: History, route: '/operations/history' },
+  { key: 'refill', icon: ArrowRightLeft, route: '/operations/tanks/refill' },
+  { key: 'tankSetup', icon: Settings, route: '/operations/tanks/setup' },
+  { key: 'dailyLog', icon: FileText, route: '/operations/daily-log' },
+  { key: 'energyBalance', icon: BarChart3, route: '/energy-balance' },
 ];
 
 export default function OperationsHub() {
@@ -24,9 +29,9 @@ export default function OperationsHub() {
         {actions.map(({ key, icon: Icon, route }) => (
           <article className="operational-action-card" key={key}>
             <div className="operational-action-icon"><Icon size={22} /></div>
-            <h2>{t(`operational.actions.${key}.title`)}</h2>
-            <p>{t(`operational.actions.${key}.description`)}</p>
-            {route ? <Link to={route}>{t('operational.actions.open')}</Link> : <span>{t('operational.actions.comingNext')}</span>}
+            <h2>{t(`operational.actions.${key}.title`) || key}</h2>
+            <p>{t(`operational.actions.${key}.description`) || ''}</p>
+            {route ? <Link to={route}>{t('operational.actions.open') || 'Open'}</Link> : <span>{t('operational.actions.comingNext')}</span>}
           </article>
         ))}
       </div>

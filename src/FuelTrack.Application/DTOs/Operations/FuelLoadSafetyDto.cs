@@ -14,6 +14,11 @@ public sealed record FuelReconciliationLineDto(
 
 public sealed record FuelReconciliationReportDto(
     int SubStationId, DateTime FromUtc, DateTime ToUtc,
+    decimal TotalMainTransferOutLitres,
+    decimal TotalDailyTransferInLitres,
+    decimal TotalGeneratorConsumptionLitres,
+    decimal VarianceLitres,
+    bool ThresholdFlagged,
     IReadOnlyList<FuelReconciliationLineDto> Lines);
 
 public sealed record OverloadEventDto(
@@ -28,8 +33,19 @@ public sealed record SaveGeneratorOperatingLimitDto(
     GeneratorOperatingParameter Parameter, decimal? Minimum, decimal? Maximum);
 
 public sealed record OperationalTrendPointDto(
-    DateTime CapturedAtUtc, decimal? ActiveLoadKw, decimal? ApparentLoadKva,
-    decimal? PowerFactor, decimal? FrequencyHz, bool IsEstimated, IReadOnlyList<string> Markers);
+    DateTime CapturedAtUtc,
+    decimal? ActiveLoadKw,
+    decimal? ApparentLoadKva,
+    decimal? PowerFactor,
+    decimal? FrequencyHz,
+    decimal? LineVoltageVolts,
+    decimal? CurrentAmps,
+    decimal? OilPressure,
+    decimal? WaterTemperatureCelsius,
+    decimal? OilTemperatureCelsius,
+    decimal? PeakLoadKw,
+    bool IsEstimated,
+    IReadOnlyList<string> Markers);
 
 public sealed record OperationalDailyLogDto(
     int GeneratorId, DateOnly BusinessDate, IReadOnlyList<OperationalTrendPointDto> Rows);

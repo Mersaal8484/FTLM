@@ -25,6 +25,8 @@ public sealed class StationOperationalSettings : BaseEntity
     /// and the warning threshold is suppressed.
     /// </summary>
     public int? InternalConsumptionMeterId { get; set; }
+    public decimal OverloadThresholdPercent { get; set; } = 100m;
+    public int OverloadHysteresisReadings { get; set; } = 3;
 
     public Station Station { get; set; } = null!;
 }

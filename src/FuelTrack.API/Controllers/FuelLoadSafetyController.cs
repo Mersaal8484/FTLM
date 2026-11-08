@@ -50,6 +50,21 @@ public sealed class FuelLoadSafetyController(IFuelLoadSafetyService service) : B
         return result.IsSuccess ? Ok(result.Value) : StatusCode(result.StatusCode, new { error = result.Error });
     }
 
+    [HttpGet("generators/{generatorId:int}/daily-log/{businessDate}.csv")]
+    public async Task<IActionResult> ExportDailyLog(int generatorId, DateOnly businessDate, CancellationToken ct)
+    {
+        var result = await service.GetDailyLogAsync(generatorId, businessDate, GetUserId(), ct);
+        if (!result.IsSuccess) return StatusCode(result.StatusCode, new { error = result.Error });
+        var sb = new StringBuilder();
+        sb.AppendLine("captured_at_utc,active_load_kw,apparent_load_kva,power_factor,frequency_hz,voltage_v,current_a,oil_pressure_bar,water_temp_c,oil_temp_c,peak_load_kw,warnings");
+        foreach (var r in result.Value!.Rows)
+        {
+            var warnings = string.Join("; ", r.Markers ?? []);
+            sb.AppendLine($"\"{r.CapturedAtUtc:O}\",{r.ActiveLoadKw},{r.ApparentLoadKva},{r.PowerFactor},{r.FrequencyHz},{r.LineVoltageVolts},{r.CurrentAmps},{r.OilPressure},{r.WaterTemperatureCelsius},{r.OilTemperatureCelsius},{r.PeakLoadKw},\"{warnings}\"");
+        }
+        return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv; charset=utf-8", $"daily-log-{generatorId}-{businessDate:yyyy-MM-dd}.csv");
+    }
+
     [HttpGet("generators/{generatorId:int}/consumption.csv")]
     public async Task<IActionResult> ExportConsumption(int generatorId, [FromQuery] DateTime fromUtc, [FromQuery] DateTime toUtc, CancellationToken ct)
     {
