@@ -131,6 +131,7 @@ builder.Services.AddScoped<IMaintenanceDashboardService, MaintenanceDashboardSer
 builder.Services.AddScoped<IMeterDeltaService, MeterDeltaService>();
 builder.Services.AddScoped<IOperationalReviewService, OperationalReviewService>();
 builder.Services.AddScoped<IEnergyBalanceService, EnergyBalanceService>();
+builder.Services.AddScoped<IFuelLoadSafetyService, FuelLoadSafetyService>();
 
 var jwtKey = builder.Configuration["JwtSettings:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.StartsWith("{"))
@@ -682,6 +683,11 @@ using (var scope = app.Services.CreateScope())
         "oil-stock-alerts",
         job => job.ExecuteAsync(CancellationToken.None),
         Cron.Daily);
+
+    recurringJobManager.AddOrUpdate<OperatingLimitEvaluationJob>(
+        "operating-limit-evaluation",
+        job => job.ExecuteAsync(CancellationToken.None),
+        Cron.Hourly);
 
     recurringJobManager.AddOrUpdate<SparePartReplacementAlertJob>(
         "spare-part-replacement-alerts",

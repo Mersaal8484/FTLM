@@ -16,7 +16,8 @@ public sealed class OperationalCaptureService(
     FuelTrackDbContext db,
     IUserScopeFilterService scopeFilter,
     ICurrentUserService currentUser,
-    IIdempotencyService idempotency) : IOperationalCaptureService
+    IIdempotencyService idempotency,
+    IFuelLoadSafetyService fuelLoadSafety) : IOperationalCaptureService
 {
     private const string Operation = "operational.capture.v1";
     private static readonly TimeSpan FutureTolerance = TimeSpan.FromMinutes(5);
@@ -204,6 +205,14 @@ public sealed class OperationalCaptureService(
                 });
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+
+            // Safety episodes are evaluated after capture is durable. Notification failures
+            // cannot roll back an accepted operator submission.
+            foreach (var readingId in submission.GeneratorReadings.Select(x => x.Id))
+            {
+                try { await fuelLoadSafety.EvaluateOnReceiptAsync(readingId, cancellationToken); }
+                catch { /* the scheduled evaluator remains able to assess limits */ }
+            }
 
             var accepted = ToDto(submission);
             var response = accepted with { Lines = accepted.Lines!.Concat(duplicateLines).ToList() };

@@ -8,26 +8,40 @@ public static class TenantSchemaUpgradeCatalog
 {
     public static async Task<IReadOnlyList<TenantSchemaUpgrade>> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
-        await using var stream = typeof(TenantSchemaUpgradeCatalog).Assembly.GetManifestResourceStream("FuelTrack.Tenants.002_bitbus_operational_capture.sql")
-            ?? throw new InvalidOperationException("Bitbus PostgreSQL tenant upgrade is missing.");
-        using var reader = new StreamReader(stream);
-        return [new TenantSchemaUpgrade(2, await reader.ReadToEndAsync(cancellationToken))];
+        return [
+            new TenantSchemaUpgrade(2, await ReadUpgradeAsync("002_bitbus_operational_capture", cancellationToken)),
+            new TenantSchemaUpgrade(3, await ReadUpgradeAsync("003_phase3_review_columns", cancellationToken)),
+            new TenantSchemaUpgrade(4, await ReadUpgradeAsync("004_phase3b_fuel_load", cancellationToken))
+        ];
     }
 
     /// <summary>Used during provisioning in the caller-owned Platform transaction.</summary>
     public static async Task ApplyCurrentWithinTransactionAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid tenantId, CancellationToken cancellationToken = default)
     {
         var schema = TenantIdentity.SchemaName(tenantId);
-        var upgrade = (await GetCurrentAsync(cancellationToken))[0];
+        var upgrades = await GetCurrentAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandTimeout = 180;
         command.CommandText = $"SET LOCAL search_path TO \"{schema}\"";
         await command.ExecuteNonQueryAsync(cancellationToken);
-        command.CommandText = upgrade.Sql;
-        await command.ExecuteNonQueryAsync(cancellationToken);
-        command.CommandText = $"INSERT INTO \"{schema}\".\"__TenantSchemaVersions\" (\"Version\", \"Checksum\") VALUES (2, @checksum)";
-        command.Parameters.AddWithValue("checksum", TenantDatabaseBootstrapper.Checksum(upgrade.Sql));
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        foreach (var upgrade in upgrades)
+        {
+            command.CommandText = upgrade.Sql;
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            command.CommandText = $"INSERT INTO \"{schema}\".\"__TenantSchemaVersions\" (\"Version\", \"Checksum\") VALUES (@version, @checksum)";
+            command.Parameters.AddWithValue("version", upgrade.Version);
+            command.Parameters.AddWithValue("checksum", TenantDatabaseBootstrapper.Checksum(upgrade.Sql));
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            command.Parameters.Clear();
+        }
+    }
+
+    private static async Task<string> ReadUpgradeAsync(string name, CancellationToken cancellationToken)
+    {
+        await using var stream = typeof(TenantSchemaUpgradeCatalog).Assembly.GetManifestResourceStream($"FuelTrack.Tenants.{name}.sql")
+            ?? throw new InvalidOperationException($"PostgreSQL tenant upgrade {name} is missing.");
+        using var reader = new StreamReader(stream);
+        return await reader.ReadToEndAsync(cancellationToken);
     }
 }

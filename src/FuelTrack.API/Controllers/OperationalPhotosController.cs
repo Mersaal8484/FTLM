@@ -1,4 +1,5 @@
 using FuelTrack.Application.Interfaces;
+using FuelTrack.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

@@ -77,6 +77,9 @@ namespace FuelTrack.Infrastructure
         public DbSet<Feeder> Feeders => Set<Feeder>();
         public DbSet<FeederLoadReading> FeederLoadReadings => Set<FeederLoadReading>();
         public DbSet<MeterReading> MeterReadings => Set<MeterReading>();
+        public DbSet<GeneratorOperatingLimit> GeneratorOperatingLimits => Set<GeneratorOperatingLimit>();
+        public DbSet<OverloadEvent> OverloadEvents => Set<OverloadEvent>();
+        public DbSet<OperatingLimitEpisode> OperatingLimitEpisodes => Set<OperatingLimitEpisode>();
 
         // Permission system (Module Registry)
         public DbSet<ModuleDefinition> ModuleDefinitions => Set<ModuleDefinition>();
@@ -156,6 +159,9 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<Feeder>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<FeederLoadReading>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<MeterReading>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<GeneratorOperatingLimit>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<OverloadEvent>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<OperatingLimitEpisode>().HasQueryFilter(e => e.DeletedAt == null);
 
             // === Oil relationships ===
             modelBuilder.Entity<Oil>()
@@ -240,6 +246,21 @@ namespace FuelTrack.Infrastructure
                 .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<FuelTank>()
                 .HasOne(x => x.Generator).WithMany().HasForeignKey(x => x.GeneratorId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<GeneratorOperatingLimit>()
+                .HasOne(x => x.Generator).WithMany().HasForeignKey(x => x.GeneratorId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<OverloadEvent>()
+                .HasOne(x => x.Generator).WithMany().HasForeignKey(x => x.GeneratorId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<OverloadEvent>()
+                .HasOne(x => x.TriggerReading).WithMany().HasForeignKey(x => x.TriggerReadingId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<OperatingLimitEpisode>()
+                .HasOne(x => x.GeneratorOperatingLimit).WithMany().HasForeignKey(x => x.GeneratorOperatingLimitId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<OperatingLimitEpisode>()
+                .HasOne(x => x.TriggerReading).WithMany().HasForeignKey(x => x.TriggerReadingId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // === SubStation children ===
@@ -2620,6 +2641,26 @@ namespace FuelTrack.Infrastructure
                 entity.Property(x => x.ComputedCapacityLitres).HasPrecision(18, 4);
                 entity.HasIndex(x => x.GeneratorId).IsUnique().HasDatabaseName("UX_FuelTanks_ActiveDailyGenerator")
                     .HasFilter(Database.IsNpgsql() ? "\"DeletedAt\" IS NULL AND \"GeneratorId\" IS NOT NULL" : "[DeletedAt] IS NULL AND [GeneratorId] IS NOT NULL");
+            });
+
+            modelBuilder.Entity<GeneratorOperatingLimit>(entity =>
+            {
+                entity.HasIndex(x => new { x.GeneratorId, x.Parameter }).IsUnique()
+                    .HasDatabaseName("UX_GeneratorOperatingLimits_Generator_Parameter").HasFilter(activeFilter);
+                entity.Property(x => x.Minimum).HasPrecision(18, 4);
+                entity.Property(x => x.Maximum).HasPrecision(18, 4);
+            });
+            modelBuilder.Entity<OverloadEvent>(entity =>
+            {
+                entity.HasIndex(x => new { x.GeneratorId, x.ResolvedAtUtc })
+                    .HasDatabaseName("IX_OverloadEvents_Generator_Open");
+                entity.Property(x => x.PeakPercent).HasPrecision(18, 4);
+            });
+            modelBuilder.Entity<OperatingLimitEpisode>(entity =>
+            {
+                entity.HasIndex(x => new { x.GeneratorOperatingLimitId, x.ResolvedAtUtc })
+                    .HasDatabaseName("IX_OperatingLimitEpisodes_Limit_Open");
+                entity.Property(x => x.ObservedValue).HasPrecision(18, 4);
             });
 
             // === Module Registry System ===

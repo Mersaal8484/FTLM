@@ -5,6 +5,7 @@ using FuelTrack.Infrastructure;
 using FuelTrack.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Moq;
 
 namespace FuelTrack.Tests.Services;
 
@@ -107,7 +108,7 @@ public sealed class OperationalCaptureServiceTests
     {
         await using var db = CreateDatabase();
         var fixture = await SeedAsync(db);
-        var service = new OperationalCaptureService(db, new SiteScope(false), new CurrentUser(), new IdempotencyService(db));
+        var service = new OperationalCaptureService(db, new SiteScope(false), new CurrentUser(), new IdempotencyService(db), Mock.Of<IFuelLoadSafetyService>());
 
         var result = await service.SubmitAsync(CreateGeneratorCapture(fixture, DateTime.UtcNow.AddMinutes(-1)), fixture.UserId);
 
@@ -116,7 +117,7 @@ public sealed class OperationalCaptureServiceTests
     }
 
     private static OperationalCaptureService CreateService(FuelTrackDbContext db) =>
-        new(db, new SiteScope(), new CurrentUser(), new IdempotencyService(db));
+        new(db, new SiteScope(), new CurrentUser(), new IdempotencyService(db), Mock.Of<IFuelLoadSafetyService>());
 
     private static async Task<(int UserId, int SiteId, int GeneratorId, int AttachmentId)> SeedAsync(FuelTrackDbContext db)
     {

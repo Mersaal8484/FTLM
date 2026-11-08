@@ -121,6 +121,7 @@ public static class DependencyInjection
         services.AddScoped<IOperationalCaptureService, OperationalCaptureService>();
         services.AddScoped<ITankCalibrationService, TankCalibrationService>();
         services.AddScoped<IFeederService, FeederService>();
+        services.AddScoped<IFuelLoadSafetyService, FuelLoadSafetyService>();
 
         // Migration lock
         services.AddScoped<MigrationLockService>();

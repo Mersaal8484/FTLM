@@ -49,7 +49,7 @@ public sealed class OperationalReviewService(
                 s.SubmittedByUserId,
                 SubmitterName = db.Users
                     .Where(u => u.Id == (s.SubmittedByUserId ?? s.CreatedBy))
-                    .Select(u => u.Name)
+                    .Select(u => u.FullName)
                     .FirstOrDefault() ?? string.Empty,
                 GenCount = s.GeneratorReadings.Count(r => r.DeletedAt == null),
                 TankCount = s.TankLevelReadings.Count(r => r.DeletedAt == null),
@@ -96,7 +96,7 @@ public sealed class OperationalReviewService(
                 s.ReceivedAtUtc, s.SubmittedByUserId, s.Status,
                 SubmitterName = db.Users
                     .Where(u => u.Id == (s.SubmittedByUserId ?? s.CreatedBy))
-                    .Select(u => u.Name)
+                    .Select(u => u.FullName)
                     .FirstOrDefault() ?? string.Empty,
             })
             .SingleOrDefaultAsync(cancellationToken);
@@ -249,7 +249,10 @@ public sealed class OperationalReviewService(
         // Approver ≠ submitter (D18, configurable)
         var settings = await db.StationOperationalSettings
             .AsNoTracking()
-            .Where(s => s.SubStation.Id == submission.SubStationId)
+            .Where(s => s.StationId == db.SubStations
+                .Where(site => site.Id == submission.SubStationId)
+                .Select(site => site.StationId)
+                .FirstOrDefault())
             .Select(s => new { s.RequiresDifferentReviewer })
             .FirstOrDefaultAsync(cancellationToken);
 
