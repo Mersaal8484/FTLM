@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
+using FuelTrack.API.Services;
 
 namespace FuelTrack.API.Controllers;
 
@@ -17,11 +18,15 @@ public class ReportsController : BaseApiController
 {
     private readonly IReportService _service;
     private readonly IHubContext<DashboardHub> _hub;
+    private readonly IConfiguration _configuration;
+    private readonly ITenantRequestContext? _tenant;
 
-    public ReportsController(IReportService service, IHubContext<DashboardHub> hub)
+    public ReportsController(IReportService service, IHubContext<DashboardHub> hub, IConfiguration configuration, ITenantRequestContext? tenant = null)
     {
         _service = service;
         _hub = hub;
+        _configuration = configuration;
+        _tenant = tenant;
     }
 
     // ─── Dashboard ────────────────────────────────────────────────
@@ -215,7 +220,8 @@ public class ReportsController : BaseApiController
     public async Task<IActionResult> PushDashboardStats()
     {
         var stats = await _service.GetDashboardStatsAsync(null, null, null, null, null, "Asia/Riyadh");
-        await _hub.Clients.Group("dashboard").SendAsync("DashboardStatsUpdated", stats);
+        var tenantId = TenantRealtimeScope.GetTenant(_configuration, _tenant);
+        await _hub.Clients.Group(TenantRealtimeScope.Group(tenantId, "dashboard")).SendAsync("DashboardStatsUpdated", stats);
         return Ok(new { message = "Dashboard stats pushed to all connected clients." });
     }
 }

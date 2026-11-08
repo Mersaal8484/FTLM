@@ -1,0 +1,28 @@
+@page
+@model FuelTrack.Admin.Pages.SubscriptionsModel
+<div class="page-heading"><div><span class="eyebrow">إدارة المنصة / الاشتراكات</span><h1>الاشتراكات اليدوية</h1><p>سجّل اشتراكات المستأجرين وراجع فتراتها.</p></div></div>
+<div class="alert alert-info">تحدد فترة الاشتراك صلاحية وصول المستأجر النشط. تُدار المدفوعات والفوترة يدوياً.</div>
+@if (!string.IsNullOrEmpty(Model.Error)) { <div class="alert alert-error" role="alert">@Model.Error</div> }
+@if (!string.IsNullOrEmpty(Model.Success)) { <div class="alert alert-success" role="status">@Model.Success</div> }
+<section class="card subscription-card">
+  <div class="card-heading subscription-heading"><div><span class="subscription-kicker">اشتراك جديد</span><h2>تسجيل اشتراك</h2><p>اختر المستأجر والباقة، ثم حدد فترة الوصول.</p></div><span class="card-icon" aria-hidden="true">＋</span></div>
+  <form method="post" class="subscription-form" data-subscription-form>
+    <div class="subscription-fields">
+      <label><span>المستأجر</span><select asp-for="TenantId" required data-subscription-tenant><option value="">اختر المستأجر</option>@foreach(var t in Model.Tenants) { <option value="@t.Id">@t.Name</option> }</select><small>الحساب الذي سيُضاف إليه الاشتراك</small></label>
+      <label><span>الباقة</span><select asp-for="PlanId" required data-subscription-plan><option value="">اختر الباقة</option>@foreach(var p in Model.Plans) { <option value="@p.Id">@p.Name (@p.Price @p.Currency)</option> }</select><small>الباقات النشطة فقط</small></label>
+      <label><span>تاريخ البداية <em>UTC</em></span><input asp-for="Start" type="date" required data-subscription-start /><small>يبدأ الوصول عند 00:00 في هذا اليوم</small></label>
+      <label><span>تاريخ النهاية <em>UTC</em></span><input asp-for="End" type="date" required data-subscription-end /><small>ينتهي الوصول عند 00:00 في هذا اليوم</small></label>
+    </div>
+    <aside class="subscription-summary" aria-label="ملخص الاشتراك">
+      <span class="subscription-summary-kicker">ملخص الاشتراك</span>
+      <div><span>المستأجر</span><strong data-summary-tenant>لم يُحدد</strong></div>
+      <div><span>الباقة</span><strong data-summary-plan>لم تُحدد</strong></div>
+      <div><span>الفترة</span><strong dir="ltr" data-summary-period>—</strong></div>
+      <p>يجب أن تكون النهاية بعد البداية، وألا تتداخل الفترة مع اشتراك آخر للمستأجر.</p>
+      <button type="submit" @(Model.Tenants.Count == 0 || Model.Plans.Count == 0 ? "disabled" : null)>تسجيل الاشتراك <span aria-hidden="true">←</span></button>
+      @if (Model.Tenants.Count == 0 || Model.Plans.Count == 0) { <small>أضف مستأجراً وباقة نشطة أولاً.</small> }
+    </aside>
+  </form>
+</section>
+<section class="card list-card"><div class="card-heading"><div><h2>سجل الاشتراكات</h2><p>الاشتراكات المسجلة وتواريخها.</p></div></div>
+@if (!Model.Rows.Any()) { <div class="empty-state">لا توجد اشتراكات مسجلة بعد.</div> } else { var now = DateTimeOffset.UtcNow; <div class="table-wrap"><table><thead><tr><th>المستأجر</th><th>الباقة</th><th>البداية UTC</th><th>النهاية UTC</th><th>الحالة</th></tr></thead><tbody>@foreach(var row in Model.Rows) { var state = row.State(now); <tr><td data-label="المستأجر"><strong>@row.Tenant</strong></td><td data-label="الباقة">@row.Plan</td><td data-label="البداية UTC">@row.Start.ToString("yyyy-MM-dd")</td><td data-label="النهاية UTC">@row.End.ToString("yyyy-MM-dd")</td><td data-label="الحالة"><span class="status-badge status-@state">@(state == "active" ? "ساري" : state == "upcoming" ? "قادم" : "منتهي")</span></td></tr> }</tbody></table></div> }</section>

@@ -21,4 +21,7 @@ public class StubUserScopeFilterService : IUserScopeFilterService
 
     public Task<bool> HasAccessToSubStationAsync(int userId, int subStationId)
         => Task.FromResult(true);
+
+    public Task<bool> HasFullAccessToStationAsync(int userId, int stationId)
+        => Task.FromResult(true);
 }

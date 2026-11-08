@@ -83,6 +83,116 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.ToTable("AnalyticsInsights");
                 });
 
+            modelBuilder.Entity("FuelTrack.Domain.Models.Attachment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<long>("ByteSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StorageKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Attachments_StorageKey")
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.ToTable("Attachments");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.AttachmentLink", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AttachmentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttachmentId");
+
+                    b.HasIndex("EntityType", "EntityId", "SortOrder")
+                        .HasDatabaseName("IX_AttachmentLinks_Entity_Sort")
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.ToTable("AttachmentLinks");
+                });
+
             modelBuilder.Entity("FuelTrack.Domain.Models.AuditLog", b =>
                 {
                     b.Property<int>("Id")
@@ -217,11 +327,27 @@ namespace FuelTrack.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal?>("ComputedCapacityLitres")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("ConeHeightCm")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("CreatedBy")
                         .HasColumnType("int");
+
+                    b.Property<decimal?>("CylinderHeightCm")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("DiameterCm")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
@@ -334,6 +460,54 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.ToTable("Controllers");
                 });
 
+            modelBuilder.Entity("FuelTrack.Domain.Models.CustomerFeatureSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Value")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CustomerFeatureSettings_Key")
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.ToTable("CustomerFeatureSettings");
+                });
+
             modelBuilder.Entity("FuelTrack.Domain.Models.DailyReading", b =>
                 {
                     b.Property<int>("Id")
@@ -422,6 +596,10 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasIndex("GeneratorId", "ReadingDate", "FuelLookupId")
                         .HasDatabaseName("IX_DailyReadings_FuelConsumption")
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.HasIndex("GeneratorId", "ReadingDate", "ReadingStatusLookupId")
+                        .HasDatabaseName("IX_DailyReadings_Gen_Date_Status")
                         .HasFilter("[DeletedAt] IS NULL");
 
                     b.ToTable("DailyReadings");
@@ -661,12 +839,19 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<double?>("MinAlertLiters")
                         .HasColumnType("float");
 
+                    b.Property<decimal?>("MultiplicationFactor")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<FuelTrack.Domain.Enums.TankShape?>("Shape")
+                        .HasColumnType("int");
 
                     b.Property<int>("SubStationId")
                         .HasColumnType("int");
@@ -810,6 +995,10 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.HasIndex("SubStationId", "TransactionDate")
                         .HasDatabaseName("IX_FuelTransaction_SubStation_Date");
 
+                    b.HasIndex("TransactionDate", "IsApproved")
+                        .HasDatabaseName("IX_FuelTransactions_Date_Approved")
+                        .HasFilter("[DeletedAt] IS NULL");
+
                     b.HasIndex("SubStationId", "FuelLookupId", "TransactionDate", "IsApproved")
                         .HasDatabaseName("IX_FuelTransactions_StockSummary")
                         .HasFilter("[DeletedAt] IS NULL");
@@ -917,6 +1106,79 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.HasIndex("VoltageLookupId");
 
                     b.ToTable("Generators");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.IdempotencyRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ResponsePayload")
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ResponseStatusCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "UserId", "ClientRequestId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_IdempotencyRequests_Tenant_User_ClientRequestId")
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.HasIndex("Operation", "CreatedAt")
+                        .HasDatabaseName("IX_IdempotencyRequests_Operation_Created");
+
+                    b.ToTable("IdempotencyRequests");
                 });
 
             modelBuilder.Entity("FuelTrack.Domain.Models.InsightFeedback", b =>
@@ -3328,7 +3590,14 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.Property<string>("NotificationType")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("RelatedEntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RelatedEntityType")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<DateTime?>("SentAt")
                         .HasColumnType("datetime2");
@@ -3356,6 +3625,9 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasIndex("SubStationId", "CreatedAt")
                         .HasDatabaseName("IX_Notification_SubStation_Created");
+
+                    b.HasIndex("NotificationType", "RelatedEntityType", "RelatedEntityId", "CreatedAt")
+                        .HasDatabaseName("IX_Notifications_Alert_Deduplication");
 
                     b.ToTable("Notifications");
                 });
@@ -3550,6 +3822,10 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.HasIndex("SubStationId", "TransactionDate")
                         .HasDatabaseName("IX_OilTransaction_SubStation_Date");
 
+                    b.HasIndex("TransactionDate", "IsApproved")
+                        .HasDatabaseName("IX_OilTransactions_Date_Approved")
+                        .HasFilter("[DeletedAt] IS NULL");
+
                     b.HasIndex("SubStationId", "OilLookupId", "TransactionDate", "IsApproved")
                         .HasDatabaseName("IX_OilTransactions_StockSummary")
                         .HasFilter("[DeletedAt] IS NULL");
@@ -3655,6 +3931,10 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.HasIndex("ApprovedById");
 
                     b.HasIndex("PeriodTypeLookupId");
+
+                    b.HasIndex("SubStationId", "InventoryDate")
+                        .HasDatabaseName("IX_PeriodicInventories_SubStation_Date")
+                        .HasFilter("[DeletedAt] IS NULL");
 
                     b.HasIndex("SubStationId", "InventoryDate", "IsApproved")
                         .HasDatabaseName("IX_PeriodicInventory_LastApproved")
@@ -3996,6 +4276,167 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.ToTable("Stations");
                 });
 
+            modelBuilder.Entity("FuelTrack.Domain.Models.OperationalSubmission", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<int>("CreatedBy").HasColumnType("int");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<bool>("IsActive").HasColumnType("bit");
+                    b.Property<DateTime>("ReceivedAtUtc").HasColumnType("datetime2");
+                    b.Property<FuelTrack.Domain.Enums.OperationalReadingStatus>("Status").HasColumnType("int");
+                    b.Property<int>("SubStationId").HasColumnType("int");
+                    b.Property<DateTime>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<int>("UpdatedBy").HasColumnType("int");
+                    b.HasKey("Id");
+                    b.HasIndex("SubStationId", "CreatedBy", "ClientRequestId").IsUnique().HasDatabaseName("UX_OperationalSubmissions_Site_User_Request").HasFilter("[DeletedAt] IS NULL");
+                    b.HasIndex("SubStationId", "ReceivedAtUtc").HasDatabaseName("IX_OperationalSubmissions_Site_Received");
+                    b.ToTable("OperationalSubmissions");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.Feeder", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    b.Property<string>("Code").IsRequired().HasMaxLength(80).HasColumnType("nvarchar(80)");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2"); b.Property<int>("CreatedBy").HasColumnType("int"); b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2"); b.Property<bool>("IsActive").HasColumnType("bit");
+                    b.Property<int?>(("MeterId")).HasColumnType("int"); b.Property<decimal>("MeterMultiplier").HasPrecision(18, 6).HasColumnType("decimal(18,6)"); b.Property<string>("Name").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)"); b.Property<int>("SubStationId").HasColumnType("int"); b.Property<DateTime>("UpdatedAt").HasColumnType("datetime2"); b.Property<int>("UpdatedBy").HasColumnType("int");
+                    b.HasKey("Id"); b.HasIndex("MeterId"); b.HasIndex("SubStationId", "Code").IsUnique().HasDatabaseName("UX_Feeders_Site_Code").HasFilter("[DeletedAt] IS NULL"); b.ToTable("Feeders");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.OperationalGeneratorReading", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int"); SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    b.Property<decimal?>("ActiveLoadKw").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<decimal?>("ApparentLoadKva").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<DateOnly>("BusinessDate").HasColumnType("date"); b.Property<DateTime>("CapturedAtUtc").HasColumnType("datetime2"); b.Property<decimal?>("CurrentAmps").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<DateTime>("CreatedAt").HasColumnType("datetime2"); b.Property<int>("CreatedBy").HasColumnType("int"); b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2"); b.Property<decimal?>("FrequencyHz").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<int>("GeneratorId").HasColumnType("int"); b.Property<bool>("IsActive").HasColumnType("bit"); b.Property<bool>("IsRunning").HasColumnType("bit"); b.Property<decimal?>("LineVoltageVolts").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<decimal?>("OilAddedLitres").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<decimal?>("OilPressure").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<decimal?>("OilTemperatureCelsius").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<int>("OperationalSubmissionId").HasColumnType("int"); b.Property<decimal?>("PowerFactor").HasPrecision(9, 6).HasColumnType("decimal(9,6)"); b.Property<decimal?>("ReactiveLoadKvar").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<DateTime>("ReceivedAtUtc").HasColumnType("datetime2"); b.Property<FuelTrack.Domain.Enums.OperationalReadingStatus>("Status").HasColumnType("int"); b.Property<DateTime>("UpdatedAt").HasColumnType("datetime2"); b.Property<int>("UpdatedBy").HasColumnType("int"); b.Property<decimal?>("WaterTemperatureCelsius").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<string>("WarningsJson").HasMaxLength(2000).HasColumnType("nvarchar(2000)");
+                    b.HasKey("Id"); b.HasIndex("OperationalSubmissionId"); b.HasIndex("GeneratorId", "BusinessDate", "Status").HasDatabaseName("IX_OperationalGeneratorReadings_Generator_Date_Status"); b.HasIndex("GeneratorId", "CapturedAtUtc").IsUnique().HasDatabaseName("UX_OperationalGeneratorReadings_Generator_Captured").HasFilter("[DeletedAt] IS NULL AND [Status] <> 2"); b.ToTable("OperationalGeneratorReadings");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.TankLevelReading", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int"); SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    b.Property<DateOnly>("BusinessDate").HasColumnType("date"); b.Property<DateTime>("CapturedAtUtc").HasColumnType("datetime2"); b.Property<decimal>("ComputedLitres").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<decimal>("ConeHeightCmSnapshot").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<DateTime>("CreatedAt").HasColumnType("datetime2"); b.Property<int>("CreatedBy").HasColumnType("int"); b.Property<decimal>("CylinderHeightCmSnapshot").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2"); b.Property<decimal>("DiameterCmSnapshot").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<int>("FuelTankId").HasColumnType("int"); b.Property<bool>("IsActive").HasColumnType("bit"); b.Property<decimal>("LiquidLevelCm").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<decimal>("MultiplicationFactorSnapshot").HasPrecision(18, 6).HasColumnType("decimal(18,6)"); b.Property<int>("OperationalSubmissionId").HasColumnType("int"); b.Property<DateTime>("ReceivedAtUtc").HasColumnType("datetime2"); b.Property<FuelTrack.Domain.Enums.TankShape>("ShapeSnapshot").HasColumnType("int"); b.Property<FuelTrack.Domain.Enums.OperationalReadingStatus>("Status").HasColumnType("int"); b.Property<DateTime>("UpdatedAt").HasColumnType("datetime2"); b.Property<int>("UpdatedBy").HasColumnType("int"); b.Property<string>("WarningsJson").HasMaxLength(2000).HasColumnType("nvarchar(2000)");
+                    b.HasKey("Id"); b.HasIndex("OperationalSubmissionId"); b.HasIndex("FuelTankId", "BusinessDate", "Status").HasDatabaseName("IX_TankLevelReadings_Tank_Date_Status"); b.HasIndex("FuelTankId", "CapturedAtUtc").IsUnique().HasDatabaseName("UX_TankLevelReadings_Tank_Captured").HasFilter("[DeletedAt] IS NULL AND [Status] <> 2"); b.ToTable("TankLevelReadings");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.FeederLoadReading", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int"); SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    b.Property<decimal?>("ActiveLoadKw").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<decimal?>("ApparentLoadKva").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<DateOnly>("BusinessDate").HasColumnType("date"); b.Property<DateTime>("CapturedAtUtc").HasColumnType("datetime2"); b.Property<DateTime>("CreatedAt").HasColumnType("datetime2"); b.Property<int>("CreatedBy").HasColumnType("int"); b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2"); b.Property<int>("FeederId").HasColumnType("int"); b.Property<bool>("IsActive").HasColumnType("bit"); b.Property<decimal>("MeterMultiplierSnapshot").HasPrecision(18, 6).HasColumnType("decimal(18,6)"); b.Property<int>("OperationalSubmissionId").HasColumnType("int"); b.Property<DateTime>("ReceivedAtUtc").HasColumnType("datetime2"); b.Property<FuelTrack.Domain.Enums.OperationalReadingStatus>("Status").HasColumnType("int"); b.Property<DateTime>("UpdatedAt").HasColumnType("datetime2"); b.Property<int>("UpdatedBy").HasColumnType("int"); b.Property<string>("WarningsJson").HasMaxLength(2000).HasColumnType("nvarchar(2000)");
+                    b.HasKey("Id"); b.HasIndex("OperationalSubmissionId"); b.HasIndex("FeederId", "BusinessDate", "Status").HasDatabaseName("IX_FeederLoadReadings_Feeder_Date_Status"); b.HasIndex("FeederId", "CapturedAtUtc").IsUnique().HasDatabaseName("UX_FeederLoadReadings_Feeder_Captured").HasFilter("[DeletedAt] IS NULL AND [Status] <> 2"); b.ToTable("FeederLoadReadings");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.MeterReading", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int"); SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    b.Property<DateOnly>("BusinessDate").HasColumnType("date"); b.Property<DateTime>("CapturedAtUtc").HasColumnType("datetime2"); b.Property<DateTime>("CreatedAt").HasColumnType("datetime2"); b.Property<int>("CreatedBy").HasColumnType("int"); b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2"); b.Property<bool>("IsActive").HasColumnType("bit"); b.Property<bool>("IsMeterReset").HasColumnType("bit"); b.Property<FuelTrack.Domain.Enums.MeterReadingKind>("Kind").HasColumnType("int"); b.Property<int?>(("MeterId")).HasColumnType("int"); b.Property<decimal>("MultiplierSnapshot").HasPrecision(18, 6).HasColumnType("decimal(18,6)"); b.Property<int>("OperationalSubmissionId").HasColumnType("int"); b.Property<decimal>("RawValue").HasPrecision(18, 4).HasColumnType("decimal(18,4)"); b.Property<DateTime>("ReceivedAtUtc").HasColumnType("datetime2"); b.Property<string>("ResetNote").HasMaxLength(1000).HasColumnType("nvarchar(1000)"); b.Property<FuelTrack.Domain.Enums.OperationalReadingStatus>("Status").HasColumnType("int"); b.Property<int>("SubjectId").HasColumnType("int"); b.Property<FuelTrack.Domain.Enums.MeterReadingSubjectType>("SubjectType").HasColumnType("int"); b.Property<DateTime>("UpdatedAt").HasColumnType("datetime2"); b.Property<int>("UpdatedBy").HasColumnType("int"); b.Property<string>("WarningsJson").HasMaxLength(2000).HasColumnType("nvarchar(2000)");
+                    b.HasKey("Id"); b.HasIndex("MeterId"); b.HasIndex("OperationalSubmissionId"); b.HasIndex("SubjectType", "SubjectId", "BusinessDate", "Kind").IsUnique().HasDatabaseName("UX_MeterReadings_DailyClosing").HasFilter("[DeletedAt] IS NULL AND [Status] <> 2 AND [Kind] = 1"); b.HasIndex("SubjectType", "SubjectId", "CapturedAtUtc").IsUnique().HasDatabaseName("UX_MeterReadings_Subject_Captured").HasFilter("[DeletedAt] IS NULL AND [Status] <> 2"); b.ToTable("MeterReadings");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.OperationalSubmission", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.SubStation", "SubStation").WithMany("OperationalSubmissions").HasForeignKey("SubStationId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("SubStation");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.OperationalGeneratorReading", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.Generator", "Generator").WithMany().HasForeignKey("GeneratorId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("FuelTrack.Domain.Models.OperationalSubmission", "OperationalSubmission").WithMany("GeneratorReadings").HasForeignKey("OperationalSubmissionId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("Generator"); b.Navigation("OperationalSubmission");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.TankLevelReading", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.FuelTank", "FuelTank").WithMany("LevelReadings").HasForeignKey("FuelTankId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("FuelTrack.Domain.Models.OperationalSubmission", "OperationalSubmission").WithMany("TankLevelReadings").HasForeignKey("OperationalSubmissionId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("FuelTank"); b.Navigation("OperationalSubmission");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.Feeder", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.Meter", "Meter").WithMany().HasForeignKey("MeterId").OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("FuelTrack.Domain.Models.SubStation", "SubStation").WithMany("Feeders").HasForeignKey("SubStationId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("Meter"); b.Navigation("SubStation");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.FeederLoadReading", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.Feeder", "Feeder").WithMany("LoadReadings").HasForeignKey("FeederId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("FuelTrack.Domain.Models.OperationalSubmission", "OperationalSubmission").WithMany("FeederLoadReadings").HasForeignKey("OperationalSubmissionId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("Feeder"); b.Navigation("OperationalSubmission");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.MeterReading", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.Meter", "Meter").WithMany().HasForeignKey("MeterId").OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("FuelTrack.Domain.Models.OperationalSubmission", "OperationalSubmission").WithMany("MeterReadings").HasForeignKey("OperationalSubmissionId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("Meter"); b.Navigation("OperationalSubmission");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.StationOperationalSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsReadingPhotoRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("OilPressureUnit")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<decimal>("ProducedVsSentWarningThresholdPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("ReadingPhotoMaxBytes")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("RequiresDifferentReviewer")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("StationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StationId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_StationOperationalSettings_Station")
+                        .HasFilter("[DeletedAt] IS NULL");
+
+                    b.ToTable("StationOperationalSettings");
+                });
+
             modelBuilder.Entity("FuelTrack.Domain.Models.SubStation", b =>
                 {
                     b.Property<int>("Id")
@@ -4106,8 +4547,16 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.HasIndex("ReadingStatusLookupId");
 
+                    b.HasIndex("ReadingDate", "ReadingStatusLookupId")
+                        .HasDatabaseName("IX_SubStationReadings_Date_Status")
+                        .HasFilter("[DeletedAt] IS NULL");
+
                     b.HasIndex("SubStationId", "ReadingDate")
                         .IsUnique();
+
+                    b.HasIndex("SubStationId", "ReadingDate", "ReadingStatusLookupId")
+                        .HasDatabaseName("IX_SubStationReadings_SubStation_Date_Status")
+                        .HasFilter("[DeletedAt] IS NULL");
 
                     b.ToTable("SubStationReadings");
                 });
@@ -4778,6 +5227,17 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.ToTable("UserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("FuelTrack.Domain.Models.AttachmentLink", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.Attachment", "Attachment")
+                        .WithMany("Links")
+                        .HasForeignKey("AttachmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Attachment");
+                });
+
             modelBuilder.Entity("FuelTrack.Domain.Models.Controller", b =>
                 {
                     b.HasOne("FuelTrack.Domain.Models.Generator", "Generator")
@@ -5379,6 +5839,17 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Navigation("Branch");
                 });
 
+            modelBuilder.Entity("FuelTrack.Domain.Models.StationOperationalSettings", b =>
+                {
+                    b.HasOne("FuelTrack.Domain.Models.Station", "Station")
+                        .WithOne("OperationalSettings")
+                        .HasForeignKey("FuelTrack.Domain.Models.StationOperationalSettings", "StationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Station");
+                });
+
             modelBuilder.Entity("FuelTrack.Domain.Models.SubStation", b =>
                 {
                     b.HasOne("FuelTrack.Domain.Models.Station", "Station")
@@ -5682,6 +6153,11 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Navigation("Feedback");
                 });
 
+            modelBuilder.Entity("FuelTrack.Domain.Models.Attachment", b =>
+                {
+                    b.Navigation("Links");
+                });
+
             modelBuilder.Entity("FuelTrack.Domain.Models.Branch", b =>
                 {
                     b.Navigation("Stations");
@@ -5741,16 +6217,21 @@ namespace FuelTrack.Infrastructure.Migrations
 
             modelBuilder.Entity("FuelTrack.Domain.Models.Station", b =>
                 {
+                    b.Navigation("OperationalSettings");
+
                     b.Navigation("SubStations");
                 });
 
             modelBuilder.Entity("FuelTrack.Domain.Models.SubStation", b =>
                 {
+                    b.Navigation("Feeders");
                     b.Navigation("FuelTanks");
 
                     b.Navigation("Generators");
 
                     b.Navigation("Meters");
+
+                    b.Navigation("OperationalSubmissions");
                 });
 
             modelBuilder.Entity("FuelTrack.Domain.Models.User", b =>
@@ -5774,6 +6255,24 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Navigation("Logs");
 
                     b.Navigation("Tasks");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.Feeder", b =>
+                {
+                    b.Navigation("LoadReadings");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.FuelTank", b =>
+                {
+                    b.Navigation("LevelReadings");
+                });
+
+            modelBuilder.Entity("FuelTrack.Domain.Models.OperationalSubmission", b =>
+                {
+                    b.Navigation("FeederLoadReadings");
+                    b.Navigation("GeneratorReadings");
+                    b.Navigation("MeterReadings");
+                    b.Navigation("TankLevelReadings");
                 });
 #pragma warning restore 612, 618
         }

@@ -18,7 +18,6 @@ public class RequestLoggingMiddleware
         var sw = Stopwatch.StartNew();
         var method = context.Request.Method;
         var path = context.Request.Path;
-        var query = context.Request.QueryString.ToString();
         var userAgent = context.Request.Headers.UserAgent.ToString();
         var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
@@ -33,15 +32,15 @@ public class RequestLoggingMiddleware
                       : LogLevel.Information;
 
             _logger.Log(level,
-                "[HTTP] {Method} {Path}{Query} responded {StatusCode} in {ElapsedMs}ms | IP={IP} UA={UserAgent}",
-                method, path, query, statusCode, sw.ElapsedMilliseconds, ip, userAgent);
+                "[HTTP] {Method} {Path} responded {StatusCode} in {ElapsedMs}ms | IP={IP} UA={UserAgent}",
+                method, path, statusCode, sw.ElapsedMilliseconds, ip, userAgent);
         }
         catch (Exception ex)
         {
             sw.Stop();
             _logger.LogError(ex,
-                "[HTTP] {Method} {Path}{Query} failed after {ElapsedMs}ms | IP={IP}",
-                method, path, query, sw.ElapsedMilliseconds, ip);
+                "[HTTP] {Method} {Path} failed after {ElapsedMs}ms | IP={IP}",
+                method, path, sw.ElapsedMilliseconds, ip);
             throw;
         }
     }

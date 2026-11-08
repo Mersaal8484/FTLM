@@ -3,6 +3,8 @@ using System.Text.Json;
 using FuelTrack.Domain.Models;
 using FuelTrack.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using FuelTrack.Application.Interfaces;
+using FuelTrack.API.MultiTenancy;
 
 namespace FuelTrack.API.Middleware;
 
@@ -107,7 +109,7 @@ public class AuditLoggingMiddleware
 
         if (method is "PUT" or "PATCH")
         {
-            bodyBefore = await ReadExistingEntityAsync(entityName, path);
+            bodyBefore = await ReadExistingEntityAsync(context, entityName, path);
         }
 
         var originalResponseBody = context.Response.Body;
@@ -125,7 +127,7 @@ public class AuditLoggingMiddleware
             }
             else if (method is "DELETE")
             {
-                bodyBefore = await ReadExistingEntityAsync(entityName, path);
+                bodyBefore = await ReadExistingEntityAsync(context, entityName, path);
             }
 
             responseBodyBuffer.Position = 0;
@@ -137,7 +139,7 @@ public class AuditLoggingMiddleware
 
             if (context.Response.StatusCode is >= 200 and < 300)
             {
-                _ = SaveAuditLogAsync(userId, action, entityName, entityId, bodyBefore, bodyAfter, context.Connection.RemoteIpAddress?.ToString());
+                await SaveAuditLogAsync(context, userId, action, entityName, entityId, bodyBefore, bodyAfter, context.Connection.RemoteIpAddress?.ToString());
             }
         }
         catch (Exception ex)
@@ -192,7 +194,7 @@ public class AuditLoggingMiddleware
         return claim is not null ? int.Parse(claim.Value) : 0;
     }
 
-    private async Task<string?> ReadExistingEntityAsync(string entityName, string path)
+    private async Task<string?> ReadExistingEntityAsync(HttpContext context, string entityName, string path)
     {
         try
         {
@@ -202,6 +204,7 @@ public class AuditLoggingMiddleware
                 return null;
 
             using var scope = _scopeFactory.CreateScope();
+            CopyTenantContext(context, scope.ServiceProvider);
             var db = scope.ServiceProvider.GetRequiredService<FuelTrackDbContext>();
 
             if (!EntityTypes.TryGetValue(entityName, out var entityType))
@@ -217,11 +220,12 @@ public class AuditLoggingMiddleware
         }
     }
 
-    private async Task SaveAuditLogAsync(int userId, string action, string entityName, int entityId, string? oldValues, string? newValues, string? ip)
+    private async Task SaveAuditLogAsync(HttpContext context, int userId, string action, string entityName, int entityId, string? oldValues, string? newValues, string? ip)
     {
         try
         {
             using var scope = _scopeFactory.CreateScope();
+            CopyTenantContext(context, scope.ServiceProvider);
             var db = scope.ServiceProvider.GetRequiredService<FuelTrackDbContext>();
 
             db.AuditLogs.Add(new AuditLog
@@ -243,5 +247,13 @@ public class AuditLoggingMiddleware
         {
             _logger.LogError(ex, "[AUDIT] Failed to save audit log for {Action} on {Entity}", action, entityName);
         }
+    }
+
+    private static void CopyTenantContext(HttpContext context, IServiceProvider services)
+    {
+        var source = context.RequestServices.GetService<ITenantRequestContext>();
+        if (source?.TenantId is not Guid tenantId || string.IsNullOrWhiteSpace(source.DatabaseConnection)) return;
+        var target = services.GetRequiredService<TenantRequestContext>();
+        target.Initialize(tenantId, source.DatabaseConnection);
     }
 }

@@ -40,7 +40,7 @@ async function fetchTokenAndStart() {
   }
 }
 
-if (import.meta.env.MODE !== 'test') {
+if (import.meta.env.MODE !== 'test' && import.meta.env.VITE_LOCAL_DEMO !== 'true') {
   fetchTokenAndStart();
 }
 

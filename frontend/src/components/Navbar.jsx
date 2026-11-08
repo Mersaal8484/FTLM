@@ -8,7 +8,7 @@ function NavigationBar({ t = {}, onToggleLanguage, isAuthenticated, onLogout }) 
     <header className="navbar-custom shadow-sm" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '10px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: 1200, margin: '0 auto' }}>
         <NavLink to="/" style={{ fontSize: 18, fontWeight: 700, color: 'var(--primary)', textDecoration: 'none' }}>
-          {t.brand || 'FuelTrack'}
+          {t.brand || 'Bitbus'}
         </NavLink>
         
         <nav style={{ display: 'flex', alignItems: 'center', gap: 16 }}>

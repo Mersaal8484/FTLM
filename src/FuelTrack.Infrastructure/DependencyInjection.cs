@@ -2,6 +2,7 @@ using FuelTrack.Application.Common;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Infrastructure.Migrations;
 using FuelTrack.Infrastructure.Services;
+using FuelTrack.Infrastructure.Storage;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -20,18 +21,26 @@ public static class DependencyInjection
         services.AddDbContext<FuelTrackDbContext>((sp, options) =>
         {
             var connStr = configuration.GetConnectionString("DefaultConnection") ?? "";
-            if (connStr.Contains(".db", StringComparison.OrdinalIgnoreCase))
+            if (configuration.GetValue<bool>("MultiTenancy:Enabled"))
+            {
+                var tenant = sp.GetService<ITenantRequestContext>();
+                if (tenant?.TenantId is null || string.IsNullOrWhiteSpace(tenant.DatabaseConnection))
+                    throw new InvalidOperationException("A trusted tenant database context is required.");
+                options.UseNpgsql(tenant.DatabaseConnection);
+            }
+            else if (connStr.Contains(".db", StringComparison.OrdinalIgnoreCase))
             {
                 options.UseSqlite(connStr);
             }
             else
             {
-                options.UseSqlServer(connStr,
-                    sqlOptions =>
-                    {
-                        sqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
-                        sqlOptions.CommandTimeout(120);
-                    });
+                // Bitbus is PostgreSQL-first in both single-tenant development and
+                // Platform tenant schemas. SQL Server is no longer a runtime target.
+                options.UseNpgsql(connStr, postgres =>
+                {
+                    postgres.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
+                    postgres.CommandTimeout(120);
+                });
             }
 
             options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
@@ -94,7 +103,8 @@ public static class DependencyInjection
         services.AddScoped<IUserScopeFilterService, UserScopeFilterService>();
         services.AddDistributedMemoryCache();
         services.AddMemoryCache();
-        services.AddSingleton<ICacheService, HybridCacheService>();
+        services.AddSingleton<HybridCacheService>();
+        services.AddScoped<ICacheService, TenantAwareCacheService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IEmailService, SmtpEmailService>();
         services.AddSingleton<ISecretsValidator, StartupSecretsValidator>();
@@ -102,6 +112,16 @@ public static class DependencyInjection
         services.AddScoped<IDataArchivalService, DataArchivalService>();
         services.AddScoped<IComplianceService, ComplianceService>();
         services.AddScoped<ITwoFactorService, TwoFactorService>();
+        services.AddScoped<IStationOperationalSettingsService, StationOperationalSettingsService>();
+        services.AddScoped<ICustomerFeatureService, CustomerFeatureService>();
+        services.AddScoped<IIdempotencyService, IdempotencyService>();
+        services.Configure<AttachmentStorageOptions>(configuration.GetSection(AttachmentStorageOptions.SectionName));
+        services.AddSingleton<IAttachmentStorage, PrivateFileAttachmentStorage>();
+        services.AddScoped<IAttachmentService, AttachmentService>();
+        services.AddScoped<IOperationalCaptureService, OperationalCaptureService>();
+        services.AddScoped<ITankCalibrationService, TankCalibrationService>();
+        services.AddScoped<IFeederService, FeederService>();
+        services.AddScoped<IFuelLoadSafetyService, FuelLoadSafetyService>();
 
         // Migration lock
         services.AddScoped<MigrationLockService>();

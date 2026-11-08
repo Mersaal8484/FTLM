@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>إدارة FuelTrack</title>
+    <link rel="stylesheet" href="~/admin.css" asp-append-version="true" />
+    <script src="~/admin.js" asp-append-version="true" defer></script>
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-inner">
+            <a class="brand" asp-page="/Index" aria-label="FuelTrack - لوحة الإدارة">
+                <span class="brand-mark" aria-hidden="true">F</span>
+                <span><strong>FuelTrack</strong><small>لوحة إدارة المنصة</small></span>
+            </a>
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                var page = ViewContext.RouteData.Values["page"]?.ToString();
+                <nav class="main-nav" aria-label="القائمة الرئيسية">
+                    <a asp-page="/Index" class="@(page == "/Index" ? "active" : "")">المستأجرون</a>
+                    <a asp-page="/Plans" class="@(page == "/Plans" ? "active" : "")">الباقات</a>
+                    <a asp-page="/Subscriptions" class="@(page == "/Subscriptions" ? "active" : "")">الاشتراكات</a>
+                </nav>
+                <form method="post" asp-page="/Logout" class="logout-form"><button class="button-ghost" type="submit">تسجيل الخروج <span aria-hidden="true">↗</span></button></form>
+            }
+        </div>
+    </header>
+    <main class="main-content">@RenderBody()</main>
+</body>
+</html>

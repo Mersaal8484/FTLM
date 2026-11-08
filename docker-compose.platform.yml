@@ -1,0 +1,38 @@
+# Development-only platform stack. It does not replace the current customer API.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fueltrack_platform
+      POSTGRES_USER: fueltrack_platform
+      POSTGRES_PASSWORD: "${PLATFORM_DB_PASSWORD:?Set PLATFORM_DB_PASSWORD}"
+    volumes:
+      - platform_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fueltrack_platform -d fueltrack_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  admin:
+    build:
+      context: .
+      dockerfile: src/FuelTrack.Admin/Dockerfile
+      args:
+        NUGET_SOURCE: "${NUGET_SOURCE:-https://api.nuget.org/v3/index.json}"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Platform: "Host=postgres;Database=fueltrack_platform;Username=fueltrack_platform;Password=${PLATFORM_DB_PASSWORD:?Set PLATFORM_DB_PASSWORD}"
+      PlatformAdmin__Username: "${PLATFORM_ADMIN_USERNAME:?Set PLATFORM_ADMIN_USERNAME}"
+      PlatformAdmin__PasswordHash: "${PLATFORM_ADMIN_PASSWORD_HASH:?Set PLATFORM_ADMIN_PASSWORD_HASH}"
+      Platform__AutoMigrate: "true"
+    ports:
+      - "127.0.0.1:${PLATFORM_ADMIN_PORT:-3010}:8080"
+
+volumes:
+  platform_postgres_data:

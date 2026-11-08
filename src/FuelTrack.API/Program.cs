@@ -12,6 +12,8 @@ using FuelTrack.Domain.Models;
 using FuelTrack.Infrastructure;
 using FuelTrack.Infrastructure.Data;
 using FuelTrack.Infrastructure.Services;
+using FuelTrack.Platform;
+using FuelTrack.API.MultiTenancy;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Hangfire;
@@ -27,13 +29,75 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 
+// Offline maintenance command. All customer API replicas must be stopped and the
+// tenant suspended before invoking it; existing requests cannot be drained here.
+if (args.Length > 0 && args[0] == "--rotate-tenant-key")
+{
+    if (args.Length != 4 || !Guid.TryParse(args[1], out var rotationTenantId) || args[3] != "--traffic-drained")
+        throw new InvalidOperationException("Usage: --rotate-tenant-key TENANT_ID NEW_KEY_ID --traffic-drained");
+    var connection = Environment.GetEnvironmentVariable("ConnectionStrings__Platform")
+        ?? throw new InvalidOperationException("ConnectionStrings__Platform is required.");
+    var keyDirectory = Environment.GetEnvironmentVariable("TenantCredentials__KeyDirectory")
+        ?? throw new InvalidOperationException("TenantCredentials__KeyDirectory is required.");
+    var options = new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(connection).Options;
+    await using var platform = new PlatformDbContext(options);
+    var tenant = new TenantRequestContext();
+    tenant.Initialize(rotationTenantId, connection);
+    var count = await new TenantKeyRotationCoordinator(platform, tenant, new FileTenantCredentialKeyProvider(keyDirectory))
+        .RotateAsync(rotationTenantId, args[2]);
+    Console.WriteLine($"Rotation completed for {count} two-factor secrets. Retain old keys until backups and rollback policy allow removal.");
+    return;
+}
+
 Log.Logger = new LoggerConfiguration()
+    // Hosting diagnostics include the raw query string, including SignalR bearer tokens.
+    .MinimumLevel.Override("Microsoft.AspNetCore.Hosting.Diagnostics", Serilog.Events.LogEventLevel.Warning)
     .WriteTo.Console()
     .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Fail closed until request-to-tenant identity, secret-backed tenant connections,
+// tenant-scoped SignalR and background jobs are integrated and verified together.
+var tenantProofMode = builder.Environment.IsEnvironment("Testing") &&
+    builder.Configuration.GetValue<bool>("MultiTenancy:DisposableProof");
+// Local demonstration is deliberately limited to registered localhost hosts. Its
+// container ports must be published to loopback only; realtime is unavailable.
+var localDemoMode = builder.Environment.IsDevelopment() &&
+    builder.Configuration.GetValue<bool>("MultiTenancy:LocalDemo") &&
+    builder.Configuration.GetValue<bool>("MultiTenancy:Enabled");
+if (tenantProofMode)
+{
+    var testUrl = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+    var testDatabase = new Npgsql.NpgsqlConnectionStringBuilder(builder.Configuration.GetConnectionString("Platform") ?? "");
+    if (!Uri.TryCreate(testUrl, UriKind.Absolute, out var bindAddress) ||
+        !bindAddress.IsLoopback || !string.Equals(testDatabase.Database, "model_proof", StringComparison.Ordinal))
+        throw new InvalidOperationException("Tenant proof mode requires a loopback listener and the disposable model_proof database.");
+}
+if (builder.Configuration.GetValue<bool>("MultiTenancy:Enabled") && !tenantProofMode && !localDemoMode)
+    throw new InvalidOperationException("Multi-tenant API access is not enabled until tenant isolation is fully integrated.");
+
 builder.Host.UseSerilog();
+
+if (builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
+{
+    var platformConnection = builder.Configuration.GetConnectionString("Platform")
+        ?? throw new InvalidOperationException("Platform connection is required.");
+    var keyDirectory = builder.Configuration["TenantCredentials:KeyDirectory"]
+        ?? throw new InvalidOperationException("Tenant credential key directory is required.");
+    builder.Services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(platformConnection,
+        postgres => postgres.MigrationsHistoryTable("__EFMigrationsHistory", "platform")));
+    builder.Services.AddSingleton<ITenantCredentialKeyProvider>(new FileTenantCredentialKeyProvider(keyDirectory));
+    builder.Services.AddScoped<TenantCredentialReader>();
+    builder.Services.AddScoped<TenantAccessResolver>();
+    builder.Services.AddScoped<TenantRequestContext>();
+    builder.Services.AddScoped<ITenantRequestContext>(sp => sp.GetRequiredService<TenantRequestContext>());
+    builder.Services.AddScoped<ITwoFactorSecretProtector, TenantTwoFactorSecretProtector>();
+    builder.Services.AddScoped<TenantTwoFactorKeyRotator>();
+    builder.Services.AddSingleton<TenantArchivalRunner>();
+    if (builder.Configuration.GetValue<bool>("MultiTenancy:EnableMaintenanceJobs"))
+        builder.Services.AddHostedService<TenantMaintenanceScheduler>();
+}
 
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
@@ -62,6 +126,12 @@ builder.Services.AddScoped<IWarehouseReportService, WarehouseReportService>();
 builder.Services.AddScoped<IWorkPermitService, WorkPermitService>();
 builder.Services.AddScoped<IInstalledPartService, InstalledPartService>();
 builder.Services.AddScoped<IMaintenanceDashboardService, MaintenanceDashboardService>();
+
+// Phase 3: Review, approval and derived data
+builder.Services.AddScoped<IMeterDeltaService, MeterDeltaService>();
+builder.Services.AddScoped<IOperationalReviewService, OperationalReviewService>();
+builder.Services.AddScoped<IEnergyBalanceService, EnergyBalanceService>();
+builder.Services.AddScoped<IFuelLoadSafetyService, FuelLoadSafetyService>();
 
 var jwtKey = builder.Configuration["JwtSettings:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.StartsWith("{"))
@@ -267,7 +337,8 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-if (!builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase) && !builder.Environment.IsDevelopment())
+if (!builder.Configuration.GetValue<bool>("MultiTenancy:Enabled") &&
+    !builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase) && !builder.Environment.IsDevelopment())
 {
     builder.Services.AddHangfire(config => config
         .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -312,6 +383,23 @@ if (!string.IsNullOrEmpty(otelEndpoint))
 
 var app = builder.Build();
 
+if (localDemoMode)
+{
+    app.Use(async (context, next) =>
+    {
+        var host = context.Request.Host.Host;
+        var label = host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase) ? host[..^".localhost".Length] : "";
+        if (label.Length is < 1 or > 63 || label[0] == '-' || label[^1] == '-' ||
+            label.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-') ||
+            context.Request.Path.StartsWithSegments("/hubs"))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+        await next();
+    });
+}
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
@@ -348,6 +436,8 @@ if (app.Environment.IsDevelopment() || enableSwagger)
 }
 
 app.UseAuthentication();
+if (builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
+    app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseAuthorization();
 app.UseMiddleware<PermissionEnforcementMiddleware>();
 
@@ -410,6 +500,9 @@ if (!string.IsNullOrEmpty(otelEndpoint) && app.Services.GetService<OpenTelemetry
     app.MapPrometheusScrapingEndpoint("/metrics");
 }
 
+// Tenant schemas are provisioned separately; startup has no tenant request context
+// and must never run single-database migrations or seed a shared administrator.
+if (!builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<FuelTrackDbContext>();
@@ -477,6 +570,8 @@ using (var scope = app.Services.CreateScope())
     await RetryAsync("ModuleRegistrySeed", () => FuelTrack.Infrastructure.Data.ModuleRegistrySeed.SeedAsync(dbContext));
     var permGen = new FuelTrack.Infrastructure.Data.PermissionGenerator(dbContext);
     await RetryAsync("PermissionGenerator", () => permGen.GenerateAllPermissionsAsync());
+    await RetryAsync("CustomerFeatureSettingsSeed", () => FuelTrack.Infrastructure.Data.CustomerFeatureSettingsSeed.SeedAsync(dbContext));
+    await RetryAsync("OperationalReferenceDataSeed", () => FuelTrack.Infrastructure.Data.OperationalReferenceDataSeed.SeedAsync(dbContext));
     if (dbContext.Database.IsRelational())
     {
         await Task.Delay(1000);
@@ -588,6 +683,11 @@ using (var scope = app.Services.CreateScope())
         "oil-stock-alerts",
         job => job.ExecuteAsync(CancellationToken.None),
         Cron.Daily);
+
+    recurringJobManager.AddOrUpdate<OperatingLimitEvaluationJob>(
+        "operating-limit-evaluation",
+        job => job.ExecuteAsync(CancellationToken.None),
+        Cron.Hourly);
 
     recurringJobManager.AddOrUpdate<SparePartReplacementAlertJob>(
         "spare-part-replacement-alerts",

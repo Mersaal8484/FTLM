@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: tenant_proof
+      POSTGRES_USER: proof_admin
+      POSTGRES_PASSWORD: proof_admin_only_local
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proof_admin -d tenant_proof"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  proof:
+    build:
+      context: ../..
+      dockerfile: tests/TenantIsolation.Proof/Dockerfile
+      args:
+        NUGET_SOURCE: "${NUGET_SOURCE:-https://api.nuget.org/v3/index.json}"
+    environment:
+      PROOF_DATABASE: "Host=postgres;Database=tenant_proof;Username=proof_admin;Password=proof_admin_only_local"
+    depends_on:
+      postgres:
+        condition: service_healthy

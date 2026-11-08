@@ -3,13 +3,17 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import client from '../api/client';
 import { Eye, EyeOff } from 'lucide-react';
+import useTenantBranding from '../hooks/useTenantBranding';
 
 function Login({ onLogin }) {
   const { t } = useTranslation();
+  const branding = useTenantBranding();
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [challenge, setChallenge] = useState(null);
+  const [code, setCode] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -18,8 +22,16 @@ function Login({ onLogin }) {
     setLoading(true);
     setError('');
     try {
-      const payload = { userName: form.email, password: form.password };
-      await client.post('/api/auth/login', payload);
+      if (challenge) {
+        await client.post('/api/auth/login/2fa', { tempToken: challenge, code });
+      } else {
+        const response = await client.post('/api/auth/login', { userName: form.email, password: form.password });
+        if (response.data?.requiresTwoFactor && response.data?.tempToken) {
+          setChallenge(response.data.tempToken);
+          setForm(previous => ({ ...previous, password: '' }));
+          return;
+        }
+      }
       
       const meRes = await client.get('/api/auth/me');
       const user = meRes.data;
@@ -28,7 +40,8 @@ function Login({ onLogin }) {
       navigate(user?.mustChangePassword ? '/force-password-change' : from, { replace: true });
     } catch (err) {
       const msg = err.response?.data?.msg;
-      setError(msg || t('auth.invalidCredentials'));
+      setError(challenge ? t('auth.twoFactorRetry') : (msg || t('auth.invalidCredentials')));
+      if (challenge) { setChallenge(null); setCode(''); }
     } finally {
       setLoading(false);
     }
@@ -37,20 +50,17 @@ function Login({ onLogin }) {
   return (
     <div className="login-page">
       <div className="login-card">
-        <div className="login-logo">
+        {branding.logoUrl && <div className="login-logo">
           <img
-            src="/pec-logo.png"
-            alt="PEC"
+            src={branding.logoUrl}
+            alt={branding.name}
             onError={e => { e.target.style.display = 'none'; }}
           />
-        </div>
+        </div>}
 
         <h1 className="login-title">
-          {t('common.appName')}
+          {branding.name}
         </h1>
-        <p className="login-sub">
-          {t('common.pec')}
-        </p>
         <p className="login-desc">
           {t('common.systemName')}
         </p>
@@ -60,7 +70,7 @@ function Login({ onLogin }) {
         )}
 
         <form onSubmit={handleSubmit}>
-          <div className="form-group" style={{ marginBottom: 16 }}>
+          {!challenge && <><div className="form-group" style={{ marginBottom: 16 }}>
             <label className="form-label">
               {t('common.email')}
             </label>
@@ -104,6 +114,11 @@ function Login({ onLogin }) {
               {t('auth.forgotPassword')}
             </Link>
           </div>
+          </>}
+          {challenge && <div className="form-group" style={{ marginBottom: 24 }}>
+            <label className="form-label" htmlFor="two-factor-code">{t('auth.twoFactorCode')}</label>
+            <input id="two-factor-code" className="form-control" autoComplete="one-time-code" pattern="([0-9]{6}|[0-9a-fA-F]{32})" maxLength={32} value={code} onChange={e => setCode(e.target.value)} required />
+          </div>}
 
           <button
             className="btn btn-primary login-btn"

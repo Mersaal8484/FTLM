@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../src/FuelTrack.Domain/MultiTenancy/TenantIdentity.cs" Link="TenantIdentity.cs" />
+    <Compile Include="../../src/FuelTrack.Domain/MultiTenancy/PlatformTenant.cs" Link="PlatformTenant.cs" />
+    <Compile Include="../../src/FuelTrack.Domain/MultiTenancy/SubscriptionPlan.cs" Link="SubscriptionPlan.cs" />
+    <Compile Include="../../src/FuelTrack.Domain/MultiTenancy/PlatformSubscription.cs" Link="PlatformSubscription.cs" />
+    <Compile Include="../../src/FuelTrack.Platform/PlatformDbContext.cs" Link="PlatformDbContext.cs" />
+    <Compile Include="../../src/FuelTrack.Platform/TenantAccessResolver.cs" Link="TenantAccessResolver.cs" />
+    <Compile Include="../../src/FuelTrack.Platform/Migrations/202611030001_InitialPlatform.cs" Link="InitialPlatform.cs" />
+    <Compile Include="../../src/FuelTrack.Platform/Migrations/202611030002_Subscriptions.cs" Link="Subscriptions.cs" />
+  </ItemGroup>
+</Project>

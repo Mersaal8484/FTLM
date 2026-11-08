@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: proof
+      POSTGRES_USER: proof_admin
+      POSTGRES_PASSWORD: proof_only_password
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proof_admin -d proof"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+  admin:
+    image: "${PROOF_ADMIN_IMAGE:-ftm-platform-admin}"
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "mkdir -p /tmp/keys; echo AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= > /tmp/keys/proof.key; chmod 600 /tmp/keys/proof.key; exec dotnet FuelTrack.Admin.dll"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Platform: "Host=postgres;Database=proof;Username=proof_admin;Password=proof_only_password"
+      PlatformAdmin__Username: proof-admin
+      PlatformAdmin__PasswordHash: "${PROOF_ADMIN_HASH:?Set PROOF_ADMIN_HASH}"
+      Platform__AutoMigrate: "true"
+      TenantProvisioning__KeyDirectory: /tmp/keys
+      TenantProvisioning__KeyId: proof
+    depends_on:
+      postgres:
+        condition: service_healthy
+  proof:
+    image: node:22-alpine
+    working_dir: /proof
+    entrypoint: ["node", "/proof/proof.mjs"]
+    volumes:
+      - ./proof.mjs:/proof/proof.mjs:ro
+    depends_on:
+      admin:
+        condition: service_started

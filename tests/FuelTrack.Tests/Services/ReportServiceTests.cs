@@ -410,6 +410,29 @@ public class ReportServiceTests : IDisposable
     // ─── GetDashboardStatsAsync - Edge Cases ──────────────────────────────────
 
     [Fact]
+    public async Task Reports_NonAdminWithoutScopes_ReturnNoOperationalData()
+    {
+        var user = new StubCurrentUserService { IsAdmin = false, IsSystemOwner = false };
+        var service = new ReportService(_db, new NullCacheService(), user, new StubUserScopeFilterService());
+
+        var dashboard = await service.GetDashboardStatsAsync(null, null, null, null, null);
+        var efficiency = await service.GetEfficiencyReportAsync(null, null, null, null, null, 1, 20);
+        var fuel = await service.GetFuelTransactionsReportAsync(null, null, null, null, null, 1, 20);
+        var oil = await service.GetOilTransactionsReportAsync(null, null, null, null, null, 1, 20);
+        var inventory = await service.GetPeriodicInventoryReportAsync(null, null, null, null, null, 1, 20);
+
+        Assert.Equal(0, dashboard.System.TotalBranches);
+        Assert.Equal(0, dashboard.System.TotalStations);
+        Assert.Equal(0, dashboard.System.TotalSubStations);
+        Assert.Equal(0, dashboard.System.TotalGenerators);
+        Assert.Empty(dashboard.Fuel.TankLevels);
+        Assert.Empty(efficiency.Items);
+        Assert.Empty(fuel.Items);
+        Assert.Empty(oil.Items);
+        Assert.Empty(inventory.Items);
+    }
+
+    [Fact]
     public async Task GetDashboardStatsAsync_ReturnsEmptyWhenNoData()
     {
         // Fresh database with only hierarchy, no transactions or readings

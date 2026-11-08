@@ -8,12 +8,16 @@ import {
 } from 'lucide-react';
 import usePermissions from '../permissions/usePermissions';
 import useUiStore from '../store/uiStore';
+import useTenantBranding from '../hooks/useTenantBranding';
+import { useTranslation } from 'react-i18next';
 
 
 function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onLogout }) {
+  const branding = useTenantBranding();
   const navigate = useNavigate();
   const ar = lang === 'ar';
   const { setLang } = useUiStore();
+  const { t } = useTranslation();
 
   const roleKey = currentUser?.role || 'operator';
   const userRoles = (currentUser?.roles || []).map(r => (typeof r === 'string' ? r.toLowerCase() : ''));
@@ -89,6 +93,7 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
 
   const mainNav = [
     { to: '/', icon: LayoutDashboard, label: ar ? 'لوحة التحكم' : 'Dashboard', show: can('dashboard') },
+    { to: '/operations', icon: Zap, label: t('operational.navigation'), show: can('operational_data', 'view') },
     { to: '/my-generators', icon: Zap, label: ar ? 'مولداتي' : 'My Generators', show: hasRole('operator') || roleKey === 'operator' },
     { to: '/generators/overview', icon: Zap, label: ar ? 'عرض المولدات' : 'Generators Overview', show: canExplicit('generators', 'view') },
     { to: '/stock/fuel', icon: Database, label: ar ? 'مخزون الوقود' : 'Fuel Stock', show: can('inventory') },
@@ -144,11 +149,11 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
       <div className={`mobile-sidebar-overlay${mobileOpen ? ' open' : ''}`} onClick={closeMobile} />
       <aside className={`sidebar${mobileOpen ? ' open' : ''}`}>
         <div className="sidebar-logo" onClick={() => { navigate('/'); closeMobile(); }} style={{ cursor: 'pointer' }}>
-          <div className="sidebar-logo-icon">
-             <img src="/pec-logo.png" alt="PEC" onError={e => e.target.style.display = 'none'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-          </div>
+          {branding.logoUrl && <div className="sidebar-logo-icon">
+             <img src={branding.logoUrl} alt={branding.name} onError={e => e.target.style.display = 'none'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>}
           <div className="sidebar-logo-text" style={{ flex: 1 }}>
-            <div className="sidebar-logo-name">FuelTrack</div>
+            <div className="sidebar-logo-name">{branding.name}</div>
             <div className="sidebar-logo-sub">{ar ? 'نظام تتبع الوقود والطاقة' : 'Energy Tracking'}</div>
           </div>
         </div>
@@ -232,7 +237,7 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
 
           <div className="sidebar-section-title">{ar ? 'القائمة الرئيسية' : 'Main Menu'}</div>
           {mainNav.map(({ to, icon: Icon, label }) => (
-            <NavLink key={to} to={to} end={to === '/'} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+            <NavLink key={to} to={to} end={to === '/' || to === '/maintenance'} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
               <Icon size={18} strokeWidth={1.8} />
               <span>{label}</span>
             </NavLink>

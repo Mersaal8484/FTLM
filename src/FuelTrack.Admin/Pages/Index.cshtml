@@ -1,0 +1,104 @@
+@page
+@model FuelTrack.Admin.Pages.IndexModel
+<div class="page-heading">
+    <div><span class="eyebrow">إدارة المنصة / المستأجرون</span><h1>المستأجرون</h1><p>إدارة حسابات المستأجرين وتجهيز قواعد بياناتهم من مكان واحد.</p></div>
+    <div class="heading-count"><span>إجمالي المستأجرين</span><strong>@Model.TotalTenants</strong></div>
+</div>
+@if (!string.IsNullOrEmpty(Model.Error)) { <div class="alert alert-error" role="alert">@Model.Error</div> }
+@if (!string.IsNullOrEmpty(Model.Success)) { <div class="alert alert-success" role="status">@Model.Success</div> }
+<div class="stats-grid" aria-label="ملخص المستأجرين">
+    <div class="stat-card"><span>إجمالي المستأجرين</span><strong>@Model.TotalTenants</strong></div>
+    <div class="stat-card"><span>قيد التجهيز</span><strong>@Model.ProvisioningCount</strong></div>
+    <div class="stat-card"><span>المستأجرون النشطون</span><strong>@Model.ActiveCount</strong></div>
+</div>
+<section class="card">
+    <div class="card-heading"><div><h2>إضافة مستأجر</h2><p>أدخل بيانات المستأجر الأساسية للبدء بتجهيزه.</p></div><span class="card-icon" aria-hidden="true">＋</span></div>
+    <form method="post" class="form-grid tenant-create">
+        <label>اسم المستأجر <input asp-for="Name" maxlength="200" placeholder="مثال: شركة الأفق" required /></label>
+        <label>النطاق الفرعي <input asp-for="Host" maxlength="253" placeholder="@(Model.CanActivateLocalDemo ? "company" : "client.example.com")" dir="ltr" required /></label>
+        <button type="submit">إضافة مستأجر <span aria-hidden="true">＋</span></button>
+    </form>
+    <p class="form-note">@(Model.CanActivateLocalDemo ? "أدخل اسماً للنطاق الفرعي مثل company ليكون الرابط company.localhost. يُسجّل المستأجر قيد التجهيز." : "يُسجّل المستأجر بحالة قيد التجهيز؛ لا يُفعّل وصوله حتى يجهز مخططه.")</p>
+</section>
+<section class="card list-card">
+    <div class="card-heading"><div><h2>قائمة المستأجرين</h2><p>تابع حالة التسجيل وتجهيز قاعدة البيانات.</p></div><span class="count-badge">@Model.ResultCount نتيجة</span></div>
+    <form method="get" class="search-form" role="search">
+        <label for="tenant-search" class="visually-hidden">البحث باسم المستأجر أو نطاقه</label>
+        <input id="tenant-search" name="q" value="@Model.Q" maxlength="100" placeholder="ابحث باسم المستأجر أو النطاق" />
+        <button type="submit" class="button-secondary">بحث</button>
+        @if (Model.Q is not null) { <a asp-page="/Index" class="clear-link">مسح البحث</a> }
+    </form>
+    @if (!Model.CanProvision) { <div class="alert alert-info">تجهيز قواعد المستأجرين غير متاح حتى يُضبط مفتاح التشفير.</div> }
+    @if (Model.Tenants.Count == 0) { <div class="empty-state">@(Model.Q is null ? "لا يوجد مستأجرون بعد. أضف أول مستأجر للبدء." : "لا توجد نتائج مطابقة للبحث.")</div> }
+    else {
+    <div class="table-wrap"><table><thead><tr><th>المستأجر</th><th>النطاق</th><th>الحالة</th><th>التجهيز</th></tr></thead><tbody>
+    @foreach (var tenant in Model.Tenants) {
+        <tr><td data-label="المستأجر"><strong>@tenant.Name</strong></td><td data-label="النطاق">
+        @if (Model.CanActivateLocalDemo && tenant.Status == FuelTrack.Domain.MultiTenancy.PlatformTenantStatus.Active && tenant.Host.EndsWith(".localhost", StringComparison.Ordinal)) {
+            <a class="domain" dir="ltr" href="@($"http://{tenant.Host}:3000/login")" target="_blank" rel="noopener noreferrer">@tenant.Host</a>
+        } else { <span class="domain" dir="ltr">@tenant.Host</span> }
+        </td><td data-label="الحالة"><span class="status-badge status-@tenant.Status.ToString().ToLowerInvariant()" title="@tenant.Status">@(tenant.Status switch { FuelTrack.Domain.MultiTenancy.PlatformTenantStatus.Provisioning => "قيد التجهيز", FuelTrack.Domain.MultiTenancy.PlatformTenantStatus.Active => "نشط", FuelTrack.Domain.MultiTenancy.PlatformTenantStatus.Suspended => "موقوف", _ => "مؤرشف" })</span></td><td data-label="التجهيز">
+        @if (tenant.IsProvisioned) {
+            <span class="provisioned-label">✓ بيانات التجهيز محفوظة</span>
+            @if (Model.CanProvision && tenant.Status == FuelTrack.Domain.MultiTenancy.PlatformTenantStatus.Provisioning) {
+                <form method="post" asp-page-handler="Provision" class="verify-form">
+                    <input type="hidden" name="id" value="@tenant.Id" />
+                    <button type="submit" class="button-secondary">التحقق من التجهيز</button>
+                </form>
+            }
+        }
+        else if (Model.CanProvision && tenant.Status == FuelTrack.Domain.MultiTenancy.PlatformTenantStatus.Provisioning) {
+            <details class="provision-details"><summary>تجهيز قاعدة البيانات</summary>
+            <form method="post" asp-page-handler="Provision" class="provision-form">
+                <input type="hidden" name="id" value="@tenant.Id" />
+                <label>بريد المدير <input type="email" name="adminEmail" maxlength="256" placeholder="admin@example.com" dir="ltr" required /></label>
+                <label>كلمة مرور المدير <input type="password" name="adminPassword" minlength="12" maxlength="128" autocomplete="new-password" required /></label>
+                <small>12 حرفاً على الأقل، تشمل حرفاً كبيراً وصغيراً ورقماً ورمزاً خاصاً.</small>
+                <button type="submit">تجهيز قاعدة البيانات</button>
+            </form>
+            </details>
+        }
+        @if (tenant.Status == FuelTrack.Domain.MultiTenancy.PlatformTenantStatus.Active) {
+            <form method="post" asp-page-handler="Suspend" class="verify-form"><input type="hidden" name="id" value="@tenant.Id" /><button type="submit" class="button-secondary">تعليق المستأجر</button></form>
+        }
+        @if (Model.CanActivateLocalDemo && tenant.Status == FuelTrack.Domain.MultiTenancy.PlatformTenantStatus.Provisioning && tenant.IsProvisioned && tenant.Host.EndsWith(".localhost", StringComparison.Ordinal)) {
+            <form method="post" asp-page-handler="ActivateDemo" class="verify-form"><input type="hidden" name="id" value="@tenant.Id" /><button type="submit">تفعيل المستأجر محلياً</button></form>
+        }
+        @if (tenant.Status == FuelTrack.Domain.MultiTenancy.PlatformTenantStatus.Suspended) {
+            <form method="post" asp-page-handler="Resume" class="verify-form"><input type="hidden" name="id" value="@tenant.Id" /><button type="submit" class="button-secondary" disabled="@(!Model.CanResume)">استئناف المستأجر</button></form>
+            @if (!Model.CanResume) { <small>الاستئناف متاح بعد اكتمال جاهزية خدمة العملاء.</small> }
+        }</td></tr>
+        <tr class="branding-row"><td colspan="4">
+          <details class="branding-editor">
+            <summary><span class="branding-summary-icon" aria-hidden="true">✦</span><span><strong>هوية واجهة العميل</strong><small>تعديل الاسم الظاهر والشعار</small></span><span class="branding-chevron" aria-hidden="true">⌄</span></summary>
+            <form method="post" enctype="multipart/form-data" asp-page-handler="Branding" class="branding-form" data-branding-form>
+                <input type="hidden" name="id" value="@tenant.Id" />
+                <div class="branding-layout">
+                    <div class="branding-preview">
+                        <span class="branding-preview-label">معاينة الهوية</span>
+                        <div class="branding-avatar" data-branding-avatar>
+                            <img data-branding-image src="@(tenant.HasLogo ? Url.Page("/Index", "Logo", new { id = tenant.Id }) : "")" alt="شعار @tenant.DisplayName" hidden="@(!tenant.HasLogo)" />
+                            <span data-branding-initial hidden="@(tenant.HasLogo)">@(tenant.DisplayName.Length > 0 ? tenant.DisplayName[..1].ToUpperInvariant() : "•")</span>
+                        </div>
+                        <strong data-branding-name>@tenant.DisplayName</strong>
+                        <small>كما تظهر للعميل</small>
+                    </div>
+                    <div class="branding-fields">
+                        <div class="branding-field"><label for="display-@tenant.Id">الاسم الظاهر للعميل</label><input id="display-@tenant.Id" name="displayName" value="@tenant.DisplayName" maxlength="200" required data-branding-input /><small>يظهر في صفحة الدخول وواجهة العميل، دون تغيير اسم الاشتراك.</small></div>
+                        <div class="branding-field"><label for="logo-@tenant.Id">شعار العميل</label><input id="logo-@tenant.Id" type="file" name="logo" accept="image/png,image/jpeg,image/webp" data-branding-file /><small>PNG أو JPEG أو WebP · حتى 1 ميجابايت</small></div>
+                        @if (tenant.HasLogo) { <label class="branding-remove"><input type="checkbox" name="removeLogo" value="true" data-branding-remove /> إزالة الشعار الحالي</label> }
+                        <div class="branding-actions"><button type="submit">حفظ التغييرات</button><span>اترك الصورة فارغة للاحتفاظ بالشعار الحالي.</span></div>
+                    </div>
+                </div>
+            </form>
+          </details>
+        </td></tr>
+    }</tbody></table></div> }
+    @if (Model.PageCount > 1) {
+        <nav class="pagination" aria-label="صفحات المستأجرين">
+            @if (Model.PageNumber > 1) { <a asp-page="/Index" asp-route-q="@Model.Q" asp-route-PageNumber="@(Model.PageNumber - 1)">السابق</a> }
+            <span>صفحة @Model.PageNumber من @Model.PageCount</span>
+            @if (Model.PageNumber < Model.PageCount) { <a asp-page="/Index" asp-route-q="@Model.Q" asp-route-PageNumber="@(Model.PageNumber + 1)">التالي</a> }
+        </nav>
+    }
+</section>
