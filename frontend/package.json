@@ -20,7 +20,7 @@
     "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.2.0",
     "react-i18next": "^17.1.9",
-    "react-router-dom": "^6.11.2",
+    "react-router-dom": "^7.18.5",
     "xlsx-js-style": "^1.2.0",
     "zustand": "^5.0.16"
   },
