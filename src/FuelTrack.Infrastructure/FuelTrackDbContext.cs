@@ -2479,6 +2479,8 @@ namespace FuelTrack.Infrastructure
                 entity.Property(e => e.TimeZone).HasMaxLength(80);
                 entity.Property(e => e.OilPressureUnit).HasMaxLength(16);
                 entity.Property(e => e.ProducedVsSentWarningThresholdPercent).HasPrecision(5, 2);
+                entity.Property(e => e.AverageLoadWarningTolerancePercent).HasPrecision(5, 2);
+                entity.Property(e => e.FuelReconciliationWarningThresholdPercent).HasPrecision(5, 2);
             });
 
             modelBuilder.Entity<Attachment>(entity =>

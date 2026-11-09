@@ -21,6 +21,8 @@ public sealed class FuelLoadSafetyService(
     INotificationService notifications,
     ILogger<FuelLoadSafetyService>? logger = null) : IFuelLoadSafetyService
 {
+    private sealed record DailyLogActiveLoad(DateTime CapturedAtUtc, decimal? ActiveLoadKw);
+
     public async Task<Result<FuelConsumptionReportDto>> GetConsumptionAsync(
         int generatorId, DateTime fromUtc, DateTime toUtc, int userId, CancellationToken ct = default)
     {
@@ -125,7 +127,8 @@ public sealed class FuelLoadSafetyService(
         var stationSettings = subStation != null
             ? await db.StationOperationalSettings.AsNoTracking().FirstOrDefaultAsync(s => s.StationId == subStation.StationId, ct)
             : null;
-        var thresholdPct = stationSettings?.ProducedVsSentWarningThresholdPercent ?? 10m;
+        var thresholdPct = stationSettings?.FuelReconciliationWarningThresholdPercent
+            ?? StationOperationalSettings.DefaultFuelReconciliationWarningThresholdPercent;
 
         var tanks = await db.FuelTanks.AsNoTracking().Where(t => t.SubStationId == subStationId)
             .Select(t => new { t.Id, t.Name, t.ParentTankId }).ToListAsync(ct);
@@ -251,7 +254,54 @@ public sealed class FuelLoadSafetyService(
             false,
             ParseWarnings(x.WarningsJson))).ToList();
 
-        return Result<OperationalDailyLogDto>.Success(new(generatorId, businessDate, result));
+        var hourlyProduction = await GetHourlyProductionAsync(
+            generatorId,
+            businessDate,
+            rows.Select(row => new DailyLogActiveLoad(row.CapturedAtUtc, row.ActiveLoadKw)),
+            ct);
+        return Result<OperationalDailyLogDto>.Success(new(generatorId, businessDate, result, hourlyProduction));
+    }
+
+    private async Task<IReadOnlyList<HourlyProductionPointDto>> GetHourlyProductionAsync(
+        int generatorId,
+        DateOnly businessDate,
+        IEnumerable<DailyLogActiveLoad> rows,
+        CancellationToken ct)
+    {
+        var startUtc = businessDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var endUtc = startUtc.AddDays(1);
+        var meterValues = await db.MeterReadings.AsNoTracking()
+            .Where(r => r.SubjectType == MeterReadingSubjectType.GeneratorEnergyProduced && r.SubjectId == generatorId
+                && r.Kind == MeterReadingKind.Periodic && r.CapturedAtUtc < endUtc
+                && ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
+            .OrderBy(r => r.CapturedAtUtc).ThenBy(r => r.Id)
+            .Select(r => new { r.CapturedAtUtc, Value = r.RawValue * r.MultiplierSnapshot })
+            .ToListAsync(ct);
+
+        var activeLoadByHour = rows
+            .Where(row => row.ActiveLoadKw is not null)
+            .GroupBy(row => row.CapturedAtUtc.Hour)
+            .ToDictionary(group => group.Key, group => (decimal?)group.Last().ActiveLoadKw.Value);
+        var points = new List<HourlyProductionPointDto>(24);
+        for (var hour = 0; hour < 24; hour++)
+        {
+            var slotStart = startUtc.AddHours(hour);
+            var slotEnd = slotStart.AddHours(1);
+            var current = meterValues.LastOrDefault(value => value.CapturedAtUtc >= slotStart && value.CapturedAtUtc < slotEnd);
+            var previous = current is null ? null : meterValues.LastOrDefault(value => value.CapturedAtUtc < current.CapturedAtUtc);
+            var hasHourlyCadence = current is not null && previous is not null
+                && current.CapturedAtUtc - previous.CapturedAtUtc <= TimeSpan.FromMinutes(90)
+                && current.Value >= previous.Value;
+            if (hasHourlyCadence)
+            {
+                points.Add(new HourlyProductionPointDto(slotStart, current!.Value - previous!.Value, false));
+                continue;
+            }
+
+            activeLoadByHour.TryGetValue(hour, out var activeLoad);
+            points.Add(new HourlyProductionPointDto(slotStart, activeLoad, true));
+        }
+        return points;
     }
 
     public async Task EvaluateOnReceiptAsync(int generatorReadingId, CancellationToken ct = default)
@@ -444,10 +494,10 @@ public sealed class FuelLoadSafetyService(
         {
             var expected = reading.ApparentLoadKva.Value * reading.PowerFactor.Value;
             if (expected > 0 && Math.Abs(reading.ActiveLoadKw.Value - expected) / expected > .10m)
-                warnings.Add("Active load differs from kVA � PF by more than 10%.");
+                warnings.Add("Active load differs from kVA × PF by more than 10%.");
         }
 
-        // 2) Three-phase kVA � v3 * V * A / 1000 (15%)
+        // 2) Three-phase kVA ≈ √3 × V × A / 1000 (15%)
         if (reading.LineVoltageVolts.HasValue && reading.CurrentAmps.HasValue && reading.ApparentLoadKva.HasValue
             && reading.LineVoltageVolts > 0 && reading.CurrentAmps > 0 && reading.ApparentLoadKva > 0)
         {
@@ -456,7 +506,7 @@ public sealed class FuelLoadSafetyService(
             var expectedKva = (decimal)(Math.Sqrt(3.0) * v * a / 1000.0);
             if (expectedKva > 0 && Math.Abs(reading.ApparentLoadKva.Value - expectedKva) / expectedKva > 0.15m)
             {
-                warnings.Add("Three-phase kVA differs from v3�V�A/1000 by more than 15%.");
+                warnings.Add("Three-phase kVA differs from √3 × V × A / 1000 by more than 15%.");
             }
         }
 
