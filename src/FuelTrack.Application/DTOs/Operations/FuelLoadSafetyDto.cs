@@ -47,5 +47,13 @@ public sealed record OperationalTrendPointDto(
     bool IsEstimated,
     IReadOnlyList<string> Markers);
 
+public sealed record HourlyProductionPointDto(
+    DateTime SlotStartUtc,
+    decimal? Kwh,
+    bool IsEstimated);
+
 public sealed record OperationalDailyLogDto(
-    int GeneratorId, DateOnly BusinessDate, IReadOnlyList<OperationalTrendPointDto> Rows);
+    int GeneratorId,
+    DateOnly BusinessDate,
+    IReadOnlyList<OperationalTrendPointDto> Rows,
+    IReadOnlyList<HourlyProductionPointDto> HourlyProduction);

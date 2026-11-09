@@ -471,4 +471,91 @@ public sealed class FuelLoadSafetyServiceTests
         Assert.Equal(202, queue[0].Id);
         Assert.DoesNotContain(queue, s => s.Id == 201);
     }
+
+    [Fact]
+    public async Task OperationalCompleteness_UsesStationInterval_AndFlagsAverageLoadMismatch()
+    {
+        await using var db = CreateDb();
+        var (_, _, generatorId, _, submissionId) = await SeedBaseAsync(db);
+        var date = new DateOnly(2026, 11, 8);
+        var start = new DateTime(2026, 11, 8, 0, 0, 0, DateTimeKind.Utc);
+        var settings = await db.StationOperationalSettings.SingleAsync();
+        settings.TimeZone = "UTC";
+        settings.MissingDataIntervalMinutes = 60;
+        settings.AverageLoadWarningTolerancePercent = 15m;
+
+        db.OperationalGeneratorReadings.AddRange(
+            new OperationalGeneratorReading { OperationalSubmissionId = submissionId, GeneratorId = generatorId, ClientLineId = Guid.NewGuid(), CapturedAtUtc = start, ReceivedAtUtc = start, BusinessDate = date, Status = OperationalReadingStatus.Recorded, ActiveLoadKw = 100m, CreatedAt = start, UpdatedAt = start },
+            new OperationalGeneratorReading { OperationalSubmissionId = submissionId, GeneratorId = generatorId, ClientLineId = Guid.NewGuid(), CapturedAtUtc = start.AddHours(1), ReceivedAtUtc = start.AddHours(1), BusinessDate = date, Status = OperationalReadingStatus.Recorded, ActiveLoadKw = 100m, CreatedAt = start, UpdatedAt = start });
+        db.MeterReadings.AddRange(
+            new MeterReading { OperationalSubmissionId = submissionId, ClientLineId = Guid.NewGuid(), SubjectType = MeterReadingSubjectType.GeneratorEnergyProduced, SubjectId = generatorId, Kind = MeterReadingKind.DailyClosing, CapturedAtUtc = start.AddDays(-1), ReceivedAtUtc = start, BusinessDate = date.AddDays(-1), Status = OperationalReadingStatus.Recorded, RawValue = 100m, MultiplierSnapshot = 1m, CreatedAt = start, UpdatedAt = start },
+            new MeterReading { OperationalSubmissionId = submissionId, ClientLineId = Guid.NewGuid(), SubjectType = MeterReadingSubjectType.GeneratorEnergyProduced, SubjectId = generatorId, Kind = MeterReadingKind.DailyClosing, CapturedAtUtc = start.AddHours(23), ReceivedAtUtc = start, BusinessDate = date, Status = OperationalReadingStatus.Recorded, RawValue = 200m, MultiplierSnapshot = 1m, CreatedAt = start, UpdatedAt = start },
+            new MeterReading { OperationalSubmissionId = submissionId, ClientLineId = Guid.NewGuid(), SubjectType = MeterReadingSubjectType.GeneratorRunningHours, SubjectId = generatorId, Kind = MeterReadingKind.DailyClosing, CapturedAtUtc = start.AddDays(-1), ReceivedAtUtc = start, BusinessDate = date.AddDays(-1), Status = OperationalReadingStatus.Recorded, RawValue = 10m, MultiplierSnapshot = 1m, CreatedAt = start, UpdatedAt = start },
+            new MeterReading { OperationalSubmissionId = submissionId, ClientLineId = Guid.NewGuid(), SubjectType = MeterReadingSubjectType.GeneratorRunningHours, SubjectId = generatorId, Kind = MeterReadingKind.DailyClosing, CapturedAtUtc = start.AddHours(23), ReceivedAtUtc = start, BusinessDate = date, Status = OperationalReadingStatus.Recorded, RawValue = 12m, MultiplierSnapshot = 1m, CreatedAt = start, UpdatedAt = start });
+        await db.SaveChangesAsync();
+
+        var result = await new OperationalCompletenessService(db, new SiteScope()).GetAsync(generatorId, date, 1);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(50m, result.Value!.AverageLoadKw);
+        Assert.Equal(100m, result.Value.MeanActiveLoadKw);
+        Assert.True(result.Value.AverageLoadWarning);
+        Assert.DoesNotContain("00:00", result.Value.MissingSlots);
+        Assert.Contains("02:00", result.Value.MissingSlots);
+        Assert.False(result.Value.MissingDailyClosing);
+    }
+
+    [Fact]
+    public async Task FeederCompleteness_UsesScope_AndReportsMissingSlots()
+    {
+        await using var db = CreateDb();
+        var (_, subStationId, _, _, submissionId) = await SeedBaseAsync(db);
+        var date = new DateOnly(2026, 11, 8);
+        var capturedAt = new DateTime(2026, 11, 8, 0, 0, 0, DateTimeKind.Utc);
+        var settings = await db.StationOperationalSettings.SingleAsync();
+        settings.TimeZone = "UTC";
+        var feeder = new Feeder { Id = 40, SubStationId = subStationId, Code = "F1", Name = "Feeder 1", CreatedAt = capturedAt, UpdatedAt = capturedAt };
+        db.Feeders.Add(feeder);
+        db.FeederLoadReadings.Add(new FeederLoadReading { OperationalSubmissionId = submissionId, FeederId = feeder.Id, ClientLineId = Guid.NewGuid(), CapturedAtUtc = capturedAt, ReceivedAtUtc = capturedAt, BusinessDate = date, Status = OperationalReadingStatus.Recorded, CreatedAt = capturedAt, UpdatedAt = capturedAt });
+        db.MeterReadings.Add(new MeterReading { OperationalSubmissionId = submissionId, ClientLineId = Guid.NewGuid(), SubjectType = MeterReadingSubjectType.FeederEnergySent, SubjectId = feeder.Id, Kind = MeterReadingKind.DailyClosing, CapturedAtUtc = capturedAt.AddHours(23), ReceivedAtUtc = capturedAt, BusinessDate = date, Status = OperationalReadingStatus.Recorded, RawValue = 50m, MultiplierSnapshot = 1m, CreatedAt = capturedAt, UpdatedAt = capturedAt });
+        await db.SaveChangesAsync();
+
+        var result = await new OperationalCompletenessService(db, new SiteScope()).GetFeederAsync(feeder.Id, date, 1);
+
+        Assert.True(result.IsSuccess);
+        Assert.DoesNotContain("00:00", result.Value!.MissingSlots);
+        Assert.Contains("01:00", result.Value.MissingSlots);
+        Assert.False(result.Value.MissingDailyClosing);
+    }
+
+    [Fact]
+    public async Task DailyLog_HourlyProduction_LabelsActiveLoadFallbackAsEstimated()
+    {
+        await using var db = CreateDb();
+        var (_, _, generatorId, _, submissionId) = await SeedBaseAsync(db);
+        var date = new DateOnly(2026, 11, 8);
+        var capturedAt = new DateTime(2026, 11, 8, 0, 0, 0, DateTimeKind.Utc);
+        db.OperationalGeneratorReadings.Add(new OperationalGeneratorReading
+        {
+            OperationalSubmissionId = submissionId,
+            GeneratorId = generatorId,
+            ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = capturedAt,
+            ReceivedAtUtc = capturedAt,
+            BusinessDate = date,
+            Status = OperationalReadingStatus.Recorded,
+            ActiveLoadKw = 33m,
+            CreatedAt = capturedAt,
+            UpdatedAt = capturedAt
+        });
+        await db.SaveChangesAsync();
+
+        var result = await new FuelLoadSafetyService(db, new SiteScope(), new TrackingNotificationService())
+            .GetDailyLogAsync(generatorId, date, 1);
+
+        Assert.True(result.IsSuccess);
+        var firstHour = Assert.Single(result.Value!.HourlyProduction.Where(point => point.SlotStartUtc == capturedAt));
+        Assert.Equal(33m, firstHour.Kwh);
+        Assert.True(firstHour.IsEstimated);
+    }
 }

@@ -12,6 +12,7 @@
     <EmbeddedResource Include="MultiTenancy/002_bitbus_operational_capture.sql" LogicalName="FuelTrack.Tenants.002_bitbus_operational_capture.sql" />
     <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/003_phase3_review_columns.sql" Link="MultiTenancy/003_phase3_review_columns.sql" LogicalName="FuelTrack.Tenants.003_phase3_review_columns.sql" />
     <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/004_phase3b_fuel_load.sql" Link="MultiTenancy/004_phase3b_fuel_load.sql" LogicalName="FuelTrack.Tenants.004_phase3b_fuel_load.sql" />
+    <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/005_phase3b_operational_indicators.sql" Link="MultiTenancy/005_phase3b_operational_indicators.sql" LogicalName="FuelTrack.Tenants.005_phase3b_operational_indicators.sql" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FuelTrack.Domain\FuelTrack.Domain.csproj" />

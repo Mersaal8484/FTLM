@@ -16,4 +16,11 @@ public sealed class OperationalCompletenessController(OperationalCompletenessSer
         var result = await service.GetAsync(generatorId, businessDate, GetUserId(), ct);
         return result.IsSuccess ? Ok(result.Value) : StatusCode(result.StatusCode, new { error = result.Error });
     }
+
+    [HttpGet("feeders/{feederId:int}/{businessDate}")]
+    public async Task<IActionResult> GetFeeder(int feederId, DateOnly businessDate, CancellationToken ct)
+    {
+        var result = await service.GetFeederAsync(feederId, businessDate, GetUserId(), ct);
+        return result.IsSuccess ? Ok(result.Value) : StatusCode(result.StatusCode, new { error = result.Error });
+    }
 }

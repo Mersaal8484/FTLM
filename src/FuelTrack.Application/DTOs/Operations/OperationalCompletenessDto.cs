@@ -7,5 +7,12 @@ public sealed record OperationalCompletenessDto(
     decimal? AverageLoadKw,
     decimal? MeanActiveLoadKw,
     bool AverageLoadWarning,
-    IReadOnlyList<int> MissingHours,
+    IReadOnlyList<string> MissingSlots,
+    bool MissingDailyClosing);
+
+/// <summary>Read-only quality indicators for one feeder business day.</summary>
+public sealed record FeederOperationalCompletenessDto(
+    int FeederId,
+    DateOnly BusinessDate,
+    IReadOnlyList<string> MissingSlots,
     bool MissingDailyClosing);

@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Download, AlertTriangle, FileText } from 'lucide-react';
+import { Bar } from 'react-chartjs-2';
+import { BarElement, CategoryScale, Chart as ChartJS, Legend, LinearScale, Tooltip } from 'chart.js';
 import client from '../api/client';
 import { PageHeader, Button } from '../components/ui';
 import { exportToExcel } from './reports/utils/reportExport';
 import { exportToPdf } from '../utils/pdfExport';
+
+ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
 export default function OperationalDailyLog() {
   const { t } = useTranslation();
@@ -58,15 +62,25 @@ export default function OperationalDailyLog() {
   };
 
   const exportColumns = [
-    ['hour', 'capturedAtUtc'], ['activeKw', 'activeLoadKw'], ['apparentKva', 'apparentLoadKva'],
+    ['hour', 'displayHour'], ['activeKw', 'activeLoadKw'], ['apparentKva', 'apparentLoadKva'],
     ['pf', 'powerFactor'], ['frequency', 'frequencyHz'], ['lineVoltage', 'lineVoltageVolts'],
     ['current', 'currentAmps'], ['oilPress', 'oilPressure'], ['waterTemp', 'waterTemperatureCelsius'],
     ['oilTemp', 'oilTemperatureCelsius'], ['peakKw', 'peakLoadKw'], ['markers', 'markers'],
   ].map(([key, accessor]) => ({ header: t(`operational.log.${key}`), accessor }));
 
-  const exportRows = () => (logData?.rows || []).map(row => ({
+  const displayRows = () => {
+    const readingsByHour = new Map((logData?.rows || []).map(row => [new Date(row.capturedAtUtc).getHours(), row]));
+    return Array.from({ length: 24 }, (_, hour) => {
+      const reading = readingsByHour.get(hour);
+      return reading
+        ? { ...reading, displayHour: new Date(reading.capturedAtUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+        : { displayHour: `${String(hour).padStart(2, '0')}:00`, isGap: true, markers: [t('operational.log.hourGap')] };
+    });
+  };
+
+  const exportRows = () => displayRows().map(row => ({
     ...row,
-    capturedAtUtc: new Date(row.capturedAtUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    displayHour: row.displayHour,
     markers: row.markers?.join(', ') || '',
   }));
 
@@ -77,6 +91,41 @@ export default function OperationalDailyLog() {
     t('operational.log.dailyTitle'),
     `daily-log-${generatorId}-${businessDate}.pdf`,
   );
+
+  const productionChart = useMemo(() => {
+    const points = logData?.hourlyProduction || [];
+    if (!points.some(point => point.kwh != null)) return null;
+    return {
+      labels: points.map(point => new Date(point.slotStartUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
+      datasets: [{
+        label: t('operational.log.hourlyProduction'),
+        data: points.map(point => point.kwh),
+        backgroundColor: points.map(point => point.isEstimated ? 'rgba(245, 158, 11, 0.82)' : 'rgba(45, 212, 191, 0.86)'),
+        borderRadius: 4,
+        borderSkipped: false,
+      }],
+      estimated: points.some(point => point.isEstimated && point.kwh != null),
+    };
+  }, [logData, t]);
+
+  const productionChartOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: context => `${context.raw ?? '-'} kWh`,
+          afterLabel: context => productionChart?.estimated && logData?.hourlyProduction?.[context.dataIndex]?.isEstimated
+            ? t('operational.log.estimatedFromLoad') : t('operational.log.measured'),
+        },
+      },
+    },
+    scales: {
+      x: { ticks: { color: 'var(--text-muted)' }, grid: { display: false } },
+      y: { beginAtZero: true, ticks: { color: 'var(--text-muted)' }, grid: { color: 'rgba(148, 163, 184, 0.14)' } },
+    },
+  }), [logData, productionChart?.estimated, t]);
 
   return (
     <div className="capture-page operational-shell" style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
@@ -133,13 +182,29 @@ export default function OperationalDailyLog() {
         </div>
       )}
 
-      {completeness && (completeness.averageLoadWarning || completeness.missingHours?.length || completeness.missingDailyClosing) && (
+      {completeness && (completeness.averageLoadWarning || completeness.missingSlots?.length || completeness.missingDailyClosing) && (
         <div style={{ padding: 12, borderRadius: 8, background: 'var(--operational-amber-subtle)', border: '1px solid var(--operational-amber)', color: 'var(--text)', marginBottom: 16 }}>
           <AlertTriangle size={16} style={{ verticalAlign: 'middle', marginInlineEnd: 6, color: 'var(--operational-amber)' }} />
           {completeness.averageLoadWarning && <span>{t('operational.log.averageLoadWarning')} </span>}
-          {completeness.missingHours?.length > 0 && <span>{t('operational.log.missingHours', { hours: completeness.missingHours.join(', ') })} </span>}
+          {completeness.missingSlots?.length > 0 && <span>{t('operational.log.missingHours', { hours: completeness.missingSlots.join(', ') })} </span>}
           {completeness.missingDailyClosing && <span>{t('operational.log.missingDailyClosing')}</span>}
         </div>
+      )}
+
+      {productionChart && (
+        <section style={{ marginBottom: 16, padding: 18, borderRadius: 12, border: '1px solid var(--border)', background: 'linear-gradient(145deg, var(--surface), var(--surface-2))' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>{t('operational.log.hourlyProduction')}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('operational.log.productionMethod')}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--text-muted)' }}>
+              <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 2, background: 'rgba(45, 212, 191, 0.86)', marginInlineEnd: 5 }} />{t('operational.log.measured')}</span>
+              <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 2, background: 'rgba(245, 158, 11, 0.82)', marginInlineEnd: 5 }} />{t('operational.log.estimatedFromLoad')}</span>
+            </div>
+          </div>
+          <div style={{ height: 210 }}><Bar data={productionChart} options={productionChartOptions} /></div>
+        </section>
       )}
 
       {loading ? (
@@ -166,9 +231,9 @@ export default function OperationalDailyLog() {
               </tr>
             </thead>
             <tbody>
-              {logData.rows.map((row, idx) => (
-                <tr key={idx} style={{ borderBottom: '1px solid var(--border)', background: idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-2)' }}>
-                  <td style={{ padding: '8px', fontWeight: 600 }}>{new Date(row.capturedAtUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+              {displayRows().map((row, idx) => (
+                <tr key={row.displayHour} style={{ borderBottom: '1px solid var(--border)', background: row.isGap ? 'rgba(245,158,11,0.08)' : idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-2)' }}>
+                  <td style={{ padding: '8px', fontWeight: 600 }}>{row.displayHour}</td>
                   <td style={{ padding: '8px', fontWeight: 600, color: 'var(--operational-amber)' }}>{row.activeLoadKw != null ? row.activeLoadKw : '-'}</td>
                   <td style={{ padding: '8px' }}>{row.apparentLoadKva != null ? row.apparentLoadKva : '-'}</td>
                   <td style={{ padding: '8px' }}>{row.powerFactor != null ? row.powerFactor : '-'}</td>
