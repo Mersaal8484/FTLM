@@ -12,6 +12,7 @@ export default function OperationalDailyLog() {
   const [generatorId, setGeneratorId] = useState('');
   const [businessDate, setBusinessDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [logData, setLogData] = useState(null);
+  const [completeness, setCompleteness] = useState(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -30,11 +31,16 @@ export default function OperationalDailyLog() {
     setLoading(true);
     setErrorMsg('');
     try {
-      const res = await client.get(`/api/fuel-load-safety/generators/${generatorId}/daily-log/${businessDate}`);
-      setLogData(res.data);
+      const [log, quality] = await Promise.all([
+        client.get(`/api/fuel-load-safety/generators/${generatorId}/daily-log/${businessDate}`),
+        client.get(`/api/operational-completeness/generators/${generatorId}/${businessDate}`),
+      ]);
+      setLogData(log.data);
+      setCompleteness(quality.data);
     } catch (err) {
       setErrorMsg(err.response?.data?.error || 'Failed to fetch operational log');
       setLogData(null);
+      setCompleteness(null);
     } finally {
       setLoading(false);
     }
@@ -124,6 +130,15 @@ export default function OperationalDailyLog() {
       {errorMsg && (
         <div style={{ padding: 12, borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', color: '#ef4444', marginBottom: 16 }}>
           <AlertTriangle size={16} style={{ verticalAlign: 'middle', marginInlineEnd: 6 }} /> {errorMsg}
+        </div>
+      )}
+
+      {completeness && (completeness.averageLoadWarning || completeness.missingHours?.length || completeness.missingDailyClosing) && (
+        <div style={{ padding: 12, borderRadius: 8, background: 'var(--operational-amber-subtle)', border: '1px solid var(--operational-amber)', color: 'var(--text)', marginBottom: 16 }}>
+          <AlertTriangle size={16} style={{ verticalAlign: 'middle', marginInlineEnd: 6, color: 'var(--operational-amber)' }} />
+          {completeness.averageLoadWarning && <span>{t('operational.log.averageLoadWarning')} </span>}
+          {completeness.missingHours?.length > 0 && <span>{t('operational.log.missingHours', { hours: completeness.missingHours.join(', ') })} </span>}
+          {completeness.missingDailyClosing && <span>{t('operational.log.missingDailyClosing')}</span>}
         </div>
       )}
 
