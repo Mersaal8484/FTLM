@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Download, AlertTriangle } from 'lucide-react';
+import { Download, AlertTriangle, FileText } from 'lucide-react';
 import client from '../api/client';
 import { PageHeader, Button } from '../components/ui';
+import { exportToExcel } from './reports/utils/reportExport';
+import { exportToPdf } from '../utils/pdfExport';
 
 export default function OperationalDailyLog() {
   const { t } = useTranslation();
@@ -49,6 +51,27 @@ export default function OperationalDailyLog() {
     window.open(`/api/fuel-load-safety/generators/${generatorId}/daily-log/${businessDate}.csv`, '_blank');
   };
 
+  const exportColumns = [
+    ['hour', 'capturedAtUtc'], ['activeKw', 'activeLoadKw'], ['apparentKva', 'apparentLoadKva'],
+    ['pf', 'powerFactor'], ['frequency', 'frequencyHz'], ['lineVoltage', 'lineVoltageVolts'],
+    ['current', 'currentAmps'], ['oilPress', 'oilPressure'], ['waterTemp', 'waterTemperatureCelsius'],
+    ['oilTemp', 'oilTemperatureCelsius'], ['peakKw', 'peakLoadKw'], ['markers', 'markers'],
+  ].map(([key, accessor]) => ({ header: t(`operational.log.${key}`), accessor }));
+
+  const exportRows = () => (logData?.rows || []).map(row => ({
+    ...row,
+    capturedAtUtc: new Date(row.capturedAtUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    markers: row.markers?.join(', ') || '',
+  }));
+
+  const handleExportExcel = () => exportToExcel(exportRows(), exportColumns, `daily-log-${generatorId}-${businessDate}`);
+  const handleExportPdf = () => exportToPdf(
+    exportColumns.map(column => column.header),
+    exportRows().map(row => exportColumns.map(column => row[column.accessor] ?? '')),
+    t('operational.log.dailyTitle'),
+    `daily-log-${generatorId}-${businessDate}.pdf`,
+  );
+
   return (
     <div className="capture-page operational-shell" style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
@@ -56,9 +79,17 @@ export default function OperationalDailyLog() {
           title={t('operational.log.dailyTitle')}
           subtitle={t('operational.log.dailySubtitle')}
         />
-        <Button onClick={handleDownloadCsv} disabled={!generatorId || !logData?.rows?.length}>
-          <Download size={16} /> {t('operational.log.exportCsv')}
-        </Button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button onClick={handleDownloadCsv} disabled={!generatorId || !logData?.rows?.length}>
+            <Download size={16} /> {t('operational.log.exportCsv')}
+          </Button>
+          <Button onClick={handleExportExcel} disabled={!generatorId || !logData?.rows?.length}>
+            <Download size={16} /> {t('operational.log.exportExcel')}
+          </Button>
+          <Button onClick={handleExportPdf} disabled={!generatorId || !logData?.rows?.length}>
+            <FileText size={16} /> {t('operational.log.exportPdf')}
+          </Button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', margin: '20px 0', alignItems: 'center' }}>
