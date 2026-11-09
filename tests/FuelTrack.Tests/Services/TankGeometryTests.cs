@@ -62,4 +62,26 @@ public sealed class TankGeometryTests
     [Fact]
     public void RequiredFactorFixture_IsAccurate() =>
         Assert.Equal(2303.83m, TankGeometry.CalculateLitres(Diameter, CylinderHeight, ConeHeight, 1.1m, 100m), 2);
+
+    [Theory]
+    [InlineData(25, 65.45)]
+    [InlineData(50, 523.60)]
+    [InlineData(100, 2094.40)]
+    [InlineData(200, 5235.99)]
+    public void CalculateLiquidLevelCm_DerivedFromLitres_MatchesOriginalLevel(decimal originalLevelCm, decimal expectedLitres)
+    {
+        var derivedLevel = TankGeometry.CalculateLiquidLevelCm(Diameter, CylinderHeight, ConeHeight, 1m, expectedLitres);
+        Assert.Equal(originalLevelCm, derivedLevel, 1);
+    }
+
+    [Fact]
+    public void DeadStockInput_InCmOrLitres_ProducesEquivalentCalculatedVolume()
+    {
+        var deadStockCm = 25m;
+        var litresFromCm = TankGeometry.CalculateLitres(Diameter, CylinderHeight, ConeHeight, 1m, deadStockCm);
+        var cmFromLitres = TankGeometry.CalculateLiquidLevelCm(Diameter, CylinderHeight, ConeHeight, 1m, litresFromCm);
+
+        Assert.Equal(65.45m, litresFromCm, 2);
+        Assert.Equal(deadStockCm, cmFromLitres, 2);
+    }
 }

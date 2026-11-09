@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -557,5 +557,284 @@ public sealed class FuelLoadSafetyServiceTests
         var firstHour = Assert.Single(result.Value!.HourlyProduction.Where(point => point.SlotStartUtc == capturedAt));
         Assert.Equal(33m, firstHour.Kwh);
         Assert.True(firstHour.IsEstimated);
+    }
+
+    [Fact]
+    public async Task FuelServices_UserOutsideScope_ReturnsNotFoundOrForbidden()
+    {
+        await using var db = CreateDb();
+        var (_, _, generatorId, _, _) = await SeedBaseAsync(db);
+        var outsideScope = new Mock<IUserScopeFilterService>();
+        outsideScope.Setup(s => s.GetAccessibleSubStationIdsAsync(It.IsAny<int>()))
+            .ReturnsAsync(new List<int>());
+        outsideScope.Setup(s => s.HasAccessToSubStationAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(false);
+
+        var service = new FuelLoadSafetyService(db, outsideScope.Object, new TrackingNotificationService());
+
+        var consumption = await service.GetConsumptionAsync(generatorId, DateTime.UtcNow.AddDays(-1), DateTime.UtcNow, 999);
+        Assert.False(consumption.IsSuccess);
+
+        var reconciliation = await service.GetReconciliationAsync(10, DateTime.UtcNow.AddDays(-1), DateTime.UtcNow, 999);
+        Assert.False(reconciliation.IsSuccess);
+    }
+
+    [Fact]
+    public async Task FuelConsumption_LateArrivingReading_RecalculatesSegmentsCorrectly()
+    {
+        await using var db = CreateDb();
+        var (_, _, generatorId, tankId, submissionId) = await SeedBaseAsync(db);
+        var baseTime = new DateTime(2026, 11, 8, 10, 0, 0, DateTimeKind.Utc);
+        var date = new DateOnly(2026, 11, 8);
+
+        db.TankLevelReadings.AddRange(
+            new TankLevelReading { OperationalSubmissionId = submissionId, FuelTankId = tankId, ClientLineId = Guid.NewGuid(), CapturedAtUtc = baseTime, ReceivedAtUtc = baseTime, BusinessDate = date, Status = OperationalReadingStatus.Recorded, EventType = TankEventType.Level, ComputedLitres = 300m, CylinderHeightCmSnapshot = 150m, ConeHeightCmSnapshot = 50m, MultiplicationFactorSnapshot = 1m, CreatedAt = baseTime, UpdatedAt = baseTime },
+            new TankLevelReading { OperationalSubmissionId = submissionId, FuelTankId = tankId, ClientLineId = Guid.NewGuid(), CapturedAtUtc = baseTime.AddHours(2), ReceivedAtUtc = baseTime.AddHours(2), BusinessDate = date, Status = OperationalReadingStatus.Recorded, EventType = TankEventType.Level, ComputedLitres = 200m, CylinderHeightCmSnapshot = 150m, ConeHeightCmSnapshot = 50m, MultiplicationFactorSnapshot = 1m, CreatedAt = baseTime.AddHours(2), UpdatedAt = baseTime.AddHours(2) }
+        );
+        await db.SaveChangesAsync();
+
+        var service = new FuelLoadSafetyService(db, new SiteScope(), new TrackingNotificationService());
+        var initial = await service.GetConsumptionAsync(generatorId, baseTime, baseTime.AddHours(3), 1);
+        Assert.True(initial.IsSuccess);
+        Assert.Equal(100m, initial.Value!.TotalConsumptionLitres);
+
+        db.TankLevelReadings.Add(
+            new TankLevelReading { OperationalSubmissionId = submissionId, FuelTankId = tankId, ClientLineId = Guid.NewGuid(), CapturedAtUtc = baseTime.AddHours(1), ReceivedAtUtc = baseTime.AddHours(3), BusinessDate = date, Status = OperationalReadingStatus.Recorded, EventType = TankEventType.Level, ComputedLitres = 240m, CylinderHeightCmSnapshot = 150m, ConeHeightCmSnapshot = 50m, MultiplicationFactorSnapshot = 1m, CreatedAt = baseTime.AddHours(3), UpdatedAt = baseTime.AddHours(3) }
+        );
+        await db.SaveChangesAsync();
+
+        var recalculated = await service.GetConsumptionAsync(generatorId, baseTime, baseTime.AddHours(3), 1);
+        Assert.True(recalculated.IsSuccess);
+        Assert.Equal(100m, recalculated.Value!.TotalConsumptionLitres);
+    }
+
+    [Fact]
+    public async Task EvaluateTankDeadStock_CreatesEpisodeAndAlertOnce_ResolvesWhenRecovered()
+    {
+        await using var db = CreateDb();
+        var (_, _, _, tankId, submissionId) = await SeedBaseAsync(db, deadStock: 100m);
+        var notifications = new TrackingNotificationService();
+        var service = new FuelLoadSafetyService(db, new SiteScope(), notifications);
+        var baseTime = DateTime.UtcNow;
+
+        var r1 = new TankLevelReading
+        {
+            OperationalSubmissionId = submissionId, FuelTankId = tankId, ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = baseTime, ReceivedAtUtc = baseTime, BusinessDate = DateOnly.FromDateTime(baseTime),
+            Status = OperationalReadingStatus.Recorded, EventType = TankEventType.Level,
+            ComputedLitres = 90m, CylinderHeightCmSnapshot = 150m, ConeHeightCmSnapshot = 50m, MultiplicationFactorSnapshot = 1m,
+            DeadStockLitresSnapshot = 100m, CreatedAt = baseTime, UpdatedAt = baseTime
+        };
+        db.TankLevelReadings.Add(r1);
+        await db.SaveChangesAsync();
+
+        await service.EvaluateTankDeadStockAsync(r1.Id);
+
+        var episode = await db.TankDeadStockEpisodes.SingleOrDefaultAsync(e => e.FuelTankId == tankId);
+        Assert.NotNull(episode);
+        Assert.Null(episode.ResolvedAtUtc);
+        Assert.Equal(1, notifications.PublishCallCount);
+        Assert.Equal("operational.warnings.dailyTankAtDeadStock", notifications.PublishedNotifications[0].Message);
+
+        var r2 = new TankLevelReading
+        {
+            OperationalSubmissionId = submissionId, FuelTankId = tankId, ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = baseTime.AddHours(1), ReceivedAtUtc = baseTime.AddHours(1), BusinessDate = DateOnly.FromDateTime(baseTime),
+            Status = OperationalReadingStatus.Recorded, EventType = TankEventType.Level,
+            ComputedLitres = 80m, CylinderHeightCmSnapshot = 150m, ConeHeightCmSnapshot = 50m, MultiplicationFactorSnapshot = 1m,
+            DeadStockLitresSnapshot = 100m, CreatedAt = baseTime.AddHours(1), UpdatedAt = baseTime.AddHours(1)
+        };
+        db.TankLevelReadings.Add(r2);
+        await db.SaveChangesAsync();
+
+        await service.EvaluateTankDeadStockAsync(r2.Id);
+        Assert.Equal(1, await db.TankDeadStockEpisodes.CountAsync(e => e.FuelTankId == tankId));
+        Assert.Equal(1, notifications.PublishCallCount);
+
+        var r3 = new TankLevelReading
+        {
+            OperationalSubmissionId = submissionId, FuelTankId = tankId, ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = baseTime.AddHours(2), ReceivedAtUtc = baseTime.AddHours(2), BusinessDate = DateOnly.FromDateTime(baseTime),
+            Status = OperationalReadingStatus.Recorded, EventType = TankEventType.Level,
+            ComputedLitres = 150m, CylinderHeightCmSnapshot = 150m, ConeHeightCmSnapshot = 50m, MultiplicationFactorSnapshot = 1m,
+            DeadStockLitresSnapshot = 100m, CreatedAt = baseTime.AddHours(2), UpdatedAt = baseTime.AddHours(2)
+        };
+        db.TankLevelReadings.Add(r3);
+        await db.SaveChangesAsync();
+
+        await service.EvaluateTankDeadStockAsync(r3.Id);
+        var resolvedEpisode = await db.TankDeadStockEpisodes.SingleAsync(e => e.FuelTankId == tankId);
+        Assert.NotNull(resolvedEpisode.ResolvedAtUtc);
+    }
+
+    [Fact]
+    public async Task ConsistencyWarnings_ActiveLoadVsKvaPf_EvaluatesAgainstKvaDenominator()
+    {
+        await using var db = CreateDb();
+        var (_, _, generatorId, _, submissionId) = await SeedBaseAsync(db);
+        var service = new FuelLoadSafetyService(db, new SiteScope(), new TrackingNotificationService());
+        var now = DateTime.UtcNow;
+
+        var rBorder = new OperationalGeneratorReading
+        {
+            OperationalSubmissionId = submissionId, GeneratorId = generatorId, ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = now, ReceivedAtUtc = now, BusinessDate = DateOnly.FromDateTime(now),
+            Status = OperationalReadingStatus.Recorded, ActiveLoadKw = 90m, ApparentLoadKva = 100m, PowerFactor = 0.8m,
+            CreatedAt = now, UpdatedAt = now
+        };
+        db.OperationalGeneratorReadings.Add(rBorder);
+        await db.SaveChangesAsync();
+
+        await service.EvaluateOnReceiptAsync(rBorder.Id);
+        var updatedBorder = await db.OperationalGeneratorReadings.FindAsync(rBorder.Id);
+        Assert.DoesNotContain("operational.warnings.activeLoadKvaPowerFactorMismatch", updatedBorder!.WarningsJson ?? "");
+
+        var rBreach = new OperationalGeneratorReading
+        {
+            OperationalSubmissionId = submissionId, GeneratorId = generatorId, ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = now.AddMinutes(10), ReceivedAtUtc = now.AddMinutes(10), BusinessDate = DateOnly.FromDateTime(now),
+            Status = OperationalReadingStatus.Recorded, ActiveLoadKw = 91m, ApparentLoadKva = 100m, PowerFactor = 0.8m,
+            CreatedAt = now.AddMinutes(10), UpdatedAt = now.AddMinutes(10)
+        };
+        db.OperationalGeneratorReadings.Add(rBreach);
+        await db.SaveChangesAsync();
+
+        await service.EvaluateOnReceiptAsync(rBreach.Id);
+        var updatedBreach = await db.OperationalGeneratorReadings.FindAsync(rBreach.Id);
+        Assert.Contains("operational.warnings.activeLoadKvaPowerFactorMismatch", updatedBreach!.WarningsJson ?? "");
+    }
+
+    [Fact]
+    public async Task ConsistencyWarnings_ThreePhaseKva_Evaluates15PercentBoundary()
+    {
+        await using var db = CreateDb();
+        var (_, _, generatorId, _, submissionId) = await SeedBaseAsync(db);
+        var service = new FuelLoadSafetyService(db, new SiteScope(), new TrackingNotificationService());
+        var now = DateTime.UtcNow;
+
+        var rOk = new OperationalGeneratorReading
+        {
+            OperationalSubmissionId = submissionId, GeneratorId = generatorId, ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = now, ReceivedAtUtc = now, BusinessDate = DateOnly.FromDateTime(now),
+            Status = OperationalReadingStatus.Recorded, LineVoltageVolts = 400m, CurrentAmps = 144.34m, ApparentLoadKva = 114m,
+            CreatedAt = now, UpdatedAt = now
+        };
+        db.OperationalGeneratorReadings.Add(rOk);
+        await db.SaveChangesAsync();
+
+        await service.EvaluateOnReceiptAsync(rOk.Id);
+        var updatedOk = await db.OperationalGeneratorReadings.FindAsync(rOk.Id);
+        Assert.DoesNotContain("operational.warnings.threePhaseKvaMismatch", updatedOk!.WarningsJson ?? "");
+
+        var rWarn = new OperationalGeneratorReading
+        {
+            OperationalSubmissionId = submissionId, GeneratorId = generatorId, ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = now.AddMinutes(10), ReceivedAtUtc = now.AddMinutes(10), BusinessDate = DateOnly.FromDateTime(now),
+            Status = OperationalReadingStatus.Recorded, LineVoltageVolts = 400m, CurrentAmps = 144.34m, ApparentLoadKva = 120m,
+            CreatedAt = now.AddMinutes(10), UpdatedAt = now.AddMinutes(10)
+        };
+        db.OperationalGeneratorReadings.Add(rWarn);
+        await db.SaveChangesAsync();
+
+        await service.EvaluateOnReceiptAsync(rWarn.Id);
+        var updatedWarn = await db.OperationalGeneratorReadings.FindAsync(rWarn.Id);
+        Assert.Contains("operational.warnings.threePhaseKvaMismatch", updatedWarn!.WarningsJson ?? "");
+    }
+
+    [Fact]
+    public async Task ConsistencyWarnings_RepeatedActiveLoad_5DoesNotWarn_6Warns_AndUsesStationSetting()
+    {
+        await using var db = CreateDb();
+        var (_, _, generatorId, _, submissionId) = await SeedBaseAsync(db);
+        var service = new FuelLoadSafetyService(db, new SiteScope(), new TrackingNotificationService());
+        var baseTime = DateTime.UtcNow;
+
+        for (var i = 0; i < 5; i++)
+        {
+            db.OperationalGeneratorReadings.Add(new OperationalGeneratorReading
+            {
+                OperationalSubmissionId = submissionId, GeneratorId = generatorId, ClientLineId = Guid.NewGuid(),
+                CapturedAtUtc = baseTime.AddHours(i), ReceivedAtUtc = baseTime.AddHours(i),
+                BusinessDate = DateOnly.FromDateTime(baseTime), Status = OperationalReadingStatus.Recorded,
+                ActiveLoadKw = 250m, CreatedAt = baseTime.AddHours(i), UpdatedAt = baseTime.AddHours(i)
+            });
+        }
+        await db.SaveChangesAsync();
+
+        var fifth = await db.OperationalGeneratorReadings.OrderByDescending(r => r.CapturedAtUtc).FirstAsync();
+        await service.EvaluateOnReceiptAsync(fifth.Id);
+        var updatedFifth = await db.OperationalGeneratorReadings.FindAsync(fifth.Id);
+        Assert.DoesNotContain("operational.warnings.repeatedActiveLoad", updatedFifth!.WarningsJson ?? "");
+
+        var sixth = new OperationalGeneratorReading
+        {
+            OperationalSubmissionId = submissionId, GeneratorId = generatorId, ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = baseTime.AddHours(5), ReceivedAtUtc = baseTime.AddHours(5),
+            BusinessDate = DateOnly.FromDateTime(baseTime), Status = OperationalReadingStatus.Recorded,
+            ActiveLoadKw = 250m, CreatedAt = baseTime.AddHours(5), UpdatedAt = baseTime.AddHours(5)
+        };
+        db.OperationalGeneratorReadings.Add(sixth);
+        await db.SaveChangesAsync();
+
+        await service.EvaluateOnReceiptAsync(sixth.Id);
+        var updatedSixth = await db.OperationalGeneratorReadings.FindAsync(sixth.Id);
+        Assert.Contains("operational.warnings.repeatedActiveLoad", updatedSixth!.WarningsJson ?? "");
+    }
+
+    [Fact]
+    public async Task EvaluateOperatingLimits_MultiTenantIsolation_BreachInOneTenantDoesNotAffectOther()
+    {
+        await using var dbTenantA = CreateDb();
+        var (_, _, genA, _, subA) = await SeedBaseAsync(dbTenantA);
+
+        await using var dbTenantB = CreateDb();
+        var (_, _, genB, _, subB) = await SeedBaseAsync(dbTenantB);
+
+        var limitA = new GeneratorOperatingLimit
+        {
+            GeneratorId = genA, Parameter = GeneratorOperatingParameter.OilPressure, Minimum = 2.0m,
+            CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+        };
+        dbTenantA.GeneratorOperatingLimits.Add(limitA);
+
+        var limitB = new GeneratorOperatingLimit
+        {
+            GeneratorId = genB, Parameter = GeneratorOperatingParameter.OilPressure, Minimum = 2.0m,
+            CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+        };
+        dbTenantB.GeneratorOperatingLimits.Add(limitB);
+
+        var time = DateTime.UtcNow;
+        dbTenantA.OperationalGeneratorReadings.Add(new OperationalGeneratorReading
+        {
+            OperationalSubmissionId = subA, GeneratorId = genA, ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = time, ReceivedAtUtc = time, BusinessDate = DateOnly.FromDateTime(time),
+            Status = OperationalReadingStatus.Recorded, OilPressure = 1.2m, CreatedAt = time, UpdatedAt = time
+        });
+
+        dbTenantB.OperationalGeneratorReadings.Add(new OperationalGeneratorReading
+        {
+            OperationalSubmissionId = subB, GeneratorId = genB, ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = time, ReceivedAtUtc = time, BusinessDate = DateOnly.FromDateTime(time),
+            Status = OperationalReadingStatus.Recorded, OilPressure = 3.5m, CreatedAt = time, UpdatedAt = time
+        });
+
+        await dbTenantA.SaveChangesAsync();
+        await dbTenantB.SaveChangesAsync();
+
+        var notifA = new TrackingNotificationService();
+        var notifB = new TrackingNotificationService();
+
+        var serviceA = new FuelLoadSafetyService(dbTenantA, new SiteScope(), notifA);
+        var serviceB = new FuelLoadSafetyService(dbTenantB, new SiteScope(), notifB);
+
+        await serviceA.EvaluateOperatingLimitsAsync();
+        await serviceB.EvaluateOperatingLimitsAsync();
+
+        Assert.Single(await dbTenantA.OperatingLimitEpisodes.ToListAsync());
+        Assert.Equal(1, notifA.PublishCallCount);
+
+        Assert.Empty(await dbTenantB.OperatingLimitEpisodes.ToListAsync());
+        Assert.Equal(0, notifB.PublishCallCount);
     }
 }

@@ -1,4 +1,4 @@
-﻿import i18n from 'i18next';
+import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 export const appTranslations = {
@@ -67,6 +67,12 @@ export const appTranslations = {
           kwh: 'kWh', pct: '%',
         },
         load: { average: 'Average Load', instant: 'Instantaneous Load', peak: 'Peak Load' },
+        warnings: {
+          dailyTankAtDeadStock: 'Daily tank level is at or below dead stock.',
+          activeLoadKvaPowerFactorMismatch: 'Active load differs from kVA × PF by more than 10%.',
+          threePhaseKvaMismatch: 'Three-phase kVA differs from √3 × V × A / 1000 by more than 15%.',
+          repeatedActiveLoad: 'Repeated active-load value detected across consecutive readings.',
+        },
         tanks: {
           refillTitle: 'Tank Refill & Transfers (Screen C)',
           refillSubtitle: 'Record tank receipts, top-ups, and transfers between tanks.',
@@ -91,6 +97,12 @@ export const appTranslations = {
           coneHeightCm: 'Cone Height (cm)',
           factor: 'Multiplication Factor',
           deadStockLitres: 'Dead Stock (Litres)',
+          deadStockMode: 'Dead Stock Input Mode',
+          deadStockModeLitres: 'By Litres',
+          deadStockModeCm: 'By Level (cm)',
+          deadStockLevelCm: 'Dead Stock Level (cm)',
+          derivedLitres: 'Derived Litres',
+          derivedCm: 'Derived Level (cm)',
           preview: 'Preview Geometry & Capacity',
           saveSetup: 'Save Tank Configuration',
           savingSetup: 'Saving Setup...',
@@ -311,6 +323,12 @@ export const appTranslations = {
           kwh: '\u0643\u064a\u0644\u0648\u0648\u0627\u062a\u0633\u0627\u0639\u0629', pct: '\u066a',
         },
         load: { average: '\u0645\u062a\u0648\u0633\u0637 \u0627\u0644\u062d\u0645\u0644', instant: '\u0627\u0644\u062d\u0645\u0644 \u0627\u0644\u0644\u062d\u0638\u064a', peak: '\u0623\u0639\u0644\u0649 \u062d\u0645\u0644' },
+        warnings: {
+          dailyTankAtDeadStock: 'مستوى الخزان اليومي عند النقطة الميتة أو دونها.',
+          activeLoadKvaPowerFactorMismatch: 'الحمل الفعال يختلف عن kVA × PF بأكثر من 10%.',
+          threePhaseKvaMismatch: 'الـ kVA ثلاثي الأطوار يختلف عن √3 × V × A / 1000 بأكثر من 15%.',
+          repeatedActiveLoad: 'تكرار نفس قيمة الحمل الفعال عبر قراءات متتالية.',
+        },
         navigation: 'التشغيل',
         actions: {
           capture: { title: 'إدخال القراءات', description: 'تسجيل القيم الميدانية مع صور متحقق منها.' },
@@ -343,6 +361,12 @@ export const appTranslations = {
           coneHeightCm: 'ارتفاع المخروط (سم)',
           factor: 'معامل الضرب',
           deadStockLitres: 'الوقود الميت / غير المستغل (لتر)',
+          deadStockMode: 'طريقة إدخال النقطة الميتة',
+          deadStockModeLitres: 'باللتر',
+          deadStockModeCm: 'بالسنتيمتر (سم)',
+          deadStockLevelCm: 'مستوى النقطة الميتة (سم)',
+          derivedLitres: 'اللترات المشتقة',
+          derivedCm: 'المستوى المشتق (سم)',
           preview: 'معاينة الأبعاد والسعة',
           saveSetup: 'حفظ إعدادات الخزان',
           savingSetup: 'جارٍ حفظ الإعدادات...',

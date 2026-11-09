@@ -12,7 +12,9 @@ export default function TankSetup() {
   const [cylinderHeightCm, setCylinderHeightCm] = useState('');
   const [coneHeightCm, setConeHeightCm] = useState('');
   const [multiplicationFactor, setMultiplicationFactor] = useState('1.0');
+  const [deadStockMode, setDeadStockMode] = useState('litres'); // 'litres' | 'cm'
   const [deadStockLitres, setDeadStockLitres] = useState('');
+  const [deadStockLevelCm, setDeadStockLevelCm] = useState('');
   const [preview, setPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -35,9 +37,24 @@ export default function TankSetup() {
       setCylinderHeightCm(tank.cylinderHeightCm || '');
       setConeHeightCm(tank.coneHeightCm || '');
       setMultiplicationFactor(tank.multiplicationFactor || '1.0');
-      setDeadStockLitres(tank.deadStockLiters || tank.deadStockLitres || '0');
+      setDeadStockLitres(tank.deadStockLiters != null ? String(tank.deadStockLiters) : (tank.deadStockLitres != null ? String(tank.deadStockLitres) : ''));
+      setDeadStockLevelCm(tank.deadStockLevelCm != null ? String(tank.deadStockLevelCm) : '');
+      if (tank.deadStockLevelCm != null && tank.deadStockLiters == null && tank.deadStockLitres == null) {
+        setDeadStockMode('cm');
+      } else {
+        setDeadStockMode('litres');
+      }
     }
   };
+
+  const buildPayload = () => ({
+    diameterCm: parseFloat(diameterCm),
+    cylinderHeightCm: parseFloat(cylinderHeightCm),
+    coneHeightCm: parseFloat(coneHeightCm),
+    multiplicationFactor: parseFloat(multiplicationFactor || '1.0'),
+    deadStockLitres: deadStockMode === 'litres' && deadStockLitres !== '' ? parseFloat(deadStockLitres) : null,
+    deadStockLevelCm: deadStockMode === 'cm' && deadStockLevelCm !== '' ? parseFloat(deadStockLevelCm) : null,
+  });
 
   const handlePreview = async () => {
     if (!diameterCm || !cylinderHeightCm || !coneHeightCm) {
@@ -46,12 +63,7 @@ export default function TankSetup() {
     }
     setErrorMsg('');
     try {
-      const payload = {
-        diameterCm: parseFloat(diameterCm),
-        cylinderHeightCm: parseFloat(cylinderHeightCm),
-        coneHeightCm: parseFloat(coneHeightCm),
-        multiplicationFactor: parseFloat(multiplicationFactor || '1.0')
-      };
+      const payload = buildPayload();
       const res = await client.post(`/api/fuel-tanks/${tankId || 1}/calibration/preview`, payload);
       setPreview(res.data);
     } catch (err) {
@@ -69,12 +81,7 @@ export default function TankSetup() {
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const payload = {
-        diameterCm: parseFloat(diameterCm),
-        cylinderHeightCm: parseFloat(cylinderHeightCm),
-        coneHeightCm: parseFloat(coneHeightCm),
-        multiplicationFactor: parseFloat(multiplicationFactor || '1.0')
-      };
+      const payload = buildPayload();
       await client.put(`/api/fuel-tanks/${tankId}/calibration`, payload);
       setSuccessMsg(t('operational.tanks.setupSuccess'));
     } catch (err) {
@@ -169,16 +176,47 @@ export default function TankSetup() {
           </FormField>
         </div>
 
-        <FormField label={t('operational.tanks.deadStockLitres')}>
-          <input
-            type="number"
-            step="1"
-            value={deadStockLitres}
-            onChange={e => setDeadStockLitres(e.target.value)}
-            placeholder="e.g. 100"
-            style={{ width: '100%', padding: '10px 14px', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }}
-          />
-        </FormField>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16, alignItems: 'end' }}>
+          <FormField label={t('operational.tanks.deadStockMode')}>
+            <select
+              value={deadStockMode}
+              onChange={e => {
+                setDeadStockMode(e.target.value);
+                setPreview(null);
+              }}
+              style={{ width: '100%', padding: '10px 14px', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }}
+            >
+              <option value="litres">{t('operational.tanks.deadStockModeLitres')}</option>
+              <option value="cm">{t('operational.tanks.deadStockModeCm')}</option>
+            </select>
+          </FormField>
+
+          {deadStockMode === 'litres' ? (
+            <FormField label={t('operational.tanks.deadStockLitres')}>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={deadStockLitres}
+                onChange={e => setDeadStockLitres(e.target.value)}
+                placeholder="e.g. 100"
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }}
+              />
+            </FormField>
+          ) : (
+            <FormField label={t('operational.tanks.deadStockLevelCm')}>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={deadStockLevelCm}
+                onChange={e => setDeadStockLevelCm(e.target.value)}
+                placeholder="e.g. 25"
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }}
+              />
+            </FormField>
+          )}
+        </div>
 
         <div style={{ display: 'flex', gap: 12 }}>
           <Button type="button" variant="secondary" onClick={handlePreview}>
@@ -195,7 +233,7 @@ export default function TankSetup() {
           <h3 style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Layers size={18} color="var(--primary)" /> {t('operational.tanks.preview')}
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             <div>
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('operational.tanks.fullHeight')}</span>
               <p style={{ fontSize: 18, fontWeight: 700 }}>{preview.totalHeightCm || (parseFloat(cylinderHeightCm) + parseFloat(coneHeightCm))} {t('operational.tanks.cm')}</p>
@@ -205,9 +243,20 @@ export default function TankSetup() {
               <p style={{ fontSize: 18, fontWeight: 700, color: '#22c55e' }}>{Number(preview.computedCapacityLitres || preview.capacityLitres || 0).toLocaleString()} {t('operational.tanks.litres')}</p>
             </div>
             <div>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('operational.tanks.deadStock')}</span>
+              <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+                {preview.deadStockLitres != null ? `${Number(preview.deadStockLitres).toLocaleString()} ${t('operational.tanks.litres')}` : (deadStockLitres ? `${deadStockLitres} ${t('operational.tanks.litres')}` : '—')}
+                {preview.deadStockLevelCm != null && (
+                  <span style={{ display: 'block', fontSize: 12, fontWeight: 400, color: 'var(--text-muted)' }}>
+                    ({preview.deadStockLevelCm} {t('operational.tanks.cm')})
+                  </span>
+                )}
+              </p>
+            </div>
+            <div>
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('operational.tanks.usableVol')}</span>
               <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--primary)' }}>
-                {Math.max(0, (Number(preview.computedCapacityLitres || 0) - parseFloat(deadStockLitres || 0))).toLocaleString()} {t('operational.tanks.litres')}
+                {Math.max(0, (Number(preview.computedCapacityLitres || 0) - (preview.deadStockLitres != null ? Number(preview.deadStockLitres) : (parseFloat(deadStockLitres) || 0)))).toLocaleString()} {t('operational.tanks.litres')}
               </p>
             </div>
           </div>

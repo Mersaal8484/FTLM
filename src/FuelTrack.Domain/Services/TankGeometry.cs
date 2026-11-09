@@ -18,4 +18,23 @@ public static class TankGeometry
 
     public static decimal CalculateCapacityLitres(decimal diameterCm, decimal cylinderHeightCm, decimal coneHeightCm, decimal factor) =>
         CalculateLitres(diameterCm, cylinderHeightCm, coneHeightCm, factor, coneHeightCm + cylinderHeightCm);
+
+    /// <summary>Derives the liquid height for a stored volume without persisting a duplicate calibration value.</summary>
+    public static decimal CalculateLiquidLevelCm(decimal diameterCm, decimal cylinderHeightCm, decimal coneHeightCm, decimal factor, decimal litres)
+    {
+        if (litres <= 0) return 0;
+        var fullHeight = coneHeightCm + cylinderHeightCm;
+        var capacity = CalculateCapacityLitres(diameterCm, cylinderHeightCm, coneHeightCm, factor);
+        if (litres >= capacity) return fullHeight;
+
+        var low = 0m;
+        var high = fullHeight;
+        for (var iteration = 0; iteration < 48; iteration++)
+        {
+            var mid = (low + high) / 2m;
+            if (CalculateLitres(diameterCm, cylinderHeightCm, coneHeightCm, factor, mid) < litres) low = mid;
+            else high = mid;
+        }
+        return decimal.Round((low + high) / 2m, 4, MidpointRounding.AwayFromZero);
+    }
 }

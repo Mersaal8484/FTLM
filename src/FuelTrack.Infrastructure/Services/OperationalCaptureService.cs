@@ -142,7 +142,9 @@ public sealed class OperationalCaptureService(
                     CylinderHeightCmSnapshot = tank.CylinderHeightCm.Value, ConeHeightCmSnapshot = tank.ConeHeightCm.Value,
                     MultiplicationFactorSnapshot = tank.MultiplicationFactor.Value, EventType = line.EventType, BeforeLiquidLevelCm = line.BeforeLiquidLevelCm,
                     BeforeComputedLitres = beforeLitres, DeliveryNoteLitres = line.DeliveryNoteLitres, DeadStockLitresSnapshot = (decimal)(tank.DeadStockLiters ?? 0d),
-                    WarningsJson = WarningJson(captured, now, dto.ClientSentAtUtc, line.PhotoAttachmentIds.Any(reusedPhotoIds.Contains) || (line.BeforePhotoAttachmentIds ?? []).Any(reusedPhotoIds.Contains)),
+                    WarningsJson = WarningJson(captured, now, dto.ClientSentAtUtc,
+                        line.PhotoAttachmentIds.Any(reusedPhotoIds.Contains) || (line.BeforePhotoAttachmentIds ?? []).Any(reusedPhotoIds.Contains),
+                        tank.GeneratorId.HasValue && TankVolumeService.IsAtOrBelowDeadStock(litres, (decimal)(tank.DeadStockLiters ?? 0d))),
                     CreatedAt = now, UpdatedAt = now, CreatedBy = userId, UpdatedBy = userId,
                 };
                 db.TankLevelReadings.Add(entity);
@@ -212,6 +214,11 @@ public sealed class OperationalCaptureService(
             {
                 try { await fuelLoadSafety.EvaluateOnReceiptAsync(readingId, cancellationToken); }
                 catch { /* the scheduled evaluator remains able to assess limits */ }
+            }
+            foreach (var readingId in submission.TankLevelReadings.Select(x => x.Id))
+            {
+                try { await fuelLoadSafety.EvaluateTankDeadStockAsync(readingId, cancellationToken); }
+                catch { /* notification failures cannot roll back an accepted operator submission */ }
             }
 
             var accepted = ToDto(submission);
@@ -506,12 +513,13 @@ public sealed class OperationalCaptureService(
     private static DateTime ResolveCapturedAt(DateTime lineTime, DateTime? submissionTime, DateTime now) =>
         NormalizeUtc(lineTime == default ? submissionTime ?? now : lineTime);
     private static DateOnly BusinessDate(DateTime utc, TimeZoneInfo zone) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(utc, zone));
-    private static string? WarningJson(DateTime captured, DateTime received, DateTime? clientSent, bool reusedPhoto)
+    private static string? WarningJson(DateTime captured, DateTime received, DateTime? clientSent, bool reusedPhoto, bool atDeadStock = false)
     {
         var warnings = new List<string>();
         if (received - captured > SkewWarning) warnings.Add("capture_received_skew");
         if (clientSent is DateTime sent && Math.Abs((received - NormalizeUtc(sent)).TotalHours) > SkewWarning.TotalHours) warnings.Add("client_clock_skew");
         if (reusedPhoto) warnings.Add("photo_reused_other_submission");
+        if (atDeadStock) warnings.Add("operational.warnings.dailyTankAtDeadStock");
         return warnings.Count == 0 ? null : JsonSerializer.Serialize(warnings);
     }
     private static string Hash(SubmitOperationalCaptureDto dto) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(dto)))).ToLowerInvariant();

@@ -37,7 +37,7 @@ public class FuelStockAlertJob
             .Include(ft => ft.FuelLookup)
             .Where(ft => ft.ActualStockLiters != null
                 && ft.MinAlertLiters != null
-                && ft.ActualStockLiters <= ft.MinAlertLiters)
+                && (Math.Max(0.0, ft.ActualStockLiters.Value - (ft.DeadStockLiters ?? 0.0)) <= ft.MinAlertLiters.Value))
             .ToListAsync(ct);
 
         if (lowTanks.Count == 0)

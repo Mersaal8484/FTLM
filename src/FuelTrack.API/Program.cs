@@ -684,10 +684,11 @@ using (var scope = app.Services.CreateScope())
         job => job.ExecuteAsync(CancellationToken.None),
         Cron.Daily);
 
-    recurringJobManager.AddOrUpdate<OperatingLimitEvaluationJob>(
-        "operating-limit-evaluation",
-        job => job.ExecuteAsync(CancellationToken.None),
-        Cron.Hourly);
+    if (!builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
+        recurringJobManager.AddOrUpdate<OperatingLimitEvaluationJob>(
+            "operating-limit-evaluation",
+            job => job.ExecuteAsync(CancellationToken.None),
+            Cron.Hourly);
 
     recurringJobManager.AddOrUpdate<SparePartReplacementAlertJob>(
         "spare-part-replacement-alerts",

@@ -12,7 +12,8 @@ public static class TenantSchemaUpgradeCatalog
             new TenantSchemaUpgrade(2, await ReadUpgradeAsync("002_bitbus_operational_capture", cancellationToken)),
             new TenantSchemaUpgrade(3, await ReadUpgradeAsync("003_phase3_review_columns", cancellationToken)),
             new TenantSchemaUpgrade(4, await ReadUpgradeAsync("004_phase3b_fuel_load", cancellationToken)),
-            new TenantSchemaUpgrade(5, await ReadUpgradeAsync("005_phase3b_operational_indicators", cancellationToken))
+            new TenantSchemaUpgrade(5, await ReadUpgradeAsync("005_phase3b_operational_indicators", cancellationToken)),
+            new TenantSchemaUpgrade(6, await ReadUpgradeAsync("006_phase3b_patch", cancellationToken))
         ];
     }
 
