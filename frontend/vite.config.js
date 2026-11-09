@@ -65,14 +65,30 @@ export default defineConfig({
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-core': ['react', 'react-dom', 'react-router-dom', 'zustand', 'i18next', 'react-i18next'],
-          'vendor-query': ['@tanstack/react-query'],
-          'vendor-charts': ['chart.js', 'react-chartjs-2'],
-          'vendor-icons': ['lucide-react'],
-          'vendor-xlsx': ['xlsx-js-style'],
-          'vendor-canvas': ['html2canvas'],
-        }
+        // Rolldown (used by Vite 8) accepts a manual chunk callback, not the
+        // package-to-chunk object supported by earlier Rollup versions.
+        manualChunks(id) {
+          const moduleId = id.replaceAll('\\\\', '/');
+
+          if (!moduleId.includes('/node_modules/')) return undefined;
+
+          if ([
+            '/node_modules/react/',
+            '/node_modules/react-dom/',
+            '/node_modules/react-router-dom/',
+            '/node_modules/zustand/',
+            '/node_modules/i18next/',
+            '/node_modules/react-i18next/',
+          ].some(packagePath => moduleId.includes(packagePath))) return 'vendor-core';
+
+          if (moduleId.includes('/node_modules/@tanstack/react-query/')) return 'vendor-query';
+          if (['/node_modules/chart.js/', '/node_modules/react-chartjs-2/'].some(packagePath => moduleId.includes(packagePath))) return 'vendor-charts';
+          if (moduleId.includes('/node_modules/lucide-react/')) return 'vendor-icons';
+          if (moduleId.includes('/node_modules/xlsx-js-style/')) return 'vendor-xlsx';
+          if (moduleId.includes('/node_modules/html2canvas/')) return 'vendor-canvas';
+
+          return undefined;
+        },
       }
     }
   },
