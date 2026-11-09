@@ -9,6 +9,9 @@ public sealed class StationOperationalSettings : BaseEntity
     public const string DefaultTimeZone = "Asia/Aden";
     public const string DefaultOilPressureUnit = "bar";
     public const int DefaultReadingPhotoMaxBytes = 65 * 1024;
+    public const int DefaultMissingDataIntervalMinutes = 60;
+    public const decimal DefaultAverageLoadWarningTolerancePercent = 15m;
+    public const decimal DefaultFuelReconciliationWarningThresholdPercent = 10m;
 
     public int StationId { get; set; }
     public string TimeZone { get; set; } = DefaultTimeZone;
@@ -27,6 +30,10 @@ public sealed class StationOperationalSettings : BaseEntity
     public int? InternalConsumptionMeterId { get; set; }
     public decimal OverloadThresholdPercent { get; set; } = 100m;
     public int OverloadHysteresisReadings { get; set; } = 3;
+    /// <summary>Expected Tier-1 cadence used only to expose missing operational slots.</summary>
+    public int MissingDataIntervalMinutes { get; set; } = DefaultMissingDataIntervalMinutes;
+    public decimal AverageLoadWarningTolerancePercent { get; set; } = DefaultAverageLoadWarningTolerancePercent;
+    public decimal FuelReconciliationWarningThresholdPercent { get; set; } = DefaultFuelReconciliationWarningThresholdPercent;
 
     public Station Station { get; set; } = null!;
 }
