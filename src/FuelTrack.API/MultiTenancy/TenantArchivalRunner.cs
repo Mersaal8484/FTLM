@@ -1,4 +1,5 @@
 using FuelTrack.Application.Interfaces;
+using FuelTrack.Domain.MultiTenancy;
 using FuelTrack.Platform;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -13,18 +14,28 @@ namespace FuelTrack.API.MultiTenancy;
 /// </summary>
 public sealed class TenantArchivalRunner(IServiceScopeFactory scopes, IConfiguration configuration)
 {
+    private enum MaintenanceTask { Archival, TokenCleanup, OperatingLimitEvaluation }
+
     public Task<bool> RunAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
-        RunJobAsync(tenantId, false, cancellationToken);
+        RunJobAsync(tenantId, MaintenanceTask.Archival, cancellationToken);
 
     public Task<bool> CleanupExpiredTokensAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
-        RunJobAsync(tenantId, true, cancellationToken);
+        RunJobAsync(tenantId, MaintenanceTask.TokenCleanup, cancellationToken);
 
-    private async Task<bool> RunJobAsync(Guid tenantId, bool cleanupTokens, CancellationToken cancellationToken)
+    public Task<bool> EvaluateOperatingLimitsAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+        RunJobAsync(tenantId, MaintenanceTask.OperatingLimitEvaluation, cancellationToken);
+
+    private async Task<bool> RunJobAsync(Guid tenantId, MaintenanceTask task, CancellationToken cancellationToken)
     {
         if (tenantId == Guid.Empty) throw new ArgumentException("Tenant ID is required.", nameof(tenantId));
         await using var scope = scopes.CreateAsyncScope();
         var platform = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
-        var host = await platform.Tenants.AsNoTracking().Where(t => t.Id == tenantId).Select(t => t.Host).SingleOrDefaultAsync(cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        var host = await platform.Tenants.AsNoTracking()
+            .Where(t => t.Id == tenantId && t.Status == PlatformTenantStatus.Active &&
+                platform.Subscriptions.Any(s => s.TenantId == t.Id && s.StartsAt <= now && now < s.EndsAt))
+            .Select(t => t.Host)
+            .SingleOrDefaultAsync(cancellationToken);
         if (host is null) return false;
         var resolver = scope.ServiceProvider.GetRequiredService<TenantAccessResolver>();
         var access = await resolver.ResolveAsync(host, DateTimeOffset.UtcNow, cancellationToken);
@@ -34,7 +45,12 @@ public sealed class TenantArchivalRunner(IServiceScopeFactory scopes, IConfigura
             ?? throw new InvalidOperationException("Platform connection is required for tenant jobs.");
         await using var lockConnection = new NpgsqlConnection(adminConnection);
         await lockConnection.OpenAsync(cancellationToken);
-        var lockKey = $"fueltrack:{(cleanupTokens ? "token-cleanup" : "archival")}:{tenantId:N}";
+        var lockKey = $"fueltrack:{task switch
+        {
+            MaintenanceTask.TokenCleanup => "token-cleanup",
+            MaintenanceTask.OperatingLimitEvaluation => "operating-limit-evaluation",
+            _ => "archival"
+        }}:{tenantId:N}";
         await using var command = new NpgsqlCommand("SELECT pg_try_advisory_lock(hashtextextended(@key, 0))", lockConnection);
         command.Parameters.AddWithValue("key", lockKey);
         if (!(bool)(await command.ExecuteScalarAsync(cancellationToken))!) return false;
@@ -49,18 +65,23 @@ public sealed class TenantArchivalRunner(IServiceScopeFactory scopes, IConfigura
                 ?? throw new InvalidOperationException("Tenant database connection template is required.");
             var connection = new NpgsqlConnectionStringBuilder(template) { Username = access.Schema, Password = password, SearchPath = access.Schema };
             scope.ServiceProvider.GetRequiredService<TenantRequestContext>().Initialize(tenantId, connection.ConnectionString);
-            if (cleanupTokens)
+            if (task == MaintenanceTask.TokenCleanup)
             {
                 var db = scope.ServiceProvider.GetRequiredService<FuelTrackDbContext>();
-                var now = DateTime.UtcNow;
-                await db.RefreshTokens.Where(t => (t.IsRevoked && t.RevokedAt < now.AddDays(-30)) ||
-                    t.ExpiresAt < now.AddDays(-7)).ExecuteDeleteAsync(cancellationToken);
+                var utcNow = DateTime.UtcNow;
+                await db.RefreshTokens.Where(t => (t.IsRevoked && t.RevokedAt < utcNow.AddDays(-30)) ||
+                    t.ExpiresAt < utcNow.AddDays(-7)).ExecuteDeleteAsync(cancellationToken);
             }
-            else
+            else if (task == MaintenanceTask.Archival)
             {
                 var archival = scope.ServiceProvider.GetRequiredService<IDataArchivalService>();
                 await archival.ArchiveAuditLogsAsync(90, cancellationToken);
                 await archival.ArchiveDailyReadingsAsync(365, cancellationToken);
+            }
+            else
+            {
+                var fuelLoadSafety = scope.ServiceProvider.GetRequiredService<IFuelLoadSafetyService>();
+                await fuelLoadSafety.EvaluateOperatingLimitsAsync(cancellationToken);
             }
             return true;
         }

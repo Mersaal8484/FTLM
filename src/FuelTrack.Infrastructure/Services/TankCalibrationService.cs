@@ -11,19 +11,24 @@ public sealed class TankCalibrationService(FuelTrackDbContext db, IUserScopeFilt
 {
     public TankCalibrationPreviewDto Preview(UpdateTankCalibrationDto dto)
     {
-        if (dto.DiameterCm <= 0 || dto.CylinderHeightCm < 0 || dto.ConeHeightCm <= 0 || dto.MultiplicationFactor <= 0)
+        if (!IsValid(dto))
             throw new ArgumentOutOfRangeException(nameof(dto), "Tank calibration values are invalid.");
         var fullHeight = dto.ConeHeightCm + dto.CylinderHeightCm;
         var points = new[] { 0m, 25m, 50m, 75m, 100m }
             .Select(percent => new TankCalibrationPreviewPointDto(percent, fullHeight * percent / 100m,
                 TankGeometry.CalculateLitres(dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor, fullHeight * percent / 100m)))
             .ToList();
-        return new TankCalibrationPreviewDto(TankGeometry.CalculateCapacityLitres(dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor), points);
+        var deadStockLitres = ResolveDeadStockLitres(dto);
+        return new TankCalibrationPreviewDto(
+            TankGeometry.CalculateCapacityLitres(dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor),
+            points,
+            deadStockLitres,
+            deadStockLitres.HasValue ? TankGeometry.CalculateLiquidLevelCm(dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor, deadStockLitres.Value) : null);
     }
 
     public async Task<Result<TankCalibrationDto>> UpsertAsync(int fuelTankId, UpdateTankCalibrationDto dto, int userId, CancellationToken cancellationToken = default)
     {
-        if (dto.DiameterCm <= 0 || dto.CylinderHeightCm < 0 || dto.ConeHeightCm <= 0 || dto.MultiplicationFactor <= 0)
+        if (!IsValid(dto))
             return Result<TankCalibrationDto>.Failure("Tank calibration values are invalid.");
         var tank = await db.FuelTanks.SingleOrDefaultAsync(x => x.Id == fuelTankId, cancellationToken);
         if (tank is null || (!currentUser.HasAnyAdminRole && !await scopeFilter.HasAccessToSubStationAsync(userId, tank.SubStationId)))
@@ -35,9 +40,38 @@ public sealed class TankCalibrationService(FuelTrackDbContext db, IUserScopeFilt
         tank.ConeHeightCm = dto.ConeHeightCm;
         tank.MultiplicationFactor = dto.MultiplicationFactor;
         tank.ComputedCapacityLitres = TankGeometry.CalculateCapacityLitres(dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor);
+        if (dto.DeadStockLitres.HasValue)
+        {
+            tank.DeadStockLiters = (double)dto.DeadStockLitres.Value;
+            tank.DeadStockLevelCm = null;
+            tank.DeadStockInputUnit = "litres";
+        }
+        else if (dto.DeadStockLevelCm.HasValue)
+        {
+            tank.DeadStockLiters = null;
+            tank.DeadStockLevelCm = dto.DeadStockLevelCm.Value;
+            tank.DeadStockInputUnit = "cm";
+        }
         tank.UpdatedAt = DateTime.UtcNow;
         tank.UpdatedBy = userId;
         await db.SaveChangesAsync(cancellationToken);
-        return Result<TankCalibrationDto>.Success(new(tank.Id, dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor, tank.ComputedCapacityLitres.Value));
+        return Result<TankCalibrationDto>.Success(new(
+            tank.Id, dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor,
+            tank.ComputedCapacityLitres.Value, TankVolumeService.DeadStockLitres(tank),
+            string.Equals(tank.DeadStockInputUnit, "cm", StringComparison.OrdinalIgnoreCase)
+                ? tank.DeadStockLevelCm
+                : TankGeometry.CalculateLiquidLevelCm(dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor, TankVolumeService.DeadStockLitres(tank)),
+            tank.DeadStockInputUnit));
     }
+
+    private static bool IsValid(UpdateTankCalibrationDto dto) =>
+        dto.DiameterCm > 0 && dto.CylinderHeightCm >= 0 && dto.ConeHeightCm > 0 && dto.MultiplicationFactor > 0 &&
+        !(dto.DeadStockLitres.HasValue && dto.DeadStockLevelCm.HasValue) &&
+        (!dto.DeadStockLitres.HasValue || dto.DeadStockLitres.Value >= 0) &&
+        (!dto.DeadStockLevelCm.HasValue || dto.DeadStockLevelCm.Value >= 0 && dto.DeadStockLevelCm.Value <= dto.CylinderHeightCm + dto.ConeHeightCm);
+
+    private static decimal? ResolveDeadStockLitres(UpdateTankCalibrationDto dto) =>
+        dto.DeadStockLitres ?? (dto.DeadStockLevelCm.HasValue
+            ? TankGeometry.CalculateLitres(dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor, dto.DeadStockLevelCm.Value)
+            : null);
 }

@@ -27,7 +27,8 @@ public sealed class OperationalReviewServiceTests
         var scope = new SiteScope();
         var notif = new StubNotificationService();
         var delta = new MeterDeltaService(db);
-        return new OperationalReviewService(db, scope, notif, delta);
+        var safety = new FuelLoadSafetyService(db, scope, notif);
+        return new OperationalReviewService(db, scope, notif, delta, safety);
     }
 
     private static async Task<(int SubmissionId, int SubmitterId, int ReviewerId, int SubStationId, int MeterReadingId)>
@@ -107,6 +108,48 @@ public sealed class OperationalReviewServiceTests
         Assert.Equal(reviewerId, genLine.ApprovedByUserId);
         var submission = await db.OperationalSubmissions.FindAsync(submissionId);
         Assert.Equal(OperationalReadingStatus.Approved, submission!.Status);
+    }
+
+    [Fact]
+    public async Task ApproveSubmission_EvaluatesDailyTankDeadStockAfterCommit()
+    {
+        await using var db = CreateDb();
+        var (submissionId, _, reviewerId, subStationId, _) = await SeedPendingSubmissionAsync(db);
+        var generator = await db.Generators.SingleAsync();
+        var now = DateTime.UtcNow;
+        var tank = new FuelTank
+        {
+            SubStationId = subStationId,
+            GeneratorId = generator.Id,
+            Name = "Daily tank",
+            Code = "DT-1",
+            DeadStockLiters = 100,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        db.FuelTanks.Add(tank);
+        await db.SaveChangesAsync();
+        db.TankLevelReadings.Add(new TankLevelReading
+        {
+            OperationalSubmissionId = submissionId,
+            FuelTankId = tank.Id,
+            ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = now,
+            ReceivedAtUtc = now,
+            BusinessDate = DateOnly.FromDateTime(now),
+            Status = OperationalReadingStatus.Pending,
+            EventType = TankEventType.Level,
+            ComputedLitres = 90m,
+            DeadStockLitresSnapshot = 100m,
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).ApproveSubmissionAsync(submissionId, reviewerId);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Single(await db.TankDeadStockEpisodes.ToListAsync());
     }
 
     [Fact]

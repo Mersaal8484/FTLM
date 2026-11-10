@@ -53,5 +53,26 @@ public sealed class AlertGeneratorServiceTests : IDisposable
         Assert.Equal(0, created);
     }
 
+    [Fact]
+    public async Task CheckFuelStockLevelsAsync_UsesUsableStockAfterDeadStock()
+    {
+        var subStation = new SubStation { Id = 1, Name = "SS", Code = "SS", StationId = 1 };
+        _db.SubStations.Add(subStation);
+        _db.FuelTanks.Add(new FuelTank
+        {
+            Id = 11, Name = "Tank", SubStationId = 1, SubStation = subStation,
+            ActualStockLiters = 120, DeadStockLiters = 40, MinAlertLiters = 100, CapacityLiters = 500
+        });
+        await _db.SaveChangesAsync();
+        _notifications.Setup(x => x.PublishScopedAsync(It.IsAny<CreateNotificationDto>(), null, It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NotificationDto(2, 1, "", "", "fuel_low", "danger", false, "FuelTank", 11, null, null, DateTime.UtcNow));
+
+        var created = await _service.CheckFuelStockLevelsAsync();
+
+        Assert.Equal(1, created);
+        _notifications.Verify(x => x.PublishScopedAsync(It.Is<CreateNotificationDto>(n => n.RelatedEntityId == 11 && n.Message.Contains("80")), null,
+            It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     public void Dispose() => _db.Dispose();
 }

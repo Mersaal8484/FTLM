@@ -15,4 +15,10 @@ public record FuelTankListDto(
     bool HasMeter,
     double? MeterReading,
     double? MeterReadingActual,
-    bool IsActive);
+    bool IsActive,
+    decimal? DeadStockLevelCm = null,
+    string? DeadStockInputUnit = null,
+    decimal? DiameterCm = null,
+    decimal? CylinderHeightCm = null,
+    decimal? ConeHeightCm = null,
+    decimal? MultiplicationFactor = null);

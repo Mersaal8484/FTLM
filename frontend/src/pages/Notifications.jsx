@@ -4,6 +4,7 @@ import { Bell, CheckCheck, Trash2, AlertTriangle, Info, AlertCircle, Zap, Databa
 import useAuthStore from '../store/authStore';
 import useToastStore from '../store/toastStore';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import socket from '../socket';
 
 const typeConfig = {
@@ -29,6 +30,7 @@ const severityStyle = {
 export const getNotificationId = (notification) => notification?.id || notification?._id;
 
 function Notifications({ lang, onRead }) {
+  const { t } = useTranslation();
   const currentUser = useAuthStore((s) => s.user);
   const navigate = useNavigate();
   const ar = lang === 'ar';
@@ -247,7 +249,7 @@ function Notifications({ lang, onRead }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                       <span style={{ fontWeight: unread ? 700 : 500, color: 'var(--text)', fontSize: 14 }}>
-                        {notif.title}
+                        {notif.title?.startsWith('operational.') ? t(notif.title) : notif.title}
                       </span>
                       {unread && (
                         <span style={{
@@ -257,7 +259,7 @@ function Notifications({ lang, onRead }) {
                       )}
                     </div>
                     <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                      {notif.message}
+                      {notif.message?.startsWith('operational.') ? t(notif.message) : notif.message}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 6 }}>
                       {formatTime(notif.createdAt)}

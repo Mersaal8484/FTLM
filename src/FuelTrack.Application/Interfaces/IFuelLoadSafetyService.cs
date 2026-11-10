@@ -12,5 +12,6 @@ public interface IFuelLoadSafetyService
     Task<Result<GeneratorOperatingLimitDto>> SaveLimitAsync(int generatorId, SaveGeneratorOperatingLimitDto dto, int userId, CancellationToken cancellationToken = default);
     Task<Result<OperationalDailyLogDto>> GetDailyLogAsync(int generatorId, DateOnly businessDate, int userId, CancellationToken cancellationToken = default);
     Task EvaluateOnReceiptAsync(int generatorReadingId, CancellationToken cancellationToken = default);
+    Task EvaluateTankDeadStockAsync(int tankLevelReadingId, CancellationToken cancellationToken = default);
     Task EvaluateOperatingLimitsAsync(CancellationToken cancellationToken = default);
 }

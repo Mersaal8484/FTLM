@@ -93,7 +93,7 @@ public sealed class FuelLoadSafetyService(
                 previousEventTime = current.CapturedAtUtc;
 
                 if (current.CapturedAtUtc >= fromUtc && TankVolumeService.IsAtOrBelowDeadStock(current.ComputedLitres, current.DeadStockLitresSnapshot))
-                    warnings.Add("Daily tank level is at or below dead stock.");
+                    warnings.Add("operational.warnings.dailyTankAtDeadStock");
             }
         }
 
@@ -393,6 +393,53 @@ public sealed class FuelLoadSafetyService(
             "OverloadEvent", entity.Id, ct);
     }
 
+    public async Task EvaluateTankDeadStockAsync(int tankLevelReadingId, CancellationToken ct = default)
+    {
+        var reading = await db.TankLevelReadings
+            .Include(x => x.FuelTank)
+            .SingleOrDefaultAsync(x => x.Id == tankLevelReadingId, ct);
+
+        if (reading is null || !reading.FuelTank.GeneratorId.HasValue
+            || !ReadingApprovalPolicy.OfficialStatuses.Contains(reading.Status)) return;
+
+        var deadStock = reading.DeadStockLitresSnapshot;
+        var isAtDeadStock = TankVolumeService.IsAtOrBelowDeadStock(reading.ComputedLitres, deadStock);
+
+        var open = await db.TankDeadStockEpisodes
+            .SingleOrDefaultAsync(x => x.FuelTankId == reading.FuelTankId && x.ResolvedAtUtc == null, ct);
+
+        if (!isAtDeadStock)
+        {
+            if (open is not null)
+            {
+                open.ResolvedAtUtc = reading.CapturedAtUtc;
+                open.UpdatedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(ct);
+            }
+            return;
+        }
+
+        if (open is not null)
+        {
+            return;
+        }
+
+        var episode = new TankDeadStockEpisode
+        {
+            FuelTankId = reading.FuelTankId,
+            TriggerReadingId = reading.Id,
+            StartedAtUtc = reading.CapturedAtUtc,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.TankDeadStockEpisodes.Add(episode);
+        await db.SaveChangesAsync(ct);
+
+        await PublishAsync(reading.FuelTank.SubStationId, "operational.notifications.dailyTankAtDeadStock.title",
+            "operational.notifications.dailyTankAtDeadStock.message",
+            "TankDeadStockEpisode", episode.Id, ct);
+    }
+
     public async Task EvaluateOperatingLimitsAsync(CancellationToken ct = default)
     {
         var limits = await db.GeneratorOperatingLimits
@@ -493,8 +540,8 @@ public sealed class FuelLoadSafetyService(
         if (reading.ActiveLoadKw.HasValue && reading.ApparentLoadKva.HasValue && reading.PowerFactor.HasValue && reading.ApparentLoadKva > 0)
         {
             var expected = reading.ApparentLoadKva.Value * reading.PowerFactor.Value;
-            if (expected > 0 && Math.Abs(reading.ActiveLoadKw.Value - expected) / expected > .10m)
-                warnings.Add("Active load differs from kVA × PF by more than 10%.");
+            if (expected > 0 && Math.Abs(reading.ActiveLoadKw.Value - expected) / reading.ApparentLoadKva.Value > .10m)
+                warnings.Add("operational.warnings.activeLoadKvaPowerFactorMismatch");
         }
 
         // 2) Three-phase kVA ≈ √3 × V × A / 1000 (15%)
@@ -506,23 +553,31 @@ public sealed class FuelLoadSafetyService(
             var expectedKva = (decimal)(Math.Sqrt(3.0) * v * a / 1000.0);
             if (expectedKva > 0 && Math.Abs(reading.ApparentLoadKva.Value - expectedKva) / expectedKva > 0.15m)
             {
-                warnings.Add("Three-phase kVA differs from √3 × V × A / 1000 by more than 15%.");
+                warnings.Add("operational.warnings.threePhaseKvaMismatch");
             }
         }
 
         // 3) CONSECUTIVE repeated values (default 6)
         if (reading.ActiveLoadKw.HasValue)
         {
+            var repeatedCount = await db.Generators.AsNoTracking()
+                .Where(x => x.Id == reading.GeneratorId)
+                .Select(x => x.SubStation.Station.OperationalSettings == null
+                    ? StationOperationalSettings.DefaultRepeatedValueWarningCount
+                    : x.SubStation.Station.OperationalSettings.RepeatedValueWarningCount)
+                .SingleOrDefaultAsync(ct);
+            repeatedCount = repeatedCount < 2 ? StationOperationalSettings.DefaultRepeatedValueWarningCount : repeatedCount;
             var recentKw = await db.OperationalGeneratorReadings.AsNoTracking()
-                .Where(x => x.GeneratorId == reading.GeneratorId && x.Id != reading.Id && x.CapturedAtUtc <= reading.CapturedAtUtc)
+                .Where(x => x.GeneratorId == reading.GeneratorId && x.Id != reading.Id && x.CapturedAtUtc <= reading.CapturedAtUtc
+                    && ReadingApprovalPolicy.OfficialStatuses.Contains(x.Status))
                 .OrderByDescending(x => x.CapturedAtUtc)
-                .Take(5)
+                .Take(repeatedCount - 1)
                 .Select(x => x.ActiveLoadKw)
                 .ToListAsync(ct);
 
-            if (recentKw.Count >= 5 && recentKw.All(kw => kw == reading.ActiveLoadKw))
+            if (recentKw.Count >= repeatedCount - 1 && recentKw.All(kw => kw == reading.ActiveLoadKw))
             {
-                warnings.Add("Repeated active-load value detected across 6 consecutive readings.");
+                warnings.Add("operational.warnings.repeatedActiveLoad");
             }
         }
 

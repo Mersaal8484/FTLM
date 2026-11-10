@@ -1,6 +1,7 @@
 using FuelTrack.Application.DTOs.Notifications;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
+using FuelTrack.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Services;
@@ -22,11 +23,14 @@ public sealed class AlertGeneratorService : IAlertGeneratorService
 
     public async Task<int> CheckFuelStockLevelsAsync(CancellationToken ct = default)
     {
-        var tanks = await _db.FuelTanks
+        var tanksWithStock = await _db.FuelTanks
             .AsNoTracking()
             .Include(t => t.SubStation)
-            .Where(t => t.ActualStockLiters.HasValue && t.MinAlertLiters.HasValue && t.ActualStockLiters <= t.MinAlertLiters)
+            .Where(t => t.ActualStockLiters.HasValue && t.MinAlertLiters.HasValue)
             .ToListAsync(ct);
+        var tanks = tanksWithStock.Where(t =>
+            TankVolumeService.UsableLitres((decimal)t.ActualStockLiters!.Value, TankVolumeService.DeadStockLitres(t))
+            <= (decimal)t.MinAlertLiters!.Value).ToList();
 
         var created = 0;
         foreach (var tank in tanks)
@@ -35,7 +39,7 @@ public sealed class AlertGeneratorService : IAlertGeneratorService
             if (await CreateAndPublishAsync(new CreateNotificationDto(
                 tank.SubStationId,
                 "Low fuel stock",
-                $"{tank.Name} at {tank.SubStation.Name} is at {tank.ActualStockLiters:0.##} L (alert level {tank.MinAlertLiters:0.##} L).",
+                $"{tank.Name} at {tank.SubStation.Name} has {TankVolumeService.UsableLitres((decimal)tank.ActualStockLiters!.Value, TankVolumeService.DeadStockLitres(tank)):0.##} L usable fuel (alert level {tank.MinAlertLiters:0.##} L).",
                 "fuel_low", "danger", null, "FuelTank", tank.Id), new[] { "fuel_tanks", "fuel_movements" }, ct))
                 created++;
         }

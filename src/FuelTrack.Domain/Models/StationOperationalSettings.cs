@@ -12,6 +12,7 @@ public sealed class StationOperationalSettings : BaseEntity
     public const int DefaultMissingDataIntervalMinutes = 60;
     public const decimal DefaultAverageLoadWarningTolerancePercent = 15m;
     public const decimal DefaultFuelReconciliationWarningThresholdPercent = 10m;
+    public const int DefaultRepeatedValueWarningCount = 6;
 
     public int StationId { get; set; }
     public string TimeZone { get; set; } = DefaultTimeZone;
@@ -34,6 +35,8 @@ public sealed class StationOperationalSettings : BaseEntity
     public int MissingDataIntervalMinutes { get; set; } = DefaultMissingDataIntervalMinutes;
     public decimal AverageLoadWarningTolerancePercent { get; set; } = DefaultAverageLoadWarningTolerancePercent;
     public decimal FuelReconciliationWarningThresholdPercent { get; set; } = DefaultFuelReconciliationWarningThresholdPercent;
+    /// <summary>Consecutive equal active-load values required before recording a consistency warning.</summary>
+    public int RepeatedValueWarningCount { get; set; } = DefaultRepeatedValueWarningCount;
 
     public Station Station { get; set; } = null!;
 }

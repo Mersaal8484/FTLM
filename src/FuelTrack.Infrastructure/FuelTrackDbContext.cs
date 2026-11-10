@@ -80,6 +80,7 @@ namespace FuelTrack.Infrastructure
         public DbSet<GeneratorOperatingLimit> GeneratorOperatingLimits => Set<GeneratorOperatingLimit>();
         public DbSet<OverloadEvent> OverloadEvents => Set<OverloadEvent>();
         public DbSet<OperatingLimitEpisode> OperatingLimitEpisodes => Set<OperatingLimitEpisode>();
+        public DbSet<TankDeadStockEpisode> TankDeadStockEpisodes => Set<TankDeadStockEpisode>();
 
         // Permission system (Module Registry)
         public DbSet<ModuleDefinition> ModuleDefinitions => Set<ModuleDefinition>();
@@ -162,6 +163,7 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<GeneratorOperatingLimit>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<OverloadEvent>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<OperatingLimitEpisode>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<TankDeadStockEpisode>().HasQueryFilter(e => e.DeletedAt == null);
 
             // === Oil relationships ===
             modelBuilder.Entity<Oil>()
@@ -221,6 +223,12 @@ namespace FuelTrack.Infrastructure
                 .HasForeignKey(x => x.OperationalSubmissionId).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<TankLevelReading>()
                 .HasOne(x => x.FuelTank).WithMany(x => x.LevelReadings).HasForeignKey(x => x.FuelTankId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<TankDeadStockEpisode>()
+                .HasOne(x => x.FuelTank).WithMany().HasForeignKey(x => x.FuelTankId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<TankDeadStockEpisode>()
+                .HasOne(x => x.TriggerReading).WithMany().HasForeignKey(x => x.TriggerReadingId)
                 .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<TankLevelReading>()
                 .HasOne(x => x.LinkedEvent).WithMany().HasForeignKey(x => x.LinkedEventId)
@@ -2636,6 +2644,8 @@ namespace FuelTrack.Infrastructure
 
             modelBuilder.Entity<FuelTank>(entity =>
             {
+                entity.Property(x => x.DeadStockLevelCm).HasPrecision(18, 4);
+                entity.Property(x => x.DeadStockInputUnit).HasMaxLength(16);
                 entity.Property(x => x.DiameterCm).HasPrecision(18, 4);
                 entity.Property(x => x.CylinderHeightCm).HasPrecision(18, 4);
                 entity.Property(x => x.ConeHeightCm).HasPrecision(18, 4);
@@ -2663,6 +2673,13 @@ namespace FuelTrack.Infrastructure
                 entity.HasIndex(x => new { x.GeneratorOperatingLimitId, x.ResolvedAtUtc })
                     .HasDatabaseName("IX_OperatingLimitEpisodes_Limit_Open");
                 entity.Property(x => x.ObservedValue).HasPrecision(18, 4);
+            });
+            modelBuilder.Entity<TankDeadStockEpisode>(entity =>
+            {
+                entity.HasIndex(x => new { x.FuelTankId, x.ResolvedAtUtc })
+                    .HasDatabaseName("IX_TankDeadStockEpisodes_Tank_Open");
+                entity.HasIndex(x => x.TriggerReadingId)
+                    .HasDatabaseName("IX_TankDeadStockEpisodes_TriggerReading");
             });
 
             // === Module Registry System ===

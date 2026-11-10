@@ -18,4 +18,10 @@ public record FuelTankDetailDto(
     string? Notes,
     bool IsActive,
     DateTime CreatedAt,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    decimal? DeadStockLevelCm = null,
+    string? DeadStockInputUnit = null,
+    decimal? DiameterCm = null,
+    decimal? CylinderHeightCm = null,
+    decimal? ConeHeightCm = null,
+    decimal? MultiplicationFactor = null);
