@@ -1,78 +1,89 @@
-# Phase 3b.1 — Fuel & Load Safety Patch
+# Phase 3b.1 — Fuel & Load Safety Correction Report
 
-Phase: Phase 3b.1 (Fuel & Load Safety Remediation Patch)   Branch: feature/bitbus-fuel-load-fixes   Commit: a2d5886
+**Branch:** `feature/bitbus-fuel-load-fixes`
+
+**Base commit:** `ef20941` (`fix(operations): complete phase 3b fuel and load safety patch`)
+
+**Status:** implemented; backend and frontend verification passed when run by the owner; PostgreSQL proof remains pending because Docker Desktop was not running; awaiting `approved phase 3b.1`.
 
 ## 1. Done
 
-- **Operating limits scheduling under multi-tenancy:**
-  - Implemented hourly evaluation in `TenantMaintenanceScheduler` via `TenantArchivalRunner.EvaluateOperatingLimitsAsync` matching token cleanup and archival patterns.
-  - Guarded with PostgreSQL advisory lock `fueltrack:operating-limit-evaluation:{tenantId}`.
-  - Filtered to active tenants with active subscriptions only; skips suspended or unknown tenants.
-  - Disabled legacy Hangfire `OperatingLimitEvaluationJob` recurring job registration when `MultiTenancy:Enabled` is true in `Program.cs`.
-- **Dead stock ("النقطة الميتة"):**
-  - Updated `FuelStockAlertJob` to calculate usable fuel as `usable = max(0, ActualStockLiters - DeadStockLiters)` against `MinAlertLiters`.
-  - Added `TankDeadStockEpisode` entity and database mapping with open-episode index (`IX_TankDeadStockEpisodes_Tank_Open`).
-  - Implemented `EvaluateTankDeadStockAsync` in `FuelLoadSafetyService` and triggered from `OperationalCaptureService` on tank level reading receipt. Emits one translated notification (`operational.warnings.dailyTankAtDeadStock`) per episode; subsequent readings at dead stock do not re-alert; level recovery resolves the episode.
-  - Updated `TankSetup.jsx` to support entering dead stock either by volume (litres) or by height (cm), storing only the entered value and displaying the derived geometry counterpart in preview.
-- **Consistency warnings:**
-  - Replaced hardcoded warning messages in `FuelLoadSafetyService.AddConsistencyWarningsAsync` with i18n keys: `operational.warnings.dailyTankAtDeadStock`, `operational.warnings.activeLoadKvaPowerFactorMismatch`, `operational.warnings.threePhaseKvaMismatch`, and `operational.warnings.repeatedActiveLoad`.
-  - Added translations in `frontend/src/i18n.js` with full Arabic and English key parity.
-  - Fixed formula denominator: `|kW - kVA × PF| / kVA > 10%`.
-  - Added configurable station setting `RepeatedValueWarningCount` (default 6) on `StationOperationalSettings`.
-- **PostgreSQL tenant upgrade 006:**
-  - Created `src/FuelTrack.Platform/MultiTenancy/006_phase3b_patch.sql` creating `TankDeadStockEpisodes` and adding `RepeatedValueWarningCount` to `StationOperationalSettings`.
-  - Embedded as resource in `FuelTrack.Infrastructure.csproj` and registered version 6 in `TenantSchemaUpgradeCatalog.cs`.
-- **Acceptance and regression tests written (without running):**
-  - Added 10 backend tests across `FuelLoadSafetyServiceTests`, `FuelStockAlertJobTests`, and `TankGeometryTests`.
-  - Added 1 frontend test in `TankSetup.test.jsx`.
+- Moved multi-tenant operating-limit evaluation onto the existing `TenantMaintenanceScheduler` / `TenantArchivalRunner` path. It selects only active tenants with active subscriptions, resolves a tenant connection, uses a PostgreSQL advisory lock per tenant/task, and skips unknown or suspended tenants.
+- When multi-tenancy is enabled, the legacy Hangfire recurring operating-limit job is now explicitly removed from Hangfire storage. The legacy recurring job remains registered only for non-tenant deployments.
+- Added a PostgreSQL proof scenario that drives `TenantMaintenanceScheduler.RunOnceAsync`: a breach in one active tenant creates exactly one operating-limit episode, while another tenant remains unchanged.
+- Corrected fuel low-stock evaluation everywhere it is generated to use `max(0, actual stock − derived dead stock)`. This includes the Hangfire fuel alert job and the notification generator.
+- Preserved the selected tank dead-stock input source: litre input clears the centimetre source; centimetre input clears the litre source. The alternate value is always derived through the approved tank geometry, and legacy tank DTOs expose the derived litre value for compatibility.
+- Added tenant upgrade **007** for `FuelTanks.DeadStockLevelCm` and `FuelTanks.DeadStockInputUnit`. Upgrade 006 was already committed, so it was not edited.
+- Daily-tank dead-stock episodes now use the captured reading snapshot, evaluate only official readings, and are reevaluated immediately after a Tier-2 approval commits. The notification is translated at display time and remains once per open episode.
+- Replaced the consistency-warning notification presentation with Arabic/English keys. The kW/kVA/PF denominator remains `kVA`, and repeated-value count remains a station setting (default 6).
+- Updated fuel dashboard, stock-summary, tank list, and tank detail projections so centimetre-source dead stock remains derived correctly instead of appearing as zero or null.
 
 ## 2. Not done (and why)
 
-- No build or test execution was run by the agent, adhering to strict user constraint. Verification commands are left for owner execution in PowerShell.
-- No npm/package dependencies modified; lockfiles untouched.
+- No backend/frontend build, test, restore, package installation, or migration command was executed by the agent, by explicit owner instruction.
+- No Phase 4 work was started. No dependency, `package.json`, or lockfile change was made.
 
-## 3. Assumptions made / decisions applied
+## 3. Tests added or strengthened
 
-- Dead stock volume is derived from apex liquid level using conical cylinder geometry (`TankGeometry.CalculateLitres` and `CalculateLiquidLevelCm`).
-- Dead stock episode alert publishes scoped notification under `"operational_data"` module using the translated message key.
-- Operating limit evaluation runs hourly in tenant background maintenance and leaves the legacy Hangfire path for non-tenant deployments.
+Phase 3b.1 adds five verification cases:
 
-## 4. Decisions needed from the owner
+1. `PostgresModel.Proof`: active-tenant scheduler evaluation creates one operating-limit episode and does not affect the other tenant.
+2. `AlertGeneratorServiceTests.CheckFuelStockLevelsAsync_UsesUsableStockAfterDeadStock`: low-stock alert uses available fuel after dead stock.
+3. `FuelLoadSafetyServiceTests.EvaluateTankDeadStock_IgnoresPendingReading_AndUsesCapturedSnapshot`: pending readings do not alert; an official reading uses its recorded dead-stock snapshot.
+4. `TankGeometryTests.DeadStockSource_InCmOrLitres_ProducesTheSameUsableThreshold`: the stored centimetre and litre input forms yield the same usable threshold.
+5. `OperationalReviewServiceTests.ApproveSubmission_EvaluatesDailyTankDeadStockAfterCommit`: a Tier-2 tank reading opens its safety episode only after approval commits.
 
-- Confirm if alert notification email delivery for `TankDeadStockEpisode` should be added in addition to the scoped in-app notification.
+The pre-existing Phase 3b tests for authorization scope, late-arriving segment recalculation, warning boundaries, and repeated readings remain intact.
 
-## 5. Tests
+Owner verification on 2026-11-10:
 
-11 tests were written without running them:
-1. `FuelStockAlertJobTests.ExecuteAsync_LowTanks_ComparesUsableStockAfterDeadStock`: verifies low fuel alert triggers based on usable stock (`Actual - DeadStock <= MinAlert`).
-2. `TankGeometryTests.CalculateLiquidLevelCm_DerivedFromLitres_MatchesOriginalLevel`: verifies height derivation round-trip from litres.
-3. `TankGeometryTests.DeadStockInput_InCmOrLitres_ProducesEquivalentCalculatedVolume`: verifies cm vs litres input equivalence.
-4. `FuelLoadSafetyServiceTests.FuelServices_UserOutsideScope_ReturnsNotFoundOrForbidden`: verifies fuel consumption and reconciliation scope filters reject unauthorized user.
-5. `FuelLoadSafetyServiceTests.FuelConsumption_LateArrivingReading_RecalculatesSegmentsCorrectly`: verifies dynamic segment recalculation upon late reading arrival.
-6. `FuelLoadSafetyServiceTests.EvaluateTankDeadStock_CreatesEpisodeAndAlertOnce_ResolvesWhenRecovered`: verifies one alert per episode, deduplication, and resolution upon level recovery.
-7. `FuelLoadSafetyServiceTests.ConsistencyWarnings_ActiveLoadVsKvaPf_EvaluatesAgainstKvaDenominator`: boundary test for 10% tolerance against kVA denominator.
-8. `FuelLoadSafetyServiceTests.ConsistencyWarnings_ThreePhaseKva_Evaluates15PercentBoundary`: boundary test for 15% tolerance on three-phase calculation.
-9. `FuelLoadSafetyServiceTests.ConsistencyWarnings_RepeatedActiveLoad_5DoesNotWarn_6Warns_AndUsesStationSetting`: verifies 5 identical readings do not warn while 6th warns, honoring station setting.
-10. `FuelLoadSafetyServiceTests.EvaluateOperatingLimits_MultiTenantIsolation_BreachInOneTenantDoesNotAffectOther`: verifies tenant isolation in limit evaluation where tenant A breach does not affect tenant B.
-11. `TankSetup.test.jsx`: verifies dead stock mode toggle between litres and cm and payload submission.
+- `dotnet build FuelTrack.sln --no-restore`: passed.
+- `dotnet test FuelTrack.sln --no-build --no-restore`: 370 total, 360 passed, 0 failed, 10 skipped.
+- `npm.cmd run test -- --run`: 17 files and 63 tests passed, 0 failed.
+- `npm.cmd run build`: passed; PWA service-worker assets generated.
+- PostgreSQL model proof: not run because the local Docker Desktop daemon was unavailable. This remains an approval follow-up.
 
-## 6. Migrations / destructive operations
+## 4. Migration and tenant delivery
 
-- PostgreSQL tenant upgrade `006_phase3b_patch.sql` added:
-  - Table `"TankDeadStockEpisodes"` with indexes `"IX_TankDeadStockEpisodes_Tank_Open"` and `"IX_TankDeadStockEpisodes_TriggerReading"`.
-  - Column `"StationOperationalSettings"."RepeatedValueWarningCount"` integer DEFAULT 6.
-- Destructive operations: None.
+- `006_phase3b_patch.sql` remains immutable and continues to contain the Phase 3b episode/settings changes.
+- New `007_phase3b_1_corrections.sql` is embedded in `FuelTrack.Infrastructure.csproj` and registered after 006 in `TenantSchemaUpgradeCatalog`.
+- Platform-managed tenant upgrades apply catalogued upgrades to each tenant schema; this patch does not reset, alter manually, or perform destructive operations on shared or production databases.
+- Destructive operations: none.
 
-## 7. Conflicts found between designs and this brief
+## 5. Assumptions and decisions applied
 
-- None. UI matches operational dark/teal shell and translation parity is preserved.
+- PostgreSQL remains the approved Bitbus multi-tenant database runtime.
+- A stored tank level is authoritative only when its status is official (`Recorded` or `Approved`); a rejected or pending reading never opens a safety episode.
+- Existing reports and legacy tank clients receive a derived litre value even when centimetres are the persisted source, preserving their contract without persisting both source values.
 
-## 8. Risks and follow-ups
+## 6. Risks and follow-ups
 
-- Ensure migration 006 is applied via tenant upgrade runner before executing operational capture for daily tanks.
+- Run the mandatory owner verification before approval, particularly the PostgreSQL proof, because it validates the connection/resolution/advisory-lock path unavailable to the in-memory tests.
+- Notification text is translated by the frontend when a notification title/message is an `operational.*` key; non-key legacy notifications retain their stored text.
 
-## 9. Suggested manual check in the UI
+## 7. Owner verification commands
 
-1. Open Tank Setup, switch dead stock mode to cm, enter 25 cm, click Preview, and verify derived litres and usable volume match.
-2. Ingest daily tank reading at or below dead stock; verify single notification appears and reading is recorded.
-3. Ingest 6 consecutive identical active load readings and confirm warning appears on 6th reading only.
+```powershell
+Set-Location 'D:\FTM\.worktrees\bitbus-fuel-load-fixes'
+dotnet restore FuelTrack.sln
+dotnet build FuelTrack.sln --no-restore
+dotnet test FuelTrack.sln --no-build --no-restore
+
+# PostgreSQL proof needs a disposable PostgreSQL database connection string.
+$env:PROOF_DATABASE = '<owner-provided disposable PostgreSQL connection string>'
+dotnet run --project tests/PostgresModel.Proof --no-build --no-restore
+
+Set-Location frontend
+npm.cmd run test -- --run
+npm.cmd run build
+```
+
+## 8. Suggested manual UI check
+
+1. In Tank Setup, save a centimetre dead-stock level, reload the page, and confirm centimetres remain the selected input while litres are derived.
+2. Submit a Tier-2 daily-tank reading at the dead-stock threshold; approve it; confirm one localized alert appears. Approve a recovery reading and then a new threshold reading to confirm a new episode begins.
+3. Enable multi-tenancy, restart the API, and confirm the legacy Hangfire `operating-limit-evaluation` recurring entry is absent while tenant maintenance creates only the affected tenant's episode.
+
+## Next gate
+
+Do not start Phase 4. Await the exact owner response: `approved phase 3b.1`.

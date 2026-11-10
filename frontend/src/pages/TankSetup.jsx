@@ -39,7 +39,7 @@ export default function TankSetup() {
       setMultiplicationFactor(tank.multiplicationFactor || '1.0');
       setDeadStockLitres(tank.deadStockLiters != null ? String(tank.deadStockLiters) : (tank.deadStockLitres != null ? String(tank.deadStockLitres) : ''));
       setDeadStockLevelCm(tank.deadStockLevelCm != null ? String(tank.deadStockLevelCm) : '');
-      if (tank.deadStockLevelCm != null && tank.deadStockLiters == null && tank.deadStockLitres == null) {
+      if (tank.deadStockInputUnit === 'cm') {
         setDeadStockMode('cm');
       } else {
         setDeadStockMode('litres');

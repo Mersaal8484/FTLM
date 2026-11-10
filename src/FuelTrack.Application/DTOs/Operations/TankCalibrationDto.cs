@@ -15,7 +15,8 @@ public sealed record TankCalibrationDto(
     decimal MultiplicationFactor,
     decimal ComputedCapacityLitres,
     decimal? DeadStockLitres,
-    decimal? DeadStockLevelCm);
+    decimal? DeadStockLevelCm,
+    string DeadStockInputUnit);
 public sealed record TankCalibrationPreviewDto(
     decimal ComputedCapacityLitres,
     IReadOnlyList<TankCalibrationPreviewPointDto> Points,

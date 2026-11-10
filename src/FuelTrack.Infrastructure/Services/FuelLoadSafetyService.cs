@@ -399,9 +399,10 @@ public sealed class FuelLoadSafetyService(
             .Include(x => x.FuelTank)
             .SingleOrDefaultAsync(x => x.Id == tankLevelReadingId, ct);
 
-        if (reading is null || !reading.FuelTank.GeneratorId.HasValue) return;
+        if (reading is null || !reading.FuelTank.GeneratorId.HasValue
+            || !ReadingApprovalPolicy.OfficialStatuses.Contains(reading.Status)) return;
 
-        var deadStock = (decimal)(reading.FuelTank.DeadStockLiters ?? 0d);
+        var deadStock = reading.DeadStockLitresSnapshot;
         var isAtDeadStock = TankVolumeService.IsAtOrBelowDeadStock(reading.ComputedLitres, deadStock);
 
         var open = await db.TankDeadStockEpisodes
@@ -434,8 +435,8 @@ public sealed class FuelLoadSafetyService(
         db.TankDeadStockEpisodes.Add(episode);
         await db.SaveChangesAsync(ct);
 
-        await PublishAsync(reading.FuelTank.SubStationId, "Daily tank at dead stock",
-            "operational.warnings.dailyTankAtDeadStock",
+        await PublishAsync(reading.FuelTank.SubStationId, "operational.notifications.dailyTankAtDeadStock.title",
+            "operational.notifications.dailyTankAtDeadStock.message",
             "TankDeadStockEpisode", episode.Id, ct);
     }
 

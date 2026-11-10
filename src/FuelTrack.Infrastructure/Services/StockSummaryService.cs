@@ -3,6 +3,7 @@ using FuelTrack.Application;
 using FuelTrack.Application.DTOs.FuelMovements;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
+using FuelTrack.Domain.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
@@ -203,25 +204,37 @@ public class StockSummaryService : IStockSummaryService
 
     private async Task<List<TankGroupDto>> GetTanksDataAsync(List<int> accessibleIds)
     {
-        return await _db.FuelTanks
+        var tanks = await _db.FuelTanks
+            .AsNoTracking()
+            .Include(t => t.SubStation)
+                .ThenInclude(s => s.Station)
+                    .ThenInclude(s => s.Branch)
+            .Include(t => t.FuelLookup)
             .Where(t => accessibleIds.Contains(t.SubStationId) && t.DeletedAt == null)
-            .GroupBy(t => new { t.SubStationId, t.FuelLookupId })
-            .Select(g => new TankGroupDto
-            {
-                SubStationId = g.Key.SubStationId,
-                FuelLookupId = g.Key.FuelLookupId,
-                TotalCapacity = g.Sum(t => t.CapacityLiters),
-                TotalMinAlert = g.Sum(t => (double?)t.MinAlertLiters) ?? 0,
-                TotalDeadStock = g.Sum(t => (double?)t.DeadStockLiters) ?? 0,
-                TotalActualStock = g.Sum(t => (double?)t.ActualStockLiters) ?? 0,
-                SubStationName = g.First().SubStation.Name,
-                StationId = g.First().SubStation.StationId,
-                StationName = g.First().SubStation.Station.Name,
-                BranchId = g.First().SubStation.Station.BranchId,
-                BranchName = g.First().SubStation.Station.Branch.Name,
-                FuelLookupName = g.First().FuelLookup.Name
-            })
             .ToListAsync();
+
+        return tanks
+            .GroupBy(t => new { t.SubStationId, t.FuelLookupId })
+            .Select(g =>
+            {
+                var first = g.First();
+                return new TankGroupDto
+                {
+                    SubStationId = g.Key.SubStationId,
+                    FuelLookupId = g.Key.FuelLookupId,
+                    TotalCapacity = g.Sum(t => t.CapacityLiters),
+                    TotalMinAlert = g.Sum(t => (double?)t.MinAlertLiters) ?? 0,
+                    TotalDeadStock = g.Sum(t => (double)TankVolumeService.DeadStockLitres(t)),
+                    TotalActualStock = g.Sum(t => (double?)t.ActualStockLiters) ?? 0,
+                    SubStationName = first.SubStation.Name,
+                    StationId = first.SubStation.StationId,
+                    StationName = first.SubStation.Station.Name,
+                    BranchId = first.SubStation.Station.BranchId,
+                    BranchName = first.SubStation.Station.Branch.Name,
+                    FuelLookupName = first.FuelLookup.Name
+                };
+            })
+            .ToList();
     }
 
     private async Task<List<TransactionRawDto>> GetFuelTransactionsRawAsync(List<int> accessibleIds, DateTime toDate)

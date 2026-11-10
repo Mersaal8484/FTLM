@@ -141,10 +141,10 @@ public sealed class OperationalCaptureService(
                     ComputedLitres = litres, ShapeSnapshot = tank.Shape!.Value, DiameterCmSnapshot = tank.DiameterCm.Value,
                     CylinderHeightCmSnapshot = tank.CylinderHeightCm.Value, ConeHeightCmSnapshot = tank.ConeHeightCm.Value,
                     MultiplicationFactorSnapshot = tank.MultiplicationFactor.Value, EventType = line.EventType, BeforeLiquidLevelCm = line.BeforeLiquidLevelCm,
-                    BeforeComputedLitres = beforeLitres, DeliveryNoteLitres = line.DeliveryNoteLitres, DeadStockLitresSnapshot = (decimal)(tank.DeadStockLiters ?? 0d),
+                    BeforeComputedLitres = beforeLitres, DeliveryNoteLitres = line.DeliveryNoteLitres, DeadStockLitresSnapshot = TankVolumeService.DeadStockLitres(tank),
                     WarningsJson = WarningJson(captured, now, dto.ClientSentAtUtc,
                         line.PhotoAttachmentIds.Any(reusedPhotoIds.Contains) || (line.BeforePhotoAttachmentIds ?? []).Any(reusedPhotoIds.Contains),
-                        tank.GeneratorId.HasValue && TankVolumeService.IsAtOrBelowDeadStock(litres, (decimal)(tank.DeadStockLiters ?? 0d))),
+                        tank.GeneratorId.HasValue && TankVolumeService.IsAtOrBelowDeadStock(litres, TankVolumeService.DeadStockLitres(tank))),
                     CreatedAt = now, UpdatedAt = now, CreatedBy = userId, UpdatedBy = userId,
                 };
                 db.TankLevelReadings.Add(entity);

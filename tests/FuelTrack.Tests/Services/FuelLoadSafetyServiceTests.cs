@@ -14,6 +14,7 @@ using FuelTrack.Infrastructure;
 using FuelTrack.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Moq;
 using Xunit;
 
 namespace FuelTrack.Tests.Services;
@@ -464,7 +465,10 @@ public sealed class FuelLoadSafetyServiceTests
         db.OperationalSubmissions.AddRange(subRecorded, subPending);
         await db.SaveChangesAsync();
 
-        var reviewService = new OperationalReviewService(db, new SiteScope(), new TrackingNotificationService(), new MeterDeltaService(db));
+        var scope = new SiteScope();
+        var notifications = new TrackingNotificationService();
+        var reviewService = new OperationalReviewService(db, scope, notifications, new MeterDeltaService(db),
+            new FuelLoadSafetyService(db, scope, notifications));
         var queue = await reviewService.GetPendingSubmissionsAsync(1, 10);
 
         Assert.Single(queue);
@@ -596,7 +600,7 @@ public sealed class FuelLoadSafetyServiceTests
         var service = new FuelLoadSafetyService(db, new SiteScope(), new TrackingNotificationService());
         var initial = await service.GetConsumptionAsync(generatorId, baseTime, baseTime.AddHours(3), 1);
         Assert.True(initial.IsSuccess);
-        Assert.Equal(100m, initial.Value!.TotalConsumptionLitres);
+        Assert.Equal(100m, initial.Value!.ConsumptionLitres);
 
         db.TankLevelReadings.Add(
             new TankLevelReading { OperationalSubmissionId = submissionId, FuelTankId = tankId, ClientLineId = Guid.NewGuid(), CapturedAtUtc = baseTime.AddHours(1), ReceivedAtUtc = baseTime.AddHours(3), BusinessDate = date, Status = OperationalReadingStatus.Recorded, EventType = TankEventType.Level, ComputedLitres = 240m, CylinderHeightCmSnapshot = 150m, ConeHeightCmSnapshot = 50m, MultiplicationFactorSnapshot = 1m, CreatedAt = baseTime.AddHours(3), UpdatedAt = baseTime.AddHours(3) }
@@ -605,7 +609,7 @@ public sealed class FuelLoadSafetyServiceTests
 
         var recalculated = await service.GetConsumptionAsync(generatorId, baseTime, baseTime.AddHours(3), 1);
         Assert.True(recalculated.IsSuccess);
-        Assert.Equal(100m, recalculated.Value!.TotalConsumptionLitres);
+        Assert.Equal(100m, recalculated.Value!.ConsumptionLitres);
     }
 
     [Fact]
@@ -634,7 +638,7 @@ public sealed class FuelLoadSafetyServiceTests
         Assert.NotNull(episode);
         Assert.Null(episode.ResolvedAtUtc);
         Assert.Equal(1, notifications.PublishCallCount);
-        Assert.Equal("operational.warnings.dailyTankAtDeadStock", notifications.PublishedNotifications[0].Message);
+        Assert.Equal("operational.notifications.dailyTankAtDeadStock.message", notifications.PublishedNotifications[0].Message);
 
         var r2 = new TankLevelReading
         {
@@ -665,6 +669,35 @@ public sealed class FuelLoadSafetyServiceTests
         await service.EvaluateTankDeadStockAsync(r3.Id);
         var resolvedEpisode = await db.TankDeadStockEpisodes.SingleAsync(e => e.FuelTankId == tankId);
         Assert.NotNull(resolvedEpisode.ResolvedAtUtc);
+    }
+
+    [Fact]
+    public async Task EvaluateTankDeadStock_IgnoresPendingReading_AndUsesCapturedSnapshot()
+    {
+        await using var db = CreateDb();
+        var (_, _, _, tankId, submissionId) = await SeedBaseAsync(db, deadStock: 100m);
+        var now = DateTime.UtcNow;
+        var pending = new TankLevelReading
+        {
+            OperationalSubmissionId = submissionId, FuelTankId = tankId, ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = now, ReceivedAtUtc = now, BusinessDate = DateOnly.FromDateTime(now),
+            Status = OperationalReadingStatus.Pending, EventType = TankEventType.Level, ComputedLitres = 90m,
+            DeadStockLitresSnapshot = 100m, CreatedAt = now, UpdatedAt = now
+        };
+        db.TankLevelReadings.Add(pending);
+        await db.SaveChangesAsync();
+        var service = new FuelLoadSafetyService(db, new SiteScope(), new TrackingNotificationService());
+
+        await service.EvaluateTankDeadStockAsync(pending.Id);
+        Assert.Empty(await db.TankDeadStockEpisodes.ToListAsync());
+
+        pending.Status = OperationalReadingStatus.Recorded;
+        var tank = await db.FuelTanks.SingleAsync(t => t.Id == tankId);
+        tank.DeadStockLiters = 10;
+        await db.SaveChangesAsync();
+        await service.EvaluateTankDeadStockAsync(pending.Id);
+
+        Assert.Single(await db.TankDeadStockEpisodes.ToListAsync());
     }
 
     [Fact]

@@ -6,6 +6,7 @@ using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
 using FuelTrack.Domain.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FuelTrack.Infrastructure.Services;
 
@@ -18,7 +19,9 @@ public sealed class OperationalReviewService(
     FuelTrackDbContext db,
     IUserScopeFilterService scopeFilter,
     INotificationService notifications,
-    IMeterDeltaService meterDelta) : IOperationalReviewService
+    IMeterDeltaService meterDelta,
+    IFuelLoadSafetyService fuelLoadSafety,
+    ILogger<OperationalReviewService>? logger = null) : IOperationalReviewService
 {
     private static readonly TimeSpan SkewThreshold = TimeSpan.FromHours(12);
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> SubjectLocks = new();
@@ -340,6 +343,19 @@ public sealed class OperationalReviewService(
 
         await db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
+
+        // Tier-2 readings become official only after this transaction commits.
+        // Evaluate the dead-stock episode now; rejected/pending lines never alert.
+        foreach (var tankLine in tankLines)
+        {
+            try { await fuelLoadSafety.EvaluateTankDeadStockAsync(tankLine.Id, cancellationToken); }
+            catch (Exception ex)
+            {
+                // Approval is already durable; retain it and make the post-commit
+                // safety failure observable for retry/operations investigation.
+                logger?.LogError(ex, "Dead-stock evaluation failed after approving tank reading {TankReadingId}", tankLine.Id);
+            }
+        }
 
         // Notify submitter
         await NotifySubmitterAsync(submission, submittedBy, "approved", submissionId, cancellationToken);

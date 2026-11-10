@@ -1,5 +1,6 @@
 using FuelTrack.Application.Common;
 using FuelTrack.Application.Interfaces;
+using FuelTrack.Domain.Services;
 using FuelTrack.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,13 +33,16 @@ public class FuelStockAlertJob
         _logger.LogInformation("[JOB] Starting FuelStockAlertJob");
         var inAppAlerts = _alertGenerator == null ? 0 : await _alertGenerator.CheckFuelStockLevelsAsync(ct);
 
-        var lowTanks = await _db.FuelTanks
+        var tanksWithStock = await _db.FuelTanks
             .Include(ft => ft.SubStation)
             .Include(ft => ft.FuelLookup)
             .Where(ft => ft.ActualStockLiters != null
-                && ft.MinAlertLiters != null
-                && (Math.Max(0.0, ft.ActualStockLiters.Value - (ft.DeadStockLiters ?? 0.0)) <= ft.MinAlertLiters.Value))
+                && ft.MinAlertLiters != null)
             .ToListAsync(ct);
+        var lowTanks = tanksWithStock
+            .Where(ft => TankVolumeService.UsableLitres((decimal)ft.ActualStockLiters!.Value, TankVolumeService.DeadStockLitres(ft))
+                <= (decimal)ft.MinAlertLiters!.Value)
+            .ToList();
 
         if (lowTanks.Count == 0)
         {
@@ -72,7 +76,7 @@ public class FuelStockAlertJob
             {
                 TankName = tank.Name,
                 FuelType = tank.FuelLookup?.Name ?? "Unknown",
-                CurrentLevelLiters = tank.ActualStockLiters ?? 0,
+                CurrentLevelLiters = (double)TankVolumeService.UsableLitres((decimal)tank.ActualStockLiters!.Value, TankVolumeService.DeadStockLitres(tank)),
                 CapacityLiters = tank.CapacityLiters
             };
 

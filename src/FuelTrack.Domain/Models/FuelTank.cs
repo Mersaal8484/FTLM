@@ -11,6 +11,10 @@ namespace FuelTrack.Domain.Models
         public double CapacityLiters { get; set; }
         public double? MinAlertLiters { get; set; }
         public double? DeadStockLiters { get; set; }
+        /// <summary>Original dead-stock entry in centimetres when the input unit is cm.</summary>
+        public decimal? DeadStockLevelCm { get; set; }
+        /// <summary>Preserves whether the operator entered the dead-stock setting in litres or centimetres.</summary>
+        public string DeadStockInputUnit { get; set; } = "litres";
         public double? ActualStockLiters { get; set; }
         public string? Notes { get; set; }
 

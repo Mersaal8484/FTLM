@@ -1,6 +1,7 @@
 using FuelTrack.Application.DTOs.FuelTanks;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
+using FuelTrack.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Services;
@@ -56,7 +57,12 @@ public class FuelTankService : IFuelTankService
         if (dto.Code is not null) tank.Code = dto.Code;
         if (dto.CapacityLiters.HasValue) tank.CapacityLiters = dto.CapacityLiters.Value;
         if (dto.MinAlertLiters.HasValue) tank.MinAlertLiters = dto.MinAlertLiters;
-        if (dto.DeadStockLiters.HasValue) tank.DeadStockLiters = dto.DeadStockLiters;
+        if (dto.DeadStockLiters.HasValue)
+        {
+            tank.DeadStockLiters = dto.DeadStockLiters;
+            tank.DeadStockLevelCm = null;
+            tank.DeadStockInputUnit = "litres";
+        }
         if (dto.ActualStockLiters.HasValue) tank.ActualStockLiters = dto.ActualStockLiters;
         if (dto.FuelLookupId.HasValue) tank.FuelLookupId = dto.FuelLookupId.Value;
         if (dto.SubStationId.HasValue)
@@ -103,11 +109,13 @@ public class FuelTankService : IFuelTankService
                     tank.FuelLookupId, tank.FuelLookup.Name,
                     tank.Name, tank.Code, tank.CapacityLiters,
                     tank.MinAlertLiters,
-                    tank.DeadStockLiters, tank.ActualStockLiters,
+                    (double?)TankVolumeService.DeadStockLitres(tank), tank.ActualStockLiters,
                     meterInfo.HasMeter, meterInfo.MeterReading, meterInfo.MeterReadingActual,
                     tank.Notes,
                     tank.IsActive,
-                    tank.CreatedAt, tank.UpdatedAt);
+                    tank.CreatedAt, tank.UpdatedAt,
+                    tank.DeadStockLevelCm, tank.DeadStockInputUnit,
+                    tank.DiameterCm, tank.CylinderHeightCm, tank.ConeHeightCm, tank.MultiplicationFactor);
             }
         }
 
@@ -127,11 +135,13 @@ public class FuelTankService : IFuelTankService
             originalTank.FuelLookupId, originalTank.FuelLookup.Name,
             originalTank.Name, originalTank.Code, originalTank.CapacityLiters,
             originalTank.MinAlertLiters,
-            originalTank.DeadStockLiters, originalTank.ActualStockLiters,
+            (double?)TankVolumeService.DeadStockLitres(originalTank), originalTank.ActualStockLiters,
             originalMeterInfo.HasMeter, originalMeterInfo.MeterReading, originalMeterInfo.MeterReadingActual,
             originalTank.Notes,
             originalTank.IsActive,
-            originalTank.CreatedAt, originalTank.UpdatedAt);
+            originalTank.CreatedAt, originalTank.UpdatedAt,
+            originalTank.DeadStockLevelCm, originalTank.DeadStockInputUnit,
+            originalTank.DiameterCm, originalTank.CylinderHeightCm, originalTank.ConeHeightCm, originalTank.MultiplicationFactor);
     }
 
     public async Task<List<FuelTankListDto>> GetAllAsync()
@@ -163,9 +173,10 @@ public class FuelTankService : IFuelTankService
                         ft.Id, ft.SubStationId, ft.SubStation.Name,
                         ft.FuelLookupId, ft.FuelLookup?.Name,
                         ft.Name, ft.Code, ft.CapacityLiters,
-                        ft.MinAlertLiters, ft.DeadStockLiters, ft.ActualStockLiters,
+                        ft.MinAlertLiters, (double?)TankVolumeService.DeadStockLitres(ft), ft.ActualStockLiters,
                         m.HasMeter, m.MeterReading, m.MeterReadingActual,
-                        ft.IsActive);
+                        ft.IsActive, ft.DeadStockLevelCm, ft.DeadStockInputUnit,
+                        ft.DiameterCm, ft.CylinderHeightCm, ft.ConeHeightCm, ft.MultiplicationFactor);
                 }).ToList();
             }
         }
@@ -189,9 +200,10 @@ public class FuelTankService : IFuelTankService
                 ft.Id, ft.SubStationId, ft.SubStation.Name,
                 ft.FuelLookupId, ft.FuelLookup?.Name,
                 ft.Name, ft.Code, ft.CapacityLiters,
-                ft.MinAlertLiters, ft.DeadStockLiters, ft.ActualStockLiters,
+                ft.MinAlertLiters, (double?)TankVolumeService.DeadStockLitres(ft), ft.ActualStockLiters,
                 m.HasMeter, m.MeterReading, m.MeterReadingActual,
-                ft.IsActive);
+                ft.IsActive, ft.DeadStockLevelCm, ft.DeadStockInputUnit,
+                ft.DiameterCm, ft.CylinderHeightCm, ft.ConeHeightCm, ft.MultiplicationFactor);
         }).ToList();
     }
 
@@ -225,9 +237,10 @@ public class FuelTankService : IFuelTankService
                 ft.Id, ft.SubStationId, ft.SubStation.Name,
                 ft.FuelLookupId, ft.FuelLookup?.Name,
                 ft.Name, ft.Code, ft.CapacityLiters,
-                ft.MinAlertLiters, ft.DeadStockLiters, ft.ActualStockLiters,
+                ft.MinAlertLiters, (double?)TankVolumeService.DeadStockLitres(ft), ft.ActualStockLiters,
                 m.HasMeter, m.MeterReading, m.MeterReadingActual,
-                ft.IsActive);
+                ft.IsActive, ft.DeadStockLevelCm, ft.DeadStockInputUnit,
+                ft.DiameterCm, ft.CylinderHeightCm, ft.ConeHeightCm, ft.MultiplicationFactor);
         }).ToList();
     }
 
@@ -248,12 +261,14 @@ public class FuelTankService : IFuelTankService
             tank.FuelLookupId, fuelLookup?.Name ?? "",
             tank.Name, tank.Code, tank.CapacityLiters,
             tank.MinAlertLiters,
-            tank.DeadStockLiters,
+            (double?)TankVolumeService.DeadStockLitres(tank),
             tank.ActualStockLiters,
             meterInfo.HasMeter, meterInfo.MeterReading, meterInfo.MeterReadingActual,
             tank.Notes,
             tank.IsActive,
-            tank.CreatedAt, tank.UpdatedAt);
+            tank.CreatedAt, tank.UpdatedAt,
+            tank.DeadStockLevelCm, tank.DeadStockInputUnit,
+            tank.DiameterCm, tank.CylinderHeightCm, tank.ConeHeightCm, tank.MultiplicationFactor);
     }
 
     private async Task<Dictionary<int, (bool HasMeter, double? MeterReading, double? MeterReadingActual)>> GetLatestMeterReadingsAsync(int[] tankIds)

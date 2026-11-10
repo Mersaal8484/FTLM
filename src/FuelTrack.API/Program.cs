@@ -684,7 +684,14 @@ using (var scope = app.Services.CreateScope())
         job => job.ExecuteAsync(CancellationToken.None),
         Cron.Daily);
 
-    if (!builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
+    if (builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
+    {
+        // Recurring jobs persist in Hangfire storage. Removing the legacy entry
+        // prevents a previously registered global job from running beside the
+        // tenant-isolated scheduler after multi-tenancy is enabled.
+        recurringJobManager.RemoveIfExists("operating-limit-evaluation");
+    }
+    else
         recurringJobManager.AddOrUpdate<OperatingLimitEvaluationJob>(
             "operating-limit-evaluation",
             job => job.ExecuteAsync(CancellationToken.None),

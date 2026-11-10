@@ -225,8 +225,8 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
                     <div style={{ padding: 14, fontSize: 12, color: 'var(--text-muted)' }}>{ar ? 'لا توجد إشعارات حديثة' : 'No recent notifications'}</div>
                   ) : notificationPreview.map(notification => (
                     <button key={notification.id} role="menuitem" onClick={() => { if (!notification.isRead) markPreviewRead(notification.id); navigate('/notifications'); closeMobile(); }} style={{ width: '100%', textAlign: 'start', padding: '10px 12px', border: 0, borderBottom: '1px solid var(--border)', background: notification.isRead ? 'transparent' : 'var(--surface-2)', color: 'var(--text)', cursor: 'pointer' }}>
-                      <div style={{ fontWeight: notification.isRead ? 500 : 700, fontSize: 12 }}>{notification.title}</div>
-                      <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{notification.message}</div>
+                      <div style={{ fontWeight: notification.isRead ? 500 : 700, fontSize: 12 }}>{notification.title?.startsWith('operational.') ? t(notification.title) : notification.title}</div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{notification.message?.startsWith('operational.') ? t(notification.message) : notification.message}</div>
                     </button>
                   ))}
                   <NavLink to="/notifications" onClick={() => { setNotificationMenuOpen(false); closeMobile(); }} style={{ display: 'block', padding: 10, textAlign: 'center', color: 'var(--primary)', fontSize: 12, textDecoration: 'none' }}>{ar ? 'عرض كل الإشعارات' : 'View all notifications'}</NavLink>

@@ -4,6 +4,7 @@ using FuelTrack.Application.Common;
 using FuelTrack.Application.DTOs.Reports;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
+using FuelTrack.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Services;
@@ -67,13 +68,13 @@ public class ReportService : IReportService
                 && (!branchId.HasValue || ft.SubStation.Station.BranchId == branchId.Value)
                 && (!hasScopeFilter || accessibleIds.Contains(ft.SubStationId)))
             .Select(ft => new {
+                Tank = ft,
                 ft.Id,
                 ft.Name,
                 SubStationName = ft.SubStation != null ? ft.SubStation.Name : "?",
                 Stock = ft.ActualStockLiters ?? 0,
                 Capacity = ft.CapacityLiters,
                 MinAlert = ft.MinAlertLiters,
-                DeadStock = ft.DeadStockLiters
             })
             .AsNoTracking().ToListAsync();
 
@@ -97,7 +98,8 @@ public class ReportService : IReportService
         {
             var pct = ft.Capacity > 0 ? ft.Stock / ft.Capacity * 100 : 0;
             var isLow = ft.MinAlert.HasValue && ft.Stock <= ft.MinAlert.Value;
-            var isCritical = ft.DeadStock.HasValue && ft.Stock <= ft.DeadStock.Value;
+            var deadStock = (double)TankVolumeService.DeadStockLitres(ft.Tank);
+            var isCritical = ft.Stock <= deadStock;
             return new FuelTankLevelDto(
                 ft.Id, ft.Name, ft.SubStationName,
                 ft.Stock, ft.Capacity, Math.Round(pct, 1), isLow, isCritical);
@@ -339,11 +341,11 @@ public class ReportService : IReportService
                 && (!subStationId.HasValue || ft.SubStationId == subStationId.Value)
                 && (!hasScopeFilter || accessibleIds.Contains(ft.SubStationId)))
             .Select(ft => new {
+                Tank = ft,
                 ft.Name,
                 SubStationName = ft.SubStation != null ? ft.SubStation.Name : "?",
                 Stock = ft.ActualStockLiters ?? 0,
                 MinAlert = ft.MinAlertLiters,
-                DeadStock = ft.DeadStockLiters
             })
             .AsNoTracking().ToListAsync();
 
@@ -352,7 +354,8 @@ public class ReportService : IReportService
             var stock = tank.Stock;
             if (tank.MinAlert.HasValue && stock <= tank.MinAlert.Value)
             {
-                alertList.Add(new FuelOilAlertDto("Fuel", stock <= (tank.DeadStock ?? 0) ? "Critical" : "Warning",
+                var deadStock = (double)TankVolumeService.DeadStockLitres(tank.Tank);
+                alertList.Add(new FuelOilAlertDto("Fuel", stock <= deadStock ? "Critical" : "Warning",
                     $"Tank '{tank.Name}' at {tank.SubStationName}: {stock:F0}L remaining",
                     tank.SubStationName, null));
             }

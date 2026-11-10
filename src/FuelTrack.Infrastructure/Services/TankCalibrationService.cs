@@ -40,16 +40,28 @@ public sealed class TankCalibrationService(FuelTrackDbContext db, IUserScopeFilt
         tank.ConeHeightCm = dto.ConeHeightCm;
         tank.MultiplicationFactor = dto.MultiplicationFactor;
         tank.ComputedCapacityLitres = TankGeometry.CalculateCapacityLitres(dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor);
-        var deadStockLitres = ResolveDeadStockLitres(dto);
-        if (deadStockLitres.HasValue)
-            tank.DeadStockLiters = (double)deadStockLitres.Value;
+        if (dto.DeadStockLitres.HasValue)
+        {
+            tank.DeadStockLiters = (double)dto.DeadStockLitres.Value;
+            tank.DeadStockLevelCm = null;
+            tank.DeadStockInputUnit = "litres";
+        }
+        else if (dto.DeadStockLevelCm.HasValue)
+        {
+            tank.DeadStockLiters = null;
+            tank.DeadStockLevelCm = dto.DeadStockLevelCm.Value;
+            tank.DeadStockInputUnit = "cm";
+        }
         tank.UpdatedAt = DateTime.UtcNow;
         tank.UpdatedBy = userId;
         await db.SaveChangesAsync(cancellationToken);
         return Result<TankCalibrationDto>.Success(new(
             tank.Id, dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor,
-            tank.ComputedCapacityLitres.Value, deadStockLitres,
-            deadStockLitres.HasValue ? TankGeometry.CalculateLiquidLevelCm(dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor, deadStockLitres.Value) : null));
+            tank.ComputedCapacityLitres.Value, TankVolumeService.DeadStockLitres(tank),
+            string.Equals(tank.DeadStockInputUnit, "cm", StringComparison.OrdinalIgnoreCase)
+                ? tank.DeadStockLevelCm
+                : TankGeometry.CalculateLiquidLevelCm(dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor, TankVolumeService.DeadStockLitres(tank)),
+            tank.DeadStockInputUnit));
     }
 
     private static bool IsValid(UpdateTankCalibrationDto dto) =>

@@ -73,6 +73,12 @@ export const appTranslations = {
           threePhaseKvaMismatch: 'Three-phase kVA differs from √3 × V × A / 1000 by more than 15%.',
           repeatedActiveLoad: 'Repeated active-load value detected across consecutive readings.',
         },
+        notifications: {
+          dailyTankAtDeadStock: {
+            title: 'Daily tank at dead stock',
+            message: 'Daily tank level is at or below dead stock.',
+          },
+        },
         tanks: {
           refillTitle: 'Tank Refill & Transfers (Screen C)',
           refillSubtitle: 'Record tank receipts, top-ups, and transfers between tanks.',
@@ -328,6 +334,12 @@ export const appTranslations = {
           activeLoadKvaPowerFactorMismatch: 'الحمل الفعال يختلف عن kVA × PF بأكثر من 10%.',
           threePhaseKvaMismatch: 'الـ kVA ثلاثي الأطوار يختلف عن √3 × V × A / 1000 بأكثر من 15%.',
           repeatedActiveLoad: 'تكرار نفس قيمة الحمل الفعال عبر قراءات متتالية.',
+        },
+        notifications: {
+          dailyTankAtDeadStock: {
+            title: 'الخزان اليومي عند النقطة الميتة',
+            message: 'مستوى الخزان اليومي عند النقطة الميتة أو دونها.',
+          },
         },
         navigation: 'التشغيل',
         actions: {

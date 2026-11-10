@@ -2644,6 +2644,8 @@ namespace FuelTrack.Infrastructure
 
             modelBuilder.Entity<FuelTank>(entity =>
             {
+                entity.Property(x => x.DeadStockLevelCm).HasPrecision(18, 4);
+                entity.Property(x => x.DeadStockInputUnit).HasMaxLength(16);
                 entity.Property(x => x.DiameterCm).HasPrecision(18, 4);
                 entity.Property(x => x.CylinderHeightCm).HasPrecision(18, 4);
                 entity.Property(x => x.ConeHeightCm).HasPrecision(18, 4);

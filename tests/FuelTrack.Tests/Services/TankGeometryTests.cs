@@ -1,4 +1,5 @@
 using FuelTrack.Domain.Services;
+using FuelTrack.Domain.Models;
 
 namespace FuelTrack.Tests.Services;
 
@@ -83,5 +84,30 @@ public sealed class TankGeometryTests
 
         Assert.Equal(65.45m, litresFromCm, 2);
         Assert.Equal(deadStockCm, cmFromLitres, 2);
+    }
+
+    [Fact]
+    public void DeadStockSource_InCmOrLitres_ProducesTheSameUsableThreshold()
+    {
+        var litresFromCm = TankGeometry.CalculateLitres(Diameter, CylinderHeight, ConeHeight, 1m, 25m);
+        var centimetreSource = new FuelTank
+        {
+            DiameterCm = Diameter,
+            CylinderHeightCm = CylinderHeight,
+            ConeHeightCm = ConeHeight,
+            MultiplicationFactor = 1m,
+            DeadStockLevelCm = 25m,
+            DeadStockInputUnit = "cm",
+            DeadStockLiters = null
+        };
+        var litreSource = new FuelTank
+        {
+            DeadStockLiters = (double)litresFromCm,
+            DeadStockLevelCm = null,
+            DeadStockInputUnit = "litres"
+        };
+
+        Assert.Equal(litresFromCm, TankVolumeService.DeadStockLitres(centimetreSource), 2);
+        Assert.Equal(TankVolumeService.DeadStockLitres(litreSource), TankVolumeService.DeadStockLitres(centimetreSource), 2);
     }
 }
