@@ -18,6 +18,9 @@ const typeConfig = {
   supply_approved:     { icon: CheckCheck, color: 'var(--secondary)', label: 'توريد موافق عليه' },
   part_replacement_due: { icon: AlertTriangle, color: 'var(--warning)', label: 'قطعة غيار تقترب من موعد الاستبدال' },
   part_replacement_overdue: { icon: AlertTriangle, color: 'var(--danger)', label: 'قطعة غيار تجاوزت موعد الاستبدال' },
+  service_due_soon:    { icon: AlertTriangle, color: 'var(--warning)', label: 'صيانة دورية مستحقة قريباً' },
+  service_due:         { icon: AlertTriangle, color: 'var(--warning)', label: 'صيانة دورية مستحقة الآن' },
+  service_overdue:     { icon: AlertTriangle, color: 'var(--danger)',  label: 'صيانة دورية متأخرة' },
   system:              { icon: Info,     color: 'var(--primary)', label: 'إشعار نظام' },
 };
 

@@ -21,6 +21,7 @@ public sealed class OperationalReviewService(
     INotificationService notifications,
     IMeterDeltaService meterDelta,
     IFuelLoadSafetyService fuelLoadSafety,
+    IServiceDueEvaluationService? serviceDueEvaluation = null,
     ILogger<OperationalReviewService>? logger = null) : IOperationalReviewService
 {
     private static readonly TimeSpan SkewThreshold = TimeSpan.FromHours(12);
@@ -354,6 +355,24 @@ public sealed class OperationalReviewService(
                 // Approval is already durable; retain it and make the post-commit
                 // safety failure observable for retry/operations investigation.
                 logger?.LogError(ex, "Dead-stock evaluation failed after approving tank reading {TankReadingId}", tankLine.Id);
+            }
+        }
+
+        if (serviceDueEvaluation != null)
+        {
+            var genRunningHourIds = meterLines
+                .Where(r => r.SubjectType == MeterReadingSubjectType.GeneratorRunningHours)
+                .Select(r => r.SubjectId)
+                .Distinct()
+                .ToList();
+
+            foreach (var genId in genRunningHourIds)
+            {
+                try { await serviceDueEvaluation.EvaluateGeneratorAsync(genId, cancellationToken); }
+                catch (Exception ex)
+                {
+                    logger?.LogError(ex, "Service-due evaluation failed after approving running hours for generator {GeneratorId}", genId);
+                }
             }
         }
 

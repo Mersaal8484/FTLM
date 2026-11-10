@@ -72,6 +72,17 @@ public sealed class AlertGeneratorService : IAlertGeneratorService
 
     public async Task<int> CheckInstalledPartsReplacementAsync(CancellationToken ct = default)
     {
+        // Gated: when operational data feature is active, Phase 4 service-due engine
+        // is the single source of truth for maintenance/service due alerts (Brief V4 §8).
+        var isOperational = await _db.CustomerFeatureSettings
+            .AsNoTracking()
+            .AnyAsync(s => s.Key == "operational_data" && s.IsEnabled, ct);
+
+        if (isOperational)
+        {
+            return 0;
+        }
+
         var parts = await _db.InstalledParts
             .AsNoTracking()
             .Include(p => p.SparePart)

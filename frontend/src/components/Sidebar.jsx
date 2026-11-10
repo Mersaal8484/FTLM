@@ -4,7 +4,7 @@ import client from '../api/client';
 import {
   LayoutDashboard, Zap, Database, Droplet, MapPin, Users,
   BarChart2, LogOut, Bell, ClipboardCheck, Truck,
-  PackageSearch, ChevronDown, Settings, Cpu, ShieldCheck, Gauge, Key, X, Lock, Sun, Moon, ScrollText, Menu, Undo2, FileText, Wrench, PackageCheck, Boxes
+  PackageSearch, ChevronDown, Settings, Cpu, ShieldCheck, Gauge, Key, X, Lock, Sun, Moon, ScrollText, Menu, Undo2, FileText, Wrench, PackageCheck, Boxes, Clock
 } from 'lucide-react';
 import usePermissions from '../permissions/usePermissions';
 import useUiStore from '../store/uiStore';
@@ -105,6 +105,7 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
     { to: '/warehouse/dispatch', icon: PackageCheck, label: ar ? 'طلبات الصرف' : 'Dispatch Requests', show: can('warehouse') },
     { to: '/warehouse/supply', icon: Boxes, label: ar ? 'توريد المخازن' : 'Warehouse Supply', show: can('warehouse') },
     { to: '/maintenance', icon: Wrench, label: ar ? 'لوحة الصيانة' : 'Maintenance', show: can('maintenance') },
+    { to: '/maintenance/service', icon: Clock, label: ar ? 'فترات الصيانة' : 'Service Intervals', show: can('maintenance') },
     { to: '/maintenance/permits', icon: FileText, label: ar ? 'تصاريح العمل' : 'Work Permits', show: can('maintenance') },
     { to: '/warehouse/parts', icon: PackageSearch, label: ar ? 'كتالوج القطع' : 'Parts Catalog', show: can('warehouse') },
     { to: '/warehouse/stock', icon: PackageSearch, label: ar ? 'المخزون الفعلي' : 'Warehouse Stock', show: can('warehouse') },

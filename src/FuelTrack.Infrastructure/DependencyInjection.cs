@@ -123,6 +123,11 @@ public static class DependencyInjection
         services.AddScoped<IFeederService, FeederService>();
         services.AddScoped<IFuelLoadSafetyService, FuelLoadSafetyService>();
         services.AddScoped<OperationalCompletenessService>();
+        services.AddScoped<IServiceItemService, ServiceItemService>();
+        services.AddScoped<IServiceIntervalDefinitionService, ServiceIntervalDefinitionService>();
+        services.AddScoped<IServiceReplacementService, ServiceReplacementService>();
+        services.AddScoped<IServiceDueService, ServiceDueService>();
+        services.AddScoped<IServiceDueEvaluationService, ServiceDueEvaluationService>();
 
         // Migration lock
         services.AddScoped<MigrationLockService>();

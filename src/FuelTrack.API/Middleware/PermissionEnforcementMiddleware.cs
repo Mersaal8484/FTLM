@@ -57,6 +57,10 @@ public static class PermissionMapping
         ["WorkPermits"] = "maintenance",
         ["InstalledParts"] = "maintenance",
         ["MaintenanceDashboard"] = "maintenance",
+        ["ServiceItems"] = "maintenance",
+        ["ServiceIntervalDefinitions"] = "maintenance",
+        ["ServiceReplacements"] = "maintenance",
+        ["ServiceDue"] = "maintenance",
     };
 
     private static readonly Dictionary<string, string> MethodToAction = new(StringComparer.OrdinalIgnoreCase)
