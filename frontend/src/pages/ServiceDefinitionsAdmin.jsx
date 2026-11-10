@@ -273,7 +273,7 @@ export default function ServiceDefinitionsAdmin({ lang }) {
       {/* Add Definition Modal */}
       {defModalOpen && (
         <Modal
-          isOpen={defModalOpen}
+          open={defModalOpen}
           onClose={() => setDefModalOpen(false)}
           title={ar ? 'تعريف فترة صيانة لطراز مولد' : 'Define Service Interval for Model'}
         >
@@ -375,7 +375,7 @@ export default function ServiceDefinitionsAdmin({ lang }) {
       {/* Add Item Modal */}
       {itemModalOpen && (
         <Modal
-          isOpen={itemModalOpen}
+          open={itemModalOpen}
           onClose={() => setItemModalOpen(false)}
           title={ar ? 'إضافة بند صيانة جديد' : 'Add New Service Item'}
         >

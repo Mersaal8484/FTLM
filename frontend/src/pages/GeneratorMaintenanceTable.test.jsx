@@ -183,4 +183,60 @@ describe('GeneratorMaintenanceTable', () => {
     expect(sentRequestIds[0]).toBeDefined();
     expect(sentRequestIds[0]).toBe(sentRequestIds[1]);
   });
+
+  test('opens void confirmation dialog from service history list', async () => {
+    client.get.mockImplementation(async (url) => {
+      if (url.includes('/api/service-due/station')) {
+        return { data: mockTables };
+      }
+      if (url === '/api/substations') {
+        return { data: [{ id: 10, name: 'Station 1' }] };
+      }
+      if (url.includes('/api/service-replacements/history')) {
+        return {
+          data: [
+            {
+              id: 99,
+              generatorId: 1,
+              serviceItemId: 1,
+              kind: 1,
+              hoursAtService: 3250,
+              occurredAtUtc: '2026-11-01T00:00:00Z',
+              isEarly: false,
+              voidedAtUtc: null,
+            },
+          ],
+        };
+      }
+      return { data: [] };
+    });
+
+    render(
+      <BrowserRouter>
+        <GeneratorMaintenanceTable lang="ar" />
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Generator Alpha')).toBeInTheDocument();
+    });
+
+    // Open history modal
+    const historyButtons = screen.getAllByTitle(/سجل الصيانات/i);
+    fireEvent.click(historyButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText('3250 h')).toBeInTheDocument();
+    });
+
+    // Click void button inside history table
+    const voidBtn = screen.getByRole('button', { name: /إلغاء السجل/i });
+    fireEvent.click(voidBtn);
+
+    // Verify void confirmation dialog opened
+    await waitFor(() => {
+      expect(screen.getByText('إلغاء سجل خدمة')).toBeInTheDocument();
+      expect(screen.getByText(/إلغاء هذا السجل سيعيد حساب ساعات الاستحقاق للمولد/i)).toBeInTheDocument();
+    });
+  });
 });

@@ -416,7 +416,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
       {/* Record Replacement Modal */}
       {modalOpen && modalGen && modalItem && (
         <Modal
-          isOpen={modalOpen}
+          open={modalOpen}
           onClose={() => setModalOpen(false)}
           title={ar ? `تسجيل خدمة: ${modalItem.serviceItemNameAr} - ${modalGen.generatorName}` : `Record Service: ${modalItem.serviceItemNameEn} - ${modalGen.generatorName}`}
         >
@@ -511,7 +511,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
       {/* History Modal */}
       {historyOpen && (
         <Modal
-          isOpen={historyOpen}
+          open={historyOpen}
           onClose={() => setHistoryOpen(false)}
           title={ar ? `سجل الخدمة: ${historyItemName} - ${historyGenName}` : `Service History: ${historyItemName} - ${historyGenName}`}
         >
@@ -582,7 +582,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
       {/* Void Confirmation Modal */}
       {voidModalOpen && (
         <Modal
-          isOpen={voidModalOpen}
+          open={voidModalOpen}
           onClose={() => setVoidModalOpen(false)}
           title={ar ? 'إلغاء سجل خدمة' : 'Void Service Record'}
         >

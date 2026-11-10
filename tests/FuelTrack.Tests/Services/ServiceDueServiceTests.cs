@@ -292,8 +292,10 @@ public sealed class ServiceDueServiceTests : IDisposable
     [Fact]
     public async Task ServiceDue_DeniesGeneratorOutsideCurrentUserScope()
     {
-        var site = new SubStation { Id = 91, Name = "BlockedSite", Code = "BS", StationId = 1 };
+        var station = new Station { Id = 91, Name = "Station91", Code = "ST91" };
+        var site = new SubStation { Id = 91, Name = "BlockedSite", Code = "BS", StationId = 91, Station = station };
         var generator = new Generator { Id = 901, Name = "Blocked", Model = "X", SubStationId = 91, SubStation = site };
+        _db.Stations.Add(station);
         _db.SubStations.Add(site);
         _db.Generators.Add(generator);
         await _db.SaveChangesAsync();
@@ -311,10 +313,11 @@ public sealed class ServiceDueServiceTests : IDisposable
     [Fact]
     public async Task ServiceDue_DoesNotTreatSuggestedIntervalAsConfiguredDefinition()
     {
-        var site = new SubStation { Id = 92, Name = "Unconfigured", Code = "UNC", StationId = 1 };
+        var station = new Station { Id = 92, Name = "Station92", Code = "ST92" };
+        var site = new SubStation { Id = 92, Name = "Unconfigured", Code = "UNC", StationId = 92, Station = station };
         var generator = new Generator { Id = 902, Name = "G-UNC", Model = "Unconfigured model", SubStationId = site.Id, SubStation = site };
         var item = new ServiceItem { Id = 92, Code = "SuggestedOnly", NameAr = "خدمة", NameEn = "Suggested only", SuggestedIntervalHours = 250m, IsActive = true };
-        _db.AddRange(site, generator, item);
+        _db.AddRange(station, site, generator, item);
         await _db.SaveChangesAsync();
 
         var result = await _dueService.GetGeneratorMaintenanceTableAsync(generator.Id);
