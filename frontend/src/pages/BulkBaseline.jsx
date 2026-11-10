@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ListPlus, ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import client from '../api/client';
@@ -17,6 +17,16 @@ export default function BulkBaseline({ lang }) {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Idempotency: generated once per submit attempt, reused on retry, renewed on edit after failure or on success
+  const clientRequestIdRef = useRef(crypto.randomUUID());
+
+  const resetErrorAndRenewKey = () => {
+    if (errorMsg) {
+      clientRequestIdRef.current = crypto.randomUUID();
+      setErrorMsg('');
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -86,8 +96,10 @@ export default function BulkBaseline({ lang }) {
       await client.post('/api/service-replacements/bulk-baseline', {
         generatorId: parseInt(selectedGenId),
         items: rowsToSubmit,
+        clientRequestId: clientRequestIdRef.current,
       });
 
+      clientRequestIdRef.current = crypto.randomUUID();
       setSuccessMsg(ar ? 'تم تأسيس ساعات البنود بنجاح!' : 'Bulk baseline saved successfully!');
       setTimeout(() => {
         navigate('/maintenance/service');

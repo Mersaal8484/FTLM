@@ -18,5 +18,8 @@ public class RecordReplacementRequestDtoValidator : AbstractValidator<RecordRepl
 
         RuleFor(x => x.OccurredAtUtc)
             .NotEmpty().WithMessage("Occurred date/time is required.");
+
+        RuleFor(x => x.ClientRequestId)
+            .NotEmpty().WithMessage("Client request ID is required.");
     }
 }

@@ -10,7 +10,8 @@ namespace FuelTrack.Infrastructure.Services;
 
 public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
 {
-    private static readonly string[] MaintenanceModule = ["maintenance"];
+    private const string MaintenanceModule = "maintenance";
+
     private readonly FuelTrackDbContext _db;
     private readonly INotificationService _notifications;
     private readonly ILogger<ServiceDueEvaluationService> _logger;
@@ -27,6 +28,12 @@ public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
 
     public async Task<int> EvaluateAllGeneratorsAsync(CancellationToken ct = default)
     {
+        var isNewMode = await _db.CustomerFeatureSettings
+            .AsNoTracking()
+            .AnyAsync(s => s.Key == "operational_data" && s.IsEnabled && s.Value != "legacy", ct);
+
+        if (!isNewMode) return 0;
+
         var generatorIds = await _db.Generators
             .AsNoTracking()
             .Select(g => g.Id)
@@ -50,29 +57,32 @@ public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
 
     public async Task<int> EvaluateGeneratorAsync(int generatorId, CancellationToken ct = default)
     {
+        var isNewMode = await _db.CustomerFeatureSettings
+            .AsNoTracking()
+            .AnyAsync(s => s.Key == "operational_data" && s.IsEnabled && s.Value != "legacy", ct);
+
+        if (!isNewMode) return 0;
+
         var generator = await _db.Generators
             .Include(g => g.SubStation)
             .FirstOrDefaultAsync(g => g.Id == generatorId, ct);
 
-        if (generator is null) return 0;
+        if (generator is null)
+        {
+            return 0;
+        }
 
-        // Fetch official closing running hours
+        // Daily closing is the sole official source for service-clock evaluation.
         var latestOfficialClosing = await _db.MeterReadings
             .AsNoTracking()
             .Where(r => r.SubjectType == MeterReadingSubjectType.GeneratorRunningHours &&
                         r.SubjectId == generator.Id &&
-                        ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status) &&
-                        r.Kind == MeterReadingKind.DailyClosing)
-            .OrderByDescending(r => r.CapturedAtUtc)
-            .FirstOrDefaultAsync(ct);
-
-        var latestOfficialReading = latestOfficialClosing ?? await _db.MeterReadings
-            .AsNoTracking()
-            .Where(r => r.SubjectType == MeterReadingSubjectType.GeneratorRunningHours &&
-                        r.SubjectId == generator.Id &&
+                        r.Kind == MeterReadingKind.DailyClosing &&
                         ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
             .OrderByDescending(r => r.CapturedAtUtc)
             .FirstOrDefaultAsync(ct);
+
+        var latestOfficialReading = latestOfficialClosing;
 
         if (latestOfficialReading is null)
         {
@@ -97,27 +107,13 @@ public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
 
         foreach (var def in definitions)
         {
-            var lastRecord = await _db.ServiceReplacementRecords
-                .Where(r => r.GeneratorId == generator.Id && r.ServiceItemId == def.ServiceItemId && r.VoidedAtUtc == null)
-                .OrderByDescending(r => r.HoursAtService)
-                .ThenByDescending(r => r.OccurredAtUtc)
-                .FirstOrDefaultAsync(ct);
-
-            var isMeterReset = false;
-            if (lastRecord is not null)
-            {
-                isMeterReset = await _db.MeterReadings.AnyAsync(m =>
-                    m.SubjectType == MeterReadingSubjectType.GeneratorRunningHours &&
-                    m.SubjectId == generator.Id &&
-                    m.IsMeterReset &&
-                    ReadingApprovalPolicy.OfficialStatuses.Contains(m.Status) &&
-                    m.CapturedAtUtc > lastRecord.OccurredAtUtc, ct);
-            }
+            var lastRecord = await ServiceRecordHelper.GetLatestActiveRecordAsync(_db, generator.Id, def.ServiceItemId, ct);
+            var isMeterReset = await ServiceRecordHelper.HasMeterResetAfterAsync(_db, generator.Id, lastRecord?.OccurredAtUtc, ct);
 
             var calc = ServiceDueCalculator.Calculate(
+                currentHours,
                 lastRecord?.HoursAtService,
                 def.IntervalHours,
-                currentHours,
                 def.WarningLeadHours,
                 isMeterReset);
 
@@ -134,6 +130,10 @@ public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
                     ServiceItemId = def.ServiceItemId,
                     CycleRecordId = currentCycleId,
                     HighestNotifiedStatus = null,
+                    CurrentStatus = calc.Status,
+                    RemainingHours = calc.RemainingHours,
+                    OverdueByHours = calc.OverdueByHours,
+                    DueAtHours = calc.DueAtHours,
                     LastEvaluatedAtUtc = DateTime.UtcNow,
                     CreatedAt = DateTime.UtcNow,
                     CreatedBy = 0,
@@ -141,6 +141,13 @@ public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
                     UpdatedBy = 0
                 };
                 _db.ServiceDueStates.Add(state);
+            }
+            else
+            {
+                state.CurrentStatus = calc.Status;
+                state.RemainingHours = calc.RemainingHours;
+                state.OverdueByHours = calc.OverdueByHours;
+                state.DueAtHours = calc.DueAtHours;
             }
 
             var shouldNotify = ServiceDueCalculator.ShouldNotify(
@@ -151,11 +158,24 @@ public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
 
             if (shouldNotify)
             {
-                var (type, severity, msgAr, msgEn) = FormatAlert(generator.Name, def.ServiceItem.NameAr, def.ServiceItem.NameEn, calc);
+                var (type, severity, msgAr, msgEn) = FormatAlert(
+                    generator.Name,
+                    def.ServiceItem.NameAr,
+                    def.ServiceItem.NameEn,
+                    def.Importance,
+                    calc);
 
+                // Persist the transition before publishing (W7b). Concurrency guard.
+                state.CycleRecordId = currentCycleId;
+                state.HighestNotifiedStatus = calc.Status;
+                state.LastEvaluatedAtUtc = DateTime.UtcNow;
+                state.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(ct);
+
+                // Message includes generator and item names and hours (C6)
                 var dto = new CreateNotificationDto(
                     generator.SubStationId,
-                    "Service required",
+                    msgAr,
                     msgEn,
                     type,
                     severity,
@@ -163,17 +183,19 @@ public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
                     "Generator",
                     generator.Id);
 
-                await _notifications.PublishScopedAsync(dto, null, MaintenanceModule, ct);
-
-                state.CycleRecordId = currentCycleId;
-                state.HighestNotifiedStatus = calc.Status;
-                state.LastEvaluatedAtUtc = DateTime.UtcNow;
-                state.UpdatedAt = DateTime.UtcNow;
-                alertsCreated++;
+                try
+                {
+                    await _notifications.PublishScopedAsync(dto, null, MaintenanceModule, ct);
+                    alertsCreated++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Service due transition was committed but notification publish failed for generator {GeneratorId}", generator.Id);
+                }
             }
             else if (currentCycleId != state.CycleRecordId && calc.Status == ServiceDueStatus.Ok)
             {
-                // Cycle reset back to Ok: update cycle and clear alert status without notifying
+                // Cycle reset back to Ok: update cycle and clear alert status without notifying (B2)
                 state.CycleRecordId = currentCycleId;
                 state.HighestNotifiedStatus = null;
                 state.LastEvaluatedAtUtc = DateTime.UtcNow;
@@ -194,25 +216,44 @@ public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
         string generatorName,
         string itemNameAr,
         string itemNameEn,
+        ServiceIntervalImportance importance,
         ServiceDueCalculationResult calc)
     {
-        return calc.Status switch
+        // Severity derives from both definition Importance and Status (B5)
+        var severity = (importance, calc.Status) switch
         {
-            ServiceDueStatus.Overdue => (
-                "service_overdue",
-                "danger",
-                $"خدمة {itemNameAr} للمولد {generatorName} متأخرة بمقدار {calc.OverdueByHours:0.##} ساعة تشغيل.",
-                $"{itemNameEn} service on generator {generatorName} is overdue by {calc.OverdueByHours:0.##} operating hours."),
-            ServiceDueStatus.Due => (
-                "service_due",
-                "warning",
-                $"خدمة {itemNameAr} للمولد {generatorName} مستحقة الآن.",
-                $"{itemNameEn} service on generator {generatorName} is due now."),
-            _ => (
-                "service_due_soon",
-                "warning",
-                $"خدمة {itemNameAr} للمولد {generatorName} مستحقة قريباً (متبقي {calc.RemainingHours:0.##} ساعة تشغيل).",
-                $"{itemNameEn} service on generator {generatorName} is due soon ({calc.RemainingHours:0.##} operating hours remaining).")
+            (ServiceIntervalImportance.Critical, ServiceDueStatus.Overdue) => "danger",
+            (ServiceIntervalImportance.Critical, ServiceDueStatus.Due) => "danger",
+            (ServiceIntervalImportance.Critical, ServiceDueStatus.DueSoon) => "warning",
+
+            (ServiceIntervalImportance.High, ServiceDueStatus.Overdue) => "danger",
+            (ServiceIntervalImportance.High, ServiceDueStatus.Due) => "warning",
+            (ServiceIntervalImportance.High, ServiceDueStatus.DueSoon) => "info",
+
+            _ => calc.Status == ServiceDueStatus.Overdue ? "warning" : "info"
         };
+
+        var type = calc.Status switch
+        {
+            ServiceDueStatus.Overdue => "service_overdue",
+            ServiceDueStatus.Due => "service_due",
+            _ => "service_due_soon"
+        };
+
+        var msgAr = calc.Status switch
+        {
+            ServiceDueStatus.Overdue => $"خدمة {itemNameAr} للمولد {generatorName} متأخرة بمقدار {calc.OverdueByHours:0.##} ساعة تشغيل.",
+            ServiceDueStatus.Due => $"خدمة {itemNameAr} للمولد {generatorName} مستحقة الآن.",
+            _ => $"خدمة {itemNameAr} للمولد {generatorName} مستحقة قريباً (متبقي {calc.RemainingHours:0.##} ساعة تشغيل)."
+        };
+
+        var msgEn = calc.Status switch
+        {
+            ServiceDueStatus.Overdue => $"{itemNameEn} service on generator {generatorName} is overdue by {calc.OverdueByHours:0.##} operating hours.",
+            ServiceDueStatus.Due => $"{itemNameEn} service on generator {generatorName} is due now.",
+            _ => $"{itemNameEn} service on generator {generatorName} is due soon ({calc.RemainingHours:0.##} operating hours remaining)."
+        };
+
+        return (type, severity, msgAr, msgEn);
     }
 }

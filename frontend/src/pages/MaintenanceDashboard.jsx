@@ -74,53 +74,51 @@ function MaintenanceDashboard({ lang, currentUser }) {
         </div>
       </div>
 
-      {/* Phase 4 Service Due Engine Widget */}
-      <div className="panel" style={{ padding: '16px 20px', borderRadius: 8, border: '1px solid var(--border-color, #e5e7eb)', marginBottom: 20, background: 'var(--card-bg, #fff)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 8, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-              <Clock size={22} />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600 }}>
-                {ar ? 'فترات الصيانة واستحقاقات ساعات التشغيل' : 'Service Intervals & Running Hours'}
-              </h3>
-              <p style={{ margin: 0, fontSize: '0.85rem', color: '#6b7280' }}>
-                {serviceDueSummary ? (
-                  ar ? (
+      {/* Phase 4 Service Due Engine Widget (Hidden in legacy mode when endpoint returns 404) */}
+      {serviceDueSummary && (
+        <div className="panel" style={{ padding: '16px 20px', borderRadius: 8, border: '1px solid var(--border-color, #e5e7eb)', marginBottom: 20, background: 'var(--card-bg, #fff)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 8, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                <Clock size={22} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600 }}>
+                  {ar ? 'فترات الصيانة واستحقاقات ساعات التشغيل' : 'Service Intervals & Running Hours'}
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#6b7280' }}>
+                  {ar ? (
                     `إجمالي المستحق: ${serviceDueSummary.totalDueCount} | المتأخر: ${serviceDueSummary.totalOverdueCount}`
                   ) : (
                     `Total Due: ${serviceDueSummary.totalDueCount} | Overdue: ${serviceDueSummary.totalOverdueCount}`
-                  )
-                ) : (
-                  ar ? 'متابعة بنود الصيانة المعتمدة على الساعات الرسمية' : 'Monitor hour-tracked service items'
-                )}
-              </p>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {serviceDueSummary.totalOverdueCount > 0 && (
+                <span style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #f87171', padding: '4px 10px', borderRadius: 16, fontSize: '0.8rem', fontWeight: 600 }}>
+                  {serviceDueSummary.totalOverdueCount} {ar ? 'متأخر' : 'Overdue'}
+                </span>
+              )}
+              {serviceDueSummary.totalDueCount > 0 && (
+                <span style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d', padding: '4px 10px', borderRadius: 16, fontSize: '0.8rem', fontWeight: 600 }}>
+                  {serviceDueSummary.totalDueCount} {ar ? 'مستحق' : 'Due'}
+                </span>
+              )}
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => navigate('/maintenance/service')}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <span>{ar ? 'عرض جداول المولدات' : 'View Maintenance Table'}</span>
+                {ar ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}
+              </button>
             </div>
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {serviceDueSummary && serviceDueSummary.totalOverdueCount > 0 && (
-              <span style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #f87171', padding: '4px 10px', borderRadius: 16, fontSize: '0.8rem', fontWeight: 600 }}>
-                {serviceDueSummary.totalOverdueCount} {ar ? 'متأخر' : 'Overdue'}
-              </span>
-            )}
-            {serviceDueSummary && serviceDueSummary.totalDueCount > 0 && (
-              <span style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d', padding: '4px 10px', borderRadius: 16, fontSize: '0.8rem', fontWeight: 600 }}>
-                {serviceDueSummary.totalDueCount} {ar ? 'مستحق' : 'Due'}
-              </span>
-            )}
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => navigate('/maintenance/service')}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              <span>{ar ? 'عرض جداول المولدات' : 'View Maintenance Table'}</span>
-              {ar ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}
-            </button>
-          </div>
         </div>
-      </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
         <div className="section-card">

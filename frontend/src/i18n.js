@@ -310,6 +310,12 @@ export const appTranslations = {
         warningLeadHours: 'Warning Lead Hours',
         suggestedInterval: 'Suggested Interval',
         itemsDueOrOverdue: 'Items Due / Overdue',
+        notifications: {
+          title: 'Service required',
+          dueSoon: 'A generator service is due soon. Open service intervals for details.',
+          due: 'A generator service is due now. Open service intervals for details.',
+          overdue: 'A generator service is overdue. Open service intervals for details.',
+        },
       },
     },
   },
@@ -582,6 +588,12 @@ export const appTranslations = {
         },
       },
       maintenanceService: {
+        notifications: {
+          title: '\u0635\u064a\u0627\u0646\u0629 \u0645\u0637\u0644\u0648\u0628\u0629',
+          dueSoon: '\u0635\u064a\u0627\u0646\u0629 \u0645\u0648\u0644\u062f \u0645\u0633\u062a\u062d\u0642\u0629 \u0642\u0631\u064a\u0628\u064b\u0627. \u0627\u0641\u062a\u062d \u0641\u062a\u0631\u0627\u062a \u0627\u0644\u0635\u064a\u0627\u0646\u0629 \u0644\u0644\u062a\u0641\u0627\u0635\u064a\u0644.',
+          due: '\u0635\u064a\u0627\u0646\u0629 \u0645\u0648\u0644\u062f \u0645\u0633\u062a\u062d\u0642\u0629 \u0627\u0644\u0622\u0646. \u0627\u0641\u062a\u062d \u0641\u062a\u0631\u0627\u062a \u0627\u0644\u0635\u064a\u0627\u0646\u0629 \u0644\u0644\u062a\u0641\u0627\u0635\u064a\u0644.',
+          overdue: '\u0635\u064a\u0627\u0646\u0629 \u0645\u0648\u0644\u062f \u0645\u062a\u0623\u062e\u0631\u0629. \u0627\u0641\u062a\u062d \u0641\u062a\u0631\u0627\u062a \u0627\u0644\u0635\u064a\u0627\u0646\u0629 \u0644\u0644\u062a\u0641\u0627\u0635\u064a\u0644.',
+        },
         title: 'جداول الصيانة وساعات التشغيل',
         subtitle: 'فترات الصيانة المعتمدة على ساعات التشغيل وحالة الاستحقاق',
         definitions: 'تعريف فترات الصيانة',

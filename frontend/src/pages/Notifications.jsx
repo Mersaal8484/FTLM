@@ -116,6 +116,7 @@ function Notifications({ lang, onRead }) {
       FuelTank: '/tanks',
       Oil: '/oils',
       InstalledPart: '/maintenance/installed-parts',
+      Generator: '/maintenance/service',
     };
     const route = routes[notification.relatedEntityType];
     if (route) navigate(route);
@@ -252,7 +253,7 @@ function Notifications({ lang, onRead }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                       <span style={{ fontWeight: unread ? 700 : 500, color: 'var(--text)', fontSize: 14 }}>
-                        {notif.title?.startsWith('operational.') ? t(notif.title) : notif.title}
+                        {isTranslationKey(notif.title) ? t(notif.title) : notif.title}
                       </span>
                       {unread && (
                         <span style={{
@@ -262,7 +263,7 @@ function Notifications({ lang, onRead }) {
                       )}
                     </div>
                     <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                      {notif.message?.startsWith('operational.') ? t(notif.message) : notif.message}
+                      {isTranslationKey(notif.message) ? t(notif.message) : notif.message}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 6 }}>
                       {formatTime(notif.createdAt)}
@@ -295,5 +296,8 @@ function Notifications({ lang, onRead }) {
     </div>
   );
 }
+
+const isTranslationKey = (value) => typeof value === 'string' &&
+  (value.startsWith('operational.') || value.startsWith('maintenanceService.'));
 
 export default Notifications;

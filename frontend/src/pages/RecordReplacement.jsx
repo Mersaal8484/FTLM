@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Wrench, ArrowLeft, ArrowRight, AlertTriangle, Check } from 'lucide-react';
 import client from '../api/client';
@@ -22,6 +22,17 @@ export default function RecordReplacement({ lang }) {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Idempotency: generated once per submit attempt, reused on retry, renewed on edit after failure or on success
+  const clientRequestIdRef = useRef(crypto.randomUUID());
+
+  const handleInputChange = (setter) => (e) => {
+    if (errorMsg) {
+      clientRequestIdRef.current = crypto.randomUUID();
+      setErrorMsg('');
+    }
+    setter(e.target.value);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -64,12 +75,14 @@ export default function RecordReplacement({ lang }) {
         generatorId: parseInt(selectedGenId),
         serviceItemId: parseInt(selectedItemId),
         hoursAtService: parseFloat(hoursAtService),
+        clientRequestId: clientRequestIdRef.current,
         occurredAtUtc: new Date(occurredAtUtc).toISOString(),
         workPermitId: workPermitId ? parseInt(workPermitId) : null,
         earlyReplacementReason: earlyReason.trim() || null,
         notes: notes.trim() || null,
       });
 
+      clientRequestIdRef.current = crypto.randomUUID();
       setSuccessMsg(ar ? 'تم تسجيل الخدمة بنجاح!' : 'Service replacement recorded successfully!');
       setTimeout(() => {
         navigate('/maintenance/service');
@@ -121,7 +134,7 @@ export default function RecordReplacement({ lang }) {
               className="ft-input"
               required
               value={selectedGenId}
-              onChange={(e) => setSelectedGenId(e.target.value)}
+              onChange={handleInputChange(setSelectedGenId)}
               style={{ width: '100%' }}
             >
               <option value="">{ar ? '-- اختر المولد --' : '-- Select Generator --'}</option>
@@ -138,7 +151,7 @@ export default function RecordReplacement({ lang }) {
               className="ft-input"
               required
               value={selectedItemId}
-              onChange={(e) => setSelectedItemId(e.target.value)}
+              onChange={handleInputChange(setSelectedItemId)}
               style={{ width: '100%' }}
             >
               <option value="">{ar ? '-- اختر بند الصيانة --' : '-- Select Service Item --'}</option>
@@ -157,7 +170,7 @@ export default function RecordReplacement({ lang }) {
               required
               placeholder="e.g. 5240"
               value={hoursAtService}
-              onChange={(e) => setHoursAtService(e.target.value)}
+              onChange={handleInputChange(setHoursAtService)}
             />
           </FormField>
 
@@ -166,7 +179,7 @@ export default function RecordReplacement({ lang }) {
               type="text"
               placeholder={ar ? 'مطلوب في حال الاستبدال المبكر...' : 'Required if replaced early...'}
               value={earlyReason}
-              onChange={(e) => setEarlyReason(e.target.value)}
+              onChange={handleInputChange(setEarlyReason)}
             />
           </FormField>
 
@@ -175,7 +188,7 @@ export default function RecordReplacement({ lang }) {
               type="datetime-local"
               required
               value={occurredAtUtc}
-              onChange={(e) => setOccurredAtUtc(e.target.value)}
+              onChange={handleInputChange(setOccurredAtUtc)}
             />
           </FormField>
 
@@ -184,7 +197,7 @@ export default function RecordReplacement({ lang }) {
               type="number"
               placeholder="e.g. 1042"
               value={workPermitId}
-              onChange={(e) => setWorkPermitId(e.target.value)}
+              onChange={handleInputChange(setWorkPermitId)}
             />
           </FormField>
 
@@ -193,7 +206,7 @@ export default function RecordReplacement({ lang }) {
               className="ft-input"
               rows="3"
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={handleInputChange(setNotes)}
               style={{ width: '100%' }}
             />
           </FormField>

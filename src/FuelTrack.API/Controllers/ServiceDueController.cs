@@ -42,9 +42,30 @@ public class ServiceDueController : BaseApiController
     }
 
     [HttpPost("evaluate")]
-    public async Task<IActionResult> EvaluateAll(CancellationToken ct = default)
+    public async Task<IActionResult> Evaluate(
+        [FromQuery] int? generatorId = null,
+        CancellationToken ct = default)
     {
-        var count = await _evaluationService.EvaluateAllGeneratorsAsync(ct);
-        return Ok(new { alertsGenerated = count });
+        if (generatorId.HasValue)
+        {
+            var gen = await _dueService.GetGeneratorMaintenanceTableAsync(generatorId.Value, ct);
+            if (!gen.IsSuccess)
+                return StatusCode(gen.StatusCode, new { error = gen.Error });
+
+            var count = await _evaluationService.EvaluateGeneratorAsync(generatorId.Value, ct);
+            return Ok(new { alertsGenerated = count });
+        }
+
+        // Evaluate only within user scope (B6, W1)
+        var tables = await _dueService.GetStationMaintenanceTablesAsync(null, ct);
+        var inScopeGenIds = tables.Select(t => t.GeneratorId).ToList();
+
+        var totalAlerts = 0;
+        foreach (var id in inScopeGenIds)
+        {
+            totalAlerts += await _evaluationService.EvaluateGeneratorAsync(id, ct);
+        }
+
+        return Ok(new { alertsGenerated = totalAlerts });
     }
 }

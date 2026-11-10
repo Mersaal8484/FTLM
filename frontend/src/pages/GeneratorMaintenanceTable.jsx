@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wrench, Clock, AlertTriangle, CheckCircle, Plus, History, Settings, ListPlus, X } from 'lucide-react';
 import client from '../api/client';
@@ -13,6 +13,9 @@ export default function GeneratorMaintenanceTable({ lang }) {
   const [subStations, setSubStations] = useState([]);
   const [selectedSubStation, setSelectedSubStation] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Client request ID for idempotency (reused on retry, renewed on edit after error or after success)
+  const clientRequestIdRef = useRef(crypto.randomUUID());
 
   // Record replacement modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -67,7 +70,16 @@ export default function GeneratorMaintenanceTable({ lang }) {
     loadData();
   }, [selectedSubStation]);
 
+  const handleInputChange = (setter) => (e) => {
+    if (errorMsg) {
+      clientRequestIdRef.current = crypto.randomUUID();
+      setErrorMsg('');
+    }
+    setter(e.target.value);
+  };
+
   const openRecordModal = (gen, item) => {
+    clientRequestIdRef.current = crypto.randomUUID();
     setModalGen(gen);
     setModalItem(item);
     setFormHours(gen.currentOfficialHours != null ? String(gen.currentOfficialHours) : '');
@@ -80,7 +92,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
   };
 
   const isEarlyReplacement = () => {
-    if (!modalItem || !formHours || modalItem.lastServiceHours == null) return false;
+    if (!modalItem || !formHours || modalItem.lastServiceHours == null || !modalItem.intervalHours) return false;
     const delta = parseFloat(formHours) - modalItem.lastServiceHours;
     return delta < modalItem.intervalHours;
   };
@@ -103,11 +115,13 @@ export default function GeneratorMaintenanceTable({ lang }) {
         generatorId: modalGen.generatorId,
         serviceItemId: modalItem.serviceItemId,
         hoursAtService: parseFloat(formHours),
+        clientRequestId: clientRequestIdRef.current,
         occurredAtUtc: new Date(formDate).toISOString(),
         workPermitId: formPermit ? parseInt(formPermit) : null,
         earlyReplacementReason: formEarlyReason.trim() || null,
         notes: formNotes.trim() || null,
       });
+      clientRequestIdRef.current = crypto.randomUUID();
       setModalOpen(false);
       await loadData();
     } catch (err) {
@@ -166,6 +180,8 @@ export default function GeneratorMaintenanceTable({ lang }) {
         return { background: '#fffbeb', color: '#d97706', border: '1px solid #fef08a' };
       case 1: // Ok
         return { background: '#dcfce7', color: '#15803d', border: '1px solid #86efac' };
+      case 5: // NotConfigured
+        return { background: '#f3f4f6', color: '#6b7280', border: '1px dashed #d1d5db' };
       default: // NotBaselined
         return { background: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db' };
     }
@@ -325,7 +341,26 @@ export default function GeneratorMaintenanceTable({ lang }) {
                             {ar ? item.serviceItemNameAr : item.serviceItemNameEn}
                           </td>
                           <td style={{ padding: '10px 12px' }}>
-                            {Number(item.intervalHours).toLocaleString()} h
+                            {item.status === 5 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <span style={{ color: '#6b7280', fontSize: '0.8rem' }}>
+                                  {!gen.model
+                                    ? (ar ? 'المولد بدون طراز محدد' : 'Generator has no model set')
+                                    : (ar ? 'غير مهيأ لهذا الطراز' : 'No definition configured for model')}
+                                </span>
+                                {item.definitionLink && (
+                                  <a
+                                    href={item.definitionLink}
+                                    onClick={(e) => { e.preventDefault(); navigate(item.definitionLink); }}
+                                    style={{ color: 'var(--primary)', fontSize: '0.75rem', textDecoration: 'underline', cursor: 'pointer' }}
+                                  >
+                                    {ar ? 'تعريف الفترة' : 'Set interval'}
+                                  </a>
+                                )}
+                              </div>
+                            ) : (
+                              `${Number(item.intervalHours).toLocaleString()} h`
+                            )}
                           </td>
                           <td style={{ padding: '10px 12px' }}>
                             {item.lastServiceHours != null ? `${Number(item.lastServiceHours).toLocaleString()} h` : '—'}
@@ -398,7 +433,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
                 step="0.1"
                 required
                 value={formHours}
-                onChange={(e) => setFormHours(e.target.value)}
+                onChange={handleInputChange(setFormHours)}
                 placeholder="e.g. 5240"
               />
             </FormField>
@@ -425,7 +460,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
                     required
                     className="ft-input"
                     value={formEarlyReason}
-                    onChange={(e) => setFormEarlyReason(e.target.value)}
+                    onChange={handleInputChange(setFormEarlyReason)}
                     placeholder={ar ? 'مثال: تلف مبكر، تسريب، صيانة اضطرارية...' : 'e.g. premature wear, leak, emergency...'}
                     style={{ width: '100%', borderColor: '#d97706' }}
                   />
@@ -438,7 +473,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
                 type="datetime-local"
                 required
                 value={formDate}
-                onChange={(e) => setFormDate(e.target.value)}
+                onChange={handleInputChange(setFormDate)}
               />
             </FormField>
 
@@ -446,7 +481,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
               <Input
                 type="number"
                 value={formPermit}
-                onChange={(e) => setFormPermit(e.target.value)}
+                onChange={handleInputChange(setFormPermit)}
                 placeholder="e.g. 1042"
               />
             </FormField>
@@ -456,7 +491,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
                 className="ft-input"
                 rows="2"
                 value={formNotes}
-                onChange={(e) => setFormNotes(e.target.value)}
+                onChange={handleInputChange(setFormNotes)}
                 style={{ width: '100%' }}
               />
             </FormField>

@@ -39,6 +39,17 @@ public class ServiceReplacementsController : BaseApiController
             : StatusCode(result.StatusCode, new { error = result.Error });
     }
 
+    [HttpPost("multi")]
+    public async Task<IActionResult> RecordMultiItemReplacement(
+        [FromBody] MultiItemReplacementRequestDto dto,
+        CancellationToken ct = default)
+    {
+        var result = await _service.RecordMultiItemReplacementAsync(dto, GetUserId(), ct);
+        return result.IsSuccess
+            ? StatusCode(result.StatusCode, result.Value)
+            : StatusCode(result.StatusCode, new { error = result.Error });
+    }
+
     [HttpPost("{id:int}/void")]
     public async Task<IActionResult> Void(
         int id,

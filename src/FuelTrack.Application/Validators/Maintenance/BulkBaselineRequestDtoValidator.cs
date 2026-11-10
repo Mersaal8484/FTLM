@@ -13,6 +13,9 @@ public class BulkBaselineRequestDtoValidator : AbstractValidator<BulkBaselineReq
         RuleFor(x => x.Items)
             .NotEmpty().WithMessage("At least one baseline item is required.");
 
+        RuleFor(x => x.ClientRequestId)
+            .NotEmpty().WithMessage("Client request ID is required.");
+
         RuleForEach(x => x.Items).ChildRules(item =>
         {
             item.RuleFor(i => i.ServiceItemId)

@@ -26,4 +26,13 @@ public sealed class CustomerFeatureService(FuelTrackDbContext db) : ICustomerFea
         await db.SaveChangesAsync(cancellationToken);
         return Result<CustomerFeatureSettingDto>.Success(new(feature.Key, feature.IsEnabled, feature.Value));
     }
+
+    public async Task<bool> IsOperationalDataNewModeAsync(CancellationToken cancellationToken = default)
+    {
+        var setting = await db.CustomerFeatureSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Key == "operational_data", cancellationToken);
+
+        return setting is { IsEnabled: true } && !string.Equals(setting.Value, "legacy", StringComparison.OrdinalIgnoreCase);
+    }
 }

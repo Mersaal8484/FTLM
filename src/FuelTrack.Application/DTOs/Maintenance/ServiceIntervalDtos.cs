@@ -54,7 +54,8 @@ public sealed record RecordReplacementRequestDto(
     DateTime OccurredAtUtc,
     int? WorkPermitId = null,
     string? EarlyReplacementReason = null,
-    string? Notes = null);
+    string? Notes = null,
+    Guid ClientRequestId = default);
 
 public sealed record BulkBaselineRowDto(
     int ServiceItemId,
@@ -64,7 +65,35 @@ public sealed record BulkBaselineRowDto(
 
 public sealed record BulkBaselineRequestDto(
     int GeneratorId,
-    List<BulkBaselineRowDto> Items);
+    List<BulkBaselineRowDto> Items,
+    Guid ClientRequestId = default);
+
+public sealed record MultiItemReplacementRowDto(
+    int ServiceItemId,
+    string? EarlyReplacementReason = null,
+    string? Notes = null);
+
+public sealed record MultiItemReplacementRequestDto(
+    int GeneratorId,
+    decimal HoursAtService,
+    DateTime OccurredAtUtc,
+    int? WorkPermitId,
+    List<MultiItemReplacementRowDto> Items,
+    Guid ClientRequestId = default);
+
+public sealed record BulkBaselineRowResultDto(
+    int ServiceItemId,
+    string? ServiceItemCode,
+    bool Success,
+    int? RecordId,
+    string? ErrorMessage);
+
+public sealed record BulkBaselineResultDto(
+    int GeneratorId,
+    int TotalRequested,
+    int SucceededCount,
+    int FailedCount,
+    List<BulkBaselineRowResultDto> RowResults);
 
 public sealed record ServiceReplacementRecordDto(
     int Id,
@@ -109,7 +138,8 @@ public sealed record GeneratorMaintenanceItemDueDto(
     decimal WarningLeadHours,
     bool IsMeterResetAfterLastService,
     string LabelAr,
-    string LabelEn);
+    string LabelEn,
+    string? DefinitionLink = null);
 
 public sealed record GeneratorMaintenanceTableDto(
     int GeneratorId,
