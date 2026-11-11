@@ -9,6 +9,7 @@ namespace FuelTrack.Infrastructure.Services;
 public sealed class CustomerFeatureService(FuelTrackDbContext db) : ICustomerFeatureService
 {
     public const string LegacyModeValue = "legacy";
+    public const string NewModeValue = "new";
 
     public async Task<IReadOnlyList<CustomerFeatureSettingDto>> GetAllAsync(CancellationToken cancellationToken = default) =>
         await db.CustomerFeatureSettings.AsNoTracking()
@@ -35,6 +36,10 @@ public sealed class CustomerFeatureService(FuelTrackDbContext db) : ICustomerFea
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Key == "operational_data", cancellationToken);
 
-        return setting is { IsEnabled: true } && !string.Equals(setting.Value, LegacyModeValue, StringComparison.OrdinalIgnoreCase);
+        // New operational behavior is opt-in. Any missing, null, or unrecognised
+        // value is deliberately treated as legacy so a feature cannot become live
+        // merely because an old setting was incomplete.
+        return setting is { IsEnabled: true } &&
+               string.Equals(setting.Value, NewModeValue, StringComparison.OrdinalIgnoreCase);
     }
 }

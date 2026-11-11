@@ -10,7 +10,7 @@ namespace FuelTrack.Infrastructure.Services;
 
 public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
 {
-    private const string MaintenanceModule = "maintenance";
+    private static readonly string[] MaintenanceModule = ["maintenance"];
 
     private readonly FuelTrackDbContext _db;
     private readonly INotificationService _notifications;
@@ -106,9 +106,9 @@ public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
             var isMeterReset = await ServiceRecordHelper.HasMeterResetAfterAsync(_db, generator.Id, lastRecord?.OccurredAtUtc, ct);
 
             var calc = ServiceDueCalculator.Calculate(
-                currentHours,
                 lastRecord?.HoursAtService,
                 def.IntervalHours,
+                currentHours,
                 def.WarningLeadHours,
                 isMeterReset);
 
@@ -125,10 +125,6 @@ public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
                     ServiceItemId = def.ServiceItemId,
                     CycleRecordId = currentCycleId,
                     HighestNotifiedStatus = null,
-                    CurrentStatus = calc.Status,
-                    RemainingHours = calc.RemainingHours,
-                    OverdueByHours = calc.OverdueByHours,
-                    DueAtHours = calc.DueAtHours,
                     LastEvaluatedAtUtc = DateTime.UtcNow,
                     CreatedAt = DateTime.UtcNow,
                     CreatedBy = 0,
@@ -137,14 +133,6 @@ public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
                 };
                 _db.ServiceDueStates.Add(state);
             }
-            else
-            {
-                state.CurrentStatus = calc.Status;
-                state.RemainingHours = calc.RemainingHours;
-                state.OverdueByHours = calc.OverdueByHours;
-                state.DueAtHours = calc.DueAtHours;
-            }
-
             var shouldNotify = ServiceDueCalculator.ShouldNotify(
                 state.HighestNotifiedStatus,
                 calc.Status,

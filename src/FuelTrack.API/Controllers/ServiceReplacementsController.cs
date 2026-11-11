@@ -33,7 +33,9 @@ public class ServiceReplacementsController : BaseApiController
         [FromBody] BulkBaselineRequestDto dto,
         CancellationToken ct = default)
     {
-        var result = await _service.RecordBulkBaselineAsync(dto, GetUserId(), ct);
+        // The detailed contract preserves per-row failures while allowing valid
+        // baseline rows to be committed in the same submission.
+        var result = await _service.RecordBulkBaselineDetailedAsync(dto, GetUserId(), ct);
         return result.IsSuccess
             ? StatusCode(result.StatusCode, result.Value)
             : StatusCode(result.StatusCode, new { error = result.Error });

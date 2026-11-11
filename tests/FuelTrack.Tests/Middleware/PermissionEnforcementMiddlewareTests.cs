@@ -169,6 +169,10 @@ public sealed class PermissionEnforcementMiddlewareTests : IDisposable
         context.RequestServices = _serviceProvider;
         context.Request.Path = path;
         context.Request.Method = method;
+        // PermissionEnforcementMiddleware reads Request.RouteValues directly.
+        // Assign the same route-value collection that the request exposes so
+        // this test exercises the real controller/feature-gate path.
+        context.Request.RouteValues["controller"] = controller;
 
         var routeData = new RouteData();
         routeData.Values["controller"] = controller;

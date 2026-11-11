@@ -3,7 +3,7 @@
 **Phase:** Phase 4 — Service Intervals and Due Engine  
 **Branch:** `feature/bitbus-service-intervals`  
 **Base commit:** `32275c0`  
-**Status:** Corrective pass in progress. Code corrections for audit items (W1–W13, C1–C5, B2–B14) applied and awaiting owner review; C6 notification payload structure stopped and reported awaiting owner decision (Choice A vs Choice B). Tests and verification remain unverified until executed by the owner in PowerShell.
+**Status:** Corrective pass implemented and backend verified by the owner on 2026-11-11. C6 notification payload structure remains deliberately stopped, pending the owner decision (Choice A vs Choice B).
 
 ---
 
@@ -36,7 +36,7 @@
 
 ### 1.4 Service Due Engine & Notifications (C5, C6, B2, B5, W7, W10)
 - **NotConfigured Items in Tables (C5, W10):** `ServiceDueService` returns a row for every active service item. Unconfigured items return `ServiceDueStatus.NotConfigured` with a link to the definitions page (`/maintenance/service/definitions`). The UI distinguishes between "generator has no model" and "model has no definition for this item".
-- **Optimized Set-Based Dashboard Query (W10):** `GetDueDashboardSummaryAsync` aggregates due/overdue counts directly from `ServiceDueStates` and builds detailed lists only for affected generators.
+- **Authoritative Dashboard Calculation (W10):** `GetDueDashboardSummaryAsync` derives due/overdue totals from the same scoped maintenance tables used by the detail view. `ServiceDueState` remains an alert-deduplication record and does not claim to persist a separate operational status snapshot.
 - **Evaluation Safety & Notification Severity (B2, B5, W7):** `ServiceDueEvaluationService` persists the evaluated state transition to the database before publishing notifications (preventing concurrent duplicates). Notification severity is derived directly from `ServiceIntervalImportance` and status.
 
 ### 1.5 Frontend Hardening & Idempotency (C2, B12, Shared Modal)
@@ -107,6 +107,35 @@
 
 ## 4. Owner Verification Commands (PowerShell)
 
+### 4.1 Post-audit corrective amendment (2026-11-11)
+
+The following additional corrections are present in the working tree and are
+not yet owner-verified:
+
+- Fixed the argument order passed to `ServiceDueCalculator.Calculate` by both
+  `ServiceDueService` and `ServiceDueEvaluationService`. The calculator now
+  consistently receives `(lastServiceHours, intervalHours, currentHours, ...)`.
+- Changed `POST /api/service-replacements/bulk-baseline` to return the existing
+  detailed per-row result contract, so a partial baseline submission does not
+  hide rejected rows from its caller.
+- Added tenant upgrade `009_phase4_service_item_arabic_text`. It repairs only
+  the exact mojibake values seeded by upgrade 008, preserves customer-edited
+  names, and leaves the already-applied upgrade 008 untouched.
+- Hardened the new-service feature gate: only the explicit enabled value
+  `new` exposes the Phase 4 endpoints. Missing, null, legacy, and unknown
+  values remain unavailable.
+- Corrected the middleware matrix harness to populate `Request.RouteValues`,
+  which is the route source read by the middleware. The prior failed run did
+  not exercise its controller gate and therefore reported false 200 results.
+- Corrected the full service-lifecycle fixture to explicitly enable the `new`
+  operational-data mode before it expects due-state notification output.
+
+No build, test, package restore, migration execution, or database operation was
+run by the agent for this amendment. The owner ran the following backend
+verification on 2026-11-11: `445` total tests, `435` succeeded, `0` failed,
+and `10` skipped; the build succeeded. No frontend files changed in this
+corrective amendment.
+
 Please execute the following commands in PowerShell from `D:\FTM\.worktrees\bitbus-service-intervals`:
 
 ```powershell
@@ -128,4 +157,4 @@ Set-Location ..
 ---
 
 ## 5. Next Gate
-Awaiting owner choice on **C6 (Choice A vs Choice B)** and verification results: `approved phase 4`.
+Backend verification has passed. Awaiting the owner choice on **C6 (Choice A vs Choice B)** and Phase 4 approval: `approved phase 4`.

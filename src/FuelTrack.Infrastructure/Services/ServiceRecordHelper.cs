@@ -1,5 +1,6 @@
 using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
+using FuelTrack.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Services;

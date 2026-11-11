@@ -72,7 +72,7 @@ public sealed class CustomerFeatureServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task IsOperationalDataNewModeAsync_WhenEnabledAndNullValue_ReturnsTrue()
+    public async Task IsOperationalDataNewModeAsync_WhenEnabledAndNullValue_ReturnsFalse()
     {
         _db.CustomerFeatureSettings.Add(new CustomerFeatureSetting
         {
@@ -83,7 +83,7 @@ public sealed class CustomerFeatureServiceTests : IDisposable
         await _db.SaveChangesAsync();
 
         var isNewMode = await _service.IsOperationalDataNewModeAsync();
-        Assert.True(isNewMode);
+        Assert.False(isNewMode);
     }
 
     public void Dispose() => _db.Dispose();

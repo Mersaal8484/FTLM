@@ -78,49 +78,10 @@ public sealed class ServiceDueService : IServiceDueService
         int? subStationId = null,
         CancellationToken ct = default)
     {
-        var accessibleSubStationIds = await GetAccessibleSubStationIdsAsync();
-        if (accessibleSubStationIds.Count == 0)
-            return new DueServiceDashboardSummaryDto(0, 0, []);
-
-        var genQuery = _db.Generators
-            .AsNoTracking()
-            .Where(g => accessibleSubStationIds.Contains(g.SubStationId));
-
-        if (subStationId.HasValue)
-            genQuery = genQuery.Where(g => g.SubStationId == subStationId.Value);
-
-        var accessibleGenIds = await genQuery.Select(g => g.Id).ToListAsync(ct);
-        if (accessibleGenIds.Count == 0)
-            return new DueServiceDashboardSummaryDto(0, 0, []);
-
-        var statesQuery = _db.ServiceDueStates
-            .AsNoTracking()
-            .Where(s => accessibleGenIds.Contains(s.GeneratorId));
-
-        var totalDue = await statesQuery.CountAsync(s => s.CurrentStatus == ServiceDueStatus.Due, ct);
-        var totalOverdue = await statesQuery.CountAsync(s => s.CurrentStatus == ServiceDueStatus.Overdue, ct);
-
-        // For generators that have Due or Overdue, only build detailed tables for them (bounded set-based query)
-        var genIdsWithDue = await statesQuery
-            .Where(s => s.CurrentStatus == ServiceDueStatus.Due || s.CurrentStatus == ServiceDueStatus.Overdue)
-            .Select(s => s.GeneratorId)
-            .Distinct()
-            .ToListAsync(ct);
-
-        var generatorsWithDue = new List<GeneratorMaintenanceTableDto>();
-        if (genIdsWithDue.Count > 0)
-        {
-            var gens = await _db.Generators
-                .AsNoTracking()
-                .Include(g => g.SubStation)
-                .Where(g => genIdsWithDue.Contains(g.Id))
-                .ToListAsync(ct);
-
-            foreach (var g in gens)
-            {
-                generatorsWithDue.Add(await BuildMaintenanceTableAsync(g, ct));
-            }
-        }
+        var tables = await GetStationMaintenanceTablesAsync(subStationId, ct);
+        var totalDue = tables.Sum(table => table.Items.Count(item => item.Status == ServiceDueStatus.Due));
+        var totalOverdue = tables.Sum(table => table.Items.Count(item => item.Status == ServiceDueStatus.Overdue));
+        var generatorsWithDue = tables.Where(table => table.DueOrOverdueCount > 0).ToList();
 
         return new DueServiceDashboardSummaryDto(totalDue, totalOverdue, generatorsWithDue);
     }
@@ -275,9 +236,9 @@ public sealed class ServiceDueService : IServiceDueService
         }
 
         var calc = ServiceDueCalculator.Calculate(
-            currentHours.Value,
             lastRecord?.HoursAtService,
             intervalHours,
+            currentHours.Value,
             effectiveLead,
             isMeterReset);
 

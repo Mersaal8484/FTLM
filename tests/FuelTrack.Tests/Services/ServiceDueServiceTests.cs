@@ -42,6 +42,7 @@ public sealed class ServiceDueServiceTests : IDisposable
         {
             Key = "operational_data",
             IsEnabled = true,
+            Value = CustomerFeatureService.NewModeValue,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         });
@@ -77,6 +78,15 @@ public sealed class ServiceDueServiceTests : IDisposable
     [Fact]
     public async Task RecordReplacement_And_DueService_FullLifecycle()
     {
+        _db.CustomerFeatureSettings.Add(new CustomerFeatureSetting
+        {
+            Key = "operational_data",
+            IsEnabled = true,
+            Value = CustomerFeatureService.NewModeValue,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
         // Setup generator and service items
         var subStation = new SubStation { Id = 1, Name = "North Station", Code = "NS", StationId = 1 };
         var generator = new Generator
@@ -395,6 +405,7 @@ public sealed class ServiceDueServiceTests : IDisposable
             GeneratorId: 820,
             HoursAtService: 2000m,
             OccurredAtUtc: DateTime.UtcNow,
+            WorkPermitId: null,
             Items: new List<MultiItemReplacementRowDto>
             {
                 new(821, "Notes for 821", null),
@@ -427,8 +438,9 @@ public sealed class ServiceDueServiceTests : IDisposable
 
         Assert.False(failResult.IsSuccess);
 
-        // Verify that IdempotencyKeys table has NO entry with this key
-        var keyExists = await _db.IdempotencyKeys.AnyAsync(k => k.Key == clientReqId.ToString());
+        // Verify that the idempotency store has no entry for a request rejected
+        // before the command reaches its persistence boundary.
+        var keyExists = await _db.IdempotencyRequests.AnyAsync(k => k.ClientRequestId == clientReqId);
         Assert.False(keyExists);
 
         // Now user fixes hours and resubmits with same clientRequestId
