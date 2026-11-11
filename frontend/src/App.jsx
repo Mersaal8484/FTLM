@@ -48,6 +48,10 @@ const WarehouseReports = lazy(() => import('./pages/WarehouseReports'));
 const WorkPermits = lazy(() => import('./pages/WorkPermits'));
 const InstalledParts = lazy(() => import('./pages/InstalledParts'));
 const MaintenanceDashboard = lazy(() => import('./pages/MaintenanceDashboard'));
+const GeneratorMaintenanceTable = lazy(() => import('./pages/GeneratorMaintenanceTable'));
+const RecordReplacement = lazy(() => import('./pages/RecordReplacement'));
+const BulkBaseline = lazy(() => import('./pages/BulkBaseline'));
+const ServiceDefinitionsAdmin = lazy(() => import('./pages/ServiceDefinitionsAdmin'));
 const OperationsHub = lazy(() => import('./pages/OperationsHub'));
 const OperationalCapture = lazy(() => import('./pages/OperationalCapture'));
 const OperationalHistory = lazy(() => import('./pages/OperationalHistory'));
@@ -95,6 +99,7 @@ const Protected = ({
   children,
   module,
   action = 'view',
+  alsoRequire = [],
 }) => {
   const authChecked = useAuthStore((s) => s.authChecked);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -107,7 +112,7 @@ const Protected = ({
   if (passwordChangeRequired) return <Navigate to="/force-password-change" replace />;
 
   if (module && currentUser && currentUser.role !== 'admin') {
-    if (!can(module, action)) {
+    if (!can(module, action) || alsoRequire.some((requiredModule) => !can(requiredModule, 'view'))) {
       return <Navigate to={firstAllowedHomePath(can)} replace />;
     }
   }
@@ -313,6 +318,10 @@ function App() {
               <Route path="/warehouse/reports" element={<Protected module="warehouse"><WarehouseReports lang={lang} /></Protected>} />
               {/* Maintenance */}
               <Route path="/maintenance" element={<Protected module="maintenance"><MaintenanceDashboard lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/maintenance/service" element={<Protected module="maintenance" alsoRequire={['operational_data']}><GeneratorMaintenanceTable lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/maintenance/replacements/record" element={<Protected module="maintenance" alsoRequire={['operational_data']}><RecordReplacement lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/maintenance/service/baseline" element={<Protected module="maintenance" alsoRequire={['operational_data']}><BulkBaseline lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/maintenance/service/definitions" element={<Protected module="maintenance" alsoRequire={['operational_data']}><ServiceDefinitionsAdmin lang={lang} currentUser={user} /></Protected>} />
               <Route path="/maintenance/permits" element={<Protected module="maintenance"><WorkPermits lang={lang} currentUser={user} /></Protected>} />
               <Route path="/maintenance/installed-parts" element={<Protected module="maintenance"><InstalledParts lang={lang} currentUser={user} /></Protected>} />
               <Route path="/setup-oils" element={<OilSetupProtected><SetupOils t={t} lang={lang} /></OilSetupProtected>} />

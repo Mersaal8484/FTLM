@@ -81,6 +81,10 @@ namespace FuelTrack.Infrastructure
         public DbSet<OverloadEvent> OverloadEvents => Set<OverloadEvent>();
         public DbSet<OperatingLimitEpisode> OperatingLimitEpisodes => Set<OperatingLimitEpisode>();
         public DbSet<TankDeadStockEpisode> TankDeadStockEpisodes => Set<TankDeadStockEpisode>();
+        public DbSet<ServiceItem> ServiceItems => Set<ServiceItem>();
+        public DbSet<ServiceIntervalDefinition> ServiceIntervalDefinitions => Set<ServiceIntervalDefinition>();
+        public DbSet<ServiceReplacementRecord> ServiceReplacementRecords => Set<ServiceReplacementRecord>();
+        public DbSet<ServiceDueState> ServiceDueStates => Set<ServiceDueState>();
 
         // Permission system (Module Registry)
         public DbSet<ModuleDefinition> ModuleDefinitions => Set<ModuleDefinition>();
@@ -164,6 +168,10 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<OverloadEvent>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<OperatingLimitEpisode>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<TankDeadStockEpisode>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<ServiceItem>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<ServiceIntervalDefinition>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<ServiceReplacementRecord>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<ServiceDueState>().HasQueryFilter(e => e.DeletedAt == null);
 
             // === Oil relationships ===
             modelBuilder.Entity<Oil>()
@@ -270,6 +278,49 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<OperatingLimitEpisode>()
                 .HasOne(x => x.TriggerReading).WithMany().HasForeignKey(x => x.TriggerReadingId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // === Phase 4 Service Intervals relationships ===
+            modelBuilder.Entity<ServiceIntervalDefinition>()
+                .HasOne(d => d.ServiceItem)
+                .WithMany(i => i.Definitions)
+                .HasForeignKey(d => d.ServiceItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ServiceReplacementRecord>()
+                .HasOne(r => r.Generator)
+                .WithMany(g => g.ServiceReplacementRecords)
+                .HasForeignKey(r => r.GeneratorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ServiceReplacementRecord>()
+                .HasOne(r => r.ServiceItem)
+                .WithMany(i => i.ReplacementRecords)
+                .HasForeignKey(r => r.ServiceItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ServiceReplacementRecord>()
+                .HasOne(r => r.WorkPermit)
+                .WithMany()
+                .HasForeignKey(r => r.WorkPermitId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ServiceDueState>()
+                .HasOne(s => s.Generator)
+                .WithMany(g => g.ServiceDueStates)
+                .HasForeignKey(s => s.GeneratorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ServiceDueState>()
+                .HasOne(s => s.ServiceItem)
+                .WithMany(i => i.DueStates)
+                .HasForeignKey(s => s.ServiceItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ServiceDueState>()
+                .HasOne(s => s.CycleRecord)
+                .WithMany()
+                .HasForeignKey(s => s.CycleRecordId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             // === SubStation children ===
             modelBuilder.Entity<SubStation>()
@@ -2680,6 +2731,46 @@ namespace FuelTrack.Infrastructure
                     .HasDatabaseName("IX_TankDeadStockEpisodes_Tank_Open");
                 entity.HasIndex(x => x.TriggerReadingId)
                     .HasDatabaseName("IX_TankDeadStockEpisodes_TriggerReading");
+            });
+
+            // === Phase 4 Service Intervals configurations ===
+            modelBuilder.Entity<ServiceItem>(entity =>
+            {
+                entity.HasIndex(x => x.Code).IsUnique()
+                    .HasDatabaseName("UX_ServiceItems_Code").HasFilter(activeFilter);
+                entity.Property(x => x.Code).HasMaxLength(64);
+                entity.Property(x => x.NameAr).HasMaxLength(128);
+                entity.Property(x => x.NameEn).HasMaxLength(128);
+                entity.Property(x => x.SuggestedIntervalHours).HasPrecision(18, 4);
+            });
+
+            modelBuilder.Entity<ServiceIntervalDefinition>(entity =>
+            {
+                entity.HasIndex(x => new { x.GeneratorModelKey, x.ServiceItemId }).IsUnique()
+                    .HasDatabaseName("UX_ServiceIntervalDefinitions_Model_Item").HasFilter(activeFilter);
+                entity.Property(x => x.GeneratorModelKey).HasMaxLength(128);
+                entity.Property(x => x.IntervalHours).HasPrecision(18, 4);
+                entity.Property(x => x.WarningLeadHours).HasPrecision(18, 4);
+                entity.Property(x => x.Notes).HasMaxLength(1000);
+            });
+
+            modelBuilder.Entity<ServiceReplacementRecord>(entity =>
+            {
+                entity.HasIndex(x => new { x.GeneratorId, x.ServiceItemId, x.HoursAtService })
+                    .HasDatabaseName("IX_ServiceReplacementRecords_Gen_Item_Hours");
+                entity.HasIndex(x => new { x.GeneratorId, x.ServiceItemId, x.VoidedAtUtc })
+                    .HasDatabaseName("IX_ServiceReplacementRecords_Voided");
+                entity.Property(x => x.HoursAtService).HasPrecision(18, 4);
+                entity.Property(x => x.IntervalHoursSnapshot).HasPrecision(18, 4);
+                entity.Property(x => x.EarlyReplacementReason).HasMaxLength(500);
+                entity.Property(x => x.VoidReason).HasMaxLength(500);
+                entity.Property(x => x.Notes).HasMaxLength(1000);
+            });
+
+            modelBuilder.Entity<ServiceDueState>(entity =>
+            {
+                entity.HasIndex(x => new { x.GeneratorId, x.ServiceItemId }).IsUnique()
+                    .HasDatabaseName("UX_ServiceDueStates_Generator_Item").HasFilter(activeFilter);
             });
 
             // === Module Registry System ===

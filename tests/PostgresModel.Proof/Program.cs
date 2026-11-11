@@ -704,6 +704,69 @@ using (var jobProvider = jobServices.BuildServiceProvider())
 await using (var db = NewContext(provisionedConn.ConnectionString))
     if (await db.OperatingLimitEpisodes.CountAsync() != 1)
         throw new InvalidOperationException("Tenant maintenance dispatcher did not create exactly one operating-limit episode.");
+
+// Phase 4 Service Intervals and Due State PostgreSQL Proof
+await using (var db = NewContext(provisionedConn.ConnectionString))
+{
+    var serviceItem = await db.ServiceItems.FirstOrDefaultAsync(i => i.Code == "OilChangeSet");
+    if (serviceItem is null)
+        throw new InvalidOperationException("Phase 4 migration 008 did not seed ServiceItems in provisioned tenant.");
+
+    var site = await db.SubStations.FirstAsync();
+    var proofGen = new Generator
+    {
+        SubStationId = site.Id,
+        Name = "proof-service-generator",
+        Model = "Proof-Engine-4000",
+        NormalizedModelKey = "PROOF-ENGINE-4000",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    db.Generators.Add(proofGen);
+    await db.SaveChangesAsync();
+
+    var def = new ServiceIntervalDefinition
+    {
+        GeneratorModelKey = "PROOF-ENGINE-4000",
+        ServiceItemId = serviceItem.Id,
+        IntervalHours = 250m,
+        WarningLeadHours = 50m,
+        Importance = ServiceIntervalImportance.Critical,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    db.ServiceIntervalDefinitions.Add(def);
+
+    var rep = new ServiceReplacementRecord
+    {
+        GeneratorId = proofGen.Id,
+        ServiceItemId = serviceItem.Id,
+        Kind = ServiceRecordKind.Replacement,
+        HoursAtService = 1000m,
+        OccurredAtUtc = DateTime.UtcNow,
+        IntervalHoursSnapshot = 250m,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    db.ServiceReplacementRecords.Add(rep);
+    await db.SaveChangesAsync();
+
+    var dueState = new ServiceDueState
+    {
+        GeneratorId = proofGen.Id,
+        ServiceItemId = serviceItem.Id,
+        CycleRecordId = rep.Id,
+        HighestNotifiedStatus = ServiceDueStatus.DueSoon,
+        LastEvaluatedAtUtc = DateTime.UtcNow,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    db.ServiceDueStates.Add(dueState);
+    await db.SaveChangesAsync();
+
+    if (await db.ServiceDueStates.CountAsync(s => s.GeneratorId == proofGen.Id) != 1)
+        throw new InvalidOperationException("Phase 4 service due state persistence failed in PostgreSQL proof.");
+}
 var controlTenant = await platform.Tenants.AsNoTracking().SingleAsync(t => t.Id == localDemoId);
 var controlPassword = await new TenantCredentialReader(platform, keyProvider).GetPasswordAsync(localDemoId);
 var controlConnection = new NpgsqlConnectionStringBuilder(adminString)

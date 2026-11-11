@@ -14,7 +14,7 @@ namespace FuelTrack.API.MultiTenancy;
 /// </summary>
 public sealed class TenantArchivalRunner(IServiceScopeFactory scopes, IConfiguration configuration)
 {
-    private enum MaintenanceTask { Archival, TokenCleanup, OperatingLimitEvaluation }
+    private enum MaintenanceTask { Archival, TokenCleanup, OperatingLimitEvaluation, ServiceDueEvaluation }
 
     public Task<bool> RunAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
         RunJobAsync(tenantId, MaintenanceTask.Archival, cancellationToken);
@@ -24,6 +24,9 @@ public sealed class TenantArchivalRunner(IServiceScopeFactory scopes, IConfigura
 
     public Task<bool> EvaluateOperatingLimitsAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
         RunJobAsync(tenantId, MaintenanceTask.OperatingLimitEvaluation, cancellationToken);
+
+    public Task<bool> EvaluateServiceDueAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+        RunJobAsync(tenantId, MaintenanceTask.ServiceDueEvaluation, cancellationToken);
 
     private async Task<bool> RunJobAsync(Guid tenantId, MaintenanceTask task, CancellationToken cancellationToken)
     {
@@ -49,6 +52,7 @@ public sealed class TenantArchivalRunner(IServiceScopeFactory scopes, IConfigura
         {
             MaintenanceTask.TokenCleanup => "token-cleanup",
             MaintenanceTask.OperatingLimitEvaluation => "operating-limit-evaluation",
+            MaintenanceTask.ServiceDueEvaluation => "service-due-evaluation",
             _ => "archival"
         }}:{tenantId:N}";
         await using var command = new NpgsqlCommand("SELECT pg_try_advisory_lock(hashtextextended(@key, 0))", lockConnection);
@@ -78,10 +82,15 @@ public sealed class TenantArchivalRunner(IServiceScopeFactory scopes, IConfigura
                 await archival.ArchiveAuditLogsAsync(90, cancellationToken);
                 await archival.ArchiveDailyReadingsAsync(365, cancellationToken);
             }
-            else
+            else if (task == MaintenanceTask.OperatingLimitEvaluation)
             {
                 var fuelLoadSafety = scope.ServiceProvider.GetRequiredService<IFuelLoadSafetyService>();
                 await fuelLoadSafety.EvaluateOperatingLimitsAsync(cancellationToken);
+            }
+            else
+            {
+                var serviceDue = scope.ServiceProvider.GetRequiredService<IServiceDueEvaluationService>();
+                await serviceDue.EvaluateAllGeneratorsAsync(cancellationToken);
             }
             return true;
         }

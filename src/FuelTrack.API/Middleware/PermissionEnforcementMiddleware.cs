@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using FuelTrack.Application.Common;
+using FuelTrack.Application.Interfaces;
 using FuelTrack.Infrastructure;
+using FuelTrack.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.API.Middleware;
@@ -57,6 +59,10 @@ public static class PermissionMapping
         ["WorkPermits"] = "maintenance",
         ["InstalledParts"] = "maintenance",
         ["MaintenanceDashboard"] = "maintenance",
+        ["ServiceItems"] = "maintenance",
+        ["ServiceIntervalDefinitions"] = "maintenance",
+        ["ServiceReplacements"] = "maintenance",
+        ["ServiceDue"] = "maintenance",
     };
 
     private static readonly Dictionary<string, string> MethodToAction = new(StringComparer.OrdinalIgnoreCase)
@@ -108,6 +114,12 @@ public static class PermissionMapping
             actionKey = "configure";
         else if (controllerName.Equals("OperationalFeeders", StringComparison.OrdinalIgnoreCase) && httpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase))
             actionKey = "configure";
+        else if (controllerName is "ServiceItems" or "ServiceIntervalDefinitions")
+            actionKey = httpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) ? "view" : "configure_service";
+        else if (controllerName.Equals("ServiceReplacements", StringComparison.OrdinalIgnoreCase))
+            actionKey = httpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) ? "view" : "record_service";
+        else if (controllerName.Equals("ServiceDue", StringComparison.OrdinalIgnoreCase))
+            actionKey = httpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) ? "view" : "record_service";
 
         // Privileged sub-actions (e.g. POST /api/fuel-movements/1/approve,
         // POST /api/rollback/execute, POST /api/readings/1/review) are authorized
@@ -180,17 +192,37 @@ public class PermissionEnforcementMiddleware
             return;
         }
 
-        if (IsSystemOwner(context.User!))
-        {
-            await _next(context);
-            return;
-        }
-
         var controllerName = GetControllerName(context);
         if (string.IsNullOrEmpty(controllerName))
         {
             await _next(context);
             return;
+        }
+
+        var isNewServiceController = controllerName is "ServiceItems"
+            or "ServiceIntervalDefinitions"
+            or "ServiceReplacements"
+            or "ServiceDue";
+
+        // For the new Phase 4 Service controllers only: stricter check via IsOperationalDataNewModeAsync.
+        // System owners do not bypass customer feature gates.
+        if (isNewServiceController)
+        {
+            if (!await IsServiceIntervalFeatureEnabledAsync(context))
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+        }
+        else
+        {
+            // For all existing controllers (Phases 1-3b), restore original behavior:
+            // SystemOwner bypasses individual action permission assignments immediately.
+            if (IsSystemOwner(context.User!))
+            {
+                await _next(context);
+                return;
+            }
         }
 
         var permissionKey = PermissionMapping.ResolvePermissionKey(controllerName, context.Request.Method, path);
@@ -201,9 +233,18 @@ public class PermissionEnforcementMiddleware
         }
 
         var moduleKey = permissionKey[..permissionKey.IndexOf('.')];
-        if (!await IsFeatureEnabledAsync(context, moduleKey))
+
+        // Check feature gate for existing operational_data controllers
+        if (!isNewServiceController && !await IsFeatureEnabledAsync(context, moduleKey))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        // For new service controllers, SystemOwner bypasses permission check after feature gate passed
+        if (isNewServiceController && IsSystemOwner(context.User!))
+        {
+            await _next(context);
             return;
         }
 
@@ -229,14 +270,20 @@ public class PermissionEnforcementMiddleware
     private static async Task<bool> IsFeatureEnabledAsync(HttpContext context, string moduleKey)
     {
         // Legacy warehouse and maintenance endpoints retain their existing
-        // behavior. Only the new operational surface is feature-gated here;
-        // later phases opt their new controller mappings into the same gate.
+        // behavior. Only the new operational surface is feature-gated here.
         if (!moduleKey.Equals("operational_data", StringComparison.OrdinalIgnoreCase)) return true;
 
         var db = context.RequestServices.GetRequiredService<FuelTrackDbContext>();
         return await db.CustomerFeatureSettings
             .AsNoTracking()
             .AnyAsync(x => x.Key == moduleKey && x.IsEnabled);
+    }
+
+    private static async Task<bool> IsServiceIntervalFeatureEnabledAsync(HttpContext context)
+    {
+        var featureService = context.RequestServices.GetService<ICustomerFeatureService>()
+            ?? new CustomerFeatureService(context.RequestServices.GetRequiredService<FuelTrackDbContext>());
+        return await featureService.IsOperationalDataNewModeAsync();
     }
 
     private static bool IsSystemOwner(ClaimsPrincipal user)

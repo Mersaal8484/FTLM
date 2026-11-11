@@ -1,4 +1,5 @@
 using FuelTrack.Domain.Models;
+using FuelTrack.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Data;
@@ -11,7 +12,7 @@ public static class CustomerFeatureSettingsSeed
 {
     private static readonly (string Key, bool IsEnabled, string? Value)[] Defaults =
     [
-        ("operational_data", false, "legacy"),
+        ("operational_data", false, CustomerFeatureService.LegacyModeValue),
         ("inventory", true, null),
         ("maintenance", true, null),
         ("solar", false, null),
