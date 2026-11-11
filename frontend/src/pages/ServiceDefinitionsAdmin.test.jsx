@@ -58,16 +58,14 @@ describe('ServiceDefinitionsAdmin', () => {
       </BrowserRouter>
     );
 
-    await waitFor(() => {
-      expect(screen.getByText('PERKINS 4012')).toBeInTheDocument();
-    });
+    await screen.findByRole('cell', { name: 'PERKINS 4012' });
 
     const addDefButton = screen.getByRole('button', { name: /تعريف فترة لطراز/i });
     fireEvent.click(addDefButton);
 
     await waitFor(() => {
       expect(screen.getByText('تعريف فترة صيانة لطراز مولد')).toBeInTheDocument();
-      expect(screen.getByText('طراز المولد (مثال: Perkins 4012 أو CAT-3516B)')).toBeInTheDocument();
+      expect(screen.getByText('طراز المولد (مثال: Perkins 4012 أو QSK60)')).toBeInTheDocument();
     });
   });
 
@@ -88,16 +86,14 @@ describe('ServiceDefinitionsAdmin', () => {
       </BrowserRouter>
     );
 
-    await waitFor(() => {
-      expect(screen.getByText('PERKINS 4012')).toBeInTheDocument();
-    });
+    await screen.findByRole('cell', { name: 'PERKINS 4012' });
 
     const addItemButton = screen.getByRole('button', { name: /إضافة بند صيانة/i });
     fireEvent.click(addItemButton);
 
     await waitFor(() => {
       expect(screen.getByText('إضافة بند صيانة جديد')).toBeInTheDocument();
-      expect(screen.getByText('كود البند (فريد بالإنجليزية)')).toBeInTheDocument();
+      expect(screen.getByText('رمز البند (إنجليزي فريد، مثال: CoolantFilter)')).toBeInTheDocument();
     });
   });
 });

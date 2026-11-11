@@ -8,6 +8,8 @@ namespace FuelTrack.Infrastructure.Services;
 
 public sealed class CustomerFeatureService(FuelTrackDbContext db) : ICustomerFeatureService
 {
+    public const string LegacyModeValue = "legacy";
+
     public async Task<IReadOnlyList<CustomerFeatureSettingDto>> GetAllAsync(CancellationToken cancellationToken = default) =>
         await db.CustomerFeatureSettings.AsNoTracking()
             .OrderBy(x => x.Key)
@@ -33,6 +35,6 @@ public sealed class CustomerFeatureService(FuelTrackDbContext db) : ICustomerFea
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Key == "operational_data", cancellationToken);
 
-        return setting is { IsEnabled: true } && !string.Equals(setting.Value, "legacy", StringComparison.OrdinalIgnoreCase);
+        return setting is { IsEnabled: true } && !string.Equals(setting.Value, LegacyModeValue, StringComparison.OrdinalIgnoreCase);
     }
 }

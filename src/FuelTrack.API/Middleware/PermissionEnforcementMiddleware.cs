@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using FuelTrack.Application.Common;
+using FuelTrack.Application.Interfaces;
 using FuelTrack.Infrastructure;
+using FuelTrack.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.API.Middleware;
@@ -202,7 +204,7 @@ public class PermissionEnforcementMiddleware
             or "ServiceReplacements"
             or "ServiceDue";
 
-        // For the new Phase 4 Service controllers only: stricter check: operational_data must be enabled AND value != "legacy"
+        // For the new Phase 4 Service controllers only: stricter check via IsOperationalDataNewModeAsync.
         // System owners do not bypass customer feature gates.
         if (isNewServiceController)
         {
@@ -279,10 +281,9 @@ public class PermissionEnforcementMiddleware
 
     private static async Task<bool> IsServiceIntervalFeatureEnabledAsync(HttpContext context)
     {
-        var db = context.RequestServices.GetRequiredService<FuelTrackDbContext>();
-        return await db.CustomerFeatureSettings
-            .AsNoTracking()
-            .AnyAsync(x => x.Key == "operational_data" && x.IsEnabled && x.Value != "legacy");
+        var featureService = context.RequestServices.GetService<ICustomerFeatureService>()
+            ?? new CustomerFeatureService(context.RequestServices.GetRequiredService<FuelTrackDbContext>());
+        return await featureService.IsOperationalDataNewModeAsync();
     }
 
     private static bool IsSystemOwner(ClaimsPrincipal user)

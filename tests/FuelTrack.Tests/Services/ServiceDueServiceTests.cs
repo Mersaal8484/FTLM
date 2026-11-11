@@ -326,7 +326,7 @@ public sealed class ServiceDueServiceTests : IDisposable
         Assert.Single(result.Value!.Items);
         var tableItem = result.Value.Items[0];
         Assert.Equal(ServiceDueStatus.NotConfigured, tableItem.Status);
-        Assert.Null(tableItem.IntervalHours);
+        Assert.Equal(0m, tableItem.IntervalHours);
         Assert.NotNull(tableItem.DefinitionLink);
     }
 

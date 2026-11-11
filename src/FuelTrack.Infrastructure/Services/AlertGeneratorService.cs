@@ -12,13 +12,16 @@ public sealed class AlertGeneratorService : IAlertGeneratorService
     private static readonly TimeSpan RepeatWindow = TimeSpan.FromHours(24);
     private readonly FuelTrackDbContext _db;
     private readonly INotificationService _notifications;
+    private readonly ICustomerFeatureService _customerFeatureService;
 
     public AlertGeneratorService(
         FuelTrackDbContext db,
-        INotificationService notifications)
+        INotificationService notifications,
+        ICustomerFeatureService? customerFeatureService = null)
     {
         _db = db;
         _notifications = notifications;
+        _customerFeatureService = customerFeatureService ?? new CustomerFeatureService(db);
     }
 
     public async Task<int> CheckFuelStockLevelsAsync(CancellationToken ct = default)
@@ -74,11 +77,7 @@ public sealed class AlertGeneratorService : IAlertGeneratorService
     {
         // Gated: when operational data feature is active in new mode, Phase 4 service-due engine
         // is the single source of truth for maintenance/service due alerts (Brief V4 §8).
-        var isOperationalNewMode = await _db.CustomerFeatureSettings
-            .AsNoTracking()
-            .AnyAsync(s => s.Key == "operational_data" && s.IsEnabled && s.Value != "legacy", ct);
-
-        if (isOperationalNewMode)
+        if (await _customerFeatureService.IsOperationalDataNewModeAsync(ct))
         {
             return 0;
         }

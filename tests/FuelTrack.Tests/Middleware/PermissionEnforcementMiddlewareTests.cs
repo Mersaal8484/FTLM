@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using FuelTrack.API.Middleware;
+using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
 using FuelTrack.Infrastructure;
+using FuelTrack.Infrastructure.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
@@ -22,9 +24,12 @@ public sealed class PermissionEnforcementMiddlewareTests : IDisposable
         var dbName = $"PermMiddlewareTests_{Guid.NewGuid()}";
         services.AddDbContext<FuelTrackDbContext>(options =>
             options.UseInMemoryDatabase(dbName));
+        services.AddScoped<ICustomerFeatureService, CustomerFeatureService>();
 
         _serviceProvider = services.BuildServiceProvider();
         _db = _serviceProvider.GetRequiredService<FuelTrackDbContext>();
+
+        SeedPermissions();
     }
 
     [Theory]
@@ -41,58 +46,52 @@ public sealed class PermissionEnforcementMiddlewareTests : IDisposable
         Assert.Equal(expected, resolved);
     }
 
-    [Fact]
-    public async Task NewServiceController_Returns404_WhenOperationalDataDisabled_EvenForSystemOwner()
+    [Theory]
+    // 1. Existing operational_data controller (retains exact legacy behavior: system owner always bypasses, normal user needs feature enabled)
+    [InlineData("OperationalCaptures", "POST", "/api/operational-captures", "disabled", false, 404)]
+    [InlineData("OperationalCaptures", "POST", "/api/operational-captures", "disabled", true, 200)]
+    [InlineData("OperationalCaptures", "POST", "/api/operational-captures", "enabled_legacy", false, 200)]
+    [InlineData("OperationalCaptures", "POST", "/api/operational-captures", "enabled_legacy", true, 200)]
+    [InlineData("OperationalCaptures", "POST", "/api/operational-captures", "enabled_new", false, 200)]
+    [InlineData("OperationalCaptures", "POST", "/api/operational-captures", "enabled_new", true, 200)]
+
+    // 2. ServiceItems (new controller: requires operational_data enabled and value != "legacy"; system owner does not bypass feature gate)
+    [InlineData("ServiceItems", "GET", "/api/service-items", "disabled", false, 404)]
+    [InlineData("ServiceItems", "GET", "/api/service-items", "disabled", true, 404)]
+    [InlineData("ServiceItems", "GET", "/api/service-items", "enabled_legacy", false, 404)]
+    [InlineData("ServiceItems", "GET", "/api/service-items", "enabled_legacy", true, 404)]
+    [InlineData("ServiceItems", "GET", "/api/service-items", "enabled_new", false, 200)]
+    [InlineData("ServiceItems", "GET", "/api/service-items", "enabled_new", true, 200)]
+
+    // 3. ServiceIntervalDefinitions (new controller: requires operational_data enabled and value != "legacy")
+    [InlineData("ServiceIntervalDefinitions", "GET", "/api/service-interval-definitions", "disabled", false, 404)]
+    [InlineData("ServiceIntervalDefinitions", "GET", "/api/service-interval-definitions", "disabled", true, 404)]
+    [InlineData("ServiceIntervalDefinitions", "GET", "/api/service-interval-definitions", "enabled_legacy", false, 404)]
+    [InlineData("ServiceIntervalDefinitions", "GET", "/api/service-interval-definitions", "enabled_legacy", true, 404)]
+    [InlineData("ServiceIntervalDefinitions", "GET", "/api/service-interval-definitions", "enabled_new", false, 200)]
+    [InlineData("ServiceIntervalDefinitions", "GET", "/api/service-interval-definitions", "enabled_new", true, 200)]
+
+    // 4. ServiceReplacements (new controller: requires operational_data enabled and value != "legacy")
+    [InlineData("ServiceReplacements", "POST", "/api/service-replacements", "disabled", false, 404)]
+    [InlineData("ServiceReplacements", "POST", "/api/service-replacements", "disabled", true, 404)]
+    [InlineData("ServiceReplacements", "POST", "/api/service-replacements", "enabled_legacy", false, 404)]
+    [InlineData("ServiceReplacements", "POST", "/api/service-replacements", "enabled_legacy", true, 404)]
+    [InlineData("ServiceReplacements", "POST", "/api/service-replacements", "enabled_new", false, 200)]
+    [InlineData("ServiceReplacements", "POST", "/api/service-replacements", "enabled_new", true, 200)]
+
+    // 5. ServiceDue (new controller: requires operational_data enabled and value != "legacy")
+    [InlineData("ServiceDue", "POST", "/api/service-due/evaluate", "disabled", false, 404)]
+    [InlineData("ServiceDue", "POST", "/api/service-due/evaluate", "disabled", true, 404)]
+    [InlineData("ServiceDue", "POST", "/api/service-due/evaluate", "enabled_legacy", false, 404)]
+    [InlineData("ServiceDue", "POST", "/api/service-due/evaluate", "enabled_legacy", true, 404)]
+    [InlineData("ServiceDue", "POST", "/api/service-due/evaluate", "enabled_new", false, 200)]
+    [InlineData("ServiceDue", "POST", "/api/service-due/evaluate", "enabled_new", true, 200)]
+    public async Task Matrix_ControllerFeatureOwnerMatrix_EnforcesExpectedBehavior(
+        string controller, string method, string path, string featureMode, bool isSystemOwner, int expectedStatus)
     {
-        // Feature disabled
-        _db.CustomerFeatureSettings.Add(new CustomerFeatureSetting
-        {
-            Key = "operational_data",
-            IsEnabled = false,
-            Value = "new"
-        });
-        await _db.SaveChangesAsync();
+        SetFeatureState(featureMode);
 
-        var context = CreateHttpContext("ServiceItems", "GET", "/api/service-items", isSystemOwner: true);
-        var middleware = new PermissionEnforcementMiddleware(_ => Task.CompletedTask, NullLogger<PermissionEnforcementMiddleware>.Instance);
-
-        await middleware.InvokeAsync(context);
-
-        Assert.Equal(StatusCodes.Status404NotFound, context.Response.StatusCode);
-    }
-
-    [Fact]
-    public async Task NewServiceController_Returns404_WhenOperationalDataEnabled_WithLegacyValue()
-    {
-        // Feature enabled, but Value is "legacy"
-        _db.CustomerFeatureSettings.Add(new CustomerFeatureSetting
-        {
-            Key = "operational_data",
-            IsEnabled = true,
-            Value = "legacy"
-        });
-        await _db.SaveChangesAsync();
-
-        var context = CreateHttpContext("ServiceItems", "GET", "/api/service-items", isSystemOwner: true);
-        var middleware = new PermissionEnforcementMiddleware(_ => Task.CompletedTask, NullLogger<PermissionEnforcementMiddleware>.Instance);
-
-        await middleware.InvokeAsync(context);
-
-        Assert.Equal(StatusCodes.Status404NotFound, context.Response.StatusCode);
-    }
-
-    [Fact]
-    public async Task NewServiceController_AllowsSystemOwner_WhenOperationalDataEnabled_WithNewValue()
-    {
-        _db.CustomerFeatureSettings.Add(new CustomerFeatureSetting
-        {
-            Key = "operational_data",
-            IsEnabled = true,
-            Value = "new"
-        });
-        await _db.SaveChangesAsync();
-
-        var context = CreateHttpContext("ServiceItems", "GET", "/api/service-items", isSystemOwner: true);
+        var context = CreateHttpContext(controller, method, path, isSystemOwner);
         var nextExecuted = false;
         var middleware = new PermissionEnforcementMiddleware(_ =>
         {
@@ -102,34 +101,66 @@ public sealed class PermissionEnforcementMiddlewareTests : IDisposable
 
         await middleware.InvokeAsync(context);
 
-        Assert.True(nextExecuted);
-        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        Assert.Equal(expectedStatus, context.Response.StatusCode);
+        if (expectedStatus == StatusCodes.Status200OK)
+        {
+            Assert.True(nextExecuted);
+        }
+        else
+        {
+            Assert.False(nextExecuted);
+        }
     }
 
-    [Fact]
-    public async Task ExistingOperationalController_AllowsSystemOwner_EvenInLegacyMode()
+    private void SetFeatureState(string mode)
     {
-        _db.CustomerFeatureSettings.Add(new CustomerFeatureSetting
+        var setting = _db.CustomerFeatureSettings.FirstOrDefault(s => s.Key == "operational_data");
+        if (setting == null)
         {
-            Key = "operational_data",
-            IsEnabled = true,
-            Value = "legacy"
-        });
-        await _db.SaveChangesAsync();
+            setting = new CustomerFeatureSetting { Key = "operational_data" };
+            _db.CustomerFeatureSettings.Add(setting);
+        }
 
-        // Existing Phase 1-3b operational controller
-        var context = CreateHttpContext("OperationalCaptures", "GET", "/api/operational-captures", isSystemOwner: true);
-        var nextExecuted = false;
-        var middleware = new PermissionEnforcementMiddleware(_ =>
+        switch (mode)
         {
-            nextExecuted = true;
-            return Task.CompletedTask;
-        }, NullLogger<PermissionEnforcementMiddleware>.Instance);
+            case "disabled":
+                setting.IsEnabled = false;
+                setting.Value = CustomerFeatureService.LegacyModeValue;
+                break;
+            case "enabled_legacy":
+                setting.IsEnabled = true;
+                setting.Value = CustomerFeatureService.LegacyModeValue;
+                break;
+            case "enabled_new":
+                setting.IsEnabled = true;
+                setting.Value = "new";
+                break;
+        }
 
-        await middleware.InvokeAsync(context);
+        _db.SaveChanges();
+    }
 
-        Assert.True(nextExecuted);
-        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+    private void SeedPermissions()
+    {
+        var opModule = new ModuleDefinition { Id = 1, Key = "operational_data", NameAr = "العمليات", NameEn = "Operations", IsActive = true };
+        var maintModule = new ModuleDefinition { Id = 2, Key = "maintenance", NameAr = "الصيانة", NameEn = "Maintenance", IsActive = true };
+        _db.ModuleDefinitions.AddRange(opModule, maintModule);
+
+        var pCapture = new PagePermission { Id = 1, ModuleDefinitionId = 1, ModuleDefinition = opModule, ActionKey = "capture", NameAr = "التقاط", NameEn = "Capture", IsActive = true };
+        var pView = new PagePermission { Id = 2, ModuleDefinitionId = 2, ModuleDefinition = maintModule, ActionKey = "view", NameAr = "عرض", NameEn = "View", IsActive = true };
+        var pRecord = new PagePermission { Id = 3, ModuleDefinitionId = 2, ModuleDefinition = maintModule, ActionKey = "record_service", NameAr = "تسجيل", NameEn = "Record", IsActive = true };
+        _db.PagePermissions.AddRange(pCapture, pView, pRecord);
+
+        var role = new Role { Id = 1, Name = "Operator", NormalizedName = "OPERATOR" };
+        _db.Roles.Add(role);
+
+        _db.RolePermissions.AddRange(
+            new RolePermission { RoleId = 1, Role = role, PagePermissionId = 1, PagePermission = pCapture, IsGranted = true },
+            new RolePermission { RoleId = 1, Role = role, PagePermissionId = 2, PagePermission = pView, IsGranted = true },
+            new RolePermission { RoleId = 1, Role = role, PagePermissionId = 3, PagePermission = pRecord, IsGranted = true }
+        );
+
+        _db.SaveChanges();
     }
 
     private HttpContext CreateHttpContext(string controller, string method, string path, bool isSystemOwner)
@@ -148,9 +179,16 @@ public sealed class PermissionEnforcementMiddlewareTests : IDisposable
             new(ClaimTypes.NameIdentifier, "1"),
             new(ClaimTypes.Name, "testuser"),
         };
+
         if (isSystemOwner)
         {
-            claims.Add(new Claim("is_system_owner", "true"));
+            claims.Add(new Claim(ClaimTypes.Role, "SystemOwner"));
+            claims.Add(new Claim("role", "SystemOwner"));
+        }
+        else
+        {
+            claims.Add(new Claim(ClaimTypes.Role, "Operator"));
+            claims.Add(new Claim("role", "Operator"));
         }
 
         context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));

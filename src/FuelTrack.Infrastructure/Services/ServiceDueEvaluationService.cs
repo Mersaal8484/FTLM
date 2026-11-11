@@ -15,24 +15,23 @@ public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
     private readonly FuelTrackDbContext _db;
     private readonly INotificationService _notifications;
     private readonly ILogger<ServiceDueEvaluationService> _logger;
+    private readonly ICustomerFeatureService _customerFeatureService;
 
     public ServiceDueEvaluationService(
         FuelTrackDbContext db,
         INotificationService notifications,
-        ILogger<ServiceDueEvaluationService> logger)
+        ILogger<ServiceDueEvaluationService> logger,
+        ICustomerFeatureService? customerFeatureService = null)
     {
         _db = db;
         _notifications = notifications;
         _logger = logger;
+        _customerFeatureService = customerFeatureService ?? new CustomerFeatureService(db);
     }
 
     public async Task<int> EvaluateAllGeneratorsAsync(CancellationToken ct = default)
     {
-        var isNewMode = await _db.CustomerFeatureSettings
-            .AsNoTracking()
-            .AnyAsync(s => s.Key == "operational_data" && s.IsEnabled && s.Value != "legacy", ct);
-
-        if (!isNewMode) return 0;
+        if (!await _customerFeatureService.IsOperationalDataNewModeAsync(ct)) return 0;
 
         var generatorIds = await _db.Generators
             .AsNoTracking()
@@ -57,11 +56,7 @@ public sealed class ServiceDueEvaluationService : IServiceDueEvaluationService
 
     public async Task<int> EvaluateGeneratorAsync(int generatorId, CancellationToken ct = default)
     {
-        var isNewMode = await _db.CustomerFeatureSettings
-            .AsNoTracking()
-            .AnyAsync(s => s.Key == "operational_data" && s.IsEnabled && s.Value != "legacy", ct);
-
-        if (!isNewMode) return 0;
+        if (!await _customerFeatureService.IsOperationalDataNewModeAsync(ct)) return 0;
 
         var generator = await _db.Generators
             .Include(g => g.SubStation)
