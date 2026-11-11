@@ -21,6 +21,7 @@ public sealed class TenantMaintenanceScheduler(
             try
             {
                 await RunOperatingLimitEvaluationsAsync(stoppingToken);
+                await RunServiceDueEvaluationsAsync(stoppingToken);
                 var today = DateOnly.FromDateTime(DateTime.UtcNow);
                 if (lastDailyRun != today)
                 {
@@ -37,6 +38,7 @@ public sealed class TenantMaintenanceScheduler(
     {
         await RunDailyMaintenanceAsync(cancellationToken);
         await RunOperatingLimitEvaluationsAsync(cancellationToken);
+        await RunServiceDueEvaluationsAsync(cancellationToken);
     }
 
     private async Task RunDailyMaintenanceAsync(CancellationToken cancellationToken)
@@ -64,6 +66,18 @@ public sealed class TenantMaintenanceScheduler(
             try { await runner.EvaluateOperatingLimitsAsync(tenantId, cancellationToken); }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception ex) { logger.LogError(ex, "Operating-limit evaluation failed for tenant {TenantId}", tenantId); }
+        }
+    }
+
+    private async Task RunServiceDueEvaluationsAsync(CancellationToken cancellationToken)
+    {
+        var tenants = await GetEligibleTenantIdsAsync(cancellationToken);
+        foreach (var tenantId in tenants)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try { await runner.EvaluateServiceDueAsync(tenantId, cancellationToken); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception ex) { logger.LogError(ex, "Service-due evaluation failed for tenant {TenantId}", tenantId); }
         }
     }
 

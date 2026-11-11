@@ -15,6 +15,7 @@
     <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/005_phase3b_operational_indicators.sql" Link="MultiTenancy/005_phase3b_operational_indicators.sql" LogicalName="FuelTrack.Tenants.005_phase3b_operational_indicators.sql" />
     <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/007_phase3b_1_corrections.sql" Link="MultiTenancy/007_phase3b_1_corrections.sql" LogicalName="FuelTrack.Tenants.007_phase3b_1_corrections.sql" />
     <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/006_phase3b_patch.sql" Link="MultiTenancy/006_phase3b_patch.sql" LogicalName="FuelTrack.Tenants.006_phase3b_patch.sql" />
+    <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/008_phase4_service_intervals.sql" Link="MultiTenancy/008_phase4_service_intervals.sql" LogicalName="FuelTrack.Tenants.008_phase4_service_intervals.sql" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FuelTrack.Domain\FuelTrack.Domain.csproj" />

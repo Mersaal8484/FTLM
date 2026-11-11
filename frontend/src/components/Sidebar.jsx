@@ -4,7 +4,7 @@ import client from '../api/client';
 import {
   LayoutDashboard, Zap, Database, Droplet, MapPin, Users,
   BarChart2, LogOut, Bell, ClipboardCheck, Truck,
-  PackageSearch, ChevronDown, Settings, Cpu, ShieldCheck, Gauge, Key, X, Lock, Sun, Moon, ScrollText, Menu, Undo2, FileText, Wrench, PackageCheck, Boxes
+  PackageSearch, ChevronDown, Settings, Cpu, ShieldCheck, Gauge, Key, X, Lock, Sun, Moon, ScrollText, Menu, Undo2, FileText, Wrench, PackageCheck, Boxes, Clock
 } from 'lucide-react';
 import usePermissions from '../permissions/usePermissions';
 import useUiStore from '../store/uiStore';
@@ -105,6 +105,7 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
     { to: '/warehouse/dispatch', icon: PackageCheck, label: ar ? 'طلبات الصرف' : 'Dispatch Requests', show: can('warehouse') },
     { to: '/warehouse/supply', icon: Boxes, label: ar ? 'توريد المخازن' : 'Warehouse Supply', show: can('warehouse') },
     { to: '/maintenance', icon: Wrench, label: ar ? 'لوحة الصيانة' : 'Maintenance', show: can('maintenance') },
+    { to: '/maintenance/service', icon: Clock, label: ar ? 'فترات الصيانة' : 'Service Intervals', show: can('maintenance') && can('operational_data', 'view') },
     { to: '/maintenance/permits', icon: FileText, label: ar ? 'تصاريح العمل' : 'Work Permits', show: can('maintenance') },
     { to: '/warehouse/parts', icon: PackageSearch, label: ar ? 'كتالوج القطع' : 'Parts Catalog', show: can('warehouse') },
     { to: '/warehouse/stock', icon: PackageSearch, label: ar ? 'المخزون الفعلي' : 'Warehouse Stock', show: can('warehouse') },
@@ -225,8 +226,8 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
                     <div style={{ padding: 14, fontSize: 12, color: 'var(--text-muted)' }}>{ar ? 'لا توجد إشعارات حديثة' : 'No recent notifications'}</div>
                   ) : notificationPreview.map(notification => (
                     <button key={notification.id} role="menuitem" onClick={() => { if (!notification.isRead) markPreviewRead(notification.id); navigate('/notifications'); closeMobile(); }} style={{ width: '100%', textAlign: 'start', padding: '10px 12px', border: 0, borderBottom: '1px solid var(--border)', background: notification.isRead ? 'transparent' : 'var(--surface-2)', color: 'var(--text)', cursor: 'pointer' }}>
-                      <div style={{ fontWeight: notification.isRead ? 500 : 700, fontSize: 12 }}>{notification.title?.startsWith('operational.') ? t(notification.title) : notification.title}</div>
-                      <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{notification.message?.startsWith('operational.') ? t(notification.message) : notification.message}</div>
+                      <div style={{ fontWeight: notification.isRead ? 500 : 700, fontSize: 12 }}>{isTranslationKey(notification.title) ? t(notification.title) : notification.title}</div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isTranslationKey(notification.message) ? t(notification.message) : notification.message}</div>
                     </button>
                   ))}
                   <NavLink to="/notifications" onClick={() => { setNotificationMenuOpen(false); closeMobile(); }} style={{ display: 'block', padding: 10, textAlign: 'center', color: 'var(--primary)', fontSize: 12, textDecoration: 'none' }}>{ar ? 'عرض كل الإشعارات' : 'View all notifications'}</NavLink>
@@ -338,3 +339,6 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
 }
 
 export default Sidebar;
+
+const isTranslationKey = (value) => typeof value === 'string' &&
+  (value.startsWith('operational.') || value.startsWith('maintenanceService.'));

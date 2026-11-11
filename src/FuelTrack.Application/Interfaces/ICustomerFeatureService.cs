@@ -7,4 +7,5 @@ public interface ICustomerFeatureService
 {
     Task<IReadOnlyList<CustomerFeatureSettingDto>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<Result<CustomerFeatureSettingDto>> UpdateAsync(string key, UpdateCustomerFeatureSettingDto dto, int userId, CancellationToken cancellationToken = default);
+    Task<bool> IsOperationalDataNewModeAsync(CancellationToken cancellationToken = default);
 }

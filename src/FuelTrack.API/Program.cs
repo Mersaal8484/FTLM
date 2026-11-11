@@ -690,12 +690,20 @@ using (var scope = app.Services.CreateScope())
         // prevents a previously registered global job from running beside the
         // tenant-isolated scheduler after multi-tenancy is enabled.
         recurringJobManager.RemoveIfExists("operating-limit-evaluation");
+        recurringJobManager.RemoveIfExists("service-due-evaluation");
     }
     else
+    {
         recurringJobManager.AddOrUpdate<OperatingLimitEvaluationJob>(
             "operating-limit-evaluation",
             job => job.ExecuteAsync(CancellationToken.None),
             Cron.Hourly);
+
+        recurringJobManager.AddOrUpdate<ServiceDueEvaluationJob>(
+            "service-due-evaluation",
+            job => job.ExecuteAsync(CancellationToken.None),
+            Cron.Hourly);
+    }
 
     recurringJobManager.AddOrUpdate<SparePartReplacementAlertJob>(
         "spare-part-replacement-alerts",
