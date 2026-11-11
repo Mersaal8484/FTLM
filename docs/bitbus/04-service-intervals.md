@@ -3,7 +3,7 @@
 **Phase:** Phase 4 — Service Intervals and Due Engine  
 **Branch:** `feature/bitbus-service-intervals`  
 **Base commit:** `32275c0`  
-**Status:** Corrective pass implemented and backend verified by the owner on 2026-11-11. C6 notification payload structure remains deliberately stopped, pending the owner decision (Choice A vs Choice B).
+**Status:** complete — owner verified backend results and approved Choice A for C6 on 2026-11-11. No structured notification-payload schema was added.
 
 ---
 
@@ -37,7 +37,7 @@
 ### 1.4 Service Due Engine & Notifications (C5, C6, B2, B5, W7, W10)
 - **NotConfigured Items in Tables (C5, W10):** `ServiceDueService` returns a row for every active service item. Unconfigured items return `ServiceDueStatus.NotConfigured` with a link to the definitions page (`/maintenance/service/definitions`). The UI distinguishes between "generator has no model" and "model has no definition for this item".
 - **Authoritative Dashboard Calculation (W10):** `GetDueDashboardSummaryAsync` derives due/overdue totals from the same scoped maintenance tables used by the detail view. `ServiceDueState` remains an alert-deduplication record and does not claim to persist a separate operational status snapshot.
-- **Evaluation Safety & Notification Severity (B2, B5, W7):** `ServiceDueEvaluationService` persists the evaluated state transition to the database before publishing notifications (preventing concurrent duplicates). Notification severity is derived directly from `ServiceIntervalImportance` and status.
+- **Evaluation Safety & Notification Severity (B2, B5, W7):** `ServiceDueEvaluationService` persists the evaluated state transition to the database before publishing notifications (preventing concurrent duplicates). Notification severity is derived directly from `ServiceIntervalImportance` and status. Approved C6 Choice A stores the already-formatted Arabic/English human-readable notification message; no structured JSON payload is required.
 
 ### 1.5 Frontend Hardening & Idempotency (C2, B12, Shared Modal)
 - **Client Request ID Lifecycle (C2):** Implemented `clientRequestIdRef` (`useRef(crypto.randomUUID())`) in `GeneratorMaintenanceTable.jsx`, `RecordReplacement.jsx`, and `BulkBaseline.jsx`. The UUID is generated once per form attempt, reused on retries/double-clicks, and renewed only upon successful submission or when the user edits form inputs after a validation error.
@@ -98,10 +98,9 @@
    - If `operational_data` is disabled or in `legacy` mode, all callers (including SystemOwner) receive `404 Not Found`.
    - *Decision:* Confirm that strict feature gate enforcement (404) for System Owners on new controllers is the intended security and product behavior.
 
-6. **C6 Notification Format Choice (Choice A vs Choice B):**
+6. **C6 Notification Format Choice (resolved):**
    - **Context:** The `Notification` table and `CreateNotificationDto` have no structured data/params column (only plain `Title` and `Message`). `Notifications.jsx` only executes static key lookup (`t(message)`) without argument interpolation.
-   - **Choice A (Recommended):** Store formatted human-readable text directly in `Message` (e.g. `Generator G-01: Oil Change is overdue by 15.0 h`). It displays directly in `Notifications.jsx` without requiring schema changes or custom interpolation.
-   - **Choice B:** Add a structured JSON/payload column to the `Notification` schema, update API DTOs, and extend `Notifications.jsx` to parse parameters and interpolate dynamic i18n keys.
+   - **Approved Choice A:** Store formatted human-readable text directly in `Message` (for example, `Generator G-01: Oil Change is overdue by 15.0 h`). It displays directly in `Notifications.jsx` without a schema change or custom interpolation.
 
 ---
 
@@ -157,4 +156,4 @@ Set-Location ..
 ---
 
 ## 5. Next Gate
-Backend verification has passed. Awaiting the owner choice on **C6 (Choice A vs Choice B)** and Phase 4 approval: `approved phase 4`.
+Phase 4 is complete. Phase 5 requires a separate owner authorization before implementation begins.
