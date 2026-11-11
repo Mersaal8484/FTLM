@@ -26,6 +26,7 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
+      Database__Provider: "SqlServer"
       ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=FuelTrack;User Id=sa;Password=${SQL_SA_PASSWORD:?Set SQL_SA_PASSWORD in .env};TrustServerCertificate=True;MultipleActiveResultSets=true"
       JwtSettings__Key: "${JWT_KEY:?Set JWT_KEY in .env}"
       JwtSettings__Issuer: "${JWT_ISSUER:-FuelTrack.API}"

@@ -32,10 +32,16 @@ public static class DependencyInjection
             {
                 options.UseSqlite(connStr);
             }
+            else if (configuration["Database:Provider"]?.Equals("SqlServer", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                options.UseSqlServer(connStr, sqlServer =>
+                {
+                    sqlServer.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
+                    sqlServer.CommandTimeout(120);
+                });
+            }
             else
             {
-                // Bitbus is PostgreSQL-first in both single-tenant development and
-                // Platform tenant schemas. SQL Server is no longer a runtime target.
                 options.UseNpgsql(connStr, postgres =>
                 {
                     postgres.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);

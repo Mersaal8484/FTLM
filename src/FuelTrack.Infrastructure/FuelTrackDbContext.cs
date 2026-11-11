@@ -2593,7 +2593,7 @@ namespace FuelTrack.Infrastructure
             // corrected recapture at the same instant without mutating raw history.
             var activeNonRejectedOperationalFilter = Database.IsNpgsql()
                 ? "\"DeletedAt\" IS NULL AND \"Status\" NOT IN (2, 4)"
-                : "[DeletedAt] IS NULL AND [Status] NOT IN (2, 4)";
+                : "[DeletedAt] IS NULL AND [Status] <> 2 AND [Status] <> 4";
 
             modelBuilder.Entity<OperationalSubmission>(entity =>
             {
