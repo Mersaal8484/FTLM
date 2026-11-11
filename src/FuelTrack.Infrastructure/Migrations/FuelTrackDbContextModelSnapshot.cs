@@ -764,9 +764,6 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<int>("SparePartId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("SparePartId1")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -778,8 +775,6 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.HasIndex("DispatchRequestId");
 
                     b.HasIndex("SparePartId");
-
-                    b.HasIndex("SparePartId1");
 
                     b.ToTable("DispatchRequestItems");
                 });
@@ -1520,9 +1515,6 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<int>("SparePartId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("SparePartId1")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -1537,8 +1529,6 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.HasIndex("DispatchRequestItemId");
 
                     b.HasIndex("SparePartId");
-
-                    b.HasIndex("SparePartId1");
 
                     b.HasIndex("WorkPermitId");
 
@@ -5901,9 +5891,6 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<int>("SparePartId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("SparePartId1")
-                        .HasColumnType("int");
-
                     b.Property<decimal>("TotalPrice")
                         .HasColumnType("decimal(18,4)");
 
@@ -5922,8 +5909,6 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("SparePartId");
-
-                    b.HasIndex("SparePartId1");
 
                     b.HasIndex("WarehouseSupplyId");
 
@@ -6394,14 +6379,10 @@ namespace FuelTrack.Infrastructure.Migrations
                         .IsRequired();
 
                     b.HasOne("FuelTrack.Domain.Models.SparePart", "SparePart")
-                        .WithMany()
+                        .WithMany("DispatchItems")
                         .HasForeignKey("SparePartId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("FuelTrack.Domain.Models.SparePart", null)
-                        .WithMany("DispatchItems")
-                        .HasForeignKey("SparePartId1");
 
                     b.Navigation("DispatchRequest");
 
@@ -6614,14 +6595,10 @@ namespace FuelTrack.Infrastructure.Migrations
                         .IsRequired();
 
                     b.HasOne("FuelTrack.Domain.Models.SparePart", "SparePart")
-                        .WithMany()
+                        .WithMany("InstalledParts")
                         .HasForeignKey("SparePartId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("FuelTrack.Domain.Models.SparePart", null)
-                        .WithMany("InstalledParts")
-                        .HasForeignKey("SparePartId1");
 
                     b.HasOne("FuelTrack.Domain.Models.WorkPermit", "WorkPermit")
                         .WithMany("InstalledParts")
@@ -7262,14 +7239,10 @@ namespace FuelTrack.Infrastructure.Migrations
             modelBuilder.Entity("FuelTrack.Domain.Models.WarehouseSupplyItem", b =>
                 {
                     b.HasOne("FuelTrack.Domain.Models.SparePart", "SparePart")
-                        .WithMany()
+                        .WithMany("SupplyItems")
                         .HasForeignKey("SparePartId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("FuelTrack.Domain.Models.SparePart", null)
-                        .WithMany("SupplyItems")
-                        .HasForeignKey("SparePartId1");
 
                     b.HasOne("FuelTrack.Domain.Models.WarehouseSupply", "WarehouseSupply")
                         .WithMany("Items")

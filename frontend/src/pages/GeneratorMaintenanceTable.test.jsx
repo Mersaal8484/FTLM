@@ -74,7 +74,7 @@ describe('GeneratorMaintenanceTable', () => {
       if (url.includes('/api/service-due/station')) {
         return { data: mockTables };
       }
-      if (url === '/api/substations') {
+      if (url === '/api/sub-stations') {
         return { data: [{ id: 10, name: 'Station 1' }] };
       }
       return { data: [] };
@@ -99,7 +99,7 @@ describe('GeneratorMaintenanceTable', () => {
       if (url.includes('/api/service-due/station')) {
         return { data: mockTables };
       }
-      if (url === '/api/substations') {
+      if (url === '/api/sub-stations') {
         return { data: [{ id: 10, name: 'Station 1' }] };
       }
       return { data: [] };
@@ -130,7 +130,7 @@ describe('GeneratorMaintenanceTable', () => {
       if (url.includes('/api/service-due/station')) {
         return { data: mockTables };
       }
-      if (url === '/api/substations') {
+      if (url === '/api/sub-stations') {
         return { data: [{ id: 10, name: 'Station 1' }] };
       }
       return { data: [] };
@@ -189,7 +189,7 @@ describe('GeneratorMaintenanceTable', () => {
       if (url.includes('/api/service-due/station')) {
         return { data: mockTables };
       }
-      if (url === '/api/substations') {
+      if (url === '/api/sub-stations') {
         return { data: [{ id: 10, name: 'Station 1' }] };
       }
       if (url.includes('/api/service-replacements/history')) {

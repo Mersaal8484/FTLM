@@ -875,7 +875,7 @@ namespace FuelTrack.Infrastructure
 
             modelBuilder.Entity<WarehouseSupplyItem>()
                 .HasOne(wsi => wsi.SparePart)
-                .WithMany()
+                .WithMany(sp => sp.SupplyItems)
                 .HasForeignKey(wsi => wsi.SparePartId)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -925,7 +925,7 @@ namespace FuelTrack.Infrastructure
 
             modelBuilder.Entity<DispatchRequestItem>()
                 .HasOne(dri => dri.SparePart)
-                .WithMany()
+                .WithMany(sp => sp.DispatchItems)
                 .HasForeignKey(dri => dri.SparePartId)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -1025,7 +1025,7 @@ namespace FuelTrack.Infrastructure
 
             modelBuilder.Entity<InstalledPart>()
                 .HasOne(ip => ip.SparePart)
-                .WithMany()
+                .WithMany(sp => sp.InstalledParts)
                 .HasForeignKey(ip => ip.SparePartId)
                 .OnDelete(DeleteBehavior.Restrict);
 
