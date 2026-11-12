@@ -31,7 +31,6 @@ const MyGenerators = lazy(() => import('./pages/MyGenerators'));
 const AddReading = lazy(() => import('./pages/AddReading'));
 const AddOilToGenerator = lazy(() => import('./pages/AddOilToGenerator'));
 const FuelMovements = lazy(() => import('./pages/FuelMovements'));
-const MovementLogs = lazy(() => import('./pages/MovementLogs'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const PeriodicInventoryPage = lazy(() => import('./pages/PeriodicInventoryPage'));
 const ReviewChanges = lazy(() => import('./pages/ReviewChanges'));
@@ -343,7 +342,7 @@ function App() {
 
               {/* Fuel Manager */}
               <Route path="/fuel-movements" element={<Protected module="fuel_movements"><FuelMovements lang={lang} currentUser={user} /></Protected>} />
-              <Route path="/movement-logs" element={<Protected module="fuel_movements"><MovementLogs lang={lang} /></Protected>} />
+              <Route path="/movement-logs" element={<Navigate to="/fuel-movements" replace />} />
 
               {/* Supervisor */}
               <Route path="/inventory" element={<Protected module="inventory"><PeriodicInventoryPage lang={lang} currentUser={user} /></Protected>} />

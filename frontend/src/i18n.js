@@ -29,6 +29,16 @@ export const appTranslations = {
         loadingLogin: 'Signing in...',
         sending: 'Sending...',
         saving: 'Saving...',
+        cancel: 'Cancel',
+      },
+      sidebar: {
+        dashboard: 'Dashboard', operations: 'Operations', myGenerators: 'My Generators', maintenance: 'Maintenance',
+        fuelMovements: 'Fuel & Oil Movements', generatorsOverview: 'Generators Overview', fuelStock: 'Fuel Stock', oilStock: 'Oil Stock',
+        reviewReadings: 'Review Readings', periodicInventory: 'Periodic Inventory', reports: 'Reports', systemSettings: 'System Settings',
+        serviceIntervals: 'Service Intervals', workPermits: 'Work Permits', partsCatalog: 'Parts Catalog', warehouseStock: 'Warehouse Stock',
+        installedParts: 'Installed Parts', dispatchRequests: 'Dispatch Requests', warehouseSupply: 'Warehouse Supply', warehouseReports: 'Warehouse Reports',
+        stationReadingsReport: 'Station Readings', fuelTransactionsReport: 'Fuel Transactions', oilTransactionsReport: 'Oil Transactions',
+        generatorsReport: 'Generators Report', efficiencyReport: 'Efficiency Report', periodicInventoryReport: 'Periodic Inventory Report',
       },
       operational: {
         eyebrow: 'Operations workspace',
@@ -358,6 +368,16 @@ export const appTranslations = {
         loadingLogin: 'جارٍ الدخول...',
         sending: 'جارٍ الإرسال...',
         saving: 'جاري الحفظ...',
+        cancel: 'إلغاء',
+      },
+      sidebar: {
+        dashboard: 'لوحة التحكم', operations: 'العمليات', myGenerators: 'مولداتي', maintenance: 'الصيانة',
+        fuelMovements: 'حركات الوقود والزيوت', generatorsOverview: 'عرض المولدات', fuelStock: 'مخزون الوقود', oilStock: 'مخزون الزيوت',
+        reviewReadings: 'اعتماد القراءات', periodicInventory: 'الجرد الدوري', reports: 'التقارير', systemSettings: 'إعدادات النظام',
+        serviceIntervals: 'فترات الصيانة', workPermits: 'تصاريح العمل', partsCatalog: 'كتالوج القطع', warehouseStock: 'مخزون المستودع',
+        installedParts: 'القطع المركبة', dispatchRequests: 'طلبات الصرف', warehouseSupply: 'توريد المخازن', warehouseReports: 'تقارير المخازن',
+        stationReadingsReport: 'قراءات المحطات', fuelTransactionsReport: 'حركات الوقود', oilTransactionsReport: 'حركات الزيوت',
+        generatorsReport: 'تقرير المولدات', efficiencyReport: 'تقرير الكفاءة', periodicInventoryReport: 'تقرير الجرد الدوري',
       },
       operational: {
         eyebrow: 'مساحة العمل التشغيلية',

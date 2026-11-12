@@ -10,6 +10,7 @@ import usePermissions from '../permissions/usePermissions';
 import useUiStore from '../store/uiStore';
 import useTenantBranding from '../hooks/useTenantBranding';
 import { useTranslation } from 'react-i18next';
+import NavGroup from './NavGroup';
 
 
 function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onLogout }) {
@@ -24,8 +25,6 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
   const hasRole = (name) => userRoles.includes(name);
   const { can, canExplicit } = usePermissions(currentUser);
   
-  const [setupOpen, setSetupOpen] = useState(false);
-  const [reportsOpen, setReportsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -91,35 +90,39 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
     } catch {}
   };
 
-  const mainNav = [
-    { to: '/', icon: LayoutDashboard, label: ar ? 'لوحة التحكم' : 'Dashboard', show: can('dashboard') },
-    { to: '/operations', icon: Zap, label: t('operational.navigation'), show: can('operational_data', 'view') },
-    { to: '/my-generators', icon: Zap, label: ar ? 'مولداتي' : 'My Generators', show: hasRole('operator') || roleKey === 'operator' },
-    { to: '/generators/overview', icon: Zap, label: ar ? 'عرض المولدات' : 'Generators Overview', show: canExplicit('generators', 'view') },
-    { to: '/stock/fuel', icon: Database, label: ar ? 'مخزون الوقود' : 'Fuel Stock', show: can('inventory') },
-    { to: '/stock/oil', icon: Droplet, label: ar ? 'مخزون الزيوت' : 'Oil Stock', show: canExplicit('oil', 'view') },
-    { to: '/fuel-movements', icon: Truck, label: ar ? 'حركات الوقود/الزيت' : 'Fuel & Oil Movements', show: can('fuel_movements') },
-    { to: '/movement-logs', icon: FileText, label: ar ? 'سجل الحركات العام' : 'Movement Logs', show: can('fuel_movements') },
-    { to: '/inventory', icon: PackageSearch, label: ar ? 'الجرد الدوري' : 'Periodic Inventory', show: can('inventory') },
-    { to: '/review-changes', icon: ClipboardCheck, label: ar ? 'اعتماد القراءات' : 'Review Readings', show: can('fuel_movements', 'approve') || can('readings', 'approve') || can('inventory', 'approve') },
-    { to: '/warehouse/dispatch', icon: PackageCheck, label: ar ? 'طلبات الصرف' : 'Dispatch Requests', show: can('warehouse') },
-    { to: '/warehouse/supply', icon: Boxes, label: ar ? 'توريد المخازن' : 'Warehouse Supply', show: can('warehouse') },
-    { to: '/maintenance', icon: Wrench, label: ar ? 'لوحة الصيانة' : 'Maintenance', show: can('maintenance') },
-    { to: '/maintenance/service', icon: Clock, label: ar ? 'فترات الصيانة' : 'Service Intervals', show: can('maintenance') && can('operational_data', 'view') },
-    { to: '/maintenance/permits', icon: FileText, label: ar ? 'تصاريح العمل' : 'Work Permits', show: can('maintenance') },
-    { to: '/warehouse/parts', icon: PackageSearch, label: ar ? 'كتالوج القطع' : 'Parts Catalog', show: can('warehouse') },
-    { to: '/warehouse/stock', icon: PackageSearch, label: ar ? 'المخزون الفعلي' : 'Warehouse Stock', show: can('warehouse') },
-    { to: '/warehouse/reports', icon: BarChart2, label: ar ? 'تقارير المخازن' : 'Warehouse Reports', show: can('warehouse') },
-    { to: '/maintenance/installed-parts', icon: Wrench, label: ar ? 'القطع المركبة' : 'Installed Parts', show: can('maintenance') },
+  const beforeMaintenanceNav = [
+    { to: '/', icon: LayoutDashboard, label: t('sidebar.dashboard'), show: can('dashboard') },
+    { to: '/operations', icon: Zap, label: t('sidebar.operations'), show: can('operational_data', 'view') },
+    { to: '/my-generators', icon: Zap, label: t('sidebar.myGenerators'), show: hasRole('operator') || roleKey === 'operator', contextual: true },
+  ].filter(item => item.show);
+
+  const maintenanceNav = [
+    { to: '/maintenance/service', icon: Clock, label: t('sidebar.serviceIntervals'), show: can('maintenance') && can('operational_data', 'view') },
+    { to: '/maintenance/permits', icon: FileText, label: t('sidebar.workPermits'), show: can('maintenance') },
+    { to: '/warehouse/parts', icon: PackageSearch, label: t('sidebar.partsCatalog'), show: can('warehouse') },
+    { to: '/warehouse/stock', icon: PackageSearch, label: t('sidebar.warehouseStock'), show: can('warehouse') },
+    { to: '/maintenance/installed-parts', icon: Wrench, label: t('sidebar.installedParts'), show: can('maintenance') },
+    { to: '/warehouse/dispatch', icon: PackageCheck, label: t('sidebar.dispatchRequests'), show: can('warehouse') },
+    { to: '/warehouse/supply', icon: Boxes, label: t('sidebar.warehouseSupply'), show: can('warehouse') },
+  ].filter(item => item.show);
+
+  const afterMaintenanceNav = [
+    { to: '/fuel-movements', icon: Truck, label: t('sidebar.fuelMovements'), show: can('fuel_movements') },
+    { to: '/generators/overview', icon: Zap, label: t('sidebar.generatorsOverview'), show: canExplicit('generators', 'view') },
+    { to: '/stock/fuel', icon: Database, label: t('sidebar.fuelStock'), show: can('inventory') },
+    { to: '/stock/oil', icon: Droplet, label: t('sidebar.oilStock'), show: canExplicit('oil', 'view') },
+    { to: '/review-changes', icon: ClipboardCheck, label: t('sidebar.reviewReadings'), show: can('fuel_movements', 'approve') || can('readings', 'approve') || can('inventory', 'approve') },
+    { to: '/inventory', icon: PackageSearch, label: t('sidebar.periodicInventory'), show: can('inventory') },
   ].filter(item => item.show);
 
   const reportsNav = [
-    { to: '/reports/station-readings', icon: BarChart2, label: ar ? 'قراءات المحطات' : 'Station Readings', show: can('reports') },
-    { to: '/reports/fuel-transactions', icon: Truck, label: ar ? 'حركات الوقود' : 'Fuel Transactions', show: can('reports') },
-    { to: '/reports/oil-transactions', icon: Droplet, label: ar ? 'حركات الزيوت' : 'Oil Transactions', show: can('reports') },
-    { to: '/reports/generators', icon: Zap, label: ar ? 'تقرير المولدات' : 'Generators Report', show: can('reports') },
-    { to: '/reports/efficiency', icon: BarChart2, label: ar ? 'تقرير الكفاءة' : 'Efficiency Report', show: can('reports') },
-    { to: '/reports/periodic-inventory', icon: PackageSearch, label: ar ? 'تقرير الجرد الدوري' : 'Periodic Inventory', show: can('reports') },
+    { to: '/reports/station-readings', icon: BarChart2, label: t('sidebar.stationReadingsReport'), show: can('reports') },
+    { to: '/reports/fuel-transactions', icon: Truck, label: t('sidebar.fuelTransactionsReport'), show: can('reports') },
+    { to: '/reports/oil-transactions', icon: Droplet, label: t('sidebar.oilTransactionsReport'), show: can('reports') },
+    { to: '/reports/generators', icon: Zap, label: t('sidebar.generatorsReport'), show: can('reports') },
+    { to: '/reports/efficiency', icon: BarChart2, label: t('sidebar.efficiencyReport'), show: can('reports') },
+    { to: '/reports/periodic-inventory', icon: PackageSearch, label: t('sidebar.periodicInventoryReport'), show: can('reports') },
+    { to: '/warehouse/reports', icon: BarChart2, label: t('sidebar.warehouseReports'), show: can('warehouse') },
   ].filter(item => item.show);
 
   const setupNav = [
@@ -209,7 +212,7 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
 
         <nav className="sidebar-nav">
           {can('alerts') && (
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative' }} data-nav-top={ar ? 'الإشعارات' : 'Notifications'}>
               <div className="nav-item">
                 <Bell size={18} strokeWidth={1.8} />
                 <NavLink to="/notifications" onClick={closeMobile} style={{ flex: 1, color: 'inherit', textDecoration: 'none' }}>
@@ -237,52 +240,20 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
           )}
 
           <div className="sidebar-section-title">{ar ? 'القائمة الرئيسية' : 'Main Menu'}</div>
-          {mainNav.map(({ to, icon: Icon, label }) => (
-            <NavLink key={to} to={to} end={to === '/' || to === '/maintenance'} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          {beforeMaintenanceNav.map(({ to, icon: Icon, label }) => (
+            <NavLink key={to} to={to} data-nav-top={label} end={to === '/' || to === '/maintenance'} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
               <Icon size={18} strokeWidth={1.8} />
               <span>{label}</span>
             </NavLink>
           ))}
-
-          {reportsNav.length > 0 && (
-            <>
-              <button className="nav-item" onClick={() => setReportsOpen(o => !o)}>
-                <BarChart2 size={18} strokeWidth={1.8} />
-                <span style={{ flex: 1, textAlign: 'start' }}>{ar ? 'التقارير' : 'Reports'}</span>
-                <ChevronDown size={14} style={{ transform: reportsOpen ? 'rotate(180deg)' : 'none', transition: 'var(--transition)' }} />
-              </button>
-              {reportsOpen && (
-                <div style={{ paddingInlineStart: 12 }}>
-                  {reportsNav.map(({ to, icon: Icon, label }) => (
-                    <NavLink key={to} to={to} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} style={{ padding: '8px 14px' }}>
-                      <Icon size={16} strokeWidth={1.8} className="text-muted" />
-                      <span style={{ fontSize: 'var(--text-sm)' }}>{label}</span>
-                    </NavLink>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {setupNav.length > 0 && (
-            <>
-              <button className="nav-item" onClick={() => setSetupOpen(o => !o)}>
-                <Settings size={18} strokeWidth={1.8} />
-                <span style={{ flex: 1, textAlign: 'start' }}>{ar ? 'إعداد النظام' : 'System Setup'}</span>
-                <ChevronDown size={14} style={{ transform: setupOpen ? 'rotate(180deg)' : 'none', transition: 'var(--transition)' }} />
-              </button>
-              {setupOpen && (
-                <div style={{ paddingInlineStart: 12 }}>
-                  {setupNav.map(({ to, icon: Icon, label }) => (
-                    <NavLink key={to} to={to} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} style={{ padding: '8px 14px' }}>
-                      <Icon size={16} strokeWidth={1.8} className="text-muted" />
-                      <span style={{ fontSize: 'var(--text-sm)' }}>{label}</span>
-                    </NavLink>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
+          <NavGroup icon={Wrench} label={t('sidebar.maintenance')} headerTo="/maintenance" items={maintenanceNav} onNavigate={closeMobile} />
+          {afterMaintenanceNav.map(({ to, icon: Icon, label }) => (
+            <NavLink key={to} to={to} data-nav-top={label} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
+            </NavLink>
+          ))}
+          <NavGroup icon={BarChart2} label={t('sidebar.reports')} items={reportsNav} onNavigate={closeMobile} />
+          <NavGroup icon={Settings} label={t('sidebar.systemSettings')} items={setupNav} onNavigate={closeMobile} />
         </nav>
 
         <div className="sidebar-footer">
