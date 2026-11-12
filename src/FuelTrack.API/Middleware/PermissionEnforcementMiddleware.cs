@@ -34,6 +34,7 @@ public static class PermissionMapping
         ["OperationalFeeders"] = "operational_data",
         ["CustomerFeatures"] = "settings",
         ["FuelMovements"] = "fuel_movements",
+        ["MovementLedger"] = "fuel_movements",
         ["OilTransactions"] = "oil_transactions",
         ["Inventory"] = "periodic_inventory",
         ["Reports"] = "reports",

@@ -8,7 +8,7 @@ public interface IFuelMovementService
     Task<FuelMovementDetailDto> UpdateAsync(int id, UpdateFuelMovementDto dto, int userId);
     Task<FuelMovementDetailDto?> GetByIdAsync(int id);
     Task<List<FuelMovementListDto>> GetAllAsync();
-    Task<PagedResult<FuelMovementListDto>> GetPagedAsync(int page, int pageSize, string? search = null, string? status = null);
+    Task<PagedResult<FuelMovementListDto>> GetPagedAsync(int page, int pageSize, string? search = null, string? status = null, string? type = null);
     Task<List<FuelMovementListDto>> GetBySubStationAsync(int subStationId);
     Task<PagedResult<FuelMovementListDto>> GetPagedBySubStationAsync(int subStationId, int page, int pageSize, string? search = null, string? status = null);
     Task<List<FuelMovementListDto>> GetByFuelTankAsync(int fuelTankId);

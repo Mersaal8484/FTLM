@@ -59,9 +59,10 @@ public class FuelMovementsController : BaseApiController
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery] string? search = null,
-        [FromQuery] string? status = null)
+        [FromQuery] string? status = null,
+        [FromQuery] string? type = null)
     {
-        var result = await _service.GetPagedAsync(page, pageSize, search, status);
+        var result = await _service.GetPagedAsync(page, pageSize, search, status, type);
         return Ok(result);
     }
 

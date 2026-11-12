@@ -9,18 +9,19 @@ import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 import useToastStore from '../store/toastStore';
+import GeneralMovementLog from './movements/GeneralMovementLog';
 
 // typeLabels and statusConfig are now built lazily from i18n inside the component.
 // Static fallback icons map (icons don't change with language).
 const TAB_ICONS = {
-  summary:    LayoutGrid,
+  log:        LayoutGrid,
   supply:     Package,
   transfer:   ArrowRightLeft,
   adjustment: Filter,
   loss:       AlertCircle,
 };
 const TAB_COLORS = {
-  summary:    'var(--secondary)',
+  log:        'var(--secondary)',
   supply:     'var(--secondary)',
   transfer:   'var(--primary)',
   adjustment: 'var(--text-muted)',
@@ -28,6 +29,21 @@ const TAB_COLORS = {
 };
 const STATUS_ICONS  = { pending: Clock, approved: ShieldCheck, rejected: ShieldAlert };
 const STATUS_COLORS = { pending: 'var(--warning)', approved: 'var(--success)', rejected: 'var(--danger)' };
+
+const TAB_TYPE_TERMS = {
+  supply: ['purchase', 'supply', 'receipt', 'توريد', 'وارد'],
+  transfer: ['transfer', 'نقل', 'تحويل'],
+  adjustment: ['consumption', 'adjustment', 'adjust', 'تسوية', 'استهلاك'],
+  loss: ['loss', 'فاقد', 'فقد', 'تالف'],
+};
+const TAB_API_TYPES = { supply: 'Purchase', transfer: 'Transfer', adjustment: 'Consumption', loss: 'Loss' };
+
+export const movementMatchesTab = (movement, tab) => {
+  if (tab === 'log') return false;
+  const value = [movement?.transactionTypeLookupCode, movement?.transactionTypeLookupName, movement?.movementType]
+    .filter(Boolean).join(' ').toLowerCase();
+  return (TAB_TYPE_TERMS[tab] || []).some(term => value.includes(term));
+};
 
 /** استخراج حالة الحركة من الـ DTO الجديد */
 const getStatus = (m) => {
@@ -95,7 +111,7 @@ function FuelMovements({ lang, currentUser }) {
 
   // i18n-driven config (reconstructed on lang change via useMemo)
   const typeLabels = useMemo(() => ({
-    summary:    { label: t('movements.tabs.summary'),    color: TAB_COLORS.summary,    icon: TAB_ICONS.summary },
+    log:        { label: t('movements.tabs.log'),        color: TAB_COLORS.log,        icon: TAB_ICONS.log },
     supply:     { label: t('movements.tabs.supply'),     color: TAB_COLORS.supply,     icon: TAB_ICONS.supply },
     transfer:   { label: t('movements.tabs.transfer'),   color: TAB_COLORS.transfer,   icon: TAB_ICONS.transfer },
     adjustment: { label: t('movements.tabs.adjustment'), color: TAB_COLORS.adjustment, icon: TAB_ICONS.adjustment },
@@ -118,8 +134,9 @@ function FuelMovements({ lang, currentUser }) {
   const [stations,     setStations]     = useState([]);
   const [subStations,  setSubStations]  = useState([]);
   const [transferDests, setTransferDests] = useState([]);   // SubStation list for transfer target
-  const [activeTab,    setActiveTab]    = useState('summary');
-  const [summaryData,  setSummaryData]  = useState([]);
+  const [activeTab,    setActiveTab]    = useState('log');
+  const summaryData = [];
+  const groupedMovements = {};
   const [showForm,     setShowForm]     = useState(false);
   const [editId,       setEditId]       = useState(null);
   const [saving,       setSaving]       = useState(false);
@@ -174,6 +191,13 @@ function FuelMovements({ lang, currentUser }) {
   };
 
   useEffect(() => { fetchAll(); }, [lang]);
+  useEffect(() => {
+    const type = TAB_API_TYPES[activeTab];
+    if (!type) return;
+    client.get('/api/fuel-movements', { params: { page: 1, pageSize: 200, type } })
+      .then(response => setMovements(response.data?.items || []))
+      .catch(() => setMovements([]));
+  }, [activeTab]);
 
   const fld = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -317,20 +341,9 @@ function FuelMovements({ lang, currentUser }) {
     } catch (err) { showToast(getApiErrorMessage(err), 'error'); }
   };
 
-  // ── Grouping by sub-station name ──────────────────────────────────────────
-  const groupedMovements = useMemo(() => {
-    const groups = {};
-    movements.forEach(m => {
-      const key = m.subStationName || (ar ? 'غير محدد' : 'Unassigned');
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(m);
-    });
-    return groups;
-  }, [movements, ar]);
-
-  // ── Tab pagination — all tabs show all movements (no backend type field) ──
+  // ── Tab pagination ────────────────────────────────────────────────────────
   const tabMovements = useMemo(
-    () => activeTab === 'summary' ? [] : movements,
+    () => activeTab === 'log' ? [] : movements.filter(movement => movementMatchesTab(movement, activeTab)),
     [movements, activeTab]
   );
   const tabTotal      = tabMovements.length;
@@ -368,7 +381,7 @@ function FuelMovements({ lang, currentUser }) {
       <PageHeader
         title={t('movements.pageTitle')}
         subtitle={t('movements.pageSubtitle')}
-        actions={activeTab !== 'summary' && canAdd ? (
+        actions={activeTab !== 'log' && canAdd ? (
           <Button icon={Plus} onClick={() => { setShowForm(true); setEditId(null); setForm(initialForm()); setSelectedSupplySubStation(''); }}>
             {ar ? 'حركة جديدة' : 'New Movement'}
           </Button>
@@ -378,7 +391,7 @@ function FuelMovements({ lang, currentUser }) {
       {/* ── Tabs (labels now come from i18n) ── */}
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 30 }}>
         <div className="ft-tabs">
-          {Object.entries(typeLabels).filter(([k]) => k !== 'adjustment').map(([k, cfg]) => (
+          {Object.entries(typeLabels).map(([k, cfg]) => (
             <button key={k} className={`ft-tab ${activeTab === k ? 'active' : ''}`}
               onClick={() => {
                 setActiveTab(k);
@@ -402,7 +415,7 @@ function FuelMovements({ lang, currentUser }) {
       )}
 
       {/* ═══════════════════════════════ SUMMARY TAB ═══════════════════════════ */}
-      {activeTab === 'summary' && (
+      {activeTab === '__legacy_summary_removed' && (
         <div className="section-card" style={{ marginBottom: 30 }}>
           <div className="section-card-header">
             <div className="section-card-title">{ar ? 'ملخص مخزون المواقع' : 'Site Inventory Summary'}</div>
@@ -446,7 +459,7 @@ function FuelMovements({ lang, currentUser }) {
       )}
 
       {/* ═══════════════════ GROUPED MOVEMENT LOG (Summary tab only) ═══════════ */}
-      {!showForm && activeTab === 'summary' && (
+      {!showForm && activeTab === '__legacy_summary_removed' && (
         <div className="grouped-container" style={{ animation: 'fadeInUp 0.4s ease' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
             <h2 style={{ fontSize: 20, fontWeight: 'bold' }}>
@@ -551,7 +564,9 @@ function FuelMovements({ lang, currentUser }) {
       )}
 
       {/* ═══════════════════════════ TAB MOVEMENT TABLE ═════════════════════ */}
-      {!showForm && activeTab !== 'summary' && (<>
+      {!showForm && activeTab === 'log' && <GeneralMovementLog lang={lang} canApprove={canApprove} />}
+
+      {!showForm && activeTab !== 'log' && (<>
         <div className="section-card" style={{ padding: 0, animation: 'fadeInUp 0.4s ease' }}>
           <div className="section-card-header">
             <div>
@@ -662,7 +677,7 @@ function FuelMovements({ lang, currentUser }) {
       </>)}
 
       {/* ═══════════════════════════════ FORM ═══════════════════════════════ */}
-      {showForm && activeTab !== 'summary' && (
+      {showForm && activeTab !== 'log' && (
         <div className="section-card" style={{ marginBottom: 30, animation: 'fadeInUp 0.3s ease' }}>
           <div className="section-card-header">
             <div className="section-card-title">

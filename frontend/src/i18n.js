@@ -184,6 +184,7 @@ export const appTranslations = {
         pageTitle: 'Fuel & Oil Movements',
         pageSubtitle: 'Manage supply, transfers, adjustments, and losses',
         tabs: {
+          log:        'General Log',
           summary:    'Fuel & Oil Stock',
           supply:     'Supply (Fuel / Oil)',
           transfer:   'Transfer (Fuel / Oil)',
@@ -194,6 +195,17 @@ export const appTranslations = {
           pending:  'Awaiting Approval',
           approved: 'Approved',
           rejected: 'Rejected',
+        },
+        log: {
+          title: 'General movement log', subtitle: 'A unified, scoped record of fuel and oil movements',
+          loading: 'Loading movements', error: 'Movement log could not be loaded.', retry: 'Retry',
+          emptyTitle: 'No movements found', empty: 'Change the filters or create a new movement.', export: 'Export Excel',
+          details: 'Row details', approve: 'Approve', reject: 'Reject', reference: 'Reference / counterparty',
+          createdBy: 'Created by', approvedBy: 'Approved by', confirmApproveTitle: 'Confirm approval',
+          confirmApprove: 'Are you sure you want to approve this movement?', rejectTitle: 'Reject movement', rejectReason: 'Enter the rejection reason',
+          kind: { fuel: 'Fuel', oil: 'Oil' },
+          filters: { search: 'Search', from: 'From date', to: 'To date', station: 'Station', site: 'Site', kind: 'Item kind', status: 'Status', allStations: 'All stations', allSites: 'All sites', allKinds: 'Fuel and oil', allStatuses: 'All statuses', apply: 'Apply filters', clear: 'Clear' },
+          columns: { date: 'Date', station: 'Station', site: 'Site', kind: 'Item', type: 'Movement type', quantity: 'Quantity', status: 'Status', actions: 'Actions' },
         },
         actions: {
           addSupply:      'Add Supply',
@@ -501,6 +513,7 @@ export const appTranslations = {
         pageTitle: 'حركات الوقود / الزيت',
         pageSubtitle: 'إدارة التوريد، النقل، التسويات، والفاقد',
         tabs: {
+          log:        'السجل العام',
           summary:    'مخزون الوقود والزيوت',
           supply:     'الوارد وقود / زيت',
           transfer:   'نقل وقود / زيت',
@@ -511,6 +524,17 @@ export const appTranslations = {
           pending:  'بانتظار الموافقة',
           approved: 'تم الاعتماد',
           rejected: 'مرفوض',
+        },
+        log: {
+          title: 'السجل العام للحركات', subtitle: 'سجل موحّد ومقيّد بالصلاحيات لحركات الوقود والزيوت',
+          loading: 'جارٍ تحميل الحركات', error: 'تعذر تحميل سجل الحركات.', retry: 'إعادة المحاولة',
+          emptyTitle: 'لا توجد حركات', empty: 'غيّر المرشحات أو أنشئ حركة جديدة.', export: 'تصدير Excel',
+          details: 'تفاصيل السطر', approve: 'اعتماد', reject: 'رفض', reference: 'المرجع / الطرف المقابل',
+          createdBy: 'أنشأها', approvedBy: 'اعتمدها', confirmApproveTitle: 'تأكيد الاعتماد',
+          confirmApprove: 'هل أنت متأكد من اعتماد هذه الحركة؟', rejectTitle: 'رفض الحركة', rejectReason: 'أدخل سبب الرفض',
+          kind: { fuel: 'وقود', oil: 'زيت' },
+          filters: { search: 'بحث', from: 'من تاريخ', to: 'إلى تاريخ', station: 'المحطة', site: 'الموقع', kind: 'نوع المادة', status: 'الحالة', allStations: 'كل المحطات', allSites: 'كل المواقع', allKinds: 'الوقود والزيوت', allStatuses: 'كل الحالات', apply: 'تطبيق المرشحات', clear: 'مسح' },
+          columns: { date: 'التاريخ', station: 'المحطة', site: 'الموقع', kind: 'المادة', type: 'نوع الحركة', quantity: 'الكمية', status: 'الحالة', actions: 'الإجراءات' },
         },
         actions: {
           addSupply:      'إضافة وارد',

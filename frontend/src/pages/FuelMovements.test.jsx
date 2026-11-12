@@ -58,7 +58,7 @@ vi.mock('../components/Pagination', () => ({
 
 import client from '../api/client';
 import connection from '../socket';
-import FuelMovements from './FuelMovements';
+import FuelMovements, { movementMatchesTab } from './FuelMovements';
 
 // ── Helper tests ──────────────────────────────────────────────────────────
 
@@ -69,6 +69,13 @@ import {
 } from './FuelMovements.helpers';
 
 describe('FuelMovements helpers', () => {
+  test('matches each movement type tab without leaking other types', () => {
+    expect(movementMatchesTab({ transactionTypeLookupCode: 'Purchase' }, 'supply')).toBe(true);
+    expect(movementMatchesTab({ transactionTypeLookupName: 'Transfer' }, 'supply')).toBe(false);
+    expect(movementMatchesTab({ transactionTypeLookupName: 'Transfer' }, 'transfer')).toBe(true);
+    expect(movementMatchesTab({ transactionTypeLookupName: 'Consumption' }, 'adjustment')).toBe(true);
+    expect(movementMatchesTab({ transactionTypeLookupName: 'Loss' }, 'loss')).toBe(true);
+  });
   describe('getMovementId', () => {
     test('extracts movement id from int-based DTO', () => {
       expect(getMovementId({ id: 42 })).toBe(42);
@@ -275,7 +282,7 @@ describe('FuelMovements component', () => {
     });
   });
 
-  test('renders all four tabs (supply, transfer, loss, summary)', async () => {
+  test('renders general log and all movement type tabs', async () => {
     mockAllApis();
     render(<FuelMovements {...defaultProps} />);
 
@@ -283,7 +290,8 @@ describe('FuelMovements component', () => {
       expect(screen.getByRole('button', { name: /Supply|الوارد/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Transfer|نقل/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Loss|فاقد/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Stock|مخزون/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /General Log|السجل العام/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Adjustment|تسوية/i })).toBeInTheDocument();
     });
   });
 
@@ -319,12 +327,12 @@ describe('FuelMovements component', () => {
     });
   });
 
-  test('renders summary tab with fuel and oil sub-tabs', async () => {
+  test('uses the general log as the default tab', async () => {
     mockAllApis();
     render(<FuelMovements {...defaultProps} />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Stock|مخزون/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /General Log|السجل العام/i })).toHaveClass('active');
     });
   });
 
@@ -337,21 +345,21 @@ describe('FuelMovements component', () => {
     });
   });
 
-  test('renders pagination component', async () => {
+  test('renders a non-blank general log empty state', async () => {
     mockAllApis();
     render(<FuelMovements {...defaultProps} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Site Inventory Summary|ملخص المخزون/i)).toBeInTheDocument();
+      expect(screen.getByText(/No movements found|لا توجد حركات/i)).toBeInTheDocument();
     });
   });
 
-  test('renders grouped movement log on summary tab', async () => {
+  test('renders the unified movement log on the default tab', async () => {
     mockAllApis();
     render(<FuelMovements {...defaultProps} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Movement Logs|سجل الحركات/i)).toBeInTheDocument();
+      expect(screen.getByText(/General movement log|السجل العام للحركات/i)).toBeInTheDocument();
     });
   });
 

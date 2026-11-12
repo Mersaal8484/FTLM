@@ -228,7 +228,7 @@ public class FuelMovementService : IFuelMovementService
             .ToListAsync();
     }
 
-    public async Task<PagedResult<FuelMovementListDto>> GetPagedAsync(int page, int pageSize, string? search = null, string? status = null)
+    public async Task<PagedResult<FuelMovementListDto>> GetPagedAsync(int page, int pageSize, string? search = null, string? status = null, string? type = null)
     {
         var query = _db.FuelTransactions
             .AsNoTracking()
@@ -254,6 +254,11 @@ public class FuelMovementService : IFuelMovementService
         }
 
         ApplyFilters(ref query, search, status);
+        if (!string.IsNullOrWhiteSpace(type))
+        {
+            var normalizedType = type.Trim();
+            query = query.Where(m => m.TransactionTypeLookup.Code == normalizedType || m.TransactionTypeLookup.Name == normalizedType);
+        }
 
         var total = await query.CountAsync();
         var items = await query
