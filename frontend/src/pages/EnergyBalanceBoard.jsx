@@ -14,13 +14,13 @@ function BalanceRow({ label, value, unit = 'kWh', highlight, warning }) {
   return (
     <div style={{
       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      padding: '10px 0', borderBottom: '1px solid #1e293b'
+      padding: '10px 0', borderBottom: '1px solid var(--chart-grid)'
     }}>
-      <span style={{ color: warning ? '#f59e0b' : '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ color: warning ? 'var(--operational-amber)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
         {warning && <AlertTriangle size={15} />}
         {label}
       </span>
-      <strong style={{ color: highlight ? '#22c55e' : '#fff', fontSize: 16 }}>
+      <strong style={{ color: highlight ? 'var(--operational-teal)' : 'var(--text)', fontSize: 16 }}>
         {value != null ? `${Number(value).toFixed(2)} ${unit}` : '—'}
       </strong>
     </div>
@@ -58,7 +58,7 @@ export default function EnergyBalanceBoard() {
         <select
           value={stationId}
           onChange={(e) => setStationId(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 8, background: '#0f172a', color: '#fff', border: '1px solid #334155', flex: 1, minWidth: 160 }}
+          className="form-control" style={{ flex: 1, minWidth: 160 }}
         >
           <option value="">{t('operational.balance.station')}…</option>
           {stations.map((s) => (
@@ -67,23 +67,23 @@ export default function EnergyBalanceBoard() {
         </select>
         <input
           type="date" value={date} onChange={(e) => setDate(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 8, background: '#0f172a', color: '#fff', border: '1px solid #334155' }}
+          className="form-control"
         />
       </div>
 
       {!stationId && (
-        <p style={{ color: '#94a3b8', textAlign: 'center', paddingTop: 32 }}>
+        <p style={{ color: 'var(--text-muted)', textAlign: 'center', paddingTop: 32 }}>
           {t('operational.balance.station')} …
         </p>
       )}
       {isLoading && <p style={{ padding: 24 }}>…</p>}
-      {error && <p style={{ color: '#ef4444' }}>{error.message}</p>}
+      {error && <p style={{ color: 'var(--danger)' }}>{error.message}</p>}
 
       {data && (
-        <div style={{ background: 'var(--card-bg, #1e293b)', borderRadius: 14, padding: '8px 20px' }}>
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 14, padding: '8px 20px' }}>
           {/* Threshold warning banner */}
           {data.thresholdExceeded && (
-            <div style={{ background: '#7c2d1244', border: '1px solid #f59e0b', borderRadius: 8, padding: '10px 14px', marginBottom: 12, color: '#fcd34d', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ background: 'var(--operational-amber-subtle)', border: '1px solid var(--operational-amber)', borderRadius: 8, padding: '10px 14px', marginBottom: 12, color: 'var(--operational-amber)', display: 'flex', gap: 8, alignItems: 'center' }}>
               <AlertTriangle size={18} /> {t('operational.balance.threshold')}
             </div>
           )}
@@ -104,9 +104,9 @@ export default function EnergyBalanceBoard() {
           />
 
           {/* Percentage row */}
-          <div style={{ padding: '10px 0', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: '#94a3b8' }}>{t('operational.balance.unexplained')} %</span>
-            <strong style={{ color: data.thresholdExceeded ? '#f59e0b' : '#fff' }}>
+          <div style={{ padding: '10px 0', borderBottom: '1px solid var(--chart-grid)', display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: 'var(--text-muted)' }}>{t('operational.balance.unexplained')} %</span>
+            <strong style={{ color: data.thresholdExceeded ? 'var(--operational-amber)' : 'var(--text)' }}>
               {pct(data.unexplainedDiffPct)}
             </strong>
           </div>
@@ -114,8 +114,8 @@ export default function EnergyBalanceBoard() {
           {/* Solar share */}
           {data.solarSharePct != null && (
             <div style={{ padding: '10px 0', display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#94a3b8' }}>{t('operational.balance.solarShare')}</span>
-              <strong style={{ color: '#f59e0b' }}>{pct(data.solarSharePct)}</strong>
+              <span style={{ color: 'var(--text-muted)' }}>{t('operational.balance.solarShare')}</span>
+              <strong style={{ color: 'var(--operational-amber)' }}>{pct(data.solarSharePct)}</strong>
             </div>
           )}
         </div>

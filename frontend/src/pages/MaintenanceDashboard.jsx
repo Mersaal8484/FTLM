@@ -38,6 +38,9 @@ function MaintenanceDashboard({ lang, currentUser }) {
 
   const recentPermits = data?.recentPermits || [];
   const dueParts = data?.dueParts || [];
+  const permitsByType = data?.permitsByType || [];
+  const permitsByPriority = data?.permitsByPriority || [];
+  const chartColors = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--chart-6)'];
 
   return (
     <div style={{ animation: 'fadeIn 0.4s ease' }}>
@@ -60,11 +63,11 @@ function MaintenanceDashboard({ lang, currentUser }) {
           <div className="kpi-icon"><FileText size={22} /></div>
           <div><div className="kpi-value">{kpis.openPermits}</div><div className="kpi-label">{ar ? 'تصاريح مفتوحة' : 'Open Permits'}</div></div>
         </div>
-        <div className="kpi-card" style={{ '--kpi-color': 'var(--danger)', '--kpi-bg': 'rgba(239,68,68,0.12)' }}>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--danger)', '--kpi-bg': 'var(--danger-subtle)' }}>
           <div className="kpi-icon"><AlertTriangle size={22} /></div>
           <div><div className="kpi-value">{kpis.criticalPermits}</div><div className="kpi-label">{ar ? 'تصاريح حرجة' : 'Critical Permits'}</div></div>
         </div>
-        <div className="kpi-card" style={{ '--kpi-color': '#ef4444', '--kpi-bg': 'rgba(239,68,68,0.08)' }}>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--danger)', '--kpi-bg': 'var(--danger-subtle)' }}>
           <div className="kpi-icon"><Wrench size={22} /></div>
           <div><div className="kpi-value">{kpis.overdueParts}</div><div className="kpi-label">{ar ? 'قطع متأخرة' : 'Overdue Parts'}</div></div>
         </div>
@@ -76,17 +79,17 @@ function MaintenanceDashboard({ lang, currentUser }) {
 
       {/* Phase 4 Service Due Engine Widget (Hidden in legacy mode when endpoint returns 404) */}
       {serviceDueSummary && (
-        <div className="panel" style={{ padding: '16px 20px', borderRadius: 8, border: '1px solid var(--border-color, #e5e7eb)', marginBottom: 20, background: 'var(--card-bg, #fff)' }}>
+        <div className="panel" style={{ padding: '16px 20px', borderRadius: 8, border: '1px solid var(--border-color)', marginBottom: 20, background: 'var(--card-bg)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 8, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--primary-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
                 <Clock size={22} />
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600 }}>
                   {ar ? 'فترات الصيانة واستحقاقات ساعات التشغيل' : 'Service Intervals & Running Hours'}
                 </h3>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: '#6b7280' }}>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                   {ar ? (
                     `إجمالي المستحق: ${serviceDueSummary.totalDueCount} | المتأخر: ${serviceDueSummary.totalOverdueCount}`
                   ) : (
@@ -98,12 +101,12 @@ function MaintenanceDashboard({ lang, currentUser }) {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {serviceDueSummary.totalOverdueCount > 0 && (
-                <span style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #f87171', padding: '4px 10px', borderRadius: 16, fontSize: '0.8rem', fontWeight: 600 }}>
+                <span style={{ background: 'var(--danger-subtle)', color: 'var(--danger)', border: '1px solid var(--danger)', padding: '4px 10px', borderRadius: 16, fontSize: '0.8rem', fontWeight: 600 }}>
                   {serviceDueSummary.totalOverdueCount} {ar ? 'متأخر' : 'Overdue'}
                 </span>
               )}
               {serviceDueSummary.totalDueCount > 0 && (
-                <span style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d', padding: '4px 10px', borderRadius: 16, fontSize: '0.8rem', fontWeight: 600 }}>
+                <span style={{ background: 'var(--warning-subtle)', color: 'var(--warning)', border: '1px solid var(--warning)', padding: '4px 10px', borderRadius: 16, fontSize: '0.8rem', fontWeight: 600 }}>
                   {serviceDueSummary.totalDueCount} {ar ? 'مستحق' : 'Due'}
                 </span>
               )}
@@ -166,14 +169,14 @@ function MaintenanceDashboard({ lang, currentUser }) {
             <PieChart size={18} style={{ color: 'var(--secondary)' }} />
             {ar ? 'التصاريح حسب النوع' : 'Permits by Type'}
           </h3>
-          {data?.permitsByType?.length === 0 ? (
-            <div className="empty-state">{ar ? 'لا توجد بيانات' : 'No data'}</div>
+          {permitsByType.length === 0 ? (
+            <div className="empty-state maintenance-chart-empty"><PieChart size={30} /><span>{ar ? 'لا توجد بيانات حسب النوع' : 'No permit type data yet'}</span></div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {data?.permitsByType?.map((item, i) => (
+              {permitsByType.map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ flex: 1, height: 12, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${Math.min(100, (item.count / Math.max(1, data.permitsByType.reduce((a, b) => a + b.count, 0))) * 100)}%`, background: `hsl(${i * 60}, 70%, 50%)`, borderRadius: 99 }} />
+                    <div style={{ height: '100%', width: `${Math.min(100, (item.count / Math.max(1, permitsByType.reduce((a, b) => a + b.count, 0))) * 100)}%`, background: chartColors[i % chartColors.length], borderRadius: 99 }} />
                   </div>
                   <span style={{ fontSize: 'var(--text-sm)', minWidth: 80 }}>{item.type}</span>
                   <span style={{ fontWeight: 700, minWidth: 30, textAlign: 'center' }}>{item.count}</span>
@@ -188,14 +191,14 @@ function MaintenanceDashboard({ lang, currentUser }) {
             <BarChart3 size={18} style={{ color: 'var(--warning)' }} />
             {ar ? 'التصاريح حسب الأولوية' : 'Permits by Priority'}
           </h3>
-          {data?.permitsByPriority?.length === 0 ? (
-            <div className="empty-state">{ar ? 'لا توجد بيانات' : 'No data'}</div>
+          {permitsByPriority.length === 0 ? (
+            <div className="empty-state maintenance-chart-empty"><BarChart3 size={30} /><span>{ar ? 'لا توجد بيانات حسب الأولوية' : 'No permit priority data yet'}</span></div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {data?.permitsByPriority?.map((item, i) => (
+              {permitsByPriority.map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ flex: 1, height: 12, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${Math.min(100, (item.count / Math.max(1, data.permitsByPriority.reduce((a, b) => a + b.count, 0))) * 100)}%`, background: `hsl(${i * 40 + 10}, 70%, 50%)`, borderRadius: 99 }} />
+                    <div style={{ height: '100%', width: `${Math.min(100, (item.count / Math.max(1, permitsByPriority.reduce((a, b) => a + b.count, 0))) * 100)}%`, background: chartColors[(i + 2) % chartColors.length], borderRadius: 99 }} />
                   </div>
                   <span style={{ fontSize: 'var(--text-sm)', minWidth: 80 }}>{item.priority}</span>
                   <span style={{ fontWeight: 700, minWidth: 30, textAlign: 'center' }}>{item.count}</span>
