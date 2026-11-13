@@ -1,13 +1,13 @@
 /* Report specific design tokens */
 :root {
-  --report-bg: #0f172a;
-  --report-card: rgba(15, 23, 42, 0.8);
-  --report-border: rgba(51, 65, 85, 0.6);
+  --report-bg: var(--bg);
+  --report-card: var(--surface);
+  --report-border: var(--border);
 
   /* Table */
   --table-header-bg: var(--surface-2);
-  --table-row-hover: rgba(59, 130, 246, 0.06);
-  --table-row-alt: rgba(255, 255, 255, 0.02);
+  --table-row-hover: var(--primary-subtle);
+  --table-row-alt: color-mix(in srgb, var(--surface-2) 45%, transparent);
 }
 
 .reports-dashboard {
@@ -36,9 +36,9 @@
 .report-filters-container {
   background: var(--report-card);
   border: 1px solid var(--report-border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 1rem;
-  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-sm);
 }
 
 .report-filters-grid {
@@ -83,9 +83,9 @@
 }
 
 .shortcut-pill {
-  background: rgba(255,255,255,0.05);
+  background: var(--surface-2);
   border: 1px solid var(--report-border);
-  border-radius: 12px;
+  border-radius: var(--radius-full);
   padding: 2px 8px;
   font-size: 0.8rem;
   cursor: pointer;
@@ -93,7 +93,7 @@
 }
 
 .shortcut-pill:hover {
-  background: rgba(255,255,255,0.1);
+  background: var(--primary-subtle);
 }
 
 /* Tabs */
@@ -112,15 +112,15 @@
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
-  color: #9ca3af;
+  color: var(--text-muted);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .report-tab-btn.active {
-  color: #3b82f6;
-  border-bottom-color: #3b82f6;
+  color: var(--primary);
+  border-bottom-color: var(--primary);
 }
 
 .report-tabs-level2 {
@@ -135,18 +135,18 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-2);
   border: 1px solid var(--report-border);
   border-radius: 20px;
-  color: #d1d5db;
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .subtab-pill.active {
-  background: #3b82f6;
-  color: white;
-  border-color: #3b82f6;
+  background: var(--primary-soft);
+  color: var(--text);
+  border-color: var(--primary);
 }
 
 /* KPI Cards */
@@ -159,7 +159,7 @@
 
 .kpi-card {
   padding: 1.25rem;
-  border-radius: 8px;
+  border-radius: var(--radius);
   border: 1px solid var(--report-border);
   display: flex;
   align-items: center;
@@ -173,17 +173,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-2);
 }
 
-.kpi-card.primary .kpi-icon-wrapper { color: #3b82f6; }
-.kpi-card.warning .kpi-icon-wrapper { color: #f59e0b; }
-.kpi-card.success .kpi-icon-wrapper { color: #10b981; }
-.kpi-card.danger .kpi-icon-wrapper { color: #ef4444; }
+.kpi-card.primary .kpi-icon-wrapper { color: var(--primary); background: var(--primary-subtle); }
+.kpi-card.warning .kpi-icon-wrapper { color: var(--warning); background: var(--warning-subtle); }
+.kpi-card.success .kpi-icon-wrapper { color: var(--success); background: var(--success-subtle); }
+.kpi-card.danger .kpi-icon-wrapper { color: var(--danger); background: var(--danger-subtle); }
 
 .kpi-title {
   font-size: 0.85rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   margin: 0 0 0.25rem 0;
 }
 
@@ -202,7 +202,7 @@
 .report-table-container {
   background: var(--report-card);
   border: 1px solid var(--report-border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
@@ -216,7 +216,7 @@
   padding: 0.75rem 1rem;
   text-align: left;
   font-weight: 600;
-  color: #d1d5db;
+  color: var(--text-muted);
   border-bottom: 1px solid var(--report-border);
   position: sticky;
   top: 0;
@@ -245,7 +245,16 @@
   justify-content: center;
   align-items: center;
   min-height: 200px;
-  color: #9ca3af;
+  color: var(--text-muted);
+}
+
+.report-chart {
+  width: 100%;
+  padding: 18px;
+  border: 1px solid var(--report-border);
+  border-radius: var(--radius);
+  background: var(--report-card);
+  box-shadow: var(--shadow-sm);
 }
 
 .report-pagination {

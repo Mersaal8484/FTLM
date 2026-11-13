@@ -132,14 +132,14 @@ export default function BulkBaseline({ lang }) {
         </p>
       </div>
 
-      <div className="panel" style={{ padding: 24, borderRadius: 8, border: '1px solid var(--border-color, #e5e7eb)' }}>
+      <div className="panel" style={{ padding: 24, borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
         {errorMsg && (
-          <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '12px 16px', borderRadius: 6, marginBottom: 16, fontSize: '0.9rem' }}>
+          <div style={{ background: 'var(--danger-subtle)', color: 'var(--danger)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: '0.9rem' }}>
             {errorMsg}
           </div>
         )}
         {successMsg && (
-          <div style={{ background: '#dcfce7', color: '#15803d', padding: '12px 16px', borderRadius: 6, marginBottom: 16, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ background: 'var(--success-subtle)', color: 'var(--success)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Check size={18} />
             {successMsg}
           </div>
@@ -164,8 +164,8 @@ export default function BulkBaseline({ lang }) {
           </FormField>
 
           {/* Quick Apply Card */}
-          <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, padding: 14, marginBottom: 20 }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: 8 }}>
+          <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 14, marginBottom: 20 }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
               {ar ? 'تطبيق ساعات موحدة على جميع البنود:' : 'Apply same hours to all items:'}
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -199,7 +199,7 @@ export default function BulkBaseline({ lang }) {
           <div style={{ overflowX: 'auto', marginBottom: 24 }}>
             <table className="table" style={{ width: '100%', fontSize: '0.9rem', textAlign: ar ? 'right' : 'left' }}>
               <thead>
-                <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #e5e7eb' }}>
+                <tr style={{ background: 'var(--surface-2)', borderBottom: '2px solid var(--border)' }}>
                   <th style={{ padding: '8px 10px', width: 40 }}>{ar ? 'تضمين' : 'Include'}</th>
                   <th style={{ padding: '8px 10px' }}>{ar ? 'بند الصيانة' : 'Service Item'}</th>
                   <th style={{ padding: '8px 10px' }}>{ar ? 'الفترة المقترحة' : 'Suggested Interval'}</th>
@@ -211,7 +211,7 @@ export default function BulkBaseline({ lang }) {
                 {serviceItems.map(item => {
                   const row = itemRows[item.id] || { selected: true, hours: '', date: commonDate };
                   return (
-                    <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <tr key={item.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
                       <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                         <input
                           type="checkbox"
@@ -227,7 +227,7 @@ export default function BulkBaseline({ lang }) {
                       </td>
                       <td style={{ padding: '8px 10px', fontWeight: 600 }}>
                         {ar ? item.nameAr : item.nameEn}
-                        <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{item.code}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.code}</div>
                       </td>
                       <td style={{ padding: '8px 10px' }}>
                         {item.suggestedIntervalHours != null ? `${item.suggestedIntervalHours} h` : '—'}

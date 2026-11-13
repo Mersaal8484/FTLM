@@ -52,9 +52,9 @@ function WarehouseStock({ lang, currentUser }) {
 
   const rowColor = (row) => {
     if (row.minStockQuantity == null) return {};
-    if (row.currentQuantity <= row.minStockQuantity) return { background: 'rgba(239,68,68,0.08)' };
-    if (row.currentQuantity <= row.minStockQuantity * 1.2) return { background: 'rgba(234,179,8,0.08)' };
-    return { background: 'rgba(16,185,129,0.06)' };
+    if (row.currentQuantity <= row.minStockQuantity) return { background: 'var(--danger-subtle)' };
+    if (row.currentQuantity <= row.minStockQuantity * 1.2) return { background: 'var(--warning-subtle)' };
+    return { background: 'color-mix(in srgb, var(--success) 7%, transparent)' };
   };
 
   const requestSupply = async (row) => {

@@ -26,13 +26,13 @@ const rejectLine = ({ lineType, lineId, reason }) =>
 function StatusChip({ status }) {
   const { t } = useTranslation();
   const map = {
-    Pending:      { color: '#f59e0b', label: t('operational.history.pending') },
-    Approved:     { color: '#22c55e', label: t('operational.balance.import') },
-    Rejected:     { color: '#ef4444', label: t('movements.status.rejected') },
-    Recorded:     { color: '#3b82f6', label: 'Recorded' },
-    AwaitingPhoto:{ color: '#a855f7', label: t('operational.balance.notMeasured') },
+    Pending:      { color: 'var(--warning)', label: t('operational.history.pending') },
+    Approved:     { color: 'var(--success)', label: t('operational.balance.import') },
+    Rejected:     { color: 'var(--danger)', label: t('movements.status.rejected') },
+    Recorded:     { color: 'var(--primary)', label: 'Recorded' },
+    AwaitingPhoto:{ color: 'var(--purple)', label: t('operational.balance.notMeasured') },
   };
-  const { color, label } = map[status] ?? { color: '#6b7280', label: status };
+  const { color, label } = map[status] ?? { color: 'var(--text-muted)', label: status };
   return (
     <span style={{
       background: `${color}22`, color, border: `1px solid ${color}`,
@@ -54,28 +54,28 @@ function RejectModal({ lineType, lineId, onClose, onDone }) {
     onSuccess: () => { qc.invalidateQueries(['review']); onDone(); onClose(); },
   });
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#0008', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'var(--card-bg, #1e293b)', borderRadius: 12, padding: 24, width: 360, maxWidth: '95vw' }}>
+    <div className="modal-overlay" style={{ zIndex: 1000 }}>
+      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 24, width: 360, maxWidth: '95vw', boxShadow: 'var(--shadow-modal)' }}>
         <h3 style={{ margin: '0 0 12px' }}>{t('operational.review.rejectLine')}</h3>
         <textarea
           value={reason} onChange={(e) => setReason(e.target.value)}
           placeholder={t('operational.review.rejectReason')}
           rows={3}
-          style={{ width: '100%', borderRadius: 8, padding: 8, background: '#0f172a', color: '#fff', border: '1px solid #334155', boxSizing: 'border-box' }}
+          style={{ width: '100%', borderRadius: 'var(--radius-sm)', padding: 8, background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)', boxSizing: 'border-box' }}
         />
         <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}>
+          <button onClick={onClose} className="btn btn-ghost">
             {t('movements.actions.cancel')}
           </button>
           <button
             onClick={() => mutation.mutate()}
             disabled={!reason.trim() || mutation.isPending}
-            style={{ padding: '8px 16px', borderRadius: 8, background: '#ef4444', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+            className="btn btn-danger"
           >
             {mutation.isPending ? '…' : t('operational.review.rejectLine')}
           </button>
         </div>
-        {mutation.isError && <p style={{ color: '#ef4444', marginTop: 8 }}>{mutation.error?.response?.data?.error}</p>}
+        {mutation.isError && <p style={{ color: 'var(--danger)', marginTop: 8 }}>{mutation.error?.response?.data?.error}</p>}
       </div>
     </div>
   );
@@ -99,7 +99,7 @@ function SubmissionDetail({ id, onBack }) {
   });
 
   if (isLoading) return <p style={{ padding: 24 }}>…</p>;
-  if (error || !data) return <p style={{ padding: 24, color: '#ef4444' }}>{error?.message}</p>;
+  if (error || !data) return <p style={{ padding: 24, color: 'var(--danger)' }}>{error?.message}</p>;
 
   const allLines = [
     ...data.generatorLines.map((l) => ({ ...l, _type: 'generator' })),
@@ -108,17 +108,17 @@ function SubmissionDetail({ id, onBack }) {
     ...data.meterLines.map((l) => ({ ...l, _type: 'meter' })),
   ];
 
-  const dateStr = (s) => new Date(s).toLocaleString(i18n.language === 'ar' ? 'ar-SA' : 'en-GB');
+  const dateStr = (s) => new Date(s).toLocaleString('en-US');
 
   return (
     <section className="capture-page">
       <div className="capture-heading">
         <div>
-          <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+          <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
             <ChevronLeft size={16} /> {t('operational.review.back')}
           </button>
           <h1 style={{ margin: 0 }}>{data.siteName} — #{data.id}</h1>
-          <p style={{ color: '#94a3b8', margin: '4px 0 0' }}>
+          <p style={{ color: 'var(--text-muted)', margin: '4px 0 0' }}>
             {t('operational.review.submittedBy')}: <strong>{data.submitterName}</strong> &nbsp;·&nbsp;
             {t('operational.review.receivedAt')}: {dateStr(data.receivedAtUtc)}
           </p>
@@ -126,7 +126,7 @@ function SubmissionDetail({ id, onBack }) {
         <button
           onClick={() => { if (window.confirm(t('operational.review.confirmApprove'))) approveMutation.mutate(); }}
           disabled={approveMutation.isPending || data.status === 'Approved'}
-          style={{ padding: '10px 20px', borderRadius: 10, background: '#22c55e', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+          style={{ padding: '10px 20px', borderRadius: 'var(--radius-sm)', background: 'var(--success)', color: 'var(--on-accent)', border: 'none', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
         >
           <CheckCircle2 size={18} />
           {approveMutation.isPending ? '…' : t('operational.review.approveSubmission')}
@@ -134,7 +134,7 @@ function SubmissionDetail({ id, onBack }) {
       </div>
 
       {approveMutation.isError && (
-        <div style={{ background: '#7f1d1d44', border: '1px solid #ef4444', borderRadius: 8, padding: 12, marginBottom: 16, color: '#fca5a5' }}>
+        <div style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius-sm)', padding: 12, marginBottom: 16, color: 'var(--danger)' }}>
           {approveMutation.error?.response?.data?.error}
         </div>
       )}
@@ -142,19 +142,19 @@ function SubmissionDetail({ id, onBack }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {allLines.map((line) => (
           <article key={`${line._type}-${line.id}`} style={{
-            background: 'var(--card-bg, #1e293b)', borderRadius: 12, padding: 16,
-            border: `1px solid ${line.status === 'Rejected' ? '#ef444466' : '#334155'}`
+            background: 'var(--card-bg)', borderRadius: 'var(--radius-lg)', padding: 16,
+            border: `1px solid ${line.status === 'Rejected' ? 'var(--danger)' : 'var(--border)'}`
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
               <StatusChip status={line.status} />
-              <span style={{ fontSize: 13, color: '#94a3b8' }}>{line._type} · {dateStr(line.capturedAtUtc)}</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{line._type} · {dateStr(line.capturedAtUtc)}</span>
               {line.hasSkewWarning && (
-                <span style={{ color: '#f59e0b', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ color: 'var(--warning)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
                   <AlertTriangle size={14} /> {t('operational.review.skewWarning')}
                 </span>
               )}
               {line.hasReuseWarning && (
-                <span style={{ color: '#a855f7', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ color: 'var(--purple)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Image size={14} /> {t('operational.review.reuseWarning')}
                 </span>
               )}
@@ -168,7 +168,7 @@ function SubmissionDetail({ id, onBack }) {
                     <img
                       src={`/api/operational-photos/${pid}`}
                       alt=""
-                      style={{ width: 80, height: 60, objectFit: 'cover', borderRadius: 6, border: '1px solid #334155' }}
+                      style={{ width: 80, height: 60, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }}
                       onError={(e) => { e.target.style.display = 'none'; }}
                     />
                   </a>
@@ -178,18 +178,18 @@ function SubmissionDetail({ id, onBack }) {
 
             {/* Meter delta */}
             {line._type === 'meter' && line.deltaPreview != null && (
-              <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 6 }}>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
                 {t('operational.review.previousValue')}: <strong>{line.previousApprovedValue ?? '—'}</strong>
                 &nbsp;→&nbsp;
                 <strong>{line.rawValue}</strong>
                 &nbsp;·&nbsp; Δ = <strong>{line.deltaPreview?.toFixed(2)}</strong>
-                {line.deltaSpanDays > 1 && <span style={{ color: '#f59e0b' }}> ({line.deltaSpanDays} days)</span>}
+                {line.deltaSpanDays > 1 && <span style={{ color: 'var(--warning)' }}> ({line.deltaSpanDays} days)</span>}
               </div>
             )}
 
             {/* Rejection reason */}
             {line.rejectionReason && (
-              <p style={{ color: '#fca5a5', fontSize: 13, margin: '4px 0' }}>
+              <p style={{ color: 'var(--danger)', fontSize: 13, margin: '4px 0' }}>
                 <XCircle size={14} style={{ verticalAlign: 'middle' }} /> {line.rejectionReason}
               </p>
             )}
@@ -198,7 +198,7 @@ function SubmissionDetail({ id, onBack }) {
             {line.status === 'Pending' && (
               <button
                 onClick={() => setRejectTarget({ lineType: line._type, lineId: line.id })}
-                style={{ marginTop: 8, padding: '6px 14px', borderRadius: 8, background: '#7f1d1d', color: '#fca5a5', border: 'none', cursor: 'pointer', fontSize: 13 }}
+                style={{ marginTop: 8, padding: '6px 14px', borderRadius: 8, background: 'var(--danger-subtle)', color: 'var(--danger)', border: '1px solid var(--danger)', cursor: 'pointer', fontSize: 13 }}
               >
                 {t('operational.review.rejectLine')}
               </button>
@@ -247,9 +247,9 @@ export default function OperationalReview() {
       </div>
 
       {isLoading && <p style={{ padding: 24 }}>…</p>}
-      {error && <p style={{ color: '#ef4444', padding: 24 }}>{error.message}</p>}
+      {error && <p style={{ color: 'var(--danger)', padding: 24 }}>{error.message}</p>}
       {!isLoading && data.length === 0 && (
-        <p style={{ color: '#94a3b8', padding: 24, textAlign: 'center' }}>
+        <p style={{ color: 'var(--text-muted)', padding: 24, textAlign: 'center' }}>
           {t('operational.review.empty')}
         </p>
       )}
@@ -260,24 +260,24 @@ export default function OperationalReview() {
             key={sub.id}
             onClick={() => setSelectedId(sub.id)}
             style={{
-              background: 'var(--card-bg, #1e293b)', borderRadius: 12, padding: 16,
-              border: '1px solid #334155', cursor: 'pointer',
+              background: 'var(--card-bg)', borderRadius: 'var(--radius-lg)', padding: 16,
+              border: '1px solid var(--border)', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 16
             }}
           >
             <div style={{ flex: 1 }}>
               <strong>{sub.siteName}</strong>
-              <span style={{ marginInlineStart: 10, fontSize: 13, color: '#94a3b8' }}>
+              <span style={{ marginInlineStart: 10, fontSize: 13, color: 'var(--text-muted)' }}>
                 {t('operational.review.submittedBy')}: {sub.submitterName}
               </span>
-              <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
                 <Clock3 size={13} style={{ verticalAlign: 'middle' }} /> {dateStr(sub.receivedAtUtc)}
                 &nbsp;·&nbsp;
                 {sub.generatorLineCount + sub.tankLineCount + sub.feederLineCount + sub.meterLineCount} {t('operational.review.linesCount')}
               </div>
             </div>
-            {sub.hasSkewWarning && <AlertTriangle size={18} color="#f59e0b" />}
-            <ChevronLeft size={18} color="#94a3b8" style={{ transform: i18n.dir() === 'rtl' ? 'scaleX(-1)' : undefined }} />
+            {sub.hasSkewWarning && <AlertTriangle size={18} color="var(--warning)" />}
+            <ChevronLeft size={18} color="var(--text-muted)" style={{ transform: i18n.dir() === 'rtl' ? 'scaleX(-1)' : undefined }} />
           </article>
         ))}
       </div>

@@ -18,6 +18,7 @@ import useDashboardVisibility from '../permissions/useDashboardVisibility';
 import useDashboardData from '../hooks/useDashboardData';
 import HierarchicalFilter from '../components/common/HierarchicalFilter';
 import { PageHeader, Button } from '../components/ui';
+import useThemeTokens from '../utils/useThemeTokens';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
@@ -45,32 +46,6 @@ function parseLocalDate(value) {
   return new Date(y, m - 1, d);
 }
 
-const chartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  tension: 0.4,
-  plugins: {
-    legend: {
-      display: true,
-      position: 'top',
-      labels: { color: 'var(--text-faint)', usePointStyle: true, pointStyle: 'circle', font: { size: 11 } }
-    },
-    tooltip: {
-      backgroundColor: 'var(--surface-2)',
-      borderColor: 'var(--border)',
-      borderWidth: 1,
-      padding: 15,
-      cornerRadius: 12,
-      titleFont: { size: 14, weight: 'bold' },
-      bodyFont: { size: 13 }
-    },
-  },
-  scales: {
-    x: { grid: { display: false }, ticks: { color: 'var(--text-muted)', font: { size: 10 } } },
-    y: { grid: { color: 'var(--border)' }, ticks: { color: 'var(--text-muted)', font: { size: 10 } } },
-  },
-};
-
 function KpiCard({ icon: Icon, label, value, color, bg }) {
   return (
     <div className="kpi-card" style={{ borderTop: `3px solid ${color}` }}>
@@ -94,6 +69,32 @@ KpiCard.propTypes = {
 };
 
 function Dashboard({ lang }) {
+  const themeTokens = useThemeTokens();
+  const chartOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    tension: 0.4,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+        labels: { color: themeTokens.muted, usePointStyle: true, pointStyle: 'circle', font: { size: 12 } },
+      },
+      tooltip: {
+        backgroundColor: themeTokens.surface,
+        titleColor: themeTokens.text,
+        bodyColor: themeTokens.muted,
+        borderColor: themeTokens.grid,
+        borderWidth: 1,
+        padding: 14,
+        cornerRadius: 12,
+      },
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: themeTokens.muted, font: { size: 11 } } },
+      y: { grid: { color: themeTokens.grid }, ticks: { color: themeTokens.muted, font: { size: 11 } } },
+    },
+  }), [themeTokens]);
   const ar = lang === 'ar';
 
   // ── Dashboard Visibility (role-based) ──────────────────────────────

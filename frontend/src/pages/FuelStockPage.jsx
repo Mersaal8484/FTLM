@@ -8,9 +8,9 @@ const fmt = (v, d = 0) =>
   v != null ? Number(v).toLocaleString('en-US', { maximumFractionDigits: d }) : '—';
 
 const alertCfg = {
-  danger:  { color: '#ef4444', bg: '#ef444415', label: { ar: 'خطر',   en: 'Danger'  } },
-  warning: { color: 'var(--warning)', bg: 'var(--warning)15', label: { ar: 'تحذير', en: 'Warning' } },
-  normal:  { color: '#10b981', bg: '#10b98115', label: { ar: 'طبيعي', en: 'Normal'  } },
+  danger:  { color: 'var(--danger)', bg: 'var(--danger-subtle)', label: { ar: 'خطر',   en: 'Danger'  } },
+  warning: { color: 'var(--warning)', bg: 'var(--warning-subtle)', label: { ar: 'تحذير', en: 'Warning' } },
+  normal:  { color: 'var(--success)', bg: 'var(--success-subtle)', label: { ar: 'طبيعي', en: 'Normal'  } },
 };
 
 function AlertBadge({ level, ar }) {
@@ -92,7 +92,7 @@ function FuelStockPage({ lang }) {
     const available = s.availableStock || 0;
     const fillPct   = s.totalCapacity > 0 ? Math.min(100, (remaining / s.totalCapacity) * 100) : null;
     const alertLevel = s.alertLevel || 'normal';
-    const barColor = alertLevel === 'danger' ? '#ef4444' : alertLevel === 'warning' ? 'var(--warning)' : '#10b981';
+    const barColor = alertLevel === 'danger' ? 'var(--danger)' : alertLevel === 'warning' ? 'var(--warning)' : 'var(--success)';
 
     return (
       <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -103,7 +103,7 @@ function FuelStockPage({ lang }) {
         <td style={{ textAlign: 'center' }}>{fmt(s.baseStock, 0)}</td>
         <td style={{ textAlign: 'center', color: 'var(--secondary)', fontWeight: 700 }}>{fmt(s.inbound, 0)}</td>
         <td style={{ textAlign: 'center', color: 'var(--danger)' }}>{fmt(s.transferOut, 0)}</td>
-        <td style={{ textAlign: 'center', color: '#10b981' }}>{fmt(s.transferIn, 0)}</td>
+        <td style={{ textAlign: 'center', color: 'var(--success)' }}>{fmt(s.transferIn, 0)}</td>
         <td style={{ textAlign: 'center', color: 'var(--danger)' }}>{fmt(s.loss, 0)}</td>
         <td style={{ textAlign: 'center', color: 'var(--warning)' }}>{fmt(s.consumed, 0)}</td>
         <td style={{ textAlign: 'center', fontWeight: 800, fontSize: 14 }}>
@@ -149,12 +149,12 @@ function FuelStockPage({ lang }) {
           <div className="kpi-icon"><MapPin size={22} /></div>
           <div><div className="kpi-value">{kpi.sites}</div><div className="kpi-label">{ar ? 'المواقع' : 'Locations'}</div></div>
         </div>
-        <div className="kpi-card" style={{ '--kpi-color': 'var(--secondary)', '--kpi-bg': 'rgba(99,102,241,0.12)' }}>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--secondary)', '--kpi-bg': 'var(--secondary-subtle)' }}>
           <div className="kpi-icon" style={{ color: 'var(--secondary)' }}><Package size={22} /></div>
           <div><div className="kpi-value">{fmt(kpi.totalCap, 0)}</div><div className="kpi-label">{ar ? 'إجمالي السعة (L)' : 'Total Capacity (L)'}</div></div>
         </div>
-        <div className="kpi-card" style={{ '--kpi-color': '#10b981', '--kpi-bg': 'rgba(16,185,129,0.12)' }}>
-          <div className="kpi-icon" style={{ color: '#10b981' }}><Database size={22} /></div>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--success)', '--kpi-bg': 'var(--success-subtle)' }}>
+          <div className="kpi-icon" style={{ color: 'var(--success)' }}><Database size={22} /></div>
           <div><div className="kpi-value">{fmt(kpi.totalRemaining, 0)}</div><div className="kpi-label">{ar ? 'المخزون الفعلي (L)' : 'Actual Stock (L)'}</div></div>
         </div>
         <div className="kpi-card" style={{ '--kpi-color': 'var(--primary)', '--kpi-bg': 'var(--primary-glow)' }}>

@@ -173,26 +173,25 @@ export default function GeneratorMaintenanceTable({ lang }) {
   const getStatusBadgeStyle = (status) => {
     switch (status) {
       case 4: // Overdue
-        return { background: '#fee2e2', color: '#b91c1c', border: '1px solid #f87171' };
+        return { background: 'var(--danger-subtle)', color: 'var(--danger)', border: '1px solid color-mix(in srgb, var(--danger) 42%, transparent)' };
       case 3: // Due
-        return { background: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d' };
+        return { background: 'var(--warning-subtle)', color: 'var(--warning)', border: '1px solid color-mix(in srgb, var(--warning) 42%, transparent)' };
       case 2: // DueSoon
-        return { background: '#fffbeb', color: '#d97706', border: '1px solid #fef08a' };
+        return { background: 'var(--warning-subtle)', color: 'var(--warning)', border: '1px solid color-mix(in srgb, var(--warning) 28%, transparent)' };
       case 1: // Ok
-        return { background: '#dcfce7', color: '#15803d', border: '1px solid #86efac' };
+        return { background: 'var(--success-subtle)', color: 'var(--success)', border: '1px solid color-mix(in srgb, var(--success) 38%, transparent)' };
       case 5: // NotConfigured
-        return { background: '#f3f4f6', color: '#6b7280', border: '1px dashed #d1d5db' };
+        return { background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px dashed var(--border-strong)' };
       default: // NotBaselined
-        return { background: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db' };
+        return { background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' };
     }
   };
 
   const getProgressColor = (status, fraction) => {
-    if (status === 4 || fraction >= 1.0) return '#ef4444';
-    if (status === 3) return '#f59e0b';
-    if (status === 2 || fraction >= 0.85) return '#eab308';
-    if (status === 1) return '#22c55e';
-    return '#9ca3af';
+    if (status === 4 || fraction >= 1.0) return 'var(--danger)';
+    if (status === 3 || status === 2 || fraction >= 0.85) return 'var(--warning)';
+    if (status === 1) return 'var(--success)';
+    return 'var(--text-muted)';
   };
 
   return (
@@ -267,22 +266,22 @@ export default function GeneratorMaintenanceTable({ lang }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {filteredTables.map(gen => (
-            <div key={gen.generatorId} className="panel" style={{ padding: 20, borderRadius: 8, border: '1px solid var(--border-color, #e5e7eb)' }}>
+            <div key={gen.generatorId} className="panel" style={{ padding: 20, borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
               {/* Generator Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color, #eee)', paddingBottom: 12, marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600 }}>{gen.generatorName}</h2>
-                    <span style={{ fontSize: '0.85rem', color: '#6b7280', background: '#f3f4f6', padding: '2px 8px', borderRadius: 4 }}>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', background: 'var(--surface-2)', padding: '2px 8px', borderRadius: 'var(--radius-sm)' }}>
                       {gen.subStationName}
                     </span>
                     {gen.model && (
-                      <span style={{ fontSize: '0.85rem', color: '#4b5563', border: '1px solid #d1d5db', padding: '2px 8px', borderRadius: 4 }}>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: 'var(--radius-sm)' }}>
                         {gen.model}
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: 4, display: 'flex', gap: 16 }}>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: 4, display: 'flex', gap: 16 }}>
                     <span>
                       {ar ? 'الساعات الرسمية المعتمدة:' : 'Official Running Hours:'}{' '}
                       <strong style={{ color: 'var(--primary)' }}>
@@ -301,12 +300,12 @@ export default function GeneratorMaintenanceTable({ lang }) {
                 {/* Due/Overdue counter pill */}
                 <div>
                   {gen.dueOrOverdueCount > 0 ? (
-                    <span style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #f87171', padding: '6px 14px', borderRadius: 20, fontWeight: 600, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ background: 'var(--danger-subtle)', color: 'var(--danger)', border: '1px solid color-mix(in srgb, var(--danger) 38%, transparent)', padding: '6px 14px', borderRadius: 'var(--radius-full)', fontWeight: 600, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <AlertTriangle size={16} />
                       {gen.dueOrOverdueCount} {ar ? 'بنود تستحق الخدمة' : 'items due/overdue'}
                     </span>
                   ) : (
-                    <span style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', padding: '6px 14px', borderRadius: 20, fontWeight: 500, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ background: 'var(--success-subtle)', color: 'var(--success)', border: '1px solid color-mix(in srgb, var(--success) 38%, transparent)', padding: '6px 14px', borderRadius: 'var(--radius-full)', fontWeight: 500, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <CheckCircle size={16} />
                       {ar ? 'جميع البنود سليمة' : 'All items OK'}
                     </span>
@@ -318,7 +317,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
               <div style={{ overflowX: 'auto' }}>
                 <table className="table" style={{ width: '100%', fontSize: '0.9rem', textAlign: ar ? 'right' : 'left' }}>
                   <thead>
-                    <tr style={{ background: 'var(--table-header-bg, #f9fafb)', borderBottom: '2px solid #e5e7eb' }}>
+                    <tr style={{ background: 'var(--surface-2)', borderBottom: '2px solid var(--border)' }}>
                       <th style={{ padding: '10px 12px' }}>{ar ? 'بند الصيانة' : 'Service Item'}</th>
                       <th style={{ padding: '10px 12px' }}>{ar ? 'الفترة' : 'Interval'}</th>
                       <th style={{ padding: '10px 12px' }}>{ar ? 'آخر صيانة' : 'Last Service'}</th>
@@ -336,14 +335,14 @@ export default function GeneratorMaintenanceTable({ lang }) {
                       const badgeStyle = getStatusBadgeStyle(item.status);
 
                       return (
-                        <tr key={item.serviceItemId} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                        <tr key={item.serviceItemId} style={{ borderBottom: '1px solid var(--border-light)' }}>
                           <td style={{ padding: '10px 12px', fontWeight: 600 }}>
                             {ar ? item.serviceItemNameAr : item.serviceItemNameEn}
                           </td>
                           <td style={{ padding: '10px 12px' }}>
                             {item.status === 5 ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                <span style={{ color: '#6b7280', fontSize: '0.8rem' }}>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                                   {!gen.model
                                     ? (ar ? 'المولد بدون طراز محدد' : 'Generator has no model set')
                                     : (ar ? 'غير مهيأ لهذا الطراز' : 'No definition configured for model')}
@@ -370,10 +369,10 @@ export default function GeneratorMaintenanceTable({ lang }) {
                           </td>
                           <td style={{ padding: '10px 12px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <div style={{ flex: 1, background: '#e5e7eb', height: 8, borderRadius: 4, overflow: 'hidden' }}>
+                              <div style={{ flex: 1, background: 'var(--surface-3)', height: 8, borderRadius: 4, overflow: 'hidden' }}>
                                 <div style={{ width: `${Math.min(pct, 100)}%`, background: barColor, height: '100%', borderRadius: 4 }} />
                               </div>
-                              <span style={{ fontSize: '0.8rem', minWidth: 36, color: '#4b5563' }}>{pct}%</span>
+                              <span style={{ fontSize: '0.8rem', minWidth: 36, color: 'var(--text-muted)' }}>{pct}%</span>
                             </div>
                           </td>
                           <td style={{ padding: '10px 12px' }}>

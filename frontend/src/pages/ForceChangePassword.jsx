@@ -51,7 +51,7 @@ function ForceChangePassword({ onPasswordChanged, onLogout }) {
             width: 56,
             height: 56,
             borderRadius: 16,
-            background: 'rgba(59, 130, 246, 0.15)',
+            background: 'var(--primary-subtle)',
             color: 'var(--primary)',
             display: 'flex',
             alignItems: 'center',

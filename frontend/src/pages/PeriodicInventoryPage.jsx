@@ -402,11 +402,11 @@ function PeriodicInventoryPage({ lang, currentUser }) {
 
               <div className="form-section-header"><Droplets size={14}/> {ar ? 'مخزون الوقود الفعلي (ميداني)' : 'Physical Fuel Stock'}</div>
               {!newForm.station ? (
-                <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>{ar ? 'يرجى اختيار الموقع أولاً لإظهار الخزانات' : 'Select location first to show tanks'}</div>
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'var(--surface-2)', borderRadius: 8 }}>{ar ? 'يرجى اختيار الموقع أولاً لإظهار الخزانات' : 'Select location first to show tanks'}</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {newForm.fuelReadings.length === 0 ? (
-                    <div style={{ padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                    <div style={{ padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 12, background: 'var(--surface-2)', borderRadius: 8 }}>
                       {ar ? 'لا توجد خزانات وقود مرتبطة بهذا الموقع' : 'No fuel tanks linked to this location'}
                     </div>
                   ) : newForm.fuelReadings.map((r, i) => (
@@ -421,13 +421,13 @@ function PeriodicInventoryPage({ lang, currentUser }) {
 
               <div className="form-section-header"><TrendingUp size={14}/> {ar ? 'مخزون الزيت الفعلي (ميداني)' : 'Physical Oil Stock'}</div>
               {!newForm.station ? (
-                <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'var(--surface-2)', borderRadius: 8 }}>
                   {ar ? 'يرجى اختيار الموقع أولاً لإظهار الزيوت' : 'Select location first to show oils'}
                 </div>
               ) : (
                 <div className="form-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   {newForm.oilReadings.length === 0 ? (
-                    <div style={{ gridColumn: '1 / -1', padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                    <div style={{ gridColumn: '1 / -1', padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 12, background: 'var(--surface-2)', borderRadius: 8 }}>
                       {ar ? 'لا توجد زيوت مرتبطة بهذا الموقع' : 'No oils linked to this location'}
                     </div>
                   ) : newForm.oilReadings.map((r, i) => (
@@ -454,7 +454,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
                   style={{ minHeight: 180, resize: 'vertical', lineHeight: 1.7 }}
                 />
               </FormField>
-              <div style={{ marginTop: 16, padding: 14, background: 'rgba(59,130,246,0.06)', borderRadius: 10, border: '1px solid rgba(59,130,246,0.15)' }}>
+              <div style={{ marginTop: 16, padding: 14, background: 'var(--primary-subtle)', borderRadius: 10, border: '1px solid var(--primary)' }}>
                 <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7 }}>
                   {ar
                     ? '✓ يُحتسب تلقائياً من الإدخال اليومي المعتمد: الطاقة المنتجة، ساعات التشغيل، الوقود المستهلك، الوقود الوارد، الوقود المنقول، الفاقد.'
@@ -571,7 +571,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
         </div>
 
         {/* INVENTORY NOTES */}
-        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '8px 16px', borderBottom: '1px solid var(--border)', textAlign: 'center', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-faint)' }}>
+        <div style={{ background: 'var(--surface-2)', padding: '8px 16px', borderBottom: '1px solid var(--border)', textAlign: 'center', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-faint)' }}>
           — {ar ? 'ملاحظات الجرد' : 'Inventory Notes'} —
         </div>
 
@@ -640,18 +640,18 @@ function PeriodicInventoryPage({ lang, currentUser }) {
           >
             {/* Header Info */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 22 }}>
-              <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
+              <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{ar ? 'الموقع' : 'Location'}</div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)' }}>{getLocationLabel(inv)}</div>
               </div>
-              <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
+              <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{ar ? 'الفترة' : 'Period'}</div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)' }}>{inv.periodType || '—'}</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{months[(inv.month || 1) - 1]} {inv.year || ''}</div>
               </div>
-              <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
+              <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{ar ? 'الحالة' : 'Status'}</div>
-                <span className="badge" style={{ background: statusColors[inv.status] || 'var(--text-muted)', color: '#fff', fontSize: 13, fontWeight: 600, padding: '5px 14px' }}>
+                <span className="badge" style={{ background: statusColors[inv.status] || 'var(--text-muted)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, padding: '5px 14px' }}>
                   {statusLabels[inv.status] || inv.status || '—'}
                 </span>
               </div>
@@ -698,7 +698,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
                   </table>
                 </div>
               ) : (
-                <div style={{ padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'rgba(0,0,0,0.15)', borderRadius: 10 }}>
+                <div style={{ padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'var(--surface-2)', borderRadius: 10 }}>
                   {ar ? 'لا توجد بيانات وقود' : 'No fuel data'}
                 </div>
               )}
@@ -732,7 +732,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
                   </table>
                 </div>
               ) : (
-                <div style={{ padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'rgba(0,0,0,0.15)', borderRadius: 10 }}>
+                <div style={{ padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'var(--surface-2)', borderRadius: 10 }}>
                   {ar ? 'لا توجد بيانات زيوت' : 'No oil data'}
                 </div>
               )}
@@ -745,7 +745,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
                   <FileText size={15} style={{ color: 'var(--primary)' }} />
                   {ar ? 'ملاحظات' : 'Notes'}
                 </div>
-                <div style={{ padding: 14, background: 'rgba(0,0,0,0.15)', borderRadius: 10, fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'var(--text-muted)' }}>
+                <div style={{ padding: 14, background: 'var(--surface-2)', borderRadius: 10, fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'var(--text-muted)' }}>
                   {inv.notes}
                 </div>
               </div>

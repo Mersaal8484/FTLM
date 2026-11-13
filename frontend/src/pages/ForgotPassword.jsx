@@ -67,10 +67,10 @@ function ForgotPassword() {
     width: '100%',
     padding: '12px 14px',
     fontSize: 14,
-    background: 'var(--input-bg, rgba(255,255,255,0.05))',
+    background: 'var(--surface-2)',
     color: 'var(--text)',
-    border: '1px solid var(--border, rgba(255,255,255,0.1))',
-    borderRadius: 10,
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-sm)',
     outline: 'none',
     boxSizing: 'border-box',
     transition: 'border-color 0.2s',
@@ -88,11 +88,11 @@ function ForgotPassword() {
   const cardStyle = {
     width: '100%',
     maxWidth: 420,
-    background: 'var(--card-bg, #1a1d27)',
-    borderRadius: 16,
+    background: 'var(--card-bg)',
+    borderRadius: 'var(--radius)',
     padding: '40px 36px',
-    boxShadow: '0 8px 40px rgba(0,0,0,0.4)',
-    border: '1px solid var(--border, rgba(255,255,255,0.08))',
+    boxShadow: 'var(--shadow-lg)',
+    border: '1px solid var(--border)',
   };
 
   return (
@@ -114,8 +114,8 @@ function ForgotPassword() {
             height: 52,
             borderRadius: 14,
             background: step === 'done'
-              ? 'rgba(16, 185, 129, 0.15)'
-              : 'rgba(245, 158, 11, 0.15)',
+              ? 'var(--success-subtle)'
+              : 'var(--warning-subtle)',
             color: step === 'done' ? 'var(--success)' : 'var(--warning)',
             display: 'flex',
             alignItems: 'center',

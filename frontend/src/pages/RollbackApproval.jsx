@@ -247,8 +247,8 @@ function RollbackApproval({ lang, user }) {
             <div className={`rb-result-card ${checkResult.ok ? 'ok' : 'blocked'}`}>
               <div className="rb-result-header">
                 {checkResult.ok
-                  ? <><CheckCircle size={22} color="#10b981" /> <span style={{color:'#10b981', fontWeight:900}}>{ar ? 'يمكن التراجع ✓' : 'Rollback possible ✓'}</span></>
-                  : <><XCircle    size={22} color="#ef4444" /> <span style={{color:'#ef4444', fontWeight:900}}>{ar ? 'لا يمكن التراجع ✗' : 'Rollback not possible ✗'}</span></>
+                  ? <><CheckCircle size={22} color="var(--success)" /> <span style={{color:'var(--success)', fontWeight:900}}>{ar ? 'يمكن التراجع ✓' : 'Rollback possible ✓'}</span></>
+                  : <><XCircle    size={22} color="var(--danger)" /> <span style={{color:'var(--danger)', fontWeight:900}}>{ar ? 'لا يمكن التراجع ✗' : 'Rollback not possible ✗'}</span></>
                 }
                 <button className="rb-close-result" onClick={() => setCheckResult(null)}>✕</button>
               </div>
@@ -258,7 +258,7 @@ function RollbackApproval({ lang, user }) {
                 <div className="rb-blocked-reason">
                   <p>{checkResult.reason}</p>
                   {checkResult.blockedBy && (
-                    <p style={{fontSize:11, color:'#94a3b8', fontFamily:'monospace', marginTop:4}}>
+                    <p style={{fontSize:11, color:'var(--text-muted)', fontFamily:'monospace', marginTop:4}}>
                       {ar ? 'معرّف العملية الحاجبة' : 'Blocking operation ID'}: {checkResult.blockedBy.id ?? '—'}
                     </p>
                   )}
@@ -317,7 +317,7 @@ function RollbackApproval({ lang, user }) {
 
           {!historyLoading && history.length === 0 && (
             <div className="rb-empty-history">
-              <History size={40} color="#475569" />
+              <History size={40} color="var(--text-faint)" />
               <p>{ar ? 'لا توجد عمليات تراجع مسجلة' : 'No rollback operations recorded'}</p>
             </div>
           )}
@@ -358,83 +358,83 @@ function RollbackApproval({ lang, user }) {
         .rb-header { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:14px; margin-bottom:26px; }
         .rb-header-text { display:flex; align-items:center; gap:12px; }
         .rb-header-text h1 { margin:0; font-size:1.5rem; font-weight:900; }
-        .rb-header-text p  { margin:3px 0 0; font-size:0.88rem; color: var(--text-muted,#94a3b8); }
+        .rb-header-text p  { margin:3px 0 0; font-size:0.88rem; color:var(--text-muted); }
         .rb-tabs { display:flex; gap:8px; }
-        .rb-tab  { display:flex; align-items:center; gap:6px; padding:8px 16px; border-radius:10px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.03); color:var(--text-muted,#94a3b8); cursor:pointer; font-size:0.88rem; transition:all .2s; }
-        .rb-tab:hover  { background:rgba(255,255,255,0.07); color:#fff; }
-        .rb-tab.active { background:rgba(59,130,246,0.15); border-color:rgba(59,130,246,0.3); color:#60a5fa; font-weight:700; }
+        .rb-tab  { display:flex; align-items:center; gap:6px; padding:8px 16px; border-radius:10px; border:1px solid var(--border); background:var(--surface-2); color:var(--text-muted); cursor:pointer; font-size:0.88rem; transition:all .2s; }
+        .rb-tab:hover  { background:var(--surface-3); color:var(--text); }
+        .rb-tab.active { background:var(--primary-subtle); border-color:var(--primary); color:var(--primary); font-weight:700; }
 
         /* Form */
         .rb-form-wrap  { display:flex; flex-direction:column; gap:0; }
         .rb-section    { margin-bottom:18px; }
-        .rb-label      { display:block; font-size:0.85rem; font-weight:600; color:var(--text-muted,#94a3b8); margin-bottom:7px; }
+        .rb-label      { display:block; font-size:0.85rem; font-weight:600; color:var(--text-muted); margin-bottom:7px; }
 
         /* Warning */
-        .rb-warning-banner { display:flex; align-items:flex-start; gap:10px; padding:13px 15px; background:rgba(245,158,11,0.09); border:1px solid rgba(245,158,11,0.28); border-radius:12px; margin-bottom:22px; }
-        .rb-warning-banner p { margin:0; font-size:0.84rem; color:#fbbf24; line-height:1.6; }
+        .rb-warning-banner { display:flex; align-items:flex-start; gap:10px; padding:13px 15px; background:var(--warning-subtle); border:1px solid var(--warning); border-radius:12px; margin-bottom:22px; }
+        .rb-warning-banner p { margin:0; font-size:0.84rem; color:var(--warning); line-height:1.6; }
 
         /* Entity type buttons */
         .rb-entity-types { display:flex; flex-wrap:wrap; gap:9px; }
-        .rb-entity-btn   { display:flex; align-items:center; gap:7px; padding:9px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.03); color:var(--text); cursor:pointer; font-size:0.88rem; font-family:inherit; transition:all .2s; }
-        .rb-entity-btn:hover  { border-color:rgba(59,130,246,0.3); background:rgba(59,130,246,0.08); }
-        .rb-entity-btn.active { border-color:rgba(59,130,246,0.5); background:rgba(59,130,246,0.15); color:#60a5fa; font-weight:700; }
+        .rb-entity-btn   { display:flex; align-items:center; gap:7px; padding:9px 14px; border-radius:10px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); cursor:pointer; font-size:0.88rem; font-family:inherit; transition:all .2s; }
+        .rb-entity-btn:hover  { border-color:var(--primary); background:var(--primary-subtle); }
+        .rb-entity-btn.active { border-color:var(--primary); background:var(--primary-subtle); color:var(--primary); font-weight:700; }
 
         /* Input */
         .rb-id-row    { display:flex; gap:8px; align-items:center; }
-        .rb-input     { flex:1; padding:11px 14px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:10px; color:var(--text,#fff); font-size:0.9rem; outline:none; transition:border .2s; }
-        .rb-input:focus { border-color:rgba(59,130,246,0.5); }
-        .rb-paste-btn { padding:10px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:10px; color:#94a3b8; cursor:pointer; transition:all .2s; }
-        .rb-paste-btn:hover { background:rgba(255,255,255,0.1); color:#fff; }
-        .rb-clear-btn { padding:10px 12px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); border-radius:10px; color:#f87171; cursor:pointer; font-size:14px; }
+        .rb-input     { flex:1; padding:11px 14px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px; color:var(--text); font-size:0.9rem; outline:none; transition:border .2s; }
+        .rb-input:focus { border-color:var(--primary); }
+        .rb-paste-btn { padding:10px 12px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px; color:var(--text-muted); cursor:pointer; transition:all .2s; }
+        .rb-paste-btn:hover { background:var(--surface-3); color:var(--text); }
+        .rb-clear-btn { padding:10px 12px; background:var(--danger-subtle); border:1px solid var(--danger); border-radius:10px; color:var(--danger); cursor:pointer; font-size:14px; }
 
-        .rb-textarea { width:100%; box-sizing:border-box; padding:11px 14px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:10px; color:var(--text,#fff); font-size:0.88rem; resize:vertical; outline:none; font-family:inherit; transition:border .2s; }
-        .rb-textarea:focus { border-color:rgba(245,158,11,0.5); }
-        .rb-char-count { font-size:11px; color:#64748b; float:left; margin-top:4px; }
+        .rb-textarea { width:100%; box-sizing:border-box; padding:11px 14px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px; color:var(--text); font-size:0.88rem; resize:vertical; outline:none; font-family:inherit; transition:border .2s; }
+        .rb-textarea:focus { border-color:var(--warning); }
+        .rb-char-count { font-size:11px; color:var(--text-faint); float:left; margin-top:4px; }
 
         /* Buttons */
-        .rb-check-btn   { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:13px; border-radius:12px; border:none; background:rgba(59,130,246,0.75); color:#fff; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all .2s; margin-bottom:14px; }
-        .rb-check-btn:hover:not(:disabled) { background:rgba(59,130,246,0.95); }
+        .rb-check-btn   { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:13px; border-radius:12px; border:none; background:var(--primary); color:var(--on-accent); font-size:0.95rem; font-weight:700; cursor:pointer; transition:all .2s; margin-bottom:14px; }
+        .rb-check-btn:hover:not(:disabled) { filter:brightness(1.08); }
         .rb-check-btn:disabled { opacity:.5; cursor:not-allowed; }
-        .rb-execute-btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:13px; border-radius:12px; border:none; background:rgba(245,158,11,0.85); color:#fff; font-size:0.95rem; font-weight:700; cursor:pointer; transition:all .2s; margin-top:4px; }
-        .rb-execute-btn:hover:not(:disabled) { background:rgba(245,158,11,1); }
+        .rb-execute-btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:13px; border-radius:12px; border:none; background:var(--warning); color:var(--on-accent); font-size:0.95rem; font-weight:700; cursor:pointer; transition:all .2s; margin-top:4px; }
+        .rb-execute-btn:hover:not(:disabled) { filter:brightness(1.08); }
         .rb-execute-btn:disabled { opacity:.5; cursor:not-allowed; }
 
         /* Boxes */
-        .rb-error-box   { display:flex; align-items:flex-start; gap:9px; padding:12px 14px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.25); border-radius:10px; color:#f87171; font-size:0.88rem; margin-bottom:14px; }
-        .rb-success-box { display:flex; align-items:center; gap:9px; padding:12px 14px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.25); border-radius:10px; color:#34d399; font-size:0.88rem; font-weight:700; margin-bottom:14px; }
+        .rb-error-box   { display:flex; align-items:flex-start; gap:9px; padding:12px 14px; background:var(--danger-subtle); border:1px solid var(--danger); border-radius:10px; color:var(--danger); font-size:0.88rem; margin-bottom:14px; }
+        .rb-success-box { display:flex; align-items:center; gap:9px; padding:12px 14px; background:var(--success-subtle); border:1px solid var(--success); border-radius:10px; color:var(--success); font-size:0.88rem; font-weight:700; margin-bottom:14px; }
 
         /* Result card */
-        .rb-result-card { padding:18px; border-radius:14px; border:1.5px solid rgba(255,255,255,0.08); margin-top:4px; }
-        .rb-result-card.ok      { background:rgba(16,185,129,0.07); border-color:rgba(16,185,129,0.3); }
-        .rb-result-card.blocked { background:rgba(239,68,68,0.07); border-color:rgba(239,68,68,0.3); }
+        .rb-result-card { padding:18px; border-radius:14px; border:1.5px solid var(--border); margin-top:4px; }
+        .rb-result-card.ok      { background:var(--success-subtle); border-color:var(--success); }
+        .rb-result-card.blocked { background:var(--danger-subtle); border-color:var(--danger); }
         .rb-result-header { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
         .rb-result-header > :last-child { margin-inline-end:auto; }
-        .rb-close-result { background:none; border:none; color:#94a3b8; cursor:pointer; font-size:16px; padding:0 4px; }
-        .rb-close-result:hover { color:#fff; }
-        .rb-blocked-reason { padding:11px 14px; background:rgba(239,68,68,0.1); border-radius:10px; font-size:0.86rem; color:#f87171; }
+        .rb-close-result { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:16px; padding:0 4px; }
+        .rb-close-result:hover { color:var(--text); }
+        .rb-blocked-reason { padding:11px 14px; background:var(--danger-subtle); border-radius:10px; font-size:0.86rem; color:var(--danger); }
         .rb-preview { padding:12px 0; }
         .rb-preview-summary { font-weight:700; margin:0 0 10px; }
         .rb-preview-changes  { padding-inline-end:16px; margin:0; list-style:none; }
-        .rb-preview-changes li { padding:4px 0; font-size:0.86rem; color:#cbd5e1; position:relative; }
+        .rb-preview-changes li { padding:4px 0; font-size:0.86rem; color:var(--text); position:relative; }
         .rb-preview-changes li::before { content:''; }
 
         /* History */
         .rb-history-wrap  { display:flex; flex-direction:column; gap:10px; padding-top:4px; }
-        .rb-loading, .rb-empty-history { text-align:center; padding:40px; color:#64748b; }
+        .rb-loading, .rb-empty-history { text-align:center; padding:40px; color:var(--text-faint); }
         .rb-empty-history p { margin:10px 0 0; }
-        .rb-history-card  { padding:14px 16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:12px; }
+        .rb-history-card  { padding:14px 16px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; }
         .rb-history-head  { display:flex; justify-content:space-between; align-items:center; margin-bottom:7px; }
         .rb-history-action { font-weight:700; color:var(--warning); font-size:0.88rem; }
-        .rb-history-date   { font-size:0.8rem; color:#64748b; }
-        .rb-history-meta   { display:flex; gap:16px; font-size:0.82rem; color:#94a3b8; margin-bottom:5px; }
-        .rb-history-reason { font-size:0.82rem; color:#cbd5e1; }
+        .rb-history-date   { font-size:0.8rem; color:var(--text-faint); }
+        .rb-history-meta   { display:flex; gap:16px; font-size:0.82rem; color:var(--text-muted); margin-bottom:5px; }
+        .rb-history-reason { font-size:0.82rem; color:var(--text); }
         .rb-pagination { display:flex; align-items:center; justify-content:center; gap:12px; margin-top:14px; }
-        .rb-pagination button { padding:7px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:8px; color:#94a3b8; cursor:pointer; }
+        .rb-pagination button { padding:7px 12px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; color:var(--text-muted); cursor:pointer; }
         .rb-pagination button:disabled { opacity:.35; cursor:not-allowed; }
-        .rb-pagination span { font-size:0.88rem; color:#64748b; }
+        .rb-pagination span { font-size:0.88rem; color:var(--text-faint); }
 
         /* Spinner */
-        .rb-spinner { width:15px; height:15px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:rb-spin .7s linear infinite; display:inline-block; }
+        .rb-spinner { width:15px; height:15px; border:2px solid var(--border); border-top-color:currentColor; border-radius:50%; animation:rb-spin .7s linear infinite; display:inline-block; }
         @keyframes rb-spin { to { transform:rotate(360deg); } }
 
         @media (max-width:600px) {

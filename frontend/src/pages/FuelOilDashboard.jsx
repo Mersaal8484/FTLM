@@ -40,7 +40,7 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
-        <div style={{ width: '40px', height: '40px', border: '4px solid #e5e7eb', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+        <div className="ft-spinner" style={{ width: 40, height: 40 }} />
       </div>
     );
   }
@@ -75,7 +75,7 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
         {/* Fuel Consumed */}
         <div className="modern-card animate-fade-up" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Fuel size={24} color="#fff" />
+            <Fuel size={24} color="var(--on-accent)" />
           </div>
           <div>
             <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-text-primary, #111827)' }}>{fmt(summary.totalFuelConsumedLiters)}</div>
@@ -86,7 +86,7 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
         {/* Oil Consumed */}
         <div className="modern-card animate-fade-up" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', animationDelay: '0.1s' }}>
           <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--warning)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Droplets size={24} color="#fff" />
+            <Droplets size={24} color="var(--on-accent)" />
           </div>
           <div>
             <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-text-primary, #111827)' }}>{fmt(summary.totalOilConsumedLiters)}</div>
@@ -97,7 +97,7 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
         {/* Fuel Cost */}
         <div className="modern-card animate-fade-up" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', animationDelay: '0.2s' }}>
           <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <TrendingUp size={24} color="#fff" />
+            <TrendingUp size={24} color="var(--on-accent)" />
           </div>
           <div>
             <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-text-primary, #111827)' }}>{fmt(summary.fuelCost)}</div>
@@ -108,7 +108,7 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
         {/* Active Stations */}
         <div className="modern-card animate-fade-up" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', animationDelay: '0.3s' }}>
           <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Building2 size={24} color="#fff" />
+            <Building2 size={24} color="var(--on-accent)" />
           </div>
           <div>
             <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-text-primary, #111827)' }}>{summary.activeStations}</div>
@@ -127,11 +127,11 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {alerts.slice(0, 5).map((alert, idx) => (
-              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', background: alert.severity === 'critical' ? '#fef2f2' : '#fffbeb' }}>
+              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-sm)', background: alert.severity === 'critical' ? 'var(--danger-subtle)' : 'var(--warning-subtle)' }}>
                 <span style={{
                   fontSize: '0.7rem', fontWeight: 600, padding: '0.125rem 0.5rem', borderRadius: '9999px',
-                  background: alert.severity === 'critical' ? '#fecaca' : '#fde68a',
-                  color: alert.severity === 'critical' ? '#991b1b' : '#92400e',
+                  background: alert.severity === 'critical' ? 'var(--danger-subtle)' : 'var(--warning-subtle)',
+                  color: alert.severity === 'critical' ? 'var(--danger)' : 'var(--warning)',
                 }}>
                   {alert.severity}
                 </span>
@@ -166,15 +166,15 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
               <tbody>
                 {consumptions && consumptions.length > 0 ? consumptions.map((c, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid var(--color-border, #f3f4f6)' }}>
-                    <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{new Date(c.date).toLocaleDateString(isAr ? 'ar-EG' : 'en-US')}</td>
+                    <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{new Date(c.date).toLocaleDateString('en-US')}</td>
                     <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{c.subStationName}</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#3b82f6' }}>{fmt(c.fuelLiters)}</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--primary)' }}>{fmt(c.fuelLiters)}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--warning)' }}>{fmt(c.oilLiters)}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                       <span style={{
                         display: 'inline-block', padding: '0.125rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600,
-                        background: c.efficiencyPercent >= 80 ? '#dcfce7' : c.efficiencyPercent >= 60 ? '#fef3c7' : '#fecaca',
-                        color: c.efficiencyPercent >= 80 ? '#166534' : c.efficiencyPercent >= 60 ? '#92400e' : '#991b1b',
+                        background: c.efficiencyPercent >= 80 ? 'var(--success-subtle)' : c.efficiencyPercent >= 60 ? 'var(--warning-subtle)' : 'var(--danger-subtle)',
+                        color: c.efficiencyPercent >= 80 ? 'var(--success)' : c.efficiencyPercent >= 60 ? 'var(--warning)' : 'var(--danger)',
                       }}>
                         {fmt(c.efficiencyPercent)}%
                       </span>
@@ -210,10 +210,10 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
               <tbody>
                 {trends && trends.length > 0 ? trends.map((t, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid var(--color-border, #f3f4f6)' }}>
-                    <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{new Date(t.date).toLocaleDateString(isAr ? 'ar-EG' : 'en-US')}</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#3b82f6' }}>{fmt(t.fuelConsumedLiters)}</td>
+                    <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{new Date(t.date).toLocaleDateString('en-US')}</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--primary)' }}>{fmt(t.fuelConsumedLiters)}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--warning)' }}>{fmt(t.oilConsumedLiters)}</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#10b981' }}>{fmt(t.energyProducedKWh)}</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--success)' }}>{fmt(t.energyProducedKWh)}</td>
                   </tr>
                 )) : (
                   <tr>
