@@ -124,16 +124,6 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
     { to: '/inventory', icon: PackageSearch, label: t('sidebar.periodicInventory'), show: can('inventory') },
   ].filter(item => item.show);
 
-  const reportsNav = [
-    { to: '/reports/station-readings', icon: BarChart2, label: t('sidebar.stationReadingsReport'), show: can('reports') },
-    { to: '/reports/fuel-transactions', icon: Truck, label: t('sidebar.fuelTransactionsReport'), show: can('reports') },
-    { to: '/reports/oil-transactions', icon: Droplet, label: t('sidebar.oilTransactionsReport'), show: can('reports') },
-    { to: '/reports/generators', icon: Zap, label: t('sidebar.generatorsReport'), show: can('reports') },
-    { to: '/reports/efficiency', icon: BarChart2, label: t('sidebar.efficiencyReport'), show: can('reports') },
-    { to: '/reports/periodic-inventory', icon: PackageSearch, label: t('sidebar.periodicInventoryReport'), show: can('reports') },
-    { to: '/warehouse/reports', icon: BarChart2, label: t('sidebar.warehouseReports'), show: can('warehouse') },
-  ].filter(item => item.show);
-
   const setupNav = [
     { to: '/locations', icon: MapPin, label: ar ? 'المحافظات والمحطات' : 'Locations & Stations', show: can('settings', 'manage') },
     { to: '/generators', icon: Zap, label: ar ? 'إعداد المولدات' : 'Setup Generators', show: can('settings', 'manage') },
@@ -285,7 +275,12 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
               <span className={`nav-icon-tile nav-icon-tile-${navDomain(to)}`}><Icon size={19} strokeWidth={2.25} /></span><span className="nav-item-label">{label}</span>
             </NavLink>
           ))}
-          <NavGroup icon={BarChart2} label={t('sidebar.reports')} items={reportsNav} onNavigate={closeMobile} collapsed={sidebarCollapsed} />
+          {(can('reports') || can('warehouse')) && (
+            <NavLink to="/reports" data-nav-top={t('sidebar.reports')} title={sidebarCollapsed ? t('sidebar.reports') : undefined} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <span className="nav-icon-tile nav-icon-tile-purple"><BarChart2 size={19} strokeWidth={2.25} /></span>
+              <span className="nav-item-label">{t('sidebar.reports')}</span>
+            </NavLink>
+          )}
           <NavGroup icon={Settings} label={t('sidebar.systemSettings')} items={setupNav} onNavigate={closeMobile} collapsed={sidebarCollapsed} />
         </nav>
 

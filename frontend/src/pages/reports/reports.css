@@ -1,5 +1,5 @@
 /* Report specific design tokens */
-:root {
+.reports-dashboard {
   --report-bg: var(--bg);
   --report-card: var(--surface);
   --report-border: var(--border);

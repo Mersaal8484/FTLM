@@ -43,7 +43,6 @@ const WarehouseParts = lazy(() => import('./pages/WarehouseParts'));
 const WarehouseStock = lazy(() => import('./pages/WarehouseStock'));
 const WarehouseSupply = lazy(() => import('./pages/WarehouseSupply'));
 const WarehouseDispatch = lazy(() => import('./pages/WarehouseDispatch'));
-const WarehouseReports = lazy(() => import('./pages/WarehouseReports'));
 const WorkPermits = lazy(() => import('./pages/WorkPermits'));
 const InstalledParts = lazy(() => import('./pages/InstalledParts'));
 const MaintenanceDashboard = lazy(() => import('./pages/MaintenanceDashboard'));
@@ -99,6 +98,7 @@ const Protected = ({
   module,
   action = 'view',
   alsoRequire = [],
+  anyOfModules = [],
 }) => {
   const authChecked = useAuthStore((s) => s.authChecked);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -111,7 +111,9 @@ const Protected = ({
   if (passwordChangeRequired) return <Navigate to="/force-password-change" replace />;
 
   if (module && currentUser && currentUser.role !== 'admin') {
-    if (!can(module, action) || alsoRequire.some((requiredModule) => !can(requiredModule, 'view'))) {
+    const hasPrimaryAccess = can(module, action);
+    const hasAlternativeAccess = anyOfModules.some((candidate) => can(candidate, 'view'));
+    if ((!hasPrimaryAccess && !hasAlternativeAccess) || alsoRequire.some((requiredModule) => !can(requiredModule, 'view'))) {
       return <Navigate to={firstAllowedHomePath(can)} replace />;
     }
   }
@@ -314,7 +316,7 @@ function App() {
               <Route path="/warehouse/stock" element={<Protected module="warehouse"><WarehouseStock lang={lang} currentUser={user} /></Protected>} />
               <Route path="/warehouse/supply" element={<Protected module="warehouse"><WarehouseSupply lang={lang} currentUser={user} /></Protected>} />
               <Route path="/warehouse/dispatch" element={<Protected module="warehouse"><WarehouseDispatch lang={lang} currentUser={user} /></Protected>} />
-              <Route path="/warehouse/reports" element={<Protected module="warehouse"><WarehouseReports lang={lang} /></Protected>} />
+              <Route path="/warehouse/reports" element={<Protected module="warehouse"><Navigate to="/reports/warehouse" replace /></Protected>} />
               {/* Maintenance */}
               <Route path="/maintenance" element={<Protected module="maintenance"><MaintenanceDashboard lang={lang} currentUser={user} /></Protected>} />
               <Route path="/maintenance/service" element={<Protected module="maintenance" alsoRequire={['operational_data']}><GeneratorMaintenanceTable lang={lang} currentUser={user} /></Protected>} />
@@ -332,7 +334,7 @@ function App() {
               <Route path="/audits" element={<Protected module="audits"><AuditLogs lang={lang} /></Protected>} />
               <Route path="/rollback" element={<Protected module="settings" action="manage"><RollbackApproval lang={lang} user={user} /></Protected>} />
               {/* Reports */}
-              <Route path="/reports/*" element={<Protected module="reports"><Reports lang={lang} /></Protected>} />
+              <Route path="/reports/*" element={<Protected module="reports" anyOfModules={['warehouse']}><Reports lang={lang} currentUser={user} /></Protected>} />
 
               {/* Operators */}
               <Route path="/my-generators" element={<Protected><MyGenerators lang={lang} currentUser={user} /></Protected>} />

@@ -42,10 +42,12 @@ describe('Sidebar navigation', () => {
     expect(within(group).getByRole('button', { name: 'Maintenance' })).toHaveAttribute('aria-expanded', 'true');
   });
 
-  it('places warehouse reports inside Reports and auto-expands on its route', () => {
-    renderSidebar('/warehouse/reports');
-    const group = document.querySelector('[data-nav-group="Reports"]');
-    expect(within(group).getByText('Warehouse Reports')).toBeInTheDocument();
-    expect(within(group).getByRole('button', { name: 'Reports' })).toHaveAttribute('aria-expanded', 'true');
+  it('renders reports as one top-level destination without nested report links', () => {
+    renderSidebar('/reports/warehouse');
+    const reportsLink = screen.getByRole('link', { name: 'Reports' });
+    expect(reportsLink).toHaveAttribute('href', '/reports');
+    expect(reportsLink).toHaveClass('active');
+    expect(document.querySelector('[data-nav-group="Reports"]')).not.toBeInTheDocument();
+    expect(screen.queryByText('Warehouse Reports')).not.toBeInTheDocument();
   });
 });

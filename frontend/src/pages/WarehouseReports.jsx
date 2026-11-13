@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { BarChart2, Download, Printer } from 'lucide-react';
 import client from '../api/client';
 
-function WarehouseReports({ lang }) {
+function WarehouseReports({ lang, embedded = false }) {
   const ar = lang === 'ar';
   const [activeTab, setActiveTab] = useState('stock');
   const [filters, setFilters] = useState({ from: '', to: '', stationId: '', generatorId: '', subStationId: '', category: '' });
@@ -185,7 +185,7 @@ function WarehouseReports({ lang }) {
 
   return (
     <div style={{ animation: 'fadeIn 0.4s ease' }}>
-      <div className="page-header">
+      {!embedded && <div className="page-header">
         <div className="page-header-row">
           <div>
             <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -201,7 +201,22 @@ function WarehouseReports({ lang }) {
             <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Download size={16} /> {ar ? 'تصدير' : 'Export'}</button>
           </div>
         </div>
-      </div>
+      </div>}
+
+      {embedded && (
+        <div className="page-header-row" style={{ marginBottom: 20 }}>
+          <div>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 10, margin: 0 }}>
+              <BarChart2 size={21} style={{ color: 'var(--primary)' }} />
+              {ar ? 'تقارير المخازن' : 'Warehouse Reports'}
+            </h2>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="btn btn-ghost" onClick={printReport} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Printer size={16} /> {ar ? 'طباعة' : 'Print'}</button>
+            <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Download size={16} /> {ar ? 'تصدير' : 'Export'}</button>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {tabs.map(t => (

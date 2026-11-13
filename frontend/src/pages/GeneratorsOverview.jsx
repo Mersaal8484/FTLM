@@ -255,9 +255,6 @@ function GeneratorsOverview({ lang }) {
           </select>
         </FormField>
 
-        <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-          {filtered.length} {ar ? 'مولد' : 'generator(s)'}
-        </span>
       </div>
 
       {/* ── Error ───────────────────────────────────────────── */}
