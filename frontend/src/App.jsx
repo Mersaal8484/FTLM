@@ -163,7 +163,7 @@ const OilSetupProtected = ({
 
 function App() {
   const { user, login, setUser, setIsAuthenticated, setAuthChecked, logout } = useAuthStore();
-  const { lang, theme, unreadCount, setUnreadCount, toggleTheme } = useUiStore();
+  const { lang, theme, unreadCount, setUnreadCount, toggleTheme, sidebarCollapsed } = useUiStore();
   const { t, i18n } = useTranslation();
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -247,7 +247,7 @@ function App() {
   return (
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Toast />
-        <div className={`app-root ${ar ? 'rtl' : 'ltr'} ${theme === 'light' ? 'theme-light' : ''}`} dir={ar ? 'rtl' : 'ltr'} lang={lang}>
+        <div className={`app-root ${ar ? 'rtl' : 'ltr'} ${theme === 'light' ? 'theme-light' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`} dir={ar ? 'rtl' : 'ltr'} lang={lang}>
           {isAuthenticated && !passwordChangeRequired && (
             <Sidebar
               lang={lang}

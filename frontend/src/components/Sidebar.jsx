@@ -4,7 +4,7 @@ import client from '../api/client';
 import {
   LayoutDashboard, Zap, Database, Droplet, MapPin, Users,
   BarChart2, LogOut, Bell, ClipboardCheck, Truck,
-  PackageSearch, ChevronDown, Settings, Cpu, ShieldCheck, Gauge, Key, X, Lock, Sun, Moon, ScrollText, Menu, Undo2, FileText, Wrench, PackageCheck, Boxes, Clock
+  PackageSearch, ChevronDown, ChevronLeft, ChevronRight, Settings, Cpu, ShieldCheck, Gauge, Key, X, Lock, Sun, Moon, ScrollText, Menu, Undo2, FileText, Wrench, PackageCheck, Boxes, Clock
 } from 'lucide-react';
 import usePermissions from '../permissions/usePermissions';
 import useUiStore from '../store/uiStore';
@@ -17,13 +17,22 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
   const branding = useTenantBranding();
   const navigate = useNavigate();
   const ar = lang === 'ar';
-  const { setLang } = useUiStore();
+  const { setLang, sidebarCollapsed, toggleSidebar } = useUiStore();
   const { t } = useTranslation();
 
   const roleKey = currentUser?.role || 'operator';
   const userRoles = (currentUser?.roles || []).map(r => (typeof r === 'string' ? r.toLowerCase() : ''));
   const hasRole = (name) => userRoles.includes(name);
   const { can, canExplicit } = usePermissions(currentUser);
+
+  const navDomain = (path) => {
+    if (path === '/' || path.startsWith('/generators') || path.startsWith('/my-generators') || path.startsWith('/operations')) return 'blue';
+    if (path.startsWith('/fuel') || path.startsWith('/stock') || path.startsWith('/inventory')) return 'amber';
+    if (path.startsWith('/maintenance') || path.startsWith('/review')) return 'red';
+    if (path.startsWith('/warehouse')) return 'teal';
+    if (path.startsWith('/reports')) return 'purple';
+    return 'indigo';
+  };
   
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
@@ -138,6 +147,21 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
     { to: '/rollback', icon: Undo2, label: ar ? 'التراجع عن الاعتماد' : 'Approval Rollback', show: hasRole('admin') || roleKey === 'admin' },
   ].filter(item => item.show);
 
+  const preferredMobilePaths = ['/', '/operations', '/maintenance', '/warehouse/stock'];
+  const availableNav = [
+    ...beforeMaintenanceNav,
+    { to: '/maintenance', icon: Wrench, label: t('sidebar.maintenance'), show: can('maintenance') },
+    ...maintenanceNav,
+    ...afterMaintenanceNav,
+  ].filter(item => item.show !== false);
+  const preferredMobileNav = preferredMobilePaths
+    .map(path => availableNav.find(item => item.to === path))
+    .filter(Boolean);
+  const mobileNav = [
+    ...preferredMobileNav,
+    ...availableNav.filter(item => !preferredMobilePaths.includes(item.to)),
+  ].slice(0, 4);
+
   const roleLabels = {
     admin: ar ? 'مدير النظام' : 'System Admin',
     operator: ar ? 'مشغل' : 'Operator',
@@ -151,7 +175,7 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
         <Menu size={20} />
       </button>
       <div className={`mobile-sidebar-overlay${mobileOpen ? ' open' : ''}`} onClick={closeMobile} />
-      <aside className={`sidebar${mobileOpen ? ' open' : ''}`}>
+      <aside className={`sidebar${mobileOpen ? ' open' : ''}${sidebarCollapsed ? ' collapsed' : ''}`}>
         <div className="sidebar-logo" onClick={() => { navigate('/'); closeMobile(); }} style={{ cursor: 'pointer' }}>
           {branding.logoUrl && <div className="sidebar-logo-icon">
              <img src={branding.logoUrl} alt={branding.name} onError={e => e.target.style.display = 'none'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -160,6 +184,15 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
             <div className="sidebar-logo-name">{branding.name}</div>
             <div className="sidebar-logo-sub">{ar ? 'نظام تتبع الوقود والطاقة' : 'Energy Tracking'}</div>
           </div>
+          <button
+            type="button"
+            className="sidebar-collapse-toggle"
+            onClick={(event) => { event.stopPropagation(); toggleSidebar(); }}
+            aria-label={sidebarCollapsed ? (ar ? 'توسيع القائمة' : 'Expand sidebar') : (ar ? 'طي القائمة' : 'Collapse sidebar')}
+            title={sidebarCollapsed ? (ar ? 'توسيع القائمة' : 'Expand sidebar') : (ar ? 'طي القائمة' : 'Collapse sidebar')}
+          >
+            {sidebarCollapsed ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+          </button>
         </div>
 
         {currentUser && (
@@ -213,9 +246,9 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
         <nav className="sidebar-nav">
           {can('alerts') && (
             <div style={{ position: 'relative' }} data-nav-top={ar ? 'الإشعارات' : 'Notifications'}>
-              <div className="nav-item">
-                <Bell size={18} strokeWidth={1.8} />
-                <NavLink to="/notifications" onClick={closeMobile} style={{ flex: 1, color: 'inherit', textDecoration: 'none' }}>
+              <div className="nav-item" title={sidebarCollapsed ? (ar ? 'الإشعارات' : 'Notifications') : undefined}>
+                <span className="nav-icon-tile nav-icon-tile-red"><Bell size={19} strokeWidth={2.25} /></span>
+                <NavLink className="nav-item-label" to="/notifications" onClick={closeMobile} style={{ flex: 1, color: 'inherit', textDecoration: 'none' }}>
                   {ar ? 'الإشعارات' : 'Notifications'}
                 </NavLink>
                 {unreadCount > 0 && <span className="badge badge-danger" style={{ padding: '2px 6px' }}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
@@ -241,19 +274,19 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
 
           <div className="sidebar-section-title">{ar ? 'القائمة الرئيسية' : 'Main Menu'}</div>
           {beforeMaintenanceNav.map(({ to, icon: Icon, label }) => (
-            <NavLink key={to} to={to} data-nav-top={label} end={to === '/' || to === '/maintenance'} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-              <Icon size={18} strokeWidth={1.8} />
-              <span>{label}</span>
+            <NavLink key={to} to={to} data-nav-top={label} title={sidebarCollapsed ? label : undefined} end={to === '/' || to === '/maintenance'} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <span className={`nav-icon-tile nav-icon-tile-${navDomain(to)}`}><Icon size={19} strokeWidth={2.25} /></span>
+              <span className="nav-item-label">{label}</span>
             </NavLink>
           ))}
-          <NavGroup icon={Wrench} label={t('sidebar.maintenance')} headerTo="/maintenance" items={maintenanceNav} onNavigate={closeMobile} />
+          <NavGroup icon={Wrench} label={t('sidebar.maintenance')} headerTo="/maintenance" items={maintenanceNav} onNavigate={closeMobile} collapsed={sidebarCollapsed} />
           {afterMaintenanceNav.map(({ to, icon: Icon, label }) => (
-            <NavLink key={to} to={to} data-nav-top={label} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-              <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
+            <NavLink key={to} to={to} data-nav-top={label} title={sidebarCollapsed ? label : undefined} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <span className={`nav-icon-tile nav-icon-tile-${navDomain(to)}`}><Icon size={19} strokeWidth={2.25} /></span><span className="nav-item-label">{label}</span>
             </NavLink>
           ))}
-          <NavGroup icon={BarChart2} label={t('sidebar.reports')} items={reportsNav} onNavigate={closeMobile} />
-          <NavGroup icon={Settings} label={t('sidebar.systemSettings')} items={setupNav} onNavigate={closeMobile} />
+          <NavGroup icon={BarChart2} label={t('sidebar.reports')} items={reportsNav} onNavigate={closeMobile} collapsed={sidebarCollapsed} />
+          <NavGroup icon={Settings} label={t('sidebar.systemSettings')} items={setupNav} onNavigate={closeMobile} collapsed={sidebarCollapsed} />
         </nav>
 
         <div className="sidebar-footer">
@@ -305,6 +338,14 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
           </div>
         )}
       </aside>
+      <nav className="mobile-bottom-nav" aria-label={ar ? 'التنقل السريع' : 'Quick navigation'}>
+        {mobileNav.map(({ to, icon: Icon, label }) => (
+          <NavLink key={to} to={to} end={to === '/'} onClick={closeMobile} className={({ isActive }) => `mobile-bottom-nav-item${isActive ? ' active' : ''}`}>
+            <Icon size={20} strokeWidth={2.25} />
+            <span>{label}</span>
+          </NavLink>
+        ))}
+      </nav>
     </>
   );
 }
