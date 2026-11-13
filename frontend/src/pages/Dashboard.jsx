@@ -46,9 +46,9 @@ function parseLocalDate(value) {
   return new Date(y, m - 1, d);
 }
 
-function KpiCard({ icon: Icon, label, value, color, bg }) {
+function KpiCard({ icon: Icon, label, value, color, bg, featured = false }) {
   return (
-    <div className="kpi-card" style={{ borderTop: `3px solid ${color}` }}>
+    <div className={`kpi-card dashboard-metric-card${featured ? ' dashboard-metric-card--featured' : ''}`} style={{ '--metric-accent': color, '--metric-tint': bg }}>
       <div className="kpi-icon" style={{ background: bg, color: color }}>
         <Icon size={22} />
       </div>
@@ -66,6 +66,7 @@ KpiCard.propTypes = {
   value: PropTypes.node.isRequired,
   color: PropTypes.string.isRequired,
   bg: PropTypes.string.isRequired,
+  featured: PropTypes.bool,
 };
 
 function Dashboard({ lang }) {
@@ -151,6 +152,8 @@ function Dashboard({ lang }) {
     () => kpis.filter(k => visibility.kpi[k.visibilityKey] !== false),
     [kpis, visibility]
   );
+  const primaryKpis = visibleKpis.slice(0, 5);
+  const supportingKpis = visibleKpis.slice(5);
 
   const smartInsights = useMemo(() => {
     return buildDashboardInsightModel({ stats, trends, comparisons: comps, lang });
@@ -245,59 +248,69 @@ function Dashboard({ lang }) {
 
   return (
     <div className="dashboard-page">
-      <PageHeader
-        title={ar ? 'نظام مراقبة الطاقة والوقود الذكي' : 'Smart Energy & Fuel Monitor'}
-        subtitle={ar ? 'لوحة تحكم لمؤشرات الأداء اللحظية والتحليلات التنبؤية' : 'Real-time KPIs, predictive analytics & fleet monitoring'}
-        actions={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <HierarchicalFilter onFilterChange={setFilter} lang={lang} showDateRange={true} />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={refreshDashboard}
-              loading={loading}
-              icon={RefreshCw}
-              title={ar ? 'تحديث البيانات' : 'Refresh'}
-            >
-              {ar ? 'تحديث' : 'Refresh'}
-            </Button>
-          </div>
-        }
-      />
-
-      {/* KPI Grid — only show if there are visible cards */}
-      {visibleKpis.length > 0 && (
-        <div className="dashboard-kpi-grid">
-          {visibleKpis.map((k, i) => <KpiCard key={i} {...k} />)}
-        </div>
-      )}
-
-      {/* Smart Insights Panel — hidden when role has no permission */}
-      {visibility.smart_insights && (
-        <SmartInsightsPanel
-          lang={lang}
-          insights={visibleSmartInsights}
-          forecasts={visibleSmartForecasts}
-          onFeedback={handleInsightFeedback}
+      <div className="dashboard-command-header">
+        <PageHeader
+          title={ar ? 'نظام مراقبة الطاقة والوقود الذكي' : 'Smart Energy & Fuel Monitor'}
+          subtitle={ar ? 'لوحة تحكم لمؤشرات الأداء اللحظية والتحليلات التنبؤية' : 'Real-time KPIs, predictive analytics & fleet monitoring'}
         />
+        <div className="dashboard-filter-dock">
+          <HierarchicalFilter onFilterChange={setFilter} lang={lang} showDateRange={true} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refreshDashboard}
+            loading={loading}
+            icon={RefreshCw}
+            title={ar ? 'تحديث البيانات' : 'Refresh'}
+          >
+            {ar ? 'تحديث' : 'Refresh'}
+          </Button>
+        </div>
+      </div>
+
+      {primaryKpis.length > 0 && (
+        <div className="dashboard-summary-strip">
+          {primaryKpis.map((k) => <KpiCard key={k.visibilityKey} {...k} featured />)}
+        </div>
       )}
 
-      <div className="dashboard-charts-grid">
-        <div className="dashboard-chart-card">
-          <div className="chart-header">
-            <h3>{ar ? 'منحنى الطاقة المرسلة للشبكة (7 أيام)' : 'Energy Sent Curve (7 Days)'}</h3>
-          </div>
-          <div className="chart-wrap">
-            <Line data={energyTrend} options={chartOptions} />
-          </div>
+      {supportingKpis.length > 0 && (
+        <div className="dashboard-supporting-metrics">
+          {supportingKpis.map((k) => <KpiCard key={k.visibilityKey} {...k} />)}
         </div>
+      )}
 
-        <div className="dashboard-chart-card">
-          <div className="chart-header">
-            <h3>{ar ? 'منحنى الطاقة المنتجة (7 أيام)' : 'Produced Energy Curve (7 Days)'}</h3>
-          </div>
-          <div className="chart-wrap">
-            <Line data={producedTrend} options={chartOptions} />
+      <div className={`dashboard-intelligence-layout${visibility.smart_insights ? '' : ' dashboard-intelligence-layout--wide'}`}>
+        {visibility.smart_insights && (
+          <aside className="dashboard-insights-rail">
+            <SmartInsightsPanel
+              lang={lang}
+              insights={visibleSmartInsights}
+              forecasts={visibleSmartForecasts}
+              onFeedback={handleInsightFeedback}
+            />
+          </aside>
+        )}
+
+        <div className="dashboard-analytics-column">
+          <div className="dashboard-charts-grid">
+            <div className="dashboard-chart-card dashboard-chart-card--primary">
+              <div className="chart-header">
+                <h3>{ar ? 'منحنى الطاقة المرسلة للشبكة (7 أيام)' : 'Energy Sent Curve (7 Days)'}</h3>
+              </div>
+              <div className="chart-wrap">
+                <Line data={energyTrend} options={chartOptions} />
+              </div>
+            </div>
+
+            <div className="dashboard-chart-card">
+              <div className="chart-header">
+                <h3>{ar ? 'منحنى الطاقة المنتجة (7 أيام)' : 'Produced Energy Curve (7 Days)'}</h3>
+              </div>
+              <div className="chart-wrap">
+                <Line data={producedTrend} options={chartOptions} />
+              </div>
+            </div>
           </div>
         </div>
       </div>

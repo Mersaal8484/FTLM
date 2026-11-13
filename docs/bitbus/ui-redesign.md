@@ -18,7 +18,8 @@
 3. **Shared interface primitives**
    - Unified buttons, modal surfaces, toasts, loading states, skeletons and status treatments under the approved tokens and touch targets.
 4. **Page sweep**
-   - Reskinned the dashboard, operational review/history, maintenance baselines and due table, warehouse stock, fuel/oil views, periodic inventory, rollback approval, authentication recovery screens and reports.
+   - Rebuilt the dashboard's visual hierarchy into a command header, five-card summary strip, supporting-metric band, insight rail, analytical chart workspace and site-capacity panel while preserving every existing metric and calculation.
+   - Reskinned operational review/history, maintenance baselines and due table, warehouse stock, fuel/oil views, periodic inventory, rollback approval, authentication recovery screens and reports.
    - Chart.js presentation now reads the active theme tokens without changing datasets or calculations.
    - Warehouse reports remain embedded in the existing Reports area; no independent warehouse-report navigation item was introduced.
 5. **Numeral consistency**
@@ -45,7 +46,7 @@
 - Fixed colors used by exported documents and data-series identity remain intentional; changing them would alter export presentation or data meaning rather than only the application chrome.
 - The existing navigation hierarchy and wording remain unchanged even where the visual mockup used different dummy labels.
 
-## Local font assets required
+## Local font assets
 
 The CSS expects these self-hosted files under `frontend/public/fonts/`:
 
@@ -53,7 +54,7 @@ The CSS expects these self-hosted files under `frontend/public/fonts/`:
 - `Cairo-Arabic-Variable.woff2`
 - `Cairo-Latin-Variable.woff2`
 
-The files are currently available in `D:\FTM\frontend\public\fonts` but are not tracked on this clean branch. They must be copied into the redesign worktree before visual verification. The matching `Inter-OFL.txt` and `Cairo-OFL.txt` license files should be copied with them.
+The three font binaries and their matching `Inter-OFL.txt` and `Cairo-OFL.txt` license files are now tracked in the redesign branch, so no manual font copy is required.
 
 ## Verification status
 
