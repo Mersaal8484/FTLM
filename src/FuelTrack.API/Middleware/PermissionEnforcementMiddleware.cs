@@ -113,8 +113,15 @@ public static class PermissionMapping
             actionKey = "capture";
         else if (controllerName.Equals("TankCalibrations", StringComparison.OrdinalIgnoreCase))
             actionKey = "configure";
-        else if (controllerName.Equals("OperationalFeeders", StringComparison.OrdinalIgnoreCase) && httpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase))
-            actionKey = "configure";
+        else if (controllerName.Equals("OperationalFeeders", StringComparison.OrdinalIgnoreCase))
+        {
+            // Capture needs read-only feeder references, while master-data changes are Settings actions.
+            if (!httpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase))
+            {
+                moduleKey = "settings";
+                actionKey = "manage";
+            }
+        }
         else if (controllerName is "ServiceItems" or "ServiceIntervalDefinitions")
             actionKey = httpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) ? "view" : "configure_service";
         else if (controllerName.Equals("ServiceReplacements", StringComparison.OrdinalIgnoreCase))

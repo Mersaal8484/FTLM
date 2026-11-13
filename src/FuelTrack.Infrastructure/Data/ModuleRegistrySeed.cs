@@ -220,7 +220,8 @@ public static class ModuleRegistrySeed
                 SortOrder = 105,
                 IsVisible = true,
                 SupportsAuditLog = false,
-                SupportsGlobalSearch = false
+                SupportsGlobalSearch = false,
+                CustomActions = "manage"
             },
 
             // ============================================

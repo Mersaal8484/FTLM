@@ -79,6 +79,7 @@ export const navigationRegistry = [
   { id: 'meters', route: '/meters', labelKey: 'sidebar.meters', icon: Gauge, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 93, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'setup-oils', route: '/setup-oils', labelKey: 'sidebar.setupOils', icon: Droplet, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 94, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'tanks', route: '/tanks', labelKey: 'sidebar.setupTanks', icon: Database, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 95, legacyDuplicate: false, modeVisibility: 'all' },
+  { id: 'feeders', route: '/feeders', labelKey: 'sidebar.feeders', icon: Zap, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 95.5, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'controllers', route: '/controllers', labelKey: 'sidebar.controllers', icon: Cpu, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 96, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'users', route: '/users', labelKey: 'sidebar.users', icon: Users, permissionRule: moduleRule('users'), group: 'settings', order: 97, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'roles', route: '/roles', labelKey: 'sidebar.roles', icon: ShieldCheck, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 98, legacyDuplicate: false, modeVisibility: 'all' },

@@ -21,6 +21,71 @@ public sealed class FeederService(FuelTrackDbContext db, IUserScopeFilterService
         return Result<FeederDto>.Success(ToDto(feeder), 201);
     }
 
+    public async Task<Result<FeederDto>> UpdateAsync(int feederId, UpdateFeederDto dto, int userId, CancellationToken cancellationToken = default)
+    {
+        var feeder = await db.Feeders.FirstOrDefaultAsync(x => x.Id == feederId, cancellationToken);
+        if (feeder is null) return Result<FeederDto>.NotFound("Feeder not found.");
+        if (!currentUser.HasAnyAdminRole && !await scopeFilter.HasAccessToSubStationAsync(userId, feeder.SubStationId))
+            return Result<FeederDto>.NotFound("Feeder not found or outside your scope.");
+        if (!dto.IsActive)
+        {
+            var deactivation = await DeactivateAsync(feederId, userId, cancellationToken);
+            return deactivation.IsSuccess
+                ? Result<FeederDto>.Success(ToDto(feeder))
+                : Result<FeederDto>.Failure(deactivation.Error ?? "Unable to deactivate feeder.", deactivation.StatusCode);
+        }
+        if (string.IsNullOrWhiteSpace(dto.Name) || dto.MeterMultiplier is null or <= 0)
+            return Result<FeederDto>.Failure("Name and a positive meter multiplier are required.");
+        if (dto.MeterId.HasValue && !await db.Meters.AnyAsync(x => x.Id == dto.MeterId && x.SubStationId == feeder.SubStationId, cancellationToken))
+            return Result<FeederDto>.Failure("The selected meter does not belong to the Site.");
+
+        feeder.Name = dto.Name.Trim();
+        feeder.MeterMultiplier = dto.MeterMultiplier.Value;
+        feeder.MeterId = dto.MeterId;
+        feeder.UpdatedAt = DateTime.UtcNow;
+        feeder.UpdatedBy = userId;
+        await db.SaveChangesAsync(cancellationToken);
+        return Result<FeederDto>.Success(ToDto(feeder));
+    }
+
+    public async Task<Result> DeactivateAsync(int feederId, int userId, CancellationToken cancellationToken = default)
+    {
+        var feeder = await db.Feeders.FirstOrDefaultAsync(x => x.Id == feederId, cancellationToken);
+        if (feeder is null) return Result.NotFound("Feeder not found.");
+        if (!currentUser.HasAnyAdminRole && !await scopeFilter.HasAccessToSubStationAsync(userId, feeder.SubStationId))
+            return Result.NotFound("Feeder not found or outside your scope.");
+
+        feeder.DeletedAt = DateTime.UtcNow;
+        feeder.UpdatedAt = DateTime.UtcNow;
+        feeder.UpdatedBy = userId;
+        await db.SaveChangesAsync(cancellationToken);
+        return Result.Success();
+    }
+
+    public async Task<Result<int>> CreateDefaultsAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        if (!currentUser.HasAnyAdminRole) return Result<int>.Forbidden("Only an administrator can create default feeders.");
+        var siteIds = await db.SubStations.AsNoTracking().Select(x => x.Id).ToListAsync(cancellationToken);
+        var configuredSiteIds = await db.Feeders.AsNoTracking().Select(x => x.SubStationId).Distinct().ToListAsync(cancellationToken);
+        var missing = siteIds.Except(configuredSiteIds).ToList();
+        if (missing.Count == 0) return Result<int>.Success(0);
+
+        var now = DateTime.UtcNow;
+        db.Feeders.AddRange(missing.Select(siteId => new Feeder
+        {
+            SubStationId = siteId,
+            Code = "F1",
+            Name = "\u0627\u0644\u0641\u064a\u062f\u0631 \u0627\u0644\u0631\u0626\u064a\u0633\u064a",
+            MeterMultiplier = 1m,
+            CreatedAt = now,
+            UpdatedAt = now,
+            CreatedBy = userId,
+            UpdatedBy = userId,
+        }));
+        await db.SaveChangesAsync(cancellationToken);
+        return Result<int>.Success(missing.Count, 201);
+    }
+
     public async Task<IReadOnlyList<FeederDto>> GetBySiteAsync(int subStationId, int userId, CancellationToken cancellationToken = default)
     {
         if (!currentUser.HasAnyAdminRole && !await scopeFilter.HasAccessToSubStationAsync(userId, subStationId)) return [];

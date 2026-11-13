@@ -6,5 +6,8 @@ namespace FuelTrack.Application.Interfaces;
 public interface IFeederService
 {
     Task<Result<FeederDto>> CreateAsync(CreateFeederDto dto, int userId, CancellationToken cancellationToken = default);
+    Task<Result<FeederDto>> UpdateAsync(int feederId, UpdateFeederDto dto, int userId, CancellationToken cancellationToken = default);
+    Task<Result> DeactivateAsync(int feederId, int userId, CancellationToken cancellationToken = default);
+    Task<Result<int>> CreateDefaultsAsync(int userId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<FeederDto>> GetBySiteAsync(int subStationId, int userId, CancellationToken cancellationToken = default);
 }

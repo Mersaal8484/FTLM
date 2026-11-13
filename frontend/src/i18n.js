@@ -705,6 +705,31 @@ Object.assign(appTranslations.ar.translation.sidebar, {
   roles: '\u0627\u0644\u0623\u062f\u0648\u0627\u0631 \u0648\u0627\u0644\u0635\u0644\u0627\u062d\u064a\u0627\u062a',
   audits: '\u0633\u062c\u0644 \u0627\u0644\u062a\u062f\u0642\u064a\u0642',
   rollback: '\u0627\u0644\u062a\u0631\u0627\u062c\u0639 \u0639\u0646 \u0627\u0644\u0627\u0639\u062a\u0645\u0627\u062f',
+  feeders: '\u0627\u0644\u0641\u064a\u062f\u0631\u0627\u062a',
+});
+
+Object.assign(appTranslations.en.translation.sidebar, { feeders: 'Feeders' });
+Object.assign(appTranslations.en.translation, {
+  feeders: {
+    title: 'Feeders', subtitle: 'Manage site-level feeders and their optional energy meters.',
+    site: 'Site', selectSite: 'Select a site', add: 'Add feeder', edit: 'Edit feeder', deactivate: 'Deactivate',
+    deactivateConfirm: 'Deactivate this feeder? It will no longer be available for new readings.',
+    createDefaults: 'Create default feeders', defaultsAlreadyExist: 'All active sites already have a feeder.',
+    code: 'Code', name: 'Name', multiplier: 'Meter multiplier', meter: 'Linked meter', noMeter: 'No linked meter', actions: 'Actions',
+    empty: 'No feeders are configured for this site.',
+    errors: { loadSites: 'Unable to load sites.', loadFeeders: 'Unable to load feeders.', save: 'Unable to save feeder.', deactivate: 'Unable to deactivate feeder.', defaults: 'Unable to create default feeders.' },
+  },
+});
+Object.assign(appTranslations.ar.translation, {
+  feeders: {
+    title: '\u0627\u0644\u0641\u064a\u062f\u0631\u0627\u062a', subtitle: '\u0625\u062f\u0627\u0631\u0629 \u0641\u064a\u062f\u0631\u0627\u062a \u0627\u0644\u0645\u0648\u0642\u0639 \u0648\u0639\u062f\u0627\u062f\u0627\u062a\u0647\u0627 \u0627\u0644\u0645\u0631\u062a\u0628\u0637\u0629.',
+    site: '\u0627\u0644\u0645\u0648\u0642\u0639', selectSite: '\u0627\u062e\u062a\u0631 \u0645\u0648\u0642\u0639\u0627\u064b', add: '\u0625\u0636\u0627\u0641\u0629 \u0641\u064a\u062f\u0631', edit: '\u062a\u0639\u062f\u064a\u0644', deactivate: '\u0625\u064a\u0642\u0627\u0641',
+    deactivateConfirm: '\u0647\u0644 \u062a\u0631\u064a\u062f \u0625\u064a\u0642\u0627\u0641 \u0647\u0630\u0627 \u0627\u0644\u0641\u064a\u062f\u0631\u061f \u0644\u0646 \u064a\u0638\u0647\u0631 \u0641\u064a \u0627\u0644\u0642\u0631\u0627\u0621\u0627\u062a \u0627\u0644\u062c\u062f\u064a\u062f\u0629.',
+    createDefaults: '\u0625\u0646\u0634\u0627\u0621 \u0641\u064a\u062f\u0631 \u0627\u0641\u062a\u0631\u0627\u0636\u064a', defaultsAlreadyExist: '\u0644\u062f\u0649 \u0643\u0644 \u0627\u0644\u0645\u0648\u0627\u0642\u0639 \u0627\u0644\u0646\u0634\u0637\u0629 \u0641\u064a\u062f\u0631 \u0628\u0627\u0644\u0641\u0639\u0644.',
+    code: '\u0627\u0644\u0631\u0645\u0632', name: '\u0627\u0644\u0627\u0633\u0645', multiplier: '\u0645\u0639\u0627\u0645\u0644 \u0627\u0644\u0639\u062f\u0627\u062f', meter: '\u0627\u0644\u0639\u062f\u0627\u062f \u0627\u0644\u0645\u0631\u062a\u0628\u0637', noMeter: '\u0628\u062f\u0648\u0646 \u0639\u062f\u0627\u062f \u0645\u0631\u062a\u0628\u0637', actions: '\u0627\u0644\u0625\u062c\u0631\u0627\u0621\u0627\u062a',
+    empty: '\u0644\u0627 \u062a\u0648\u062c\u062f \u0641\u064a\u062f\u0631\u0627\u062a \u0645\u0639\u062f\u0629 \u0641\u064a \u0647\u0630\u0627 \u0627\u0644\u0645\u0648\u0642\u0639.',
+    errors: { loadSites: '\u062a\u0639\u0630\u0631 \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0645\u0648\u0627\u0642\u0639.', loadFeeders: '\u062a\u0639\u0630\u0631 \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0641\u064a\u062f\u0631\u0627\u062a.', save: '\u062a\u0639\u0630\u0631 \u062d\u0641\u0638 \u0627\u0644\u0641\u064a\u062f\u0631.', deactivate: '\u062a\u0639\u0630\u0631 \u0625\u064a\u0642\u0627\u0641 \u0627\u0644\u0641\u064a\u062f\u0631.', defaults: '\u062a\u0639\u0630\u0631 \u0625\u0646\u0634\u0627\u0621 \u0627\u0644\u0641\u064a\u062f\u0631\u0627\u062a \u0627\u0644\u0627\u0641\u062a\u0631\u0627\u0636\u064a\u0629.' },
+  },
 });
 
 i18n
