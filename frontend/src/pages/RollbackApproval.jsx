@@ -181,6 +181,7 @@ function RollbackApproval({ lang, user }) {
                 <button
                   key={et.value}
                   className={`rb-entity-btn ${entityType === et.value ? 'active' : ''}`}
+                  aria-pressed={entityType === et.value}
                   onClick={() => { setEntityType(et.value); setCheckResult(null); setError(''); setSuccessMsg(''); }}
                 >
                   <span>{et.icon}</span>
@@ -192,16 +193,16 @@ function RollbackApproval({ lang, user }) {
 
           {/* معرّف العملية */}
           <div className="rb-section">
-            <label className="rb-label">{ar ? 'معرّف العملية (ID)' : 'Operation ID'}</label>
+            <label className="rb-label" htmlFor="rollback-operation-id">{ar ? 'معرّف العملية (ID)' : 'Operation ID'}</label>
             <div className="rb-id-row">
               <input
+                id="rollback-operation-id"
                 className="rb-input"
                 placeholder={ar ? 'الصق هنا معرّف (ID) العملية' : 'Paste the operation ID here'}
                 value={entityId}
                 onChange={e => { setEntityId(e.target.value); setCheckResult(null); setError(''); setSuccessMsg(''); }}
-                style={{ fontFamily: 'monospace' }}
               />
-              <button className="rb-paste-btn" title={ar ? 'لصق من الحافظة' : 'Paste from clipboard'} onClick={async () => {
+              <button className="rb-paste-btn" aria-label={ar ? 'لصق من الحافظة' : 'Paste from clipboard'} title={ar ? 'لصق من الحافظة' : 'Paste from clipboard'} onClick={async () => {
                 try {
                   const text = await navigator.clipboard.readText();
                   if (text?.trim()) { setEntityId(text.trim()); setCheckResult(null); }
@@ -436,6 +437,37 @@ function RollbackApproval({ lang, user }) {
         /* Spinner */
         .rb-spinner { width:15px; height:15px; border:2px solid var(--border); border-top-color:currentColor; border-radius:50%; animation:rb-spin .7s linear infinite; display:inline-block; }
         @keyframes rb-spin { to { transform:rotate(360deg); } }
+
+        /* Light mode: keep the form distinct from the page background. */
+        .theme-light .rollback-page { max-width: 900px; padding: 32px 24px; }
+        .theme-light .rb-header { align-items: center; margin-bottom: 24px; gap: 20px; }
+        .theme-light .rb-header-text > svg { flex-shrink: 0; padding: 11px; box-sizing: content-box; border-radius: 15px; background: #fff3df; color: #986014; }
+        .theme-light .rb-header-text h1 { color: #1d3047; font-size: 1.5rem; }
+        .theme-light .rb-header-text p { color: #53657a; line-height: 1.7; }
+        .theme-light .rb-tabs { padding: 4px; border: 1px solid #dce4eb; border-radius: 13px; background: #fff; }
+        .theme-light .rb-tab { border-color: transparent; background: transparent; color: #43576b; font-weight: 600; }
+        .theme-light .rb-tab.active { background: #e6f1fa; border-color: #c0d9ec; color: #155a91; }
+        .theme-light .rb-form-wrap, .theme-light .rb-history-wrap { padding: 28px; background: #fff; border: 1px solid #dce4eb; border-radius: 18px; box-shadow: 0 12px 34px rgba(33, 52, 73, .07); }
+        .theme-light .rb-section { margin-bottom: 24px; }
+        .theme-light .rb-label { color: #344a60; font-size: .9rem; font-weight: 700; margin-bottom: 10px; }
+        .theme-light .rb-warning-banner { background: #fff8eb; border-color: #ead1a7; margin-bottom: 28px; padding: 15px 17px; }
+        .theme-light .rb-warning-banner > svg { flex-shrink: 0; margin-top: 2px; }
+        .theme-light .rb-warning-banner p { color: #79500f; font-size: .88rem; line-height: 1.8; }
+        .theme-light .rb-entity-types { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+        .theme-light .rb-entity-btn { min-height: 54px; justify-content: center; background: #f8fafc; border-color: #d5e0e9; color: #344a60; }
+        .theme-light .rb-entity-btn.active { background: #e8f3fb; border-color: #2472ad; color: #145a91; box-shadow: inset 0 0 0 1px #2472ad; }
+        .theme-light .rb-input, .theme-light .rb-paste-btn, .theme-light .rb-textarea { min-height: 50px; background: #fbfcfe; border-color: #c7d4df; color: #253b50; font-family: inherit; }
+        .theme-light .rb-input { min-width: 0; }
+        .theme-light .rb-input::placeholder, .theme-light .rb-textarea::placeholder { color: #6b7d8f; opacity: 1; }
+        .theme-light .rb-input:focus, .theme-light .rb-textarea:focus { border-color: #2472ad; box-shadow: 0 0 0 3px rgba(36, 114, 173, .14); }
+        .theme-light .rb-check-btn { min-height: 52px; margin: 2px 0 0; background: #246ba3; }
+        .theme-light .rb-check-btn:disabled { opacity: 1; background: #e1e9ef; color: #53697b; }
+        .theme-light .rb-result-card, .theme-light .rb-error-box, .theme-light .rb-success-box { margin-top: 18px; }
+        @media (max-width: 700px) {
+          .theme-light .rollback-page { padding: 20px 14px; }
+          .theme-light .rb-form-wrap, .theme-light .rb-history-wrap { padding: 20px; }
+          .theme-light .rb-entity-types { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
 
         @media (max-width:600px) {
           .rb-header { flex-direction:column; }
