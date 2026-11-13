@@ -34,7 +34,7 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
 
   const fmt = (n) => {
     if (n == null) return '0';
-    return Number(n).toLocaleString(isAr ? 'ar-EG' : 'en-US', { maximumFractionDigits: 1 });
+    return Number(n).toLocaleString(isAr ? 'ar-EG-u-nu-latn' : 'en-US', { maximumFractionDigits: 1 });
   };
 
   if (loading) {

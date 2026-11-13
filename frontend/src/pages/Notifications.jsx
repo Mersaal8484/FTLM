@@ -138,7 +138,7 @@ function Notifications({ lang, onRead }) {
     if (diff < 60) return 'الآن';
     if (diff < 3600) return `منذ ${Math.floor(diff / 60)} دقيقة`;
     if (diff < 86400) return `منذ ${Math.floor(diff / 3600)} ساعة`;
-    return d.toLocaleDateString('ar-YE');
+    return d.toLocaleDateString('ar-YE-u-nu-latn');
   };
 
   return (

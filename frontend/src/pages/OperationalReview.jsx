@@ -233,7 +233,7 @@ export default function OperationalReview() {
     return <SubmissionDetail id={selectedId} onBack={() => setSelectedId(null)} />;
   }
 
-  const dateStr = (s) => new Date(s).toLocaleString(i18n.language === 'ar' ? 'ar-SA' : 'en-GB');
+  const dateStr = (s) => new Date(s).toLocaleString(i18n.language === 'ar' ? 'ar-SA-u-nu-latn' : 'en-GB');
 
   return (
     <section className="capture-page">

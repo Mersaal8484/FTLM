@@ -143,7 +143,7 @@ function AddReading({ lang, currentUser }) {
     <div className="glass-card" style={{ padding: '10px 14px', marginBottom: 12, background: 'var(--card-2)' }}>
       <div style={{ ...labelStyle, marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-faint)' }}>
-        {value !== null && value !== undefined ? value.toLocaleString() : '—'}
+        {value !== null && value !== undefined ? value.toLocaleString('en-US') : '—'}
         {unit && <span style={{ fontSize: 12, fontWeight: 400, marginInlineStart: 4 }}>{unit}</span>}
       </div>
       <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 2 }}>

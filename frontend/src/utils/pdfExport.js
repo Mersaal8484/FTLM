@@ -8,7 +8,7 @@ export const exportToPdf = (headers, rows, title, fileName) => {
   doc.text(title, 14, 22);
 
   doc.setFontSize(10);
-  doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 30);
+  doc.text(`Generated: ${new Date().toLocaleDateString('en-US')}`, 14, 30);
 
   doc.autoTable({
     head: [headers],
@@ -42,7 +42,7 @@ export const exportPeriodicToPdf = (sheets, fileName) => {
     doc.text(sheet.title, 14, 15);
 
     doc.setFontSize(9);
-    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 22);
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-US')}`, 14, 22);
 
     doc.autoTable({
       head: [sheet.headers],

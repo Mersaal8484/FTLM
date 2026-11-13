@@ -219,8 +219,8 @@ function TanksManagement({ lang, currentUser }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
           {[
             { label: ar?'إجمالي الخزانات':'Total Tanks', value: tanks.length, color: 'var(--primary)' },
-            { label: ar?'إجمالي السعة (لتر)':'Total Capacity (L)', value: tanks.reduce((a, t) => a + (t.capacityLiters || 0), 0).toLocaleString(), color: 'var(--success)' },
-            { label: ar?'المخزون الفعلي (لتر)':'Actual Stock (L)', value: tanks.reduce((a, t) => a + (t.actualStockLiters || 0), 0).toLocaleString(), color: 'var(--purple)' },
+            { label: ar?'إجمالي السعة (لتر)':'Total Capacity (L)', value: tanks.reduce((a, t) => a + (t.capacityLiters || 0), 0).toLocaleString('en-US'), color: 'var(--success)' },
+            { label: ar?'المخزون الفعلي (لتر)':'Actual Stock (L)', value: tanks.reduce((a, t) => a + (t.actualStockLiters || 0), 0).toLocaleString('en-US'), color: 'var(--purple)' },
             { label: ar?'خزانات بدون قراءة':'No Reading', value: tanks.filter(t => !getFillPct(t)).length, color: 'var(--warning)' },
           ].map((c, i) => (
             <div key={i} className="glass-card" style={{ padding: '14px 16px', margin: 0 }}>
@@ -300,7 +300,7 @@ function TanksManagement({ lang, currentUser }) {
                           </div>
                           {fillPct !== null && (
                             <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 2, textAlign: 'left' }}>
-                              {Number(tank.meterReadingActual || 0).toLocaleString()} / {Number(tank.capacityLiters || 0).toLocaleString()} L
+                              {Number(tank.meterReadingActual || 0).toLocaleString('en-US')} / {Number(tank.capacityLiters || 0).toLocaleString('en-US')} L
                             </div>
                           )}
                         </div>
@@ -308,10 +308,10 @@ function TanksManagement({ lang, currentUser }) {
                         {/* Data Rows */}
                         {[
                           { label: ar?'الكود':'Code', value: tank.code, mono: true },
-                          { label: ar?'السعة الكلية':'Capacity', value: `${Number(tank.capacityLiters || 0).toLocaleString()} L` },
-                          { label: ar?'الحد الأدنى للمخزون':'Min Stock', value: tank.minAlertLiters ? `${Number(tank.minAlertLiters).toLocaleString()} L` : '—' },
-                          { label: ar?'النقطة الميتة':'Dead Stock', value: tank.deadStockLiters ? `${Number(tank.deadStockLiters).toLocaleString()} L` : '—' },
-                          { label: ar?'المخزون الفعلي':'Actual Stock', value: tank.actualStockLiters ? `${Number(tank.actualStockLiters).toLocaleString()} L` : '—' },
+                          { label: ar?'السعة الكلية':'Capacity', value: `${Number(tank.capacityLiters || 0).toLocaleString('en-US')} L` },
+                          { label: ar?'الحد الأدنى للمخزون':'Min Stock', value: tank.minAlertLiters ? `${Number(tank.minAlertLiters).toLocaleString('en-US')} L` : '—' },
+                          { label: ar?'النقطة الميتة':'Dead Stock', value: tank.deadStockLiters ? `${Number(tank.deadStockLiters).toLocaleString('en-US')} L` : '—' },
+                          { label: ar?'المخزون الفعلي':'Actual Stock', value: tank.actualStockLiters ? `${Number(tank.actualStockLiters).toLocaleString('en-US')} L` : '—' },
                           { label: ar?'المنطقة':'Area', value: getSubName(tank.subStationId), accent: true },
                         ].map((row, i) => (
                           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>

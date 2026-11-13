@@ -73,7 +73,7 @@ export default function OperationalDailyLog() {
     return Array.from({ length: 24 }, (_, hour) => {
       const reading = readingsByHour.get(hour);
       return reading
-        ? { ...reading, displayHour: new Date(reading.capturedAtUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+        ? { ...reading, displayHour: new Date(reading.capturedAtUtc).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) }
         : { displayHour: `${String(hour).padStart(2, '0')}:00`, isGap: true, markers: [t('operational.log.hourGap')] };
     });
   };
@@ -96,7 +96,7 @@ export default function OperationalDailyLog() {
     const points = logData?.hourlyProduction || [];
     if (!points.some(point => point.kwh != null)) return null;
     return {
-      labels: points.map(point => new Date(point.slotStartUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
+      labels: points.map(point => new Date(point.slotStartUtc).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })),
       datasets: [{
         label: t('operational.log.hourlyProduction'),
         data: points.map(point => point.kwh),

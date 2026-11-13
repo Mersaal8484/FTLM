@@ -84,7 +84,7 @@ function AuditLogs({ lang }) {
 
   const formatTime = (ts) => {
     const d = new Date(ts);
-    return d.toLocaleString(ar ? 'ar-YE' : 'en-US', {
+    return d.toLocaleString(ar ? 'ar-YE-u-nu-latn' : 'en-US', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',

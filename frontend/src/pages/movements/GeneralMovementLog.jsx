@@ -13,7 +13,7 @@ const INITIAL_FILTERS = {
 
 export default function GeneralMovementLog({ lang, canApprove = false }) {
   const { t } = useTranslation();
-  const locale = lang === 'ar' ? 'ar-YE' : 'en-US';
+  const locale = lang === 'ar' ? 'ar-YE-u-nu-latn' : 'en-US';
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [applied, setApplied] = useState(INITIAL_FILTERS);
   const [page, setPage] = useState(1);

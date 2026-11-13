@@ -90,7 +90,7 @@ function AddOilToGenerator({ lang }) {
 
   const formatDate = (d) => {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString(ar ? 'ar-YE' : 'en-US', {
+    return new Date(d).toLocaleDateString(ar ? 'ar-YE-u-nu-latn' : 'en-US', {
       year: 'numeric', month: 'short', day: 'numeric',
     });
   };

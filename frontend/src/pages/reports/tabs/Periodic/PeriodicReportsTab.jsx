@@ -13,7 +13,7 @@ export default function PeriodicReportsTab({ filters, lang }) {
     
     return [
       { title: isAr ? 'المواقع النشطة' : 'Active Sites', value: data.summary.totalRecords || '0', icon: Layout, color: 'primary' },
-      { title: isAr ? 'إجمالي المخزون' : 'Total Inventory', value: ((data.summary.totalFuelReceivedLiters || 0) + (data.summary.totalOilReceivedLiters || 0)).toLocaleString() || '0', icon: Calendar, color: 'warning' },
+      { title: isAr ? 'إجمالي المخزون' : 'Total Inventory', value: ((data.summary.totalFuelReceivedLiters || 0) + (data.summary.totalOilReceivedLiters || 0)).toLocaleString('en-US') || '0', icon: Calendar, color: 'warning' },
     ];
   }, [data, isAr]);
 

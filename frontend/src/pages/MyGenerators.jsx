@@ -119,7 +119,7 @@ function MyGenerators({ lang, currentUser }) {
                   <div className="gen-stats">
                     <div className="gen-stat-item">
                       <div className="gen-stat-label">{ar ? 'آخر قراءة طاقة' : 'Last Power'}</div>
-                      <div className="gen-stat-value">{gen.lastPowerRecord ? `${gen.lastPowerRecord.toLocaleString()} KWh` : '—'}</div>
+                      <div className="gen-stat-value">{gen.lastPowerRecord ? `${gen.lastPowerRecord.toLocaleString('en-US')} KWh` : '—'}</div>
                     </div>
                     <div className="gen-stat-item">
                       <div className="gen-stat-label">{ar ? 'آخر قراءة ساعات' : 'Last Hours'}</div>

@@ -132,16 +132,16 @@ function Dashboard({ lang }) {
   }, []);
 
   const kpis = useMemo(() => [
-    { icon: BatteryCharging, label: ar ? 'الطاقة المنتجة (يوم)' : 'Produced (Day)',      value: `${(stats.energyProducedToday || 0).toLocaleString()} kWh`,                                              color: 'var(--primary)', bg: 'var(--primary-subtle)', visibilityKey: 'energy_daily' },
-    { icon: Globe,           label: ar ? 'المرسلة للشبكة (يوم)' : 'Sent to Grid (Day)', value: `${(stats.energySentToday  || 0).toLocaleString()} kWh`,                                              color: 'var(--success)', bg: 'var(--success-subtle)', visibilityKey: 'grid_export_daily' },
-    { icon: BatteryCharging, label: ar ? 'الطاقة المنتجة (15 يوم)' : 'Produced (15d)',      value: `${(stats.energyProduced15d || 0).toLocaleString()} kWh`,                                              color: 'var(--primary)', bg: 'var(--primary-subtle)', visibilityKey: 'energy_15d' },
-    { icon: BatteryCharging, label: ar ? 'الطاقة المنتجة (30 يوم)' : 'Produced (30d)',      value: `${(stats.energyProduced30d || stats.energyProduced15d || 0).toLocaleString()} kWh`,            color: 'var(--info)', bg: 'var(--info-subtle)', visibilityKey: 'energy_30d' },
-    { icon: Globe,           label: ar ? 'المرسلة للشبكة (30 يوم)' : 'Sent to Grid (30d)', value: `${(stats.energySent30d  || stats.energySent15d || 0).toLocaleString()} kWh`,                    color: 'var(--success)', bg: 'var(--success-subtle)', visibilityKey: 'grid_export_30d' },
-    { icon: Fuel,            label: ar ? 'الوقود المستهلك (يوم)' : 'Fuel Consumed (Day)',  value: `${(stats.fuelConsumedToday || 0).toLocaleString()} L`,                                             color: 'var(--warning)', bg: 'var(--warning-subtle)', visibilityKey: 'fuel_daily' },
-    { icon: Fuel,            label: ar ? 'الوقود المستهلك (15 يوم)' : 'Fuel Consumed (15d)',  value: `${(stats.fuelConsumed15d  || 0).toLocaleString()} L`,                                             color: 'var(--warning)', bg: 'var(--warning-subtle)', visibilityKey: 'fuel_15d' },
-    { icon: Droplets,        label: ar ? 'الزيت المستهلك (يوم)' : 'Oil Consumed (Day)',   value: `${(stats.oilConsumedToday || 0).toLocaleString()} L`,                                             color: 'var(--danger)', bg: 'var(--danger-subtle)', visibilityKey: 'oil_consumed' },
-    { icon: LayoutGrid,      label: ar ? 'المخزون المتبقي وقود' : 'Remaining Fuel',     value: `${(stats.remainingFuel   || 0).toLocaleString()} L`,                                             color: 'var(--secondary)', bg: 'var(--secondary-subtle)', visibilityKey: 'fuel_stock' },
-    { icon: Droplets,        label: ar ? 'المخزون المتبقي زيوت' : 'Remaining Oil',      value: `${(stats.remainingOil    || 0).toLocaleString()} L`,                                             color: 'var(--danger)', bg: 'var(--danger-subtle)', visibilityKey: 'oil_stock' },
+    { icon: BatteryCharging, label: ar ? 'الطاقة المنتجة (يوم)' : 'Produced (Day)',      value: `${(stats.energyProducedToday || 0).toLocaleString('en-US')} kWh`,                                              color: 'var(--primary)', bg: 'var(--primary-subtle)', visibilityKey: 'energy_daily' },
+    { icon: Globe,           label: ar ? 'المرسلة للشبكة (يوم)' : 'Sent to Grid (Day)', value: `${(stats.energySentToday  || 0).toLocaleString('en-US')} kWh`,                                              color: 'var(--success)', bg: 'var(--success-subtle)', visibilityKey: 'grid_export_daily' },
+    { icon: BatteryCharging, label: ar ? 'الطاقة المنتجة (15 يوم)' : 'Produced (15d)',      value: `${(stats.energyProduced15d || 0).toLocaleString('en-US')} kWh`,                                              color: 'var(--primary)', bg: 'var(--primary-subtle)', visibilityKey: 'energy_15d' },
+    { icon: BatteryCharging, label: ar ? 'الطاقة المنتجة (30 يوم)' : 'Produced (30d)',      value: `${(stats.energyProduced30d || stats.energyProduced15d || 0).toLocaleString('en-US')} kWh`,            color: 'var(--info)', bg: 'var(--info-subtle)', visibilityKey: 'energy_30d' },
+    { icon: Globe,           label: ar ? 'المرسلة للشبكة (30 يوم)' : 'Sent to Grid (30d)', value: `${(stats.energySent30d  || stats.energySent15d || 0).toLocaleString('en-US')} kWh`,                    color: 'var(--success)', bg: 'var(--success-subtle)', visibilityKey: 'grid_export_30d' },
+    { icon: Fuel,            label: ar ? 'الوقود المستهلك (يوم)' : 'Fuel Consumed (Day)',  value: `${(stats.fuelConsumedToday || 0).toLocaleString('en-US')} L`,                                             color: 'var(--warning)', bg: 'var(--warning-subtle)', visibilityKey: 'fuel_daily' },
+    { icon: Fuel,            label: ar ? 'الوقود المستهلك (15 يوم)' : 'Fuel Consumed (15d)',  value: `${(stats.fuelConsumed15d  || 0).toLocaleString('en-US')} L`,                                             color: 'var(--warning)', bg: 'var(--warning-subtle)', visibilityKey: 'fuel_15d' },
+    { icon: Droplets,        label: ar ? 'الزيت المستهلك (يوم)' : 'Oil Consumed (Day)',   value: `${(stats.oilConsumedToday || 0).toLocaleString('en-US')} L`,                                             color: 'var(--danger)', bg: 'var(--danger-subtle)', visibilityKey: 'oil_consumed' },
+    { icon: LayoutGrid,      label: ar ? 'المخزون المتبقي وقود' : 'Remaining Fuel',     value: `${(stats.remainingFuel   || 0).toLocaleString('en-US')} L`,                                             color: 'var(--secondary)', bg: 'var(--secondary-subtle)', visibilityKey: 'fuel_stock' },
+    { icon: Droplets,        label: ar ? 'المخزون المتبقي زيوت' : 'Remaining Oil',      value: `${(stats.remainingOil    || 0).toLocaleString('en-US')} L`,                                             color: 'var(--danger)', bg: 'var(--danger-subtle)', visibilityKey: 'oil_stock' },
     { icon: Zap,             label: ar ? 'إجمالي المولدات' : 'Total Generators',    value: stats.totalGenerators || 0,                                                                         color: 'var(--info)', bg: 'var(--info-subtle)', visibilityKey: 'total_generators' },
     { icon: Activity,        label: ar ? 'الكفاءة' : 'Efficiency',           value: Number.isFinite(Number(stats.efficiency)) ? `${Number(stats.efficiency).toFixed(2)}%` : '—',   color: 'var(--primary)', bg: 'var(--primary-subtle)', visibilityKey: 'efficiency' },
   ], [ar, stats]);
@@ -314,7 +314,7 @@ function Dashboard({ lang }) {
                 <div key={i} className="station-stat-row">
                   <div className="station-info">
                     <span className="s-name">{label}</span>
-                    <span className="s-val">{c.energySent.toLocaleString()} kWh</span>
+                    <span className="s-val">{c.energySent.toLocaleString('en-US')} kWh</span>
                   </div>
                   <div className="s-bar-bg">
                     <div className="s-bar-fill" style={{ width: `${(c.energySent / Math.max(...comps.map(x => x.energySent), 1)) * 100}%`, background: stationColors[i % stationColors.length] }}></div>

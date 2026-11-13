@@ -53,8 +53,8 @@ function RejectModal({ ar, onConfirm, onCancel }) {
 // ── عرض التاريخ والوقت ────────────────────────────────────────────────────
 function DateTimeCell({ date, ar }) {
   const d = new Date(date);
-  const datePart = d.toLocaleDateString(ar ? 'ar-YE' : 'en-GB');
-  const timePart = d.toLocaleTimeString(ar ? 'ar-YE' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+  const datePart = d.toLocaleDateString(ar ? 'ar-YE-u-nu-latn' : 'en-GB');
+  const timePart = d.toLocaleTimeString(ar ? 'ar-YE-u-nu-latn' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
   return (
     <div style={{ lineHeight: 1.5 }}>
       <div style={{ fontWeight: 600, fontSize: 13 }}>{datePart}</div>
@@ -355,8 +355,8 @@ function ReviewChanges({ lang }) {
                         <tr key={r.id} style={{ opacity: isRunning ? 0.5 : 1, transition: 'opacity 0.2s' }}>
                           <td style={{ fontWeight: 600 }}><SiteNameCell station={r.subStationName} /></td>
                           <td><DateTimeCell date={r.readingDate} ar={ar} /></td>
-                          <td style={{ color: 'var(--text-muted)' }}>{(r.prevExportedEnergyKWh || 0).toLocaleString()} KW</td>
-                          <td style={{ color: 'var(--primary)', fontWeight: 700 }}>{(r.currentExportedEnergyKWh || 0).toLocaleString()} KW</td>
+                          <td style={{ color: 'var(--text-muted)' }}>{(r.prevExportedEnergyKWh || 0).toLocaleString('en-US')} KW</td>
+                          <td style={{ color: 'var(--primary)', fontWeight: 700 }}>{(r.currentExportedEnergyKWh || 0).toLocaleString('en-US')} KW</td>
                           <td style={{ color: 'var(--secondary)' }}>{((r.currentExportedEnergyKWh || 0) - (r.prevExportedEnergyKWh || 0)).toFixed(0)} KWh</td>
                           <td>{r.createdBy || '—'}</td>
                           <td>

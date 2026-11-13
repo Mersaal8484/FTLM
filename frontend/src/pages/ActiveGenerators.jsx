@@ -166,7 +166,7 @@ function ActiveGenerators({ t, lang, currentUser }) {
                         </div>
                         <div className="gen-stat-item">
                           <div className="gen-stat-label">{ar ? 'الطاقة الحالية' : 'Current Energy'}</div>
-                          <div className="gen-stat-value">{gen.controllerEnergyReading ? `${gen.controllerEnergyReading.toLocaleString()} KWh` : '—'}</div>
+                          <div className="gen-stat-value">{gen.controllerEnergyReading ? `${gen.controllerEnergyReading.toLocaleString('en-US')} KWh` : '—'}</div>
                         </div>
                         <div className="gen-stat-item">
                           <div className="gen-stat-label">{ar ? 'ساعات التشغيل' : 'Operating Hours'}</div>

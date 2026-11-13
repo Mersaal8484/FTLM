@@ -315,7 +315,7 @@ function Controllers({ lang, t }) {
                         <div className="ctrl-stat-label">{ar ? 'الطاقة' : 'Energy'}</div>
                         <div className="ctrl-stat-value">
                           {item.energyReading > 0
-                            ? <>{item.energyReading.toLocaleString()} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.energyUnit || 'kWh'}</span></>
+                            ? <>{item.energyReading.toLocaleString('en-US')} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.energyUnit || 'kWh'}</span></>
                             : '—'}
                         </div>
                       </div>
@@ -324,7 +324,7 @@ function Controllers({ lang, t }) {
                         <div className="ctrl-stat-label">{ar ? 'الساعات' : 'Hours'}</div>
                         <div className="ctrl-stat-value">
                           {item.operatingHours > 0
-                            ? <>{item.operatingHours.toLocaleString()} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{ar ? 'ساعة' : 'hrs'}</span></>
+                            ? <>{item.operatingHours.toLocaleString('en-US')} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{ar ? 'ساعة' : 'hrs'}</span></>
                             : '—'}
                         </div>
                       </div>

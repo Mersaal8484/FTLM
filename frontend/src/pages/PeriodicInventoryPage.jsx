@@ -236,7 +236,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
 
   const formatLiters = (value) => {
     const numeric = parseFloat(value);
-    return Number.isFinite(numeric) ? numeric.toLocaleString() : '0';
+    return Number.isFinite(numeric) ? numeric.toLocaleString('en-US') : '0';
   };
 
   const getSavedFuelActualQty = (inv) => {
@@ -484,7 +484,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
               {ar ? 'تقرير الجرد الدوري' : 'Periodic Inventory Report'}
             </div>
             <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#000' }}>
-              {ar ? `تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}` : `Report Date: ${new Date().toLocaleDateString()}`}
+              {ar ? `تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG-u-nu-latn')}` : `Report Date: ${new Date().toLocaleDateString('en-US')}`}
             </div>
           </div>
           <div style={{ textAlign: 'start' }}></div>
@@ -611,7 +611,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
             </div>
           </div>
           <div className="print-footer-info">
-            <span>{ar ? 'تاريخ ووقت الطباعة:' : 'Print Date:'} {new Date().toLocaleString(ar ? 'ar-EG' : 'en-US')}</span>
+            <span>{ar ? 'تاريخ ووقت الطباعة:' : 'Print Date:'} {new Date().toLocaleString(ar ? 'ar-EG-u-nu-latn' : 'en-US')}</span>
             <span>{ar ? 'بواسطة المستخدم:' : 'Printed by:'} {currentUser?.name || 'Unknown'}</span>
           </div>
         </div>

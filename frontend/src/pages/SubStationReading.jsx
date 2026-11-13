@@ -273,12 +273,12 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
                     }}>
                       <Activity size={14} style={{ color: 'var(--primary)', opacity: 0.7 }} />
                       {lastReading
-                        ? (lastReading.currentExportedEnergyKWh?.toLocaleString() ?? '—')
-                        : (gridMeter ? (gridMeter.energyReading?.toLocaleString() ?? '0') : '0')}
+                        ? (lastReading.currentExportedEnergyKWh?.toLocaleString('en-US') ?? '—')
+                        : (gridMeter ? (gridMeter.energyReading?.toLocaleString('en-US') ?? '0') : '0')}
                       <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-faint)' }}>KWh</span>
                       <span style={{ fontSize: 10, marginInlineEnd: 'auto', color: 'var(--text-faint)' }}>
                         {lastReading
-                          ? new Date(lastReading.readingDate).toLocaleDateString(ar ? 'ar' : 'en')
+                          ? new Date(lastReading.readingDate).toLocaleDateString(ar ? 'ar-u-nu-latn' : 'en-US')
                           : (gridMeter ? (ar ? 'قراءة العداد الأولية' : 'Initial Meter Reading') : (ar ? 'القراءة الأولية للموقع' : 'Initial Site Reading'))}
                       </span>
                     </div>
@@ -341,7 +341,7 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
                 <div className="glass-card" style={{ padding: 15, borderRadius: 10, border: '1px solid hsla(210,100%,60%,0.1)', background: 'var(--primary-glow)' }}>
                   <div style={labelStyle}>{ar ? 'إجمالي إنتاج المولدات' : 'Total Gen Production'}</div>
                   <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--primary)' }}>
-                    {production.toLocaleString()} <span style={{ fontSize: 14 }}>KWh</span>
+                    {production.toLocaleString('en-US')} <span style={{ fontSize: 14 }}>KWh</span>
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
                     {ar ? '(مجموع القراءات اليومية لجميع المولدات بالموقع)' : '(Sum of all daily gen readings in this site)'}
@@ -360,11 +360,11 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
                   <div className="glass-card" style={{ padding: 12, borderRadius: 8, border: '1px solid hsla(210,100%,60%,0.15)', background: 'var(--primary-glow)' }}>
                     <div style={labelStyle}>{ar ? 'الطاقة المرسلة الإجمالية (الحالية − السابقة)' : 'Total Sent Energy (Current − Previous)'}</div>
                     <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--secondary)' }}>
-                      {energySentDiff.toLocaleString()}
+                      {energySentDiff.toLocaleString('en-US')}
                       <span style={{ fontSize: 11, fontWeight: 400, marginInlineEnd: 4 }}>KWh</span>
                     </div>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
-                      {form.currentGridRecord} − {prevGridVal} = {energySentDiff.toLocaleString()} KWh
+                      {form.currentGridRecord} − {prevGridVal} = {energySentDiff.toLocaleString('en-US')} KWh
                     </div>
                   </div>
                 )}
@@ -379,7 +379,7 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
                       </span>
                     </div>
                     <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--warning)' }}>
-                      {internalConsumptionVal.toLocaleString()}
+                      {internalConsumptionVal.toLocaleString('en-US')}
                       <span style={{ fontSize: 11, fontWeight: 400, marginInlineEnd: 4 }}>KWh</span>
                     </div>
                   </div>

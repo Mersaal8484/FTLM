@@ -215,8 +215,8 @@ export default function ServiceDefinitionsAdmin({ lang }) {
                   <tr key={d.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                     <td style={{ padding: '10px 12px', fontWeight: 600 }}>{d.generatorModelKey}</td>
                     <td style={{ padding: '10px 12px' }}>{ar ? d.serviceItemNameAr : d.serviceItemNameEn}</td>
-                    <td style={{ padding: '10px 12px' }}>{Number(d.intervalHours).toLocaleString()} h</td>
-                    <td style={{ padding: '10px 12px' }}>{Number(d.effectiveLeadHours).toLocaleString()} h</td>
+                    <td style={{ padding: '10px 12px' }}>{Number(d.intervalHours).toLocaleString('en-US')} h</td>
+                    <td style={{ padding: '10px 12px' }}>{Number(d.effectiveLeadHours).toLocaleString('en-US')} h</td>
                     <td style={{ padding: '10px 12px' }}>
                       <span style={{ fontSize: '0.8rem', padding: '2px 8px', borderRadius: 4, background: d.importance === 3 ? '#fee2e2' : '#f3f4f6', color: d.importance === 3 ? '#b91c1c' : '#374151' }}>
                         {d.importance === 3 ? (ar ? 'حرجة' : 'Critical') : d.importance === 2 ? (ar ? 'عالية' : 'High') : (ar ? 'عادية' : 'Normal')}

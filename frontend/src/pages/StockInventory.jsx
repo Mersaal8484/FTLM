@@ -7,7 +7,7 @@ import { useEffect } from 'react';
 
 /* ─────────────────────────────────────────────────────── helpers ── */
 const fmt = (v, d = 1) =>
-  v != null ? Number(v).toLocaleString('ar-EG', { maximumFractionDigits: d }) : '—';
+  v != null ? Number(v).toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: d }) : '—';
 
 const alertCfg = {
   danger:  { color: 'var(--danger)', bg: 'var(--danger-subtle)', label: { ar: 'خطر',    en: 'Danger'  } },

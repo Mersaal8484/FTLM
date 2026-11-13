@@ -304,12 +304,12 @@ function MetersManagement({ lang }) {
                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 8px', fontSize: 11 }}>
                      <div className="meter-stat">
                        <div className="meter-stat-label">{ar ? 'طاقة' : 'Energy'}</div>
-                       <div className="meter-stat-value">{Number(meter.energyReading || 0).toLocaleString()} kWh</div>
+                       <div className="meter-stat-value">{Number(meter.energyReading || 0).toLocaleString('en-US')} kWh</div>
                      </div>
                      {typeCode !== 'ExportEnergy' && (
                        <div className="meter-stat">
                          <div className="meter-stat-label">{ar ? 'ساعات' : 'Hours'}</div>
-                         <div className="meter-stat-value">{Number(meter.hoursReading || 0).toLocaleString()} h</div>
+                         <div className="meter-stat-value">{Number(meter.hoursReading || 0).toLocaleString('en-US')} h</div>
                        </div>
                      )}
                      {typeCode === 'ExportEnergy' && (

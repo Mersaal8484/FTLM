@@ -291,8 +291,8 @@ function FuelMovements({ lang, currentUser }) {
           setStatus({
             type: 'error',
             msg: ar
-              ? `الكمية المطلوبة (${qty.toLocaleString()} L) ستتجاوز سعة الخزان (${capacity.toLocaleString()} L). المخزون الحالي: ${current.toLocaleString()} L`
-              : `Requested quantity (${qty.toLocaleString()} L) exceeds tank capacity (${capacity.toLocaleString()} L). Current stock: ${current.toLocaleString()} L`
+              ? `الكمية المطلوبة (${qty.toLocaleString('en-US')} L) ستتجاوز سعة الخزان (${capacity.toLocaleString('en-US')} L). المخزون الحالي: ${current.toLocaleString('en-US')} L`
+              : `Requested quantity (${qty.toLocaleString('en-US')} L) exceeds tank capacity (${capacity.toLocaleString('en-US')} L). Current stock: ${current.toLocaleString('en-US')} L`
           });
           setSaving(false);
           return;
@@ -360,8 +360,8 @@ function FuelMovements({ lang, currentUser }) {
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return '—';
     return withTime
-      ? d.toLocaleString(ar ? 'ar-YE' : 'en-US')
-      : d.toLocaleDateString(ar ? 'ar-YE' : 'en-US');
+      ? d.toLocaleString(ar ? 'ar-YE-u-nu-latn' : 'en-US')
+      : d.toLocaleDateString(ar ? 'ar-YE-u-nu-latn' : 'en-US');
   };
 
   // ── Tanks for selected supply sub-station ─────────────────────────────────
@@ -443,13 +443,13 @@ function FuelMovements({ lang, currentUser }) {
                 ) : summaryData.map((s, idx) => (
                   <tr key={idx}>
                     <td style={{ fontWeight: 700, color: 'var(--secondary)', textAlign: 'center' }}>{s.siteLabel || s.stationName || s.subStationName || '—'}</td>
-                    <td style={{ textAlign: 'center' }}>{s.capacity?.toLocaleString() ?? '—'}</td>
-                    <td style={{ textAlign: 'center' }}>{s.minLevel?.toLocaleString() ?? '—'}</td>
-                    <td style={{ color: 'var(--secondary)', textAlign: 'center' }}>{s.supply?.toLocaleString() ?? '—'}</td>
-                    <td style={{ color: s.transfer >= 0 ? 'var(--secondary)' : 'var(--danger)', textAlign: 'center' }}>{s.transfer?.toLocaleString() ?? '—'}</td>
-                    <td style={{ color: 'var(--danger)', textAlign: 'center' }}>{s.loss?.toLocaleString() ?? '—'}</td>
-                    <td style={{ color: 'var(--warning)', textAlign: 'center' }}>{s.consumption?.toLocaleString() ?? '—'}</td>
-                    <td style={{ fontWeight: 800, textAlign: 'center' }}>{s.remaining?.toLocaleString() ?? '—'}</td>
+                    <td style={{ textAlign: 'center' }}>{s.capacity?.toLocaleString('en-US') ?? '—'}</td>
+                    <td style={{ textAlign: 'center' }}>{s.minLevel?.toLocaleString('en-US') ?? '—'}</td>
+                    <td style={{ color: 'var(--secondary)', textAlign: 'center' }}>{s.supply?.toLocaleString('en-US') ?? '—'}</td>
+                    <td style={{ color: s.transfer >= 0 ? 'var(--secondary)' : 'var(--danger)', textAlign: 'center' }}>{s.transfer?.toLocaleString('en-US') ?? '—'}</td>
+                    <td style={{ color: 'var(--danger)', textAlign: 'center' }}>{s.loss?.toLocaleString('en-US') ?? '—'}</td>
+                    <td style={{ color: 'var(--warning)', textAlign: 'center' }}>{s.consumption?.toLocaleString('en-US') ?? '—'}</td>
+                    <td style={{ fontWeight: 800, textAlign: 'center' }}>{s.remaining?.toLocaleString('en-US') ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -762,7 +762,7 @@ function FuelMovements({ lang, currentUser }) {
                                 {ar ? 'سعة الخزان' : 'Tank Capacity'}
                               </span>
                               <span style={{ fontSize: 12, fontWeight: 600, color: fillColor }}>
-                                {current.toLocaleString()} / {capacity.toLocaleString()} L
+                                {current.toLocaleString('en-US')} / {capacity.toLocaleString('en-US')} L
                               </span>
                             </div>
                             <div style={{ height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
@@ -772,8 +772,8 @@ function FuelMovements({ lang, currentUser }) {
                               <div style={{ marginTop: 8, fontSize: 12, color: '#ef4444', fontWeight: 600 }}>
                                 <AlertCircle size={12} style={{ marginInlineEnd: 4, verticalAlign: 'middle' }} />
                                 {ar
-                                  ? `الكمية المطلوبة (${qty.toLocaleString()} L) ستتجاوز السعة. المتاح: ${capacity.toLocaleString()} L`
-                                  : `Requested qty (${qty.toLocaleString()} L) exceeds capacity. Available: ${capacity.toLocaleString()} L`}
+                                  ? `الكمية المطلوبة (${qty.toLocaleString('en-US')} L) ستتجاوز السعة. المتاح: ${capacity.toLocaleString('en-US')} L`
+                                  : `Requested qty (${qty.toLocaleString('en-US')} L) exceeds capacity. Available: ${capacity.toLocaleString('en-US')} L`}
                               </div>
                             )}
                           </div>

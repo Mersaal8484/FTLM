@@ -240,12 +240,12 @@ export default function TankSetup() {
             </div>
             <div>
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('operational.tanks.totalVol')}</span>
-              <p style={{ fontSize: 18, fontWeight: 700, color: '#22c55e' }}>{Number(preview.computedCapacityLitres || preview.capacityLitres || 0).toLocaleString()} {t('operational.tanks.litres')}</p>
+              <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--success)' }}>{Number(preview.computedCapacityLitres || preview.capacityLitres || 0).toLocaleString('en-US')} {t('operational.tanks.litres')}</p>
             </div>
             <div>
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('operational.tanks.deadStock')}</span>
               <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
-                {preview.deadStockLitres != null ? `${Number(preview.deadStockLitres).toLocaleString()} ${t('operational.tanks.litres')}` : (deadStockLitres ? `${deadStockLitres} ${t('operational.tanks.litres')}` : '—')}
+                {preview.deadStockLitres != null ? `${Number(preview.deadStockLitres).toLocaleString('en-US')} ${t('operational.tanks.litres')}` : (deadStockLitres ? `${deadStockLitres} ${t('operational.tanks.litres')}` : '—')}
                 {preview.deadStockLevelCm != null && (
                   <span style={{ display: 'block', fontSize: 12, fontWeight: 400, color: 'var(--text-muted)' }}>
                     ({preview.deadStockLevelCm} {t('operational.tanks.cm')})
@@ -256,7 +256,7 @@ export default function TankSetup() {
             <div>
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('operational.tanks.usableVol')}</span>
               <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--primary)' }}>
-                {Math.max(0, (Number(preview.computedCapacityLitres || 0) - (preview.deadStockLitres != null ? Number(preview.deadStockLitres) : (parseFloat(deadStockLitres) || 0)))).toLocaleString()} {t('operational.tanks.litres')}
+                {Math.max(0, (Number(preview.computedCapacityLitres || 0) - (preview.deadStockLitres != null ? Number(preview.deadStockLitres) : (parseFloat(deadStockLitres) || 0)))).toLocaleString('en-US')} {t('operational.tanks.litres')}
               </p>
             </div>
           </div>

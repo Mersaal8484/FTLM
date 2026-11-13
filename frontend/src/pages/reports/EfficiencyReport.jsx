@@ -46,7 +46,7 @@ const EfficiencyReport = ({ lang = 'ar' }) => {
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { setPage(1); }, [filters]);
 
-  const fmt = (n) => n == null ? '0' : Number(n).toLocaleString(isAr ? 'ar-EG' : 'en-US', { maximumFractionDigits: 2 });
+  const fmt = (n) => n == null ? '0' : Number(n).toLocaleString(isAr ? 'ar-EG-u-nu-latn' : 'en-US', { maximumFractionDigits: 2 });
 
   if (loading) {
     return (

@@ -285,13 +285,13 @@ export default function GeneratorMaintenanceTable({ lang }) {
                     <span>
                       {ar ? 'الساعات الرسمية المعتمدة:' : 'Official Running Hours:'}{' '}
                       <strong style={{ color: 'var(--primary)' }}>
-                        {gen.currentOfficialHours != null ? `${Number(gen.currentOfficialHours).toLocaleString()} h` : (ar ? 'لا توجد' : 'None')}
+                        {gen.currentOfficialHours != null ? `${Number(gen.currentOfficialHours).toLocaleString('en-US')} h` : (ar ? 'لا توجد' : 'None')}
                       </strong>
                     </span>
                     {gen.lastClosingAtUtc && (
                       <span>
                         {ar ? 'آخر اعتماد:' : 'Last closing:'}{' '}
-                        {new Date(gen.lastClosingAtUtc).toLocaleDateString()}
+                        {new Date(gen.lastClosingAtUtc).toLocaleDateString('en-US')}
                       </span>
                     )}
                   </div>
@@ -358,14 +358,14 @@ export default function GeneratorMaintenanceTable({ lang }) {
                                 )}
                               </div>
                             ) : (
-                              `${Number(item.intervalHours).toLocaleString()} h`
+                              `${Number(item.intervalHours).toLocaleString('en-US')} h`
                             )}
                           </td>
                           <td style={{ padding: '10px 12px' }}>
-                            {item.lastServiceHours != null ? `${Number(item.lastServiceHours).toLocaleString()} h` : '—'}
+                            {item.lastServiceHours != null ? `${Number(item.lastServiceHours).toLocaleString('en-US')} h` : '—'}
                           </td>
                           <td style={{ padding: '10px 12px' }}>
-                            {item.dueAtHours != null ? `${Number(item.dueAtHours).toLocaleString()} h` : '—'}
+                            {item.dueAtHours != null ? `${Number(item.dueAtHours).toLocaleString('en-US')} h` : '—'}
                           </td>
                           <td style={{ padding: '10px 12px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -538,7 +538,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
                     <tr key={h.id} style={{ opacity: h.voidedAtUtc ? 0.5 : 1 }}>
                       <td style={{ padding: '8px' }}>{h.kind === 2 ? (ar ? 'تأسيس' : 'Baseline') : (ar ? 'استبدال' : 'Replacement')}</td>
                       <td style={{ padding: '8px', fontWeight: 600 }}>{h.hoursAtService} h</td>
-                      <td style={{ padding: '8px' }}>{new Date(h.occurredAtUtc).toLocaleDateString()}</td>
+                      <td style={{ padding: '8px' }}>{new Date(h.occurredAtUtc).toLocaleDateString('en-US')}</td>
                       <td style={{ padding: '8px' }}>
                         {h.isEarly ? (
                           <span title={h.earlyReplacementReason} style={{ color: '#d97706', fontWeight: 600 }}>

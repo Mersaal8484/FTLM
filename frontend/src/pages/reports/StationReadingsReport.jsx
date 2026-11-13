@@ -51,7 +51,7 @@ const StationReadingsReport = ({ lang = 'ar' }) => {
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { setPage(1); }, [filters]);
 
-  const fmt = (n) => n == null ? '0' : Number(n).toLocaleString(isAr ? 'ar-EG' : 'en-US', { maximumFractionDigits: 1 });
+  const fmt = (n) => n == null ? '0' : Number(n).toLocaleString(isAr ? 'ar-EG-u-nu-latn' : 'en-US', { maximumFractionDigits: 1 });
 
   if (loading) {
     return (
@@ -104,7 +104,7 @@ const StationReadingsReport = ({ lang = 'ar' }) => {
             <tbody>
               {items.length > 0 ? items.map((r, idx) => (
                 <tr key={idx} style={{ borderBottom: '1px solid var(--color-border, #f3f4f6)' }}>
-                  <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{new Date(r.readingDate).toLocaleDateString(isAr ? 'ar-EG' : 'en-US')}</td>
+                  <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{new Date(r.readingDate).toLocaleDateString(isAr ? 'ar-EG-u-nu-latn' : 'en-US')}</td>
                   <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{r.subStationName}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-primary, #111827)' }}>{r.meterCode || '-'}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-primary, #111827)' }}>{fmt(r.previousExportedKWh)}</td>

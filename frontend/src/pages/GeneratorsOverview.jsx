@@ -30,7 +30,7 @@ function StatusBadge({ status, lang }) {
   );
 }
 
-const fmt = (v, u = '') => v != null && v !== '' ? `${Number(v).toLocaleString()} ${u}`.trim() : '—';
+const fmt = (v, u = '') => v != null && v !== '' ? `${Number(v).toLocaleString('en-US')} ${u}`.trim() : '—';
 
 /* ─── Detail Modal ───────────────────────────────────────────────── */
 function GeneratorDetailModal({ gen, lang, onClose }) {
