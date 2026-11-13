@@ -313,6 +313,9 @@ html { scroll-behavior: smooth; }
 .capture-line > label { display: grid; gap: 3px; color: var(--text-muted); font-size: var(--text-sm); font-weight: 700; }
 .capture-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
 .capture-grid label { color: var(--text-muted); font-size: var(--text-sm); font-weight: 700; }
+.capture-summary { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 16px; padding: 13px 16px; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); color: var(--text); }
+.capture-summary strong { width: 100%; }
+.capture-summary small { color: var(--text-muted); }
 .capture-switch { display: inline-flex !important; grid-template-columns: auto 1fr; align-items: center; gap: 9px; margin-top: 13px; color: var(--text) !important; }
 .capture-switch input { width: 18px; min-height: 18px; margin: 0; accent-color: var(--operational-teal); }
 .capture-photo-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 16px; }

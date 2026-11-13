@@ -16,6 +16,13 @@ public sealed class OperationalCapturesController(IOperationalCaptureService ser
     [HttpGet("my-history")]
     public async Task<IActionResult> MyHistory(CancellationToken cancellationToken) => Ok(await service.GetMyHistoryAsync(GetUserId(), cancellationToken));
 
+    [HttpGet("previous-readings")]
+    public async Task<IActionResult> PreviousReadings([FromQuery] int subStationId, CancellationToken cancellationToken)
+    {
+        var result = await service.GetPreviousReadingsAsync(subStationId, GetUserId(), cancellationToken);
+        return result.IsSuccess ? Ok(result.Value) : StatusCode(result.StatusCode, new { error = result.Error });
+    }
+
     [HttpPost]
     public async Task<IActionResult> Submit(SubmitOperationalCaptureDto dto, CancellationToken cancellationToken)
     {

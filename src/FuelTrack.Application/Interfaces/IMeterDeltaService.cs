@@ -18,6 +18,14 @@ public interface IMeterDeltaService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Display-only delta between this raw reading and the immediately preceding usable reading
+    /// for the same counter. This never contributes to official balances.
+    /// </summary>
+    Task<MeterDeltaDto?> GetIntervalDeltaAsync(
+        int meterReadingId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Order-independence check at approval time (§7.5).
     /// Returns Failure if approving <paramref name="meterReadingId"/> would break monotonic order
     /// (unless IsMeterReset is true on the affected line).

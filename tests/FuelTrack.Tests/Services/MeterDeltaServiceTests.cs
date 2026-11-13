@@ -119,6 +119,44 @@ public sealed class MeterDeltaServiceTests
         Assert.True(result.IsMeterReset);
     }
 
+    [Fact]
+    public async Task GetIntervalDelta_UsesPreviousUsableReadingAndCurrentMultiplier()
+    {
+        await using var db = CreateDb();
+        var (_, genId, subId) = await SeedBaseAsync(db);
+        var first = BuildClosing(subId, genId, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)), DateTime.UtcNow.AddHours(-2), 100m);
+        first.Kind = MeterReadingKind.Periodic;
+        var current = BuildClosing(subId, genId, DateOnly.FromDateTime(DateTime.UtcNow), DateTime.UtcNow.AddHours(-1), 130m);
+        current.Kind = MeterReadingKind.Periodic;
+        current.MultiplierSnapshot = 2m;
+        db.MeterReadings.AddRange(first, current);
+        await db.SaveChangesAsync();
+
+        var result = await new MeterDeltaService(db).GetIntervalDeltaAsync(current.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(60m, result!.Delta);
+        Assert.Equal(100m, result.PreviousValue);
+        Assert.Equal(130m, result.CurrentValue);
+    }
+
+    [Fact]
+    public async Task GetIntervalDelta_ReturnsNoDeltaForResetReading()
+    {
+        await using var db = CreateDb();
+        var (_, genId, subId) = await SeedBaseAsync(db);
+        var reset = BuildClosing(subId, genId, DateOnly.FromDateTime(DateTime.UtcNow), DateTime.UtcNow, 10m, reset: true);
+        reset.Kind = MeterReadingKind.Periodic;
+        db.MeterReadings.Add(reset);
+        await db.SaveChangesAsync();
+
+        var result = await new MeterDeltaService(db).GetIntervalDeltaAsync(reset.Id);
+
+        Assert.NotNull(result);
+        Assert.Null(result!.Delta);
+        Assert.True(result.IsMeterReset);
+    }
+
     // ── Monotonicity tests ────────────────────────────────────────────────────
 
     [Fact]

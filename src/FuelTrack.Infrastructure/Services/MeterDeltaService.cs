@@ -13,6 +13,33 @@ namespace FuelTrack.Infrastructure.Services;
 /// </summary>
 public sealed class MeterDeltaService(FuelTrackDbContext db) : IMeterDeltaService
 {
+    public async Task<MeterDeltaDto?> GetIntervalDeltaAsync(int meterReadingId, CancellationToken cancellationToken = default)
+    {
+        var current = await db.MeterReadings.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == meterReadingId && x.Status != OperationalReadingStatus.Voided && x.Status != OperationalReadingStatus.Rejected, cancellationToken);
+        if (current is null) return null;
+        if (current.IsMeterReset)
+            return new MeterDeltaDto(current.BusinessDate, null, null, current.RawValue, null, true);
+
+        var previous = await db.MeterReadings.AsNoTracking()
+            .Where(x => x.SubjectType == current.SubjectType && x.SubjectId == current.SubjectId &&
+                        x.Status != OperationalReadingStatus.Voided && x.Status != OperationalReadingStatus.Rejected &&
+                        (x.CapturedAtUtc < current.CapturedAtUtc || (x.CapturedAtUtc == current.CapturedAtUtc && x.Id < current.Id)))
+            .OrderByDescending(x => x.CapturedAtUtc).ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (previous is null)
+            return new MeterDeltaDto(current.BusinessDate, null, null, current.RawValue, null, false);
+
+        var span = current.BusinessDate.DayNumber - previous.BusinessDate.DayNumber;
+        return new MeterDeltaDto(
+            current.BusinessDate,
+            (current.RawValue - previous.RawValue) * current.MultiplierSnapshot,
+            previous.RawValue,
+            current.RawValue,
+            span > 1 ? span : null,
+            false);
+    }
+
     public async Task<MeterDeltaDto?> GetDailyDeltaAsync(
         MeterReadingSubjectType subjectType,
         int subjectId,

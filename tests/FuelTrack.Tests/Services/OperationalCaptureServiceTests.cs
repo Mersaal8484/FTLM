@@ -116,6 +116,61 @@ public sealed class OperationalCaptureServiceTests
         Assert.Equal(404, result.StatusCode);
     }
 
+    [Fact]
+    public async Task GetPreviousReadingsAsync_ReturnsOnlyTheSiteCounterHistory()
+    {
+        await using var db = CreateDatabase();
+        var fixture = await SeedAsync(db);
+        var submission = new OperationalSubmission
+        {
+            SubStationId = fixture.SiteId, ClientRequestId = Guid.NewGuid(), ReceivedAtUtc = DateTime.UtcNow,
+            Status = FuelTrack.Domain.Enums.OperationalReadingStatus.Approved,
+            CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow, CreatedBy = fixture.UserId, UpdatedBy = fixture.UserId,
+        };
+        db.OperationalSubmissions.Add(submission);
+        await db.SaveChangesAsync();
+        db.MeterReadings.AddRange(
+            new MeterReading
+            {
+                OperationalSubmissionId = submission.Id, ClientLineId = Guid.NewGuid(),
+                SubjectType = FuelTrack.Domain.Enums.MeterReadingSubjectType.GeneratorEnergyProduced, SubjectId = fixture.GeneratorId,
+                Kind = FuelTrack.Domain.Enums.MeterReadingKind.Periodic, BusinessDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                CapturedAtUtc = DateTime.UtcNow.AddMinutes(-10), ReceivedAtUtc = DateTime.UtcNow.AddMinutes(-10),
+                Status = FuelTrack.Domain.Enums.OperationalReadingStatus.Recorded, RawValue = 100m, MultiplierSnapshot = 1m,
+                CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow, CreatedBy = fixture.UserId, UpdatedBy = fixture.UserId,
+            },
+            new MeterReading
+            {
+                OperationalSubmissionId = submission.Id, ClientLineId = Guid.NewGuid(),
+                SubjectType = FuelTrack.Domain.Enums.MeterReadingSubjectType.GeneratorEnergyProduced, SubjectId = fixture.GeneratorId,
+                Kind = FuelTrack.Domain.Enums.MeterReadingKind.DailyClosing, BusinessDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                CapturedAtUtc = DateTime.UtcNow.AddMinutes(-5), ReceivedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                Status = FuelTrack.Domain.Enums.OperationalReadingStatus.Approved, RawValue = 120m, MultiplierSnapshot = 1m,
+                CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow, CreatedBy = fixture.UserId, UpdatedBy = fixture.UserId,
+            });
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).GetPreviousReadingsAsync(fixture.SiteId, fixture.UserId);
+
+        Assert.True(result.IsSuccess);
+        var energy = Assert.Single(result.Value!.Readings, x => x.SubjectType == FuelTrack.Domain.Enums.MeterReadingSubjectType.GeneratorEnergyProduced && x.SubjectId == fixture.GeneratorId);
+        Assert.Equal(120m, energy.LatestAny!.RawValue);
+        Assert.Equal(120m, energy.LatestOfficialDailyClosing!.RawValue);
+    }
+
+    [Fact]
+    public async Task GetPreviousReadingsAsync_HidesSiteOutsideCallerScope()
+    {
+        await using var db = CreateDatabase();
+        var fixture = await SeedAsync(db);
+        var service = new OperationalCaptureService(db, new SiteScope(false), new CurrentUser(), new IdempotencyService(db), Mock.Of<IFuelLoadSafetyService>());
+
+        var result = await service.GetPreviousReadingsAsync(fixture.SiteId, fixture.UserId);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(404, result.StatusCode);
+    }
+
     private static OperationalCaptureService CreateService(FuelTrackDbContext db) =>
         new(db, new SiteScope(), new CurrentUser(), new IdempotencyService(db), Mock.Of<IFuelLoadSafetyService>());
 

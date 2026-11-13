@@ -719,6 +719,17 @@ Object.assign(appTranslations.en.translation, {
     empty: 'No feeders are configured for this site.',
     errors: { loadSites: 'Unable to load sites.', loadFeeders: 'Unable to load feeders.', save: 'Unable to save feeder.', deactivate: 'Unable to deactivate feeder.', defaults: 'Unable to create default feeders.' },
   },
+  operational: {
+    ...appTranslations.en.translation.operational,
+    capture: {
+      ...appTranslations.en.translation.operational.capture,
+      periodicRound: 'Hourly / half-hourly round', dailyClosing: 'End-of-day closing', businessDate: 'Business date',
+      energyCounter: 'Energy counter', runningHoursCounter: 'Running-hours counter', lastReading: 'Last reading', noPreviousReading: 'No previous reading',
+      liveDifference: 'Live difference', counterLowerWarning: 'This value is lower than the last reading. Flag a meter reset and provide a note to continue.',
+      counterResetRequired: 'A lower counter value requires the meter-reset flag and a reset note.', counterAbnormalJumpWarning: 'This increase is unusually high compared with recent readings. Review it before submitting.',
+      dailyPreview: 'Daily closing preview', producedEnergy: 'Produced energy', sentEnergy: 'Sent energy', unexplainedDifference: 'Unexplained difference', previewUntilApproval: 'Preview only. Official totals update after approval.',
+    },
+  },
 });
 Object.assign(appTranslations.ar.translation, {
   feeders: {
@@ -729,6 +740,17 @@ Object.assign(appTranslations.ar.translation, {
     code: '\u0627\u0644\u0631\u0645\u0632', name: '\u0627\u0644\u0627\u0633\u0645', multiplier: '\u0645\u0639\u0627\u0645\u0644 \u0627\u0644\u0639\u062f\u0627\u062f', meter: '\u0627\u0644\u0639\u062f\u0627\u062f \u0627\u0644\u0645\u0631\u062a\u0628\u0637', noMeter: '\u0628\u062f\u0648\u0646 \u0639\u062f\u0627\u062f \u0645\u0631\u062a\u0628\u0637', actions: '\u0627\u0644\u0625\u062c\u0631\u0627\u0621\u0627\u062a',
     empty: '\u0644\u0627 \u062a\u0648\u062c\u062f \u0641\u064a\u062f\u0631\u0627\u062a \u0645\u0639\u062f\u0629 \u0641\u064a \u0647\u0630\u0627 \u0627\u0644\u0645\u0648\u0642\u0639.',
     errors: { loadSites: '\u062a\u0639\u0630\u0631 \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0645\u0648\u0627\u0642\u0639.', loadFeeders: '\u062a\u0639\u0630\u0631 \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0641\u064a\u062f\u0631\u0627\u062a.', save: '\u062a\u0639\u0630\u0631 \u062d\u0641\u0638 \u0627\u0644\u0641\u064a\u062f\u0631.', deactivate: '\u062a\u0639\u0630\u0631 \u0625\u064a\u0642\u0627\u0641 \u0627\u0644\u0641\u064a\u062f\u0631.', defaults: '\u062a\u0639\u0630\u0631 \u0625\u0646\u0634\u0627\u0621 \u0627\u0644\u0641\u064a\u062f\u0631\u0627\u062a \u0627\u0644\u0627\u0641\u062a\u0631\u0627\u0636\u064a\u0629.' },
+  },
+  operational: {
+    ...appTranslations.ar.translation.operational,
+    capture: {
+      ...appTranslations.ar.translation.operational.capture,
+      periodicRound: '\u062c\u0648\u0644\u0629 \u062f\u0648\u0631\u064a\u0629 (\u0633\u0627\u0639\u064a\u0629/\u0646\u0635\u0641 \u0633\u0627\u0639\u064a\u0629)', dailyClosing: '\u0625\u0642\u0641\u0627\u0644 \u0646\u0647\u0627\u064a\u0629 \u0627\u0644\u064a\u0648\u0645', businessDate: '\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0639\u0645\u0644',
+      energyCounter: '\u0639\u062f\u0627\u062f \u0627\u0644\u0637\u0627\u0642\u0629', runningHoursCounter: '\u0639\u062f\u0627\u062f \u0633\u0627\u0639\u0627\u062a \u0627\u0644\u062a\u0634\u063a\u064a\u0644', lastReading: '\u0622\u062e\u0631 \u0642\u0631\u0627\u0621\u0629', noPreviousReading: '\u0644\u0627 \u062a\u0648\u062c\u062f \u0642\u0631\u0627\u0621\u0629 \u0633\u0627\u0628\u0642\u0629',
+      liveDifference: '\u0627\u0644\u0641\u0631\u0642 \u0627\u0644\u062d\u064a', counterLowerWarning: '\u0627\u0644\u0642\u064a\u0645\u0629 \u0623\u0642\u0644 \u0645\u0646 \u0622\u062e\u0631 \u0642\u0631\u0627\u0621\u0629. \u062d\u062f\u062f \u0625\u0639\u0627\u062f\u0629 \u0636\u0628\u0637 \u0627\u0644\u0639\u062f\u0627\u062f \u0648\u0623\u062f\u062e\u0644 \u0645\u0644\u0627\u062d\u0638\u0629 \u0644\u0644\u0645\u062a\u0627\u0628\u0639\u0629.',
+      counterResetRequired: '\u0627\u0644\u0642\u064a\u0645\u0629 \u0627\u0644\u0623\u0642\u0644 \u062a\u062a\u0637\u0644\u0628 \u062a\u062d\u062f\u064a\u062f \u0625\u0639\u0627\u062f\u0629 \u0636\u0628\u0637 \u0627\u0644\u0639\u062f\u0627\u062f \u0648\u0645\u0644\u0627\u062d\u0638\u0629.', counterAbnormalJumpWarning: '\u0627\u0644\u0632\u064a\u0627\u062f\u0629 \u0623\u0639\u0644\u0649 \u0628\u0634\u0643\u0644 \u063a\u064a\u0631 \u0645\u0639\u062a\u0627\u062f \u0645\u0642\u0627\u0631\u0646\u0629\u064b \u0628\u0627\u0644\u0642\u0631\u0627\u0621\u0627\u062a \u0627\u0644\u0633\u0627\u0628\u0642\u0629. \u0631\u0627\u062c\u0639\u0647\u0627 \u0642\u0628\u0644 \u0627\u0644\u0625\u0631\u0633\u0627\u0644.',
+      dailyPreview: '\u0645\u0639\u0627\u064a\u0646\u0629 \u0625\u0642\u0641\u0627\u0644 \u0627\u0644\u064a\u0648\u0645', producedEnergy: '\u0627\u0644\u0637\u0627\u0642\u0629 \u0627\u0644\u0645\u0646\u062a\u062c\u0629', sentEnergy: '\u0627\u0644\u0637\u0627\u0642\u0629 \u0627\u0644\u0645\u0631\u0633\u0644\u0629', unexplainedDifference: '\u0627\u0644\u0641\u0631\u0642 \u063a\u064a\u0631 \u0627\u0644\u0645\u0641\u0633\u0631', previewUntilApproval: '\u0647\u0630\u0647 \u0645\u0639\u0627\u064a\u0646\u0629 \u0641\u0642\u0637. \u062a\u064f\u062d\u062f\u0651\u064e\u062b \u0627\u0644\u0625\u062c\u0645\u0627\u0644\u064a\u0627\u062a \u0627\u0644\u0631\u0633\u0645\u064a\u0629 \u0628\u0639\u062f \u0627\u0644\u0627\u0639\u062a\u0645\u0627\u062f.',
+    },
   },
 });
 

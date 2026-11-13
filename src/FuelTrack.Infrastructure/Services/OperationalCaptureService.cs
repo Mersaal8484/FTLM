@@ -23,6 +23,59 @@ public sealed class OperationalCaptureService(
     private static readonly TimeSpan FutureTolerance = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan SkewWarning = TimeSpan.FromHours(12);
 
+    public async Task<Result<PreviousMeterReadingsDto>> GetPreviousReadingsAsync(int subStationId, int userId, CancellationToken cancellationToken = default)
+    {
+        if (subStationId <= 0 || !await CanAccessSiteAsync(userId, subStationId, cancellationToken))
+            return Result<PreviousMeterReadingsDto>.NotFound("Site not found or outside your scope.");
+
+        var generatorIds = await db.Generators.AsNoTracking()
+            .Where(x => x.SubStationId == subStationId)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+        var feederIds = await db.Feeders.AsNoTracking()
+            .Where(x => x.SubStationId == subStationId)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        var candidates = await db.MeterReadings.AsNoTracking()
+            .Where(x => x.Status != OperationalReadingStatus.Voided && x.Status != OperationalReadingStatus.Rejected &&
+                ((x.SubjectType == MeterReadingSubjectType.GeneratorEnergyProduced && generatorIds.Contains(x.SubjectId)) ||
+                 (x.SubjectType == MeterReadingSubjectType.GeneratorRunningHours && generatorIds.Contains(x.SubjectId)) ||
+                 (x.SubjectType == MeterReadingSubjectType.FeederEnergySent && feederIds.Contains(x.SubjectId))))
+            .OrderByDescending(x => x.CapturedAtUtc).ThenByDescending(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        LatestMeterReadingDto ToDto(MeterReading reading) => new(
+            reading.RawValue, reading.MultiplierSnapshot, reading.CapturedAtUtc, reading.Kind, reading.Status, reading.IsMeterReset);
+
+        var requiredSubjects = generatorIds.SelectMany(id => new[]
+        {
+            (SubjectType: MeterReadingSubjectType.GeneratorEnergyProduced, SubjectId: id),
+            (SubjectType: MeterReadingSubjectType.GeneratorRunningHours, SubjectId: id),
+        }).Concat(feederIds.Select(id => (SubjectType: MeterReadingSubjectType.FeederEnergySent, SubjectId: id)));
+
+        var readings = requiredSubjects.Select(subject =>
+        {
+            var subjectReadings = candidates.Where(x => x.SubjectType == subject.SubjectType && x.SubjectId == subject.SubjectId).ToList();
+            var any = subjectReadings.FirstOrDefault();
+            var official = subjectReadings.FirstOrDefault(x => x.Kind == MeterReadingKind.DailyClosing && ReadingApprovalPolicy.IsOfficial(x.Status));
+            var chronological = subjectReadings.OrderBy(x => x.CapturedAtUtc).ThenBy(x => x.Id).ToList();
+            var deltas = chronological.Zip(chronological.Skip(1), (previous, current) => new { previous, current })
+                .Where(pair => !pair.current.IsMeterReset && pair.current.RawValue >= pair.previous.RawValue)
+                .Select(pair => (pair.current.RawValue - pair.previous.RawValue) * pair.current.MultiplierSnapshot)
+                .TakeLast(6)
+                .ToList();
+            return new PreviousMeterReadingDto(
+                subject.SubjectType,
+                subject.SubjectId,
+                any is null ? null : ToDto(any),
+                official is null ? null : ToDto(official),
+                deltas.Count == 0 ? null : deltas.Average());
+        }).ToList();
+
+        return Result<PreviousMeterReadingsDto>.Success(new PreviousMeterReadingsDto(readings));
+    }
+
     public async Task<Result<OperationalSubmissionDto>> SubmitAsync(SubmitOperationalCaptureDto dto, int userId, CancellationToken cancellationToken = default)
     {
         if (dto.ClientRequestId == Guid.Empty || dto.SubStationId <= 0)

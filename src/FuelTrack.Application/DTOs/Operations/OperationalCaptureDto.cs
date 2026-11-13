@@ -64,3 +64,21 @@ public sealed record OperationalGeneratorReferenceDto(int Id, string Name, strin
 public sealed record OperationalTankReferenceDto(int Id, string Name, string Code, bool IsCalibrated);
 public sealed record OperationalFeederReferenceDto(int Id, string Name, string Code, decimal MeterMultiplier, int? MeterId);
 public sealed record OperationalMeterReferenceDto(int Id, string Name, string? SerialNumber, int? GeneratorId);
+
+/// <summary>Latest raw and official counter values for a capture site's generators and feeders.</summary>
+public sealed record PreviousMeterReadingsDto(IReadOnlyList<PreviousMeterReadingDto> Readings);
+
+public sealed record PreviousMeterReadingDto(
+    MeterReadingSubjectType SubjectType,
+    int SubjectId,
+    LatestMeterReadingDto? LatestAny,
+    LatestMeterReadingDto? LatestOfficialDailyClosing,
+    decimal? RecentAverageDelta);
+
+public sealed record LatestMeterReadingDto(
+    decimal RawValue,
+    decimal MultiplierSnapshot,
+    DateTime CapturedAtUtc,
+    MeterReadingKind Kind,
+    OperationalReadingStatus Status,
+    bool IsMeterReset);
