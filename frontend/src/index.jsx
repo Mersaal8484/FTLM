@@ -5,6 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './styles.css';
 import './i18n';
 import App from './App';
+import { installChunkRecovery } from './utils/chunkRecovery';
+
+installChunkRecovery();
 
 // إرسال الـ cookie تلقائياً مع كل طلب axios في أي صفحة
 axios.defaults.withCredentials = true;
