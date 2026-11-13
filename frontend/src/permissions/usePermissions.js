@@ -67,6 +67,14 @@ export default function usePermissions(currentUser) {
       return block[action] === true;
     };
 
+    // Unlike can/canExplicit, this deliberately does not grant an implicit
+    // administrator bypass. It is used for opt-in compatibility surfaces that
+    // must stay hidden until a role receives the exact permission explicitly.
+    const hasAssignedPermission = (module, action = 'view') => {
+      const key = MODULE_ALIASES[module] || module;
+      return permissions[key]?.[normalizeAction(action)] === true;
+    };
+
     const canModule = (module) => {
       if (role === 'admin') return true;
 
@@ -101,6 +109,6 @@ export default function usePermissions(currentUser) {
 
     const filterModules = (moduleList) => moduleList.filter((m) => canModule(m));
 
-    return { can, canAny, canExplicit, canModule, filterModules, role, permissions };
+    return { can, canAny, canExplicit, hasAssignedPermission, canModule, filterModules, role, permissions };
   }, [user]);
 }

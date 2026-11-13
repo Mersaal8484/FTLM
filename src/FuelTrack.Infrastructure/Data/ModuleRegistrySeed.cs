@@ -519,6 +519,21 @@ public static class ModuleRegistrySeed
                 SupportsAuditLog = false,
                 SupportsGlobalSearch = false
             },
+            new ModuleDefinition
+            {
+                Key = "legacy_screens",
+                NameEn = "Legacy Screens",
+                NameAr = "\u0627\u0644\u0634\u0627\u0634\u0627\u062a \u0627\u0644\u0642\u062f\u064a\u0645\u0629",
+                Route = string.Empty,
+                Icon = "ArchiveRestore",
+                ParentKey = null,
+                Template = ModuleTemplate.ReadOnly,
+                ScopeType = ScopeType.None,
+                SortOrder = 704,
+                IsVisible = false,
+                SupportsAuditLog = false,
+                SupportsGlobalSearch = false
+            },
 
             // ============================================
             // WAREHOUSE

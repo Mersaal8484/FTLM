@@ -39,6 +39,9 @@ export const appTranslations = {
         installedParts: 'Installed Parts', dispatchRequests: 'Dispatch Requests', warehouseSupply: 'Warehouse Supply', warehouseReports: 'Warehouse Reports',
         stationReadingsReport: 'Station Readings', fuelTransactionsReport: 'Fuel Transactions', oilTransactionsReport: 'Oil Transactions',
         generatorsReport: 'Generators Report', efficiencyReport: 'Efficiency Report', periodicInventoryReport: 'Periodic Inventory Report',
+        notifications: 'Notifications', locations: 'Locations & Stations', setupGenerators: 'Setup Generators', meters: 'Meters',
+        setupOils: 'Setup Oils', setupTanks: 'Setup Tanks', controllers: 'Setup Controllers', users: 'Manage Users',
+        roles: 'Roles & Permissions', audits: 'Audit Log', rollback: 'Approval Rollback',
       },
       operational: {
         eyebrow: 'Operations workspace',
@@ -375,7 +378,7 @@ export const appTranslations = {
         cancel: 'إلغاء',
       },
       sidebar: {
-        dashboard: 'لوحة التحكم', operations: 'العمليات', myGenerators: 'مولداتي', maintenance: 'الصيانة',
+        dashboard: 'لوحة التحكم', operations: 'لوحة التشغيل', myGenerators: 'مولداتي', maintenance: 'الصيانة',
         fuelMovements: 'حركات الوقود والزيوت', generatorsOverview: 'عرض المولدات', fuelStock: 'مخزون الوقود', oilStock: 'مخزون الزيوت',
         reviewReadings: 'اعتماد القراءات', periodicInventory: 'الجرد الدوري', reports: 'التقارير', systemSettings: 'إعدادات النظام',
         serviceIntervals: 'فترات الصيانة', workPermits: 'تصاريح العمل', partsCatalog: 'كتالوج القطع', warehouseStock: 'مخزون المستودع',
@@ -689,6 +692,20 @@ export const appTranslations = {
     },
   },
 };
+
+Object.assign(appTranslations.ar.translation.sidebar, {
+  notifications: '\u0627\u0644\u0625\u0634\u0639\u0627\u0631\u0627\u062a',
+  locations: '\u0627\u0644\u0645\u0648\u0627\u0642\u0639 \u0648\u0627\u0644\u0645\u062d\u0637\u0627\u062a',
+  setupGenerators: '\u0625\u0639\u062f\u0627\u062f \u0627\u0644\u0645\u0648\u0644\u062f\u0627\u062a',
+  meters: '\u0627\u0644\u0639\u062f\u0627\u062f\u0627\u062a',
+  setupOils: '\u0625\u0639\u062f\u0627\u062f \u0645\u062e\u0632\u0648\u0646 \u0627\u0644\u0632\u064a\u0648\u062a',
+  setupTanks: '\u0625\u0639\u062f\u0627\u062f \u0627\u0644\u062e\u0632\u0627\u0646\u0627\u062a',
+  controllers: '\u0625\u0639\u062f\u0627\u062f \u0634\u0627\u0634\u0627\u062a \u0627\u0644\u0645\u0648\u0644\u062f\u0627\u062a',
+  users: '\u0625\u062f\u0627\u0631\u0629 \u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645\u064a\u0646',
+  roles: '\u0627\u0644\u0623\u062f\u0648\u0627\u0631 \u0648\u0627\u0644\u0635\u0644\u0627\u062d\u064a\u0627\u062a',
+  audits: '\u0633\u062c\u0644 \u0627\u0644\u062a\u062f\u0642\u064a\u0642',
+  rollback: '\u0627\u0644\u062a\u0631\u0627\u062c\u0639 \u0639\u0646 \u0627\u0644\u0627\u0639\u062a\u0645\u0627\u062f',
+});
 
 i18n
   .use(initReactI18next)

@@ -9,8 +9,9 @@ vi.mock('../api/client', () => ({ default: { get: vi.fn(), post: vi.fn(), patch:
 vi.mock('../hooks/useTenantBranding', () => ({ default: () => ({ name: 'FuelTrack', logoUrl: '' }) }));
 vi.mock('../store/uiStore', () => ({ default: () => ({ setLang: vi.fn() }) }));
 vi.mock('../permissions/usePermissions', () => ({
-  default: () => ({ can: () => true, canExplicit: () => true }),
+  default: () => ({ can: () => true, canExplicit: () => true, hasAssignedPermission: () => false }),
 }));
+vi.mock('../hooks/useOperationalMode', () => ({ default: () => ({ isNewMode: false, modeResolved: true }) }));
 
 const user = { name: 'Admin', role: 'admin', roles: ['admin'], permissions: {} };
 const props = { lang: 'en', theme: 'dark', onToggleTheme: vi.fn(), currentUser: user, unreadCount: 0, onLogout: vi.fn() };

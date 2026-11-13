@@ -315,6 +315,8 @@ public class PermissionEnforcementMiddleware
         // but should not require broad sub_stations/meters/controllers.view.
         if (method.Equals("GET", StringComparison.OrdinalIgnoreCase))
         {
+            if (path.Equals("/api/customer-features/operational-data-mode", StringComparison.OrdinalIgnoreCase))
+                return true;
             if (path.StartsWith("/api/sub-stations", StringComparison.OrdinalIgnoreCase))
                 return true;
             if (path.StartsWith("/api/meters", StringComparison.OrdinalIgnoreCase))

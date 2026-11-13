@@ -10,6 +10,10 @@ namespace FuelTrack.API.Controllers;
 [Route("api/customer-features")]
 public sealed class CustomerFeaturesController(ICustomerFeatureService service) : BaseApiController
 {
+    [HttpGet("operational-data-mode")]
+    public async Task<IActionResult> GetOperationalDataMode(CancellationToken cancellationToken) =>
+        Ok(new { isNewMode = await service.IsOperationalDataNewModeAsync(cancellationToken) });
+
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken cancellationToken) => Ok(await service.GetAllAsync(cancellationToken));
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import {
@@ -11,6 +11,12 @@ import useUiStore from '../store/uiStore';
 import useTenantBranding from '../hooks/useTenantBranding';
 import { useTranslation } from 'react-i18next';
 import NavGroup from './NavGroup';
+import useOperationalMode from '../hooks/useOperationalMode';
+import {
+  navigationGroups,
+  preferredMobileNavigationIds,
+  visibleNavigationItems,
+} from '../navigation/registry';
 
 
 function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onLogout }) {
@@ -22,8 +28,9 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
 
   const roleKey = currentUser?.role || 'operator';
   const userRoles = (currentUser?.roles || []).map(r => (typeof r === 'string' ? r.toLowerCase() : ''));
-  const hasRole = (name) => userRoles.includes(name);
-  const { can, canExplicit } = usePermissions(currentUser);
+  const hasRole = (name) => userRoles.includes(name) || roleKey.toLowerCase() === name;
+  const { can, canExplicit, hasAssignedPermission } = usePermissions(currentUser);
+  const { isNewMode, modeResolved } = useOperationalMode(Boolean(currentUser));
 
   const navDomain = (path) => {
     if (path === '/' || path.startsWith('/generators') || path.startsWith('/my-generators') || path.startsWith('/operations')) return 'blue';
@@ -99,57 +106,44 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
     } catch {}
   };
 
-  const beforeMaintenanceNav = [
-    { to: '/', icon: LayoutDashboard, label: t('sidebar.dashboard'), show: can('dashboard') },
-    { to: '/operations', icon: Zap, label: t('sidebar.operations'), show: can('operational_data', 'view') },
-    { to: '/my-generators', icon: Zap, label: t('sidebar.myGenerators'), show: hasRole('operator') || roleKey === 'operator', contextual: true },
-  ].filter(item => item.show);
+  // The registry is the single rendered navigation source.
 
-  const maintenanceNav = [
-    { to: '/maintenance/service', icon: Clock, label: t('sidebar.serviceIntervals'), show: can('maintenance') && can('operational_data', 'view') },
-    { to: '/maintenance/permits', icon: FileText, label: t('sidebar.workPermits'), show: can('maintenance') },
-    { to: '/warehouse/parts', icon: PackageSearch, label: t('sidebar.partsCatalog'), show: can('warehouse') },
-    { to: '/warehouse/stock', icon: PackageSearch, label: t('sidebar.warehouseStock'), show: can('warehouse') },
-    { to: '/maintenance/installed-parts', icon: Wrench, label: t('sidebar.installedParts'), show: can('maintenance') },
-    { to: '/warehouse/dispatch', icon: PackageCheck, label: t('sidebar.dispatchRequests'), show: can('warehouse') },
-    { to: '/warehouse/supply', icon: Boxes, label: t('sidebar.warehouseSupply'), show: can('warehouse') },
-  ].filter(item => item.show);
+  const visibleNavigation = useMemo(() => visibleNavigationItems({
+    can,
+    canExplicit,
+    hasAssignedPermission,
+    hasRole,
+    isNewMode,
+    modeResolved,
+  }).map(item => ({ ...item, to: item.route, label: t(item.labelKey) })), [
+    can,
+    canExplicit,
+    hasAssignedPermission,
+    isNewMode,
+    modeResolved,
+    roleKey,
+    t,
+    userRoles.join('|'),
+  ]);
 
-  const afterMaintenanceNav = [
-    { to: '/fuel-movements', icon: Truck, label: t('sidebar.fuelMovements'), show: can('fuel_movements') },
-    { to: '/generators/overview', icon: Zap, label: t('sidebar.generatorsOverview'), show: canExplicit('generators', 'view') },
-    { to: '/stock/fuel', icon: Database, label: t('sidebar.fuelStock'), show: can('inventory') },
-    { to: '/stock/oil', icon: Droplet, label: t('sidebar.oilStock'), show: canExplicit('oil', 'view') },
-    { to: '/review-changes', icon: ClipboardCheck, label: t('sidebar.reviewReadings'), show: can('fuel_movements', 'approve') || can('readings', 'approve') || can('inventory', 'approve') },
-    { to: '/inventory', icon: PackageSearch, label: t('sidebar.periodicInventory'), show: can('inventory') },
-  ].filter(item => item.show);
+  const notificationItem = visibleNavigation.find(item => item.id === 'notifications');
+  const beforeMaintenanceNav = visibleNavigation.filter(item => item.group === 'main' && item.order < navigationGroups.maintenance.order);
+  const maintenanceNav = visibleNavigation.filter(item => item.group === 'maintenance');
+  const afterMaintenanceNav = visibleNavigation.filter(item => item.group === 'main' && item.order > navigationGroups.maintenance.order);
+  const setupNav = visibleNavigation.filter(item => item.group === 'settings');
 
-  const setupNav = [
-    { to: '/locations', icon: MapPin, label: ar ? 'المحافظات والمحطات' : 'Locations & Stations', show: can('settings', 'manage') },
-    { to: '/generators', icon: Zap, label: ar ? 'إعداد المولدات' : 'Setup Generators', show: can('settings', 'manage') },
-    { to: '/meters', icon: Gauge, label: ar ? 'العدادات' : 'Meters', show: can('settings', 'manage') },
-    { to: '/setup-oils', icon: Droplet, label: ar ? 'إعداد مخزون الزيت' : 'Setup Oils', show: can('settings', 'manage') },
-    { to: '/tanks', icon: Database, label: ar ? 'إعداد الخزانات' : 'Setup Tanks', show: can('settings', 'manage') },
-    { to: '/controllers', icon: Cpu, label: ar ? 'إعداد شاشات المولدات' : 'Setup Controllers', show: can('settings', 'manage') },
-    { to: '/users', icon: Users, label: ar ? 'إدارة المستخدمين' : 'Manage Users', show: can('users') },
-    { to: '/roles', icon: ShieldCheck, label: ar ? 'الأدوار والصلاحيات' : 'Roles & Permissions', show: can('settings', 'manage') },
-    { to: '/audits', icon: ScrollText, label: ar ? 'سجل التدقيق' : 'Audit Log', show: can('audits') },
-    { to: '/rollback', icon: Undo2, label: ar ? 'التراجع عن الاعتماد' : 'Approval Rollback', show: hasRole('admin') || roleKey === 'admin' },
-  ].filter(item => item.show);
-
-  const preferredMobilePaths = ['/', '/operations', '/maintenance', '/warehouse/stock'];
   const availableNav = [
     ...beforeMaintenanceNav,
-    { to: '/maintenance', icon: Wrench, label: t('sidebar.maintenance'), show: can('maintenance') },
+    ...(can('maintenance') ? [{ id: 'maintenance-root', to: '/maintenance', icon: navigationGroups.maintenance.icon, label: t(navigationGroups.maintenance.labelKey) }] : []),
     ...maintenanceNav,
     ...afterMaintenanceNav,
-  ].filter(item => item.show !== false);
-  const preferredMobileNav = preferredMobilePaths
-    .map(path => availableNav.find(item => item.to === path))
+  ];
+  const preferredMobileNav = preferredMobileNavigationIds
+    .map(id => availableNav.find(item => item.id === id))
     .filter(Boolean);
   const mobileNav = [
     ...preferredMobileNav,
-    ...availableNav.filter(item => !preferredMobilePaths.includes(item.to)),
+    ...availableNav.filter(item => !preferredMobileNavigationIds.includes(item.id)),
   ].slice(0, 4);
 
   const roleLabels = {
@@ -234,12 +228,12 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
         )}
 
         <nav className="sidebar-nav">
-          {can('alerts') && (
-            <div style={{ position: 'relative' }} data-nav-top={ar ? 'الإشعارات' : 'Notifications'}>
-              <div className="nav-item" title={sidebarCollapsed ? (ar ? 'الإشعارات' : 'Notifications') : undefined}>
+          {notificationItem && (
+            <div style={{ position: 'relative' }} data-nav-top={notificationItem.label}>
+              <div className="nav-item" title={sidebarCollapsed ? notificationItem.label : undefined}>
                 <span className="nav-icon-tile nav-icon-tile-red"><Bell size={19} strokeWidth={2.25} /></span>
                 <NavLink className="nav-item-label" to="/notifications" onClick={closeMobile} style={{ flex: 1, color: 'inherit', textDecoration: 'none' }}>
-                  {ar ? 'الإشعارات' : 'Notifications'}
+                  {notificationItem.label}
                 </NavLink>
                 {unreadCount > 0 && <span className="badge badge-danger" style={{ padding: '2px 6px' }}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
                 <button onClick={openNotifications} aria-label={ar ? 'فتح الإشعارات السريعة' : 'Open notification preview'} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', display: 'flex', padding: 2 }}>
@@ -269,7 +263,7 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
               <span className="nav-item-label">{label}</span>
             </NavLink>
           ))}
-          <NavGroup icon={Wrench} label={t('sidebar.maintenance')} headerTo="/maintenance" items={maintenanceNav} onNavigate={closeMobile} collapsed={sidebarCollapsed} />
+          <NavGroup icon={navigationGroups.maintenance.icon} label={t(navigationGroups.maintenance.labelKey)} headerTo="/maintenance" items={maintenanceNav} onNavigate={closeMobile} collapsed={sidebarCollapsed} />
           {afterMaintenanceNav.map(({ to, icon: Icon, label }) => (
             <NavLink key={to} to={to} data-nav-top={label} title={sidebarCollapsed ? label : undefined} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
               <span className={`nav-icon-tile nav-icon-tile-${navDomain(to)}`}><Icon size={19} strokeWidth={2.25} /></span><span className="nav-item-label">{label}</span>
@@ -281,7 +275,7 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
               <span className="nav-item-label">{t('sidebar.reports')}</span>
             </NavLink>
           )}
-          <NavGroup icon={Settings} label={t('sidebar.systemSettings')} items={setupNav} onNavigate={closeMobile} collapsed={sidebarCollapsed} />
+          <NavGroup icon={navigationGroups.settings.icon} label={t(navigationGroups.settings.labelKey)} items={setupNav} onNavigate={closeMobile} collapsed={sidebarCollapsed} />
         </nav>
 
         <div className="sidebar-footer">

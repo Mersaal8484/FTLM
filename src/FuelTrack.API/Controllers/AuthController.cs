@@ -435,15 +435,6 @@ public class AuthController : ControllerBase
                 .OrderBy(m => m.SortOrder)
                 .ToListAsync();
 
-            if (isAdmin)
-            {
-                return modules.ToDictionary(
-                    m => m.Key,
-                    m => m.PagePermissions.ToDictionary(
-                        pp => pp.ActionKey,
-                        _ => true));
-            }
-
             var roleNames = await _userManager.GetRolesAsync(user);
             var roleIds = new List<int>();
             foreach (var rn in roleNames)
@@ -465,6 +456,16 @@ public class AuthController : ControllerBase
                 .ToDictionary(
                     g => g.Key,
                     g => g.ToDictionary(x => x.ActionKey, _ => true));
+
+            if (isAdmin)
+            {
+                return modules.ToDictionary(
+                    m => m.Key,
+                    m => m.PagePermissions.ToDictionary(
+                        pp => pp.ActionKey,
+                        pp => !m.Key.Equals("legacy_screens", StringComparison.OrdinalIgnoreCase) ||
+                              (grantedDict.TryGetValue(m.Key, out var actions) && actions.ContainsKey(pp.ActionKey))));
+            }
 
             return modules.ToDictionary(
                 m => m.Key,
