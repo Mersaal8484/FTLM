@@ -57,7 +57,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
   useEffect(() => {
     const fetchSubStations = async () => {
       try {
-        const res = await client.get('/api/substations');
+        const res = await client.get('/api/sub-stations');
         setSubStations(res.data?.items || res.data || []);
       } catch (e) {
         console.error(e);
