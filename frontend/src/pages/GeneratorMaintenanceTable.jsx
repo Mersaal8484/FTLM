@@ -552,7 +552,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
                             {ar ? 'ملغي' : 'Voided'}
                           </span>
                         ) : (
-                          <span style={{ color: '#22c55e' }}>{ar ? 'نشط' : 'Active'}</span>
+                          <span style={{ color: 'var(--success)' }}>{ar ? 'نشط' : 'Active'}</span>
                         )}
                       </td>
                       <td style={{ padding: '8px' }}>

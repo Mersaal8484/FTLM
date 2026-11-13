@@ -432,7 +432,7 @@ function FuelMovements({ lang, currentUser }) {
                   <th style={{ textAlign: 'center' }}>{ar ? 'الوقود المنقول' : 'Transferred'}</th>
                   <th style={{ textAlign: 'center' }}>{ar ? 'الوقود المفقود' : 'Lost'}</th>
                   <th style={{ textAlign: 'center' }}>{ar ? 'الوقود المستهلك' : 'Consumed'}</th>
-                  <th style={{ background: '#84cc1615', color: '#84cc16', textAlign: 'center' }}>{ar ? 'المخزون المتبقي' : 'Remaining'}</th>
+                  <th style={{ background: 'var(--success-subtle)', color: 'var(--success)', textAlign: 'center' }}>{ar ? 'المخزون المتبقي' : 'Remaining'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -473,10 +473,10 @@ function FuelMovements({ lang, currentUser }) {
               <div className="station-group-header" style={{
                 display: 'flex', alignItems: 'center', gap: 15,
                 padding: '15px 20px', background: 'var(--bg-card)',
-                border: '1px solid var(--border)', borderBottom: '2px solid #84cc16',
+                border: '1px solid var(--border)', borderBottom: '2px solid var(--success)',
                 borderRadius: 12, marginBottom: 20, boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, borderRadius: 10, background: '#84cc1615', color: '#84cc16' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, borderRadius: 10, background: 'var(--success-subtle)', color: 'var(--success)' }}>
                   <MapPin size={22} />
                 </div>
                 <div>
@@ -748,7 +748,7 @@ function FuelMovements({ lang, currentUser }) {
                         const capacity = Number(selectedTank.capacityLiters) || 0;
                         const current = Number(selectedTank.actualStockLiters) || 0;
                         const fillPct = capacity > 0 ? Math.min((current / capacity) * 100, 100) : 0;
-                        const fillColor = fillPct > 90 ? '#ef4444' : fillPct > 70 ? 'var(--warning)' : '#10b981';
+                        const fillColor = fillPct > 90 ? '#ef4444' : fillPct > 70 ? 'var(--warning)' : 'var(--success)';
                         const qty = Number(form.quantityLiters) || 0;
                         const wouldExceed = qty > 0 && capacity > 0 && (current + qty) > capacity;
                         return (

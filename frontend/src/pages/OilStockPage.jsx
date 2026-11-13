@@ -10,7 +10,7 @@ const fmt = (v, d = 0) =>
 const alertCfg = {
   danger:  { color: '#ef4444', bg: '#ef444415', label: { ar: 'خطر',   en: 'Danger'  } },
   warning: { color: 'var(--warning)', bg: 'var(--warning)15', label: { ar: 'تحذير', en: 'Warning' } },
-  normal:  { color: '#10b981', bg: '#10b98115', label: { ar: 'طبيعي', en: 'Normal'  } },
+  normal:  { color: 'var(--success)', bg: 'var(--success-subtle)', label: { ar: 'طبيعي', en: 'Normal'  } },
 };
 
 function AlertBadge({ level, ar }) {
@@ -90,7 +90,7 @@ function OilStockPage({ lang }) {
     const alertLevel = s.alertLevel || 'normal';
     const minStock = s.totalMinAlert || s.minStock || 0;
     const fillPct = minStock > 0 ? Math.min(100, (remaining / (minStock * 3)) * 100) : null;
-    const barColor = alertLevel === 'danger' ? '#ef4444' : alertLevel === 'warning' ? 'var(--warning)' : '#10b981';
+    const barColor = alertLevel === 'danger' ? '#ef4444' : alertLevel === 'warning' ? 'var(--warning)' : 'var(--success)';
 
     return (
       <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -99,7 +99,7 @@ function OilStockPage({ lang }) {
         <td style={{ textAlign: 'center' }}>{fmt(s.baseStock, 0)}</td>
         <td style={{ textAlign: 'center', color: 'var(--secondary)', fontWeight: 700 }}>{fmt(s.inbound, 0)}</td>
         <td style={{ textAlign: 'center', color: 'var(--danger)' }}>{fmt(s.transferOut, 0)}</td>
-        <td style={{ textAlign: 'center', color: '#10b981' }}>{fmt(s.transferIn, 0)}</td>
+        <td style={{ textAlign: 'center', color: 'var(--success)' }}>{fmt(s.transferIn, 0)}</td>
         <td style={{ textAlign: 'center', color: 'var(--danger)' }}>{fmt(s.loss, 0)}</td>
         <td style={{ textAlign: 'center', color: 'var(--warning)' }}>{fmt(s.consumed, 0)}</td>
         <td style={{ textAlign: 'center', fontWeight: 800, fontSize: 14 }}>
@@ -208,7 +208,7 @@ function OilStockPage({ lang }) {
                               <th style={{ textAlign: 'center' }}>{ar ? 'الرصيد الافتتاحي' : 'Base Stock'}</th>
                               <th style={{ textAlign: 'center', color: 'var(--secondary)' }}>{ar ? 'وارد' : 'Inbound'}</th>
                               <th style={{ textAlign: 'center', color: 'var(--danger)' }}>{ar ? 'نقل مرسل' : 'Sent'}</th>
-                              <th style={{ textAlign: 'center', color: '#10b981' }}>{ar ? 'نقل مستلم' : 'Received'}</th>
+                              <th style={{ textAlign: 'center', color: 'var(--success)' }}>{ar ? 'نقل مستلم' : 'Received'}</th>
                               <th style={{ textAlign: 'center', color: 'var(--danger)' }}>{ar ? 'فاقد' : 'Loss'}</th>
                               <th style={{ textAlign: 'center', color: 'var(--warning)' }}>{ar ? 'مستهلك' : 'Consumed'}</th>
                               <th style={{ textAlign: 'center', fontWeight: 800 }}>{ar ? 'المخزون الفعلي (L)' : 'Actual Stock (L)'}</th>
