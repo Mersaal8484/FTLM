@@ -4,7 +4,7 @@ import { Eye, CheckCircle, AlertTriangle, Layers } from 'lucide-react';
 import client from '../api/client';
 import { PageHeader, Button, FormField } from '../components/ui';
 
-export default function TankSetup() {
+export default function TankSetup({ embedded = false }) {
   const { t } = useTranslation();
   const [tanks, setTanks] = useState([]);
   const [tankId, setTankId] = useState('');
@@ -92,11 +92,13 @@ export default function TankSetup() {
   };
 
   return (
-    <div className="capture-page operational-shell" style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>
-      <PageHeader
-        title={t('operational.tanks.setupTitle')}
-        subtitle={t('operational.tanks.setupSubtitle')}
-      />
+    <div className={embedded ? '' : 'capture-page operational-shell'} style={{ maxWidth: 800, margin: '0 auto', padding: embedded ? 0 : 24 }}>
+      {!embedded && (
+        <PageHeader
+          title={t('operational.tanks.setupTitle')}
+          subtitle={t('operational.tanks.setupSubtitle')}
+        />
+      )}
 
       {successMsg && (
         <div style={{ padding: 12, borderRadius: 8, background: 'rgba(34,197,94,0.15)', border: '1px solid #22c55e', color: '#22c55e', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -297,7 +297,8 @@ function App() {
               <Route path="/operations/review" element={<Protected module="operational_data" action="review"><OperationalReview /></Protected>} />
               <Route path="/energy-balance" element={<Protected module="operational_data"><EnergyBalanceBoard /></Protected>} />
               <Route path="/operations/tanks/refill" element={<Protected module="operational_data"><TankRefillTransfer /></Protected>} />
-              <Route path="/operations/tanks/setup" element={<Protected module="operational_data"><TankSetup /></Protected>} />
+              <Route path="/operations/tanks/setup" element={<Navigate to="/tanks?tab=calibration" replace />} />
+              <Route path="/operations/tank-setup" element={<Navigate to="/tanks?tab=calibration" replace />} />
               <Route path="/operations/daily-log" element={<Protected module="operational_data"><OperationalDailyLog /></Protected>} />
 
               {/* Notifications */}

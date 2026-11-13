@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Droplets, Pencil, Trash2, Save, X, AlertCircle, RefreshCw, MapPin } from 'lucide-react';
 import client from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
+import TankSetup from './TankSetup';
 
 const emptyForm = {
   code: '', name: '',
@@ -13,8 +15,28 @@ const emptyForm = {
   notes: '',
 };
 
+function TankTabs({ activeTab, onChange, ar }) {
+  const tabs = [
+    { id: 'basic', label: ar ? '\u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u0623\u0633\u0627\u0633\u064a\u0629' : 'Basic data' },
+    { id: 'calibration', label: ar ? '\u0627\u0644\u0645\u0639\u0627\u064a\u0631\u0629 \u0648\u0627\u0644\u0646\u0642\u0637\u0629 \u0627\u0644\u0645\u064a\u062a\u0629' : 'Calibration & dead stock' },
+  ];
+
+  return (
+    <div className="ft-tabs" style={{ marginBottom: 24 }} aria-label={ar ? '\u0623\u0642\u0633\u0627\u0645 \u0627\u0644\u062e\u0632\u0627\u0646\u0627\u062a' : 'Tank sections'}>
+      {tabs.map(tab => (
+        <button key={tab.id} type="button" className={`ft-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => onChange(tab.id)}>
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function TanksManagement({ lang, currentUser }) {
   const ar = lang === 'ar';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') === 'calibration' ? 'calibration' : 'basic';
+  const setActiveTab = (tab) => setSearchParams(tab === 'calibration' ? { tab } : {});
 
   const perms = currentUser?.permissions?.tanks || {};
   const canAdd = currentUser?.role === 'admin' || perms.create || perms.add;
@@ -190,6 +212,19 @@ function TanksManagement({ lang, currentUser }) {
     groupedTanks[stationName].push(tank);
   });
 
+  if (activeTab === 'calibration') {
+    return (
+      <div>
+        <PageHeader
+          title={ar ? '\u0625\u0639\u062f\u0627\u062f \u062e\u0632\u0627\u0646\u0627\u062a \u0627\u0644\u0648\u0642\u0648\u062f' : 'Tanks Management'}
+          subtitle={ar ? '\u0625\u062f\u0627\u0631\u0629 \u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u062e\u0632\u0627\u0646\u0627\u062a \u0648\u0645\u0639\u0627\u064a\u0631\u062a\u0647\u0627' : 'Manage tank details and calibration'}
+        />
+        <TankTabs activeTab={activeTab} onChange={setActiveTab} ar={ar} />
+        <TankSetup embedded />
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeader
@@ -204,6 +239,7 @@ function TanksManagement({ lang, currentUser }) {
           </div>
         }
       />
+      <TankTabs activeTab={activeTab} onChange={setActiveTab} ar={ar} />
 
       {/* Error */}
       {error && (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClipboardCheck, Gauge, History, Zap, ArrowRightLeft, Settings, FileText, BarChart3 } from 'lucide-react';
+import { ClipboardCheck, Gauge, History, Zap, ArrowRightLeft, FileText, BarChart3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
@@ -8,7 +8,6 @@ export const operationalActions = [
   { key: 'review', icon: ClipboardCheck, route: '/operations/review' },
   { key: 'history', icon: History, route: '/operations/history' },
   { key: 'refill', icon: ArrowRightLeft, route: '/operations/tanks/refill' },
-  { key: 'tankSetup', icon: Settings, route: '/operations/tanks/setup' },
   { key: 'dailyLog', icon: FileText, route: '/operations/daily-log' },
   { key: 'energyBalance', icon: BarChart3, route: '/energy-balance' },
 ];
