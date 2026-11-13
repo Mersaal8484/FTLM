@@ -36,7 +36,7 @@ describe('Sidebar navigation', () => {
   it('contains exactly seven maintenance children and no warehouse reports', () => {
     renderSidebar('/maintenance/service');
     const group = document.querySelector('[data-nav-group="Maintenance"]');
-    const labels = [...group.querySelectorAll('.nav-group-children a span')].map(item => item.textContent);
+    const labels = within(group.querySelector('.nav-group-children')).getAllByRole('link').map(link => link.textContent);
     expect(labels).toEqual(['Service Intervals', 'Work Permits', 'Parts Catalog', 'Warehouse Stock', 'Installed Parts', 'Dispatch Requests', 'Warehouse Supply']);
     expect(within(group).queryByText('Warehouse Reports')).not.toBeInTheDocument();
     expect(within(group).getByRole('button', { name: 'Maintenance' })).toHaveAttribute('aria-expanded', 'true');

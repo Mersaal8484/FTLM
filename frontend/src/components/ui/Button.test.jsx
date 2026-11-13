@@ -10,17 +10,15 @@ describe('UI Button Component', () => {
     expect(screen.getByRole('button', { name: /Click Me/i })).toBeInTheDocument();
   });
 
-  test('applies variant class and size inline style correctly', () => {
+  test('applies variant and size classes correctly', () => {
     const { container } = render(
       <Button variant="danger" size="sm">
         Delete
       </Button>
     );
     const btn = container.querySelector('button');
-    // variant maps to a CSS class
     expect(btn).toHaveClass('btn-danger');
-    // size maps to inline style (not a CSS class)
-    expect(btn.style.height).toBe('30px');
+    expect(btn).toHaveClass('btn-sm');
   });
 
   test('handles click events when enabled', () => {
