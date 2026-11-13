@@ -2085,6 +2085,9 @@ body {
   border-radius: 11px;
   box-shadow: none;
 }
+.app-root .btn-sm { min-height: 44px; padding: 8px 12px; gap: 6px; font-size: var(--text-xs); }
+.app-root .btn-md { min-height: 44px; padding: 9px 16px; gap: 7px; font-size: var(--text-sm); }
+.app-root .btn-lg { min-height: 48px; padding: 11px 22px; gap: 9px; font-size: var(--text-base); }
 .app-root .btn-primary { color: var(--on-accent); }
 .app-root .btn-ghost { background: var(--surface); border-color: var(--border); }
 .app-root .btn-danger { border-color: color-mix(in srgb, var(--danger) 22%, transparent); }
@@ -2125,6 +2128,46 @@ body {
 .app-root .modal-header,
 .app-root .modal-footer { background: var(--surface-2); }
 .app-root .toast { border-radius: 14px; box-shadow: var(--shadow-lg); }
+.toast-container {
+  position: fixed;
+  top: 20px;
+  inset-inline-end: 20px;
+  z-index: 9999;
+  display: grid;
+  gap: 10px;
+  width: min(380px, calc(100vw - 32px));
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 240px;
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  animation: toast-slide-in .22s ease-out;
+}
+.toast-success { border-color: color-mix(in srgb, var(--success) 38%, var(--border)); color: var(--success); }
+.toast-error { border-color: color-mix(in srgb, var(--danger) 38%, var(--border)); color: var(--danger); }
+.toast-warning { border-color: color-mix(in srgb, var(--warning) 38%, var(--border)); color: var(--warning); }
+.toast-info { border-color: color-mix(in srgb, var(--info) 38%, var(--border)); color: var(--info); }
+.toast-icon { flex: 0 0 auto; }
+.toast-message { flex: 1; color: var(--text); font-size: var(--text-sm); font-weight: 650; }
+.toast-close { display: grid; width: 32px; height: 32px; place-items: center; border: 0; border-radius: 9px; background: transparent; color: currentColor; cursor: pointer; opacity: .72; }
+.toast-close:hover { background: var(--surface-2); opacity: 1; }
+
+.loading-state { display: grid; min-height: 180px; place-items: center; align-content: center; gap: 12px; padding: 40px; color: var(--text-muted); }
+.loading-state-text { margin: 0; color: var(--text-muted); font-size: var(--text-sm); }
+.table-loader { display: grid; gap: 12px; padding: 16px; }
+.table-loader-row { display: flex; align-items: center; gap: 12px; }
+.table-loader-cell { height: 14px; flex: 1; border-radius: 6px; }
+.table-loader-cell-short { max-width: 80px; }
+
+@keyframes slideUp {
+  from { transform: translateY(14px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
 
 .app-root .login-page,
 .app-root .login-container { background: var(--bg); }

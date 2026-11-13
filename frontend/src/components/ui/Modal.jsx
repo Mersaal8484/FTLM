@@ -59,12 +59,11 @@ function Modal({
       role="dialog"
       aria-modal="true"
       aria-label={typeof title === 'string' ? title : undefined}
-      style={{ animation: 'fadeIn 0.15s ease' }}
     >
       <div
         ref={dialogRef}
         className="modal-box"
-        style={{ maxWidth, width: '100%', animation: 'slideUp 0.18s ease' }}
+        style={{ maxWidth, width: '100%' }}
       >
         {/* Header */}
         <div className="modal-header">
@@ -85,13 +84,6 @@ function Modal({
         {/* Footer */}
         {footer && <div className="modal-footer">{footer}</div>}
       </div>
-
-      <style>{`
-        @keyframes slideUp {
-          from { transform: translateY(18px); opacity: 0; }
-          to   { transform: translateY(0);    opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }

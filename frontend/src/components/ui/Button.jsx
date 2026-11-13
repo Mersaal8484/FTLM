@@ -33,22 +33,16 @@ const Button = React.forwardRef(function Button(
     outline:   'btn-outline',
   }[variant] ?? 'btn-primary';
 
-  const sizeStyle = {
-    sm: { fontSize: 'var(--text-xs)', padding: '5px 12px', height: 30, gap: 5 },
-    md: { fontSize: 'var(--text-sm)', padding: '7px 16px', height: 36, gap: 6 },
-    lg: { fontSize: 'var(--text-base)', padding: '9px 22px', height: 42, gap: 8 },
-  }[size] ?? {};
-
   const isDisabled = disabled || loading;
 
   return (
     <button
       ref={ref}
       type={type}
-      className={`btn ${variantClass} ${className}`}
+      className={`btn ${variantClass} btn-${size} ${className}`}
       disabled={isDisabled}
       onClick={!isDisabled ? onClick : undefined}
-      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', ...sizeStyle, ...style }}
+      style={style}
       {...rest}
     >
       {loading ? (
