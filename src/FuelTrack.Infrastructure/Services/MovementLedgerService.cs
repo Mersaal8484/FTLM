@@ -11,6 +11,16 @@ public sealed class MovementLedgerService(
     IUserScopeFilterService scopeFilter,
     ICurrentUserService currentUser) : IMovementLedgerService
 {
+    private sealed class LedgerKeyRow
+    {
+        public int Id { get; set; }
+        public string Kind { get; set; } = null!;
+        public DateTime Date { get; set; }
+        public string Station { get; set; } = null!;
+        public string MovementType { get; set; } = null!;
+        public double Quantity { get; set; }
+    }
+
     public async Task<PagedResult<MovementLedgerRowDto>> GetAsync(
         MovementLedgerFilterDto filter,
         CancellationToken cancellationToken = default)
@@ -93,25 +103,127 @@ public sealed class MovementLedgerService(
                 x.TransactionTypeLookup.Name.Contains(search));
         }
 
-        IQueryable<MovementLedgerRowDto> query;
+        IQueryable<LedgerKeyRow> keyQuery;
         if (string.Equals(filter.Kind, "fuel", StringComparison.OrdinalIgnoreCase))
-            query = ProjectFuel(fuel);
+            keyQuery = ProjectFuelKey(fuel);
         else if (string.Equals(filter.Kind, "oil", StringComparison.OrdinalIgnoreCase))
-            query = ProjectOil(oil);
+            keyQuery = ProjectOilKey(oil);
         else
-            query = ProjectFuel(fuel).Concat(ProjectOil(oil));
+            keyQuery = ProjectFuelKey(fuel).Concat(ProjectOilKey(oil));
 
         var descending = !string.Equals(filter.SortDirection, "asc", StringComparison.OrdinalIgnoreCase);
-        query = (filter.Sort ?? "date").ToLowerInvariant() switch
+        keyQuery = (filter.Sort ?? "date").ToLowerInvariant() switch
         {
-            "quantity" => descending ? query.OrderByDescending(x => x.Quantity) : query.OrderBy(x => x.Quantity),
-            "station" => descending ? query.OrderByDescending(x => x.Station) : query.OrderBy(x => x.Station),
-            "type" => descending ? query.OrderByDescending(x => x.MovementType) : query.OrderBy(x => x.MovementType),
-            _ => descending ? query.OrderByDescending(x => x.Date).ThenByDescending(x => x.Id) : query.OrderBy(x => x.Date).ThenBy(x => x.Id)
+            "quantity" => descending ? keyQuery.OrderByDescending(x => x.Quantity) : keyQuery.OrderBy(x => x.Quantity),
+            "station" => descending ? keyQuery.OrderByDescending(x => x.Station) : keyQuery.OrderBy(x => x.Station),
+            "type" => descending ? keyQuery.OrderByDescending(x => x.MovementType) : keyQuery.OrderBy(x => x.MovementType),
+            _ => descending ? keyQuery.OrderByDescending(x => x.Date).ThenByDescending(x => x.Id) : keyQuery.OrderBy(x => x.Date).ThenBy(x => x.Id)
         };
 
-        var totalCount = await query.CountAsync(cancellationToken);
-        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        var totalCount = await keyQuery.CountAsync(cancellationToken);
+        var pageKeys = await keyQuery.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+
+        if (pageKeys.Count == 0)
+        {
+            return new PagedResult<MovementLedgerRowDto>
+            {
+                Items = [],
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            };
+        }
+
+        var fuelIds = pageKeys.Where(x => x.Kind == "fuel").Select(x => x.Id).ToList();
+        var oilIds = pageKeys.Where(x => x.Kind == "oil").Select(x => x.Id).ToList();
+
+        var fuelEntities = fuelIds.Count > 0
+            ? await db.FuelTransactions.AsNoTracking()
+                .Include(x => x.SubStation).ThenInclude(s => s.Station)
+                .Include(x => x.TransactionTypeLookup)
+                .Include(x => x.DestinationSubStation)
+                .Include(x => x.ApprovedBy)
+                .Where(x => fuelIds.Contains(x.Id))
+                .ToListAsync(cancellationToken)
+            : [];
+
+        var oilEntities = oilIds.Count > 0
+            ? await db.OilTransactions.AsNoTracking()
+                .Include(x => x.SubStation).ThenInclude(s => s.Station)
+                .Include(x => x.TransactionTypeLookup)
+                .Include(x => x.DestinationSubStation)
+                .Include(x => x.ApprovedBy)
+                .Where(x => oilIds.Contains(x.Id))
+                .ToListAsync(cancellationToken)
+            : [];
+
+        var userIds = fuelEntities.Select(x => x.CreatedBy)
+            .Concat(oilEntities.Select(x => x.CreatedBy))
+            .Concat(fuelEntities.Where(x => x.ApprovedById.HasValue).Select(x => x.ApprovedById!.Value))
+            .Concat(oilEntities.Where(x => x.ApprovedById.HasValue).Select(x => x.ApprovedById!.Value))
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList();
+
+        var userNames = userIds.Count > 0
+            ? await db.Users.AsNoTracking()
+                .Where(u => userIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken)
+            : new Dictionary<int, string>();
+
+        var fuelMap = fuelEntities.ToDictionary(
+            x => x.Id,
+            x => new MovementLedgerRowDto(
+                x.Id,
+                "fuel",
+                x.TransactionDate,
+                x.SubStation.StationId,
+                x.SubStation.Station.Name,
+                x.SubStationId,
+                x.SubStation.Name,
+                x.TransactionTypeLookup.Name,
+                x.TransactionTypeLookup.Code,
+                x.QuantityLiters,
+                "L",
+                x.SupplierCompany ?? x.Reference ?? x.DestinationSubStation?.Name,
+                x.IsApproved ? "approved" : x.ApprovedAt != null ? "rejected" : "pending",
+                userNames.TryGetValue(x.CreatedBy, out var cb) ? cb : null,
+                x.ApprovedBy?.FullName ?? (x.ApprovedById.HasValue && userNames.TryGetValue(x.ApprovedById.Value, out var ab) ? ab : null),
+                x.CreatedAt));
+
+        var oilMap = oilEntities.ToDictionary(
+            x => x.Id,
+            x => new MovementLedgerRowDto(
+                x.Id,
+                "oil",
+                x.TransactionDate,
+                x.SubStation.StationId,
+                x.SubStation.Station.Name,
+                x.SubStationId,
+                x.SubStation.Name,
+                x.TransactionTypeLookup.Name,
+                x.TransactionTypeLookup.Code,
+                x.QuantityLiters,
+                "L",
+                x.SupplierCompany ?? x.Reference ?? x.DestinationSubStation?.Name,
+                x.IsApproved ? "approved" : x.ApprovedAt != null ? "rejected" : "pending",
+                userNames.TryGetValue(x.CreatedBy, out var cb) ? cb : null,
+                x.ApprovedBy?.FullName ?? (x.ApprovedById.HasValue && userNames.TryGetValue(x.ApprovedById.Value, out var ab) ? ab : null),
+                x.CreatedAt));
+
+        var items = new List<MovementLedgerRowDto>(pageKeys.Count);
+        foreach (var key in pageKeys)
+        {
+            if (key.Kind == "fuel" && fuelMap.TryGetValue(key.Id, out var fuelDto))
+            {
+                items.Add(fuelDto);
+            }
+            else if (key.Kind == "oil" && oilMap.TryGetValue(key.Id, out var oilDto))
+            {
+                items.Add(oilDto);
+            }
+        }
+
         return new PagedResult<MovementLedgerRowDto>
         {
             Items = items,
@@ -121,29 +233,25 @@ public sealed class MovementLedgerService(
         };
     }
 
-    private IQueryable<MovementLedgerRowDto> ProjectFuel(IQueryable<FuelTransaction> query) =>
-        query.Select(x => new MovementLedgerRowDto(
-            x.Id, "fuel", x.TransactionDate,
-            x.SubStation.StationId, x.SubStation.Station.Name,
-            x.SubStationId, x.SubStation.Name,
-            x.TransactionTypeLookup.Name, x.TransactionTypeLookup.Code,
-            x.QuantityLiters, "L",
-            x.SupplierCompany ?? x.Reference ?? (x.DestinationSubStation != null ? x.DestinationSubStation.Name : null),
-            x.IsApproved ? "approved" : x.ApprovedAt != null ? "rejected" : "pending",
-            db.Users.Where(u => u.Id == x.CreatedBy).Select(u => u.FullName).FirstOrDefault(),
-            x.ApprovedBy != null ? x.ApprovedBy.FullName : null,
-            x.CreatedAt));
+    private static IQueryable<LedgerKeyRow> ProjectFuelKey(IQueryable<FuelTransaction> query) =>
+        query.Select(x => new LedgerKeyRow
+        {
+            Id = x.Id,
+            Kind = "fuel",
+            Date = x.TransactionDate,
+            Station = x.SubStation.Station.Name,
+            MovementType = x.TransactionTypeLookup.Name,
+            Quantity = x.QuantityLiters
+        });
 
-    private IQueryable<MovementLedgerRowDto> ProjectOil(IQueryable<OilTransaction> query) =>
-        query.Select(x => new MovementLedgerRowDto(
-            x.Id, "oil", x.TransactionDate,
-            x.SubStation.StationId, x.SubStation.Station.Name,
-            x.SubStationId, x.SubStation.Name,
-            x.TransactionTypeLookup.Name, x.TransactionTypeLookup.Code,
-            x.QuantityLiters, "L",
-            x.SupplierCompany ?? x.Reference ?? (x.DestinationSubStation != null ? x.DestinationSubStation.Name : null),
-            x.IsApproved ? "approved" : x.ApprovedAt != null ? "rejected" : "pending",
-            db.Users.Where(u => u.Id == x.CreatedBy).Select(u => u.FullName).FirstOrDefault(),
-            x.ApprovedBy != null ? x.ApprovedBy.FullName : null,
-            x.CreatedAt));
+    private static IQueryable<LedgerKeyRow> ProjectOilKey(IQueryable<OilTransaction> query) =>
+        query.Select(x => new LedgerKeyRow
+        {
+            Id = x.Id,
+            Kind = "oil",
+            Date = x.TransactionDate,
+            Station = x.SubStation.Station.Name,
+            MovementType = x.TransactionTypeLookup.Name,
+            Quantity = x.QuantityLiters
+        });
 }
