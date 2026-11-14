@@ -126,7 +126,7 @@ function ActiveGenerators({ t, lang, currentUser }) {
                     <h3 style={{ margin: 0, fontSize: 18, fontWeight: 'bold', color: 'var(--text-main)' }}>{group.label}</h3>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{ar ? 'المولدات النشطة المرتبطة بشاشات التحكم' : 'Active generators linked to control screens'}</div>
                   </div>
-                  <span style={{ marginInlineStart: 'auto', padding: '6px 14px', background: 'var(--primary)', color: '#fff', borderRadius: 20, fontSize: 13, fontWeight: 'bold' }}>
+                  <span style={{ marginInlineStart: 'auto', padding: '6px 14px', background: 'var(--primary)', color: 'var(--on-accent)', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 'bold' }}>
                     {group.gens.length} {ar ? 'مولدات' : 'Generators'}
                   </span>
                 </div>

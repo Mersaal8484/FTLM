@@ -191,7 +191,7 @@ function InstalledParts({ lang, currentUser }) {
                 {withIndicator.map(p => {
                   const cfg = indicatorCfg[p.indicator] || indicatorCfg.green;
                   return (
-                    <tr key={p.id} style={{ background: p.indicator === 'red' ? 'rgba(239,68,68,0.08)' : p.indicator === 'yellow' ? 'rgba(234,179,8,0.08)' : 'transparent' }}>
+                    <tr key={p.id} style={{ background: p.indicator === 'red' ? 'var(--danger-subtle)' : p.indicator === 'yellow' ? 'var(--warning-subtle)' : 'transparent' }}>
                       <td style={{ fontWeight: 700 }}>{p.sparePartName}</td>
                       <td>{p.generatorName}</td>
                       <td>{p.installationDate}</td>

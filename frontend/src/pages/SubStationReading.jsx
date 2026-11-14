@@ -338,7 +338,7 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
               </div>
               <div className="section-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
 
-                <div className="glass-card" style={{ padding: 15, borderRadius: 10, border: '1px solid hsla(210,100%,60%,0.1)', background: 'var(--primary-glow)' }}>
+                <div className="glass-card" style={{ padding: 15, borderRadius: 'var(--radius-sm)', border: '1px solid var(--primary-subtle)', background: 'var(--primary-subtle)' }}>
                   <div style={labelStyle}>{ar ? 'إجمالي إنتاج المولدات' : 'Total Gen Production'}</div>
                   <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--primary)' }}>
                     {production.toLocaleString('en-US')} <span style={{ fontSize: 14 }}>KWh</span>
@@ -357,7 +357,7 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
 
                 {/* الفارق = الطاقة المرسلة الإجمالية */}
                 {energySentDiff !== null && energySentDiff >= 0 && (
-                  <div className="glass-card" style={{ padding: 12, borderRadius: 8, border: '1px solid hsla(210,100%,60%,0.15)', background: 'var(--primary-glow)' }}>
+                  <div className="glass-card" style={{ padding: 12, borderRadius: 'var(--radius-xs)', border: '1px solid var(--primary-subtle)', background: 'var(--primary-subtle)' }}>
                     <div style={labelStyle}>{ar ? 'الطاقة المرسلة الإجمالية (الحالية − السابقة)' : 'Total Sent Energy (Current − Previous)'}</div>
                     <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--secondary)' }}>
                       {energySentDiff.toLocaleString('en-US')}
@@ -371,7 +371,7 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
 
                 {/* بطاقة الاستهلاك الداخلي في الملخص */}
                 {internalConsumptionVal > 0 && (
-                  <div className="glass-card" style={{ padding: 12, borderRadius: 8, border: '1px solid hsla(35,100%,50%,0.15)', background: 'hsla(35,100%,50%,0.08)' }}>
+                  <div className="glass-card" style={{ padding: 12, borderRadius: 'var(--radius-xs)', border: '1px solid var(--warning-subtle)', background: 'var(--warning-subtle)' }}>
                     <div style={labelStyle}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <Zap size={10} style={{ color: 'var(--warning)' }} />

@@ -453,12 +453,12 @@ function Generators({ t, lang, currentUser }) {
                     <div key={siteKey} style={{ paddingLeft: 24, marginBottom: 8 }}>
                       <div className="site-group-header" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--card-2)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: 6 }}
                         onClick={() => toggleSite(siteKey)}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, background: 'rgba(255,255,255,0.1)', color: 'var(--text-muted)', flexShrink: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 'var(--radius-xs)', background: 'var(--surface-2)', color: 'var(--text-muted)', flexShrink: 0 }}>
                           {siteExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </div>
                         <MapPin size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-main)', flex: 1 }}>{siteName}</span>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: 10 }}>{gens.length} {ar ? 'مولد' : 'gen'}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--surface-2)', padding: '2px 8px', borderRadius: 'var(--radius-sm)' }}>{gens.length} {ar ? 'مولد' : 'gen'}</span>
                       </div>
 
                       {/* Generators */}

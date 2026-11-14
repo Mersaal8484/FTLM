@@ -186,7 +186,7 @@ export default function ServiceDefinitionsAdmin({ lang }) {
       </div>
 
       {/* Definitions Table */}
-      <div className="panel" style={{ padding: 20, borderRadius: 8, border: '1px solid var(--border-color, #e5e7eb)', marginBottom: 30 }}>
+      <div className="panel" style={{ padding: 20, borderRadius: 'var(--radius-xs)', border: '1px solid var(--border)', marginBottom: 30 }}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem' }}>
           {ar ? 'فترات الصيانة المعرفة حسب الطراز' : 'Model Service Interval Definitions'}
         </h3>
@@ -194,14 +194,14 @@ export default function ServiceDefinitionsAdmin({ lang }) {
         {loading ? (
           <div className="ft-spinner" style={{ width: 30, height: 30, margin: '40px auto' }} />
         ) : filteredDefs.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 24, color: '#6b7280' }}>
+          <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
             {ar ? 'لا توجد تعريفات مسجلة' : 'No service interval definitions registered'}
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="table" style={{ width: '100%', fontSize: '0.9rem', textAlign: ar ? 'right' : 'left' }}>
               <thead>
-                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                <tr style={{ background: 'var(--surface-2)', borderBottom: '2px solid var(--border)' }}>
                   <th style={{ padding: '10px 12px' }}>{ar ? 'طراز المولد (Model Key)' : 'Model Key'}</th>
                   <th style={{ padding: '10px 12px' }}>{ar ? 'بند الصيانة' : 'Service Item'}</th>
                   <th style={{ padding: '10px 12px' }}>{ar ? 'فترة الصيانة' : 'Interval'}</th>
@@ -212,13 +212,13 @@ export default function ServiceDefinitionsAdmin({ lang }) {
               </thead>
               <tbody>
                 {filteredDefs.map(d => (
-                  <tr key={d.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                  <tr key={d.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '10px 12px', fontWeight: 600 }}>{d.generatorModelKey}</td>
                     <td style={{ padding: '10px 12px' }}>{ar ? d.serviceItemNameAr : d.serviceItemNameEn}</td>
                     <td style={{ padding: '10px 12px' }}>{Number(d.intervalHours).toLocaleString('en-US')} h</td>
                     <td style={{ padding: '10px 12px' }}>{Number(d.effectiveLeadHours).toLocaleString('en-US')} h</td>
                     <td style={{ padding: '10px 12px' }}>
-                      <span style={{ fontSize: '0.8rem', padding: '2px 8px', borderRadius: 4, background: d.importance === 3 ? '#fee2e2' : '#f3f4f6', color: d.importance === 3 ? '#b91c1c' : '#374151' }}>
+                      <span style={{ fontSize: '0.8rem', padding: '2px 8px', borderRadius: 'var(--radius-xs)', background: d.importance === 3 ? 'var(--danger-subtle)' : 'var(--surface-2)', color: d.importance === 3 ? 'var(--danger)' : 'var(--text)' }}>
                         {d.importance === 3 ? (ar ? 'حرجة' : 'Critical') : d.importance === 2 ? (ar ? 'عالية' : 'High') : (ar ? 'عادية' : 'Normal')}
                       </span>
                     </td>
@@ -240,14 +240,14 @@ export default function ServiceDefinitionsAdmin({ lang }) {
       </div>
 
       {/* Available Service Items Section */}
-      <div className="panel" style={{ padding: 20, borderRadius: 8, border: '1px solid var(--border-color, #e5e7eb)' }}>
+      <div className="panel" style={{ padding: 20, borderRadius: 'var(--radius-xs)', border: '1px solid var(--border)' }}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem' }}>
           {ar ? 'بنود الصيانة المعرفة في النظام' : 'Registered Service Items'}
         </h3>
         <div style={{ overflowX: 'auto' }}>
           <table className="table" style={{ width: '100%', fontSize: '0.85rem', textAlign: ar ? 'right' : 'left' }}>
             <thead>
-              <tr style={{ background: '#f9fafb' }}>
+              <tr style={{ background: 'var(--surface-2)' }}>
                 <th style={{ padding: '8px 10px' }}>{ar ? 'الرمز' : 'Code'}</th>
                 <th style={{ padding: '8px 10px' }}>{ar ? 'الاسم بالعربية' : 'Arabic Name'}</th>
                 <th style={{ padding: '8px 10px' }}>{ar ? 'الاسم بالإنجليزية' : 'English Name'}</th>
@@ -257,7 +257,7 @@ export default function ServiceDefinitionsAdmin({ lang }) {
             </thead>
             <tbody>
               {serviceItems.map(i => (
-                <tr key={i.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                <tr key={i.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '8px 10px', fontWeight: 600 }}>{i.code}</td>
                   <td style={{ padding: '8px 10px' }}>{i.nameAr}</td>
                   <td style={{ padding: '8px 10px' }}>{i.nameEn}</td>
@@ -279,7 +279,7 @@ export default function ServiceDefinitionsAdmin({ lang }) {
         >
           <form onSubmit={handleSaveDefinition}>
             {defError && (
-              <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '10px 14px', borderRadius: 6, marginBottom: 14, fontSize: '0.875rem' }}>
+              <div style={{ background: 'var(--danger-subtle)', color: 'var(--danger)', padding: '10px 14px', borderRadius: 'var(--radius-xs)', marginBottom: 14, fontSize: '0.875rem' }}>
                 {defError}
               </div>
             )}
@@ -381,7 +381,7 @@ export default function ServiceDefinitionsAdmin({ lang }) {
         >
           <form onSubmit={handleSaveItem}>
             {itemError && (
-              <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '10px 14px', borderRadius: 6, marginBottom: 14, fontSize: '0.875rem' }}>
+              <div style={{ background: 'var(--danger-subtle)', color: 'var(--danger)', padding: '10px 14px', borderRadius: 'var(--radius-xs)', marginBottom: 14, fontSize: '0.875rem' }}>
                 {itemError}
               </div>
             )}

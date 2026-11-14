@@ -47,7 +47,7 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
 
   if (!data) {
     return (
-      <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-secondary, #6b7280)' }}>
+      <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
         {isAr ? 'لا توجد بيانات' : 'No data available'}
       </div>
     );
@@ -61,7 +61,7 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
       <div className="pro-header" style={{ marginBottom: '1.5rem' }}>
         <div>
           <h1 className="pro-title">{isAr ? 'لوحة الوقود والزيت' : 'Fuel & Oil Dashboard'}</h1>
-          <p style={{ color: 'var(--color-text-secondary, #6b7280)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
             {isAr ? 'مراقبة استهلاك الوقود والزيت عبر المحطات' : 'Monitor fuel and oil consumption across stations'}
           </p>
         </div>
@@ -78,8 +78,8 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
             <Fuel size={24} color="var(--on-accent)" />
           </div>
           <div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-text-primary, #111827)' }}>{fmt(summary.totalFuelConsumedLiters)}</div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary, #6b7280)' }}>{isAr ? 'إجمالي استهلاك الوقود (لتر)' : 'Total Fuel Consumed (L)'}</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)' }}>{fmt(summary.totalFuelConsumedLiters)}</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{isAr ? 'إجمالي استهلاك الوقود (لتر)' : 'Total Fuel Consumed (L)'}</div>
           </div>
         </div>
 
@@ -89,8 +89,8 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
             <Droplets size={24} color="var(--on-accent)" />
           </div>
           <div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-text-primary, #111827)' }}>{fmt(summary.totalOilConsumedLiters)}</div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary, #6b7280)' }}>{isAr ? 'إجمالي استهلاك الزيت (لتر)' : 'Total Oil Consumed (L)'}</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)' }}>{fmt(summary.totalOilConsumedLiters)}</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{isAr ? 'إجمالي استهلاك الزيت (لتر)' : 'Total Oil Consumed (L)'}</div>
           </div>
         </div>
 
@@ -100,8 +100,8 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
             <TrendingUp size={24} color="var(--on-accent)" />
           </div>
           <div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-text-primary, #111827)' }}>{fmt(summary.fuelCost)}</div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary, #6b7280)' }}>{isAr ? 'تكلفة الوقود' : 'Fuel Cost'}</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)' }}>{fmt(summary.fuelCost)}</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{isAr ? 'تكلفة الوقود' : 'Fuel Cost'}</div>
           </div>
         </div>
 
@@ -111,8 +111,8 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
             <Building2 size={24} color="var(--on-accent)" />
           </div>
           <div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-text-primary, #111827)' }}>{summary.activeStations}</div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary, #6b7280)' }}>{isAr ? 'المحطات النشطة' : 'Active Stations'}</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)' }}>{summary.activeStations}</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{isAr ? 'المحطات النشطة' : 'Active Stations'}</div>
           </div>
         </div>
       </div>
@@ -120,24 +120,24 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
       {/* Alerts */}
       {alerts && alerts.length > 0 && (
         <div className="modern-card animate-fade-in" style={{ padding: '1.25rem', marginBottom: '1.5rem', borderLeft: '4px solid var(--warning)' }}>
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontWeight: 600, color: 'var(--color-text-primary, #111827)' }}>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontWeight: 600, color: 'var(--text)' }}>
             <AlertTriangle size={20} color="var(--warning)" />
             {isAr ? 'تنبيهات' : 'Alerts'}
-            <span style={{ fontSize: '0.75rem', background: 'var(--warning)', color: '#fff', borderRadius: '9999px', padding: '0.125rem 0.5rem' }}>{alerts.length}</span>
+            <span style={{ fontSize: '0.75rem', background: 'var(--warning)', color: 'var(--on-accent)', borderRadius: 'var(--radius-pill)', padding: '0.125rem 0.5rem' }}>{alerts.length}</span>
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {alerts.slice(0, 5).map((alert, idx) => (
               <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-sm)', background: alert.severity === 'critical' ? 'var(--danger-subtle)' : 'var(--warning-subtle)' }}>
                 <span style={{
-                  fontSize: '0.7rem', fontWeight: 600, padding: '0.125rem 0.5rem', borderRadius: '9999px',
+                  fontSize: '0.7rem', fontWeight: 600, padding: '0.125rem 0.5rem', borderRadius: 'var(--radius-pill)',
                   background: alert.severity === 'critical' ? 'var(--danger-subtle)' : 'var(--warning-subtle)',
                   color: alert.severity === 'critical' ? 'var(--danger)' : 'var(--warning)',
                 }}>
                   {alert.severity}
                 </span>
-                <span style={{ fontSize: '0.85rem', color: 'var(--color-text-primary, #111827)', flex: 1 }}>{alert.message}</span>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text)', flex: 1 }}>{alert.message}</span>
                 {alert.subStationName && (
-                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary, #6b7280)' }}>{alert.subStationName}</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{alert.subStationName}</span>
                 )}
               </div>
             ))}
@@ -149,25 +149,25 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
       <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: '1.5rem' }}>
         {/* Consumption Table */}
         <div className="modern-card animate-fade-up" style={{ overflow: 'hidden' }}>
-          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--color-border, #e5e7eb)', fontWeight: 600, color: 'var(--color-text-primary, #111827)' }}>
+          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', fontWeight: 600, color: 'var(--text)' }}>
             {isAr ? 'تفاصيل الاستهلاك' : 'Consumption Details'}
           </div>
           <div style={{ overflowX: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-              <thead style={{ position: 'sticky', top: 0, background: 'var(--color-bg-secondary, #f9fafb)', zIndex: 1 }}>
+              <thead style={{ position: 'sticky', top: 0, background: 'var(--surface-2)', zIndex: 1 }}>
                 <tr>
-                  <th style={{ padding: '0.75rem', textAlign: 'start', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{isAr ? 'التاريخ' : 'Date'}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'start', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{isAr ? 'المحطة الفرعية' : 'Sub Station'}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{isAr ? 'الوقود (لتر)' : 'Fuel (L)'}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{isAr ? 'الزيت (لتر)' : 'Oil (L)'}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{isAr ? 'الكفاءة %' : 'Efficiency %'}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'start', fontWeight: 600, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{isAr ? 'التاريخ' : 'Date'}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'start', fontWeight: 600, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{isAr ? 'المحطة الفرعية' : 'Sub Station'}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{isAr ? 'الوقود (لتر)' : 'Fuel (L)'}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{isAr ? 'الزيت (لتر)' : 'Oil (L)'}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{isAr ? 'الكفاءة %' : 'Efficiency %'}</th>
                 </tr>
               </thead>
               <tbody>
                 {consumptions && consumptions.length > 0 ? consumptions.map((c, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid var(--color-border, #f3f4f6)' }}>
-                    <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{new Date(c.date).toLocaleDateString('en-US')}</td>
-                    <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{c.subStationName}</td>
+                  <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '0.75rem', color: 'var(--text)' }}>{new Date(c.date).toLocaleDateString('en-US')}</td>
+                    <td style={{ padding: '0.75rem', color: 'var(--text)' }}>{c.subStationName}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--primary)' }}>{fmt(c.fuelLiters)}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--warning)' }}>{fmt(c.oilLiters)}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'center' }}>
@@ -182,7 +182,7 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary, #6b7280)' }}>
+                    <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                       {isAr ? 'لا توجد بيانات استهلاك' : 'No consumption data'}
                     </td>
                   </tr>
@@ -194,30 +194,30 @@ const FuelOilDashboard = ({ lang = 'ar' }) => {
 
         {/* Trends Table */}
         <div className="modern-card animate-fade-up" style={{ overflow: 'hidden', animationDelay: '0.1s' }}>
-          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--color-border, #e5e7eb)', fontWeight: 600, color: 'var(--color-text-primary, #111827)' }}>
+          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', fontWeight: 600, color: 'var(--text)' }}>
             {isAr ? 'الاتجاهات' : 'Trends'}
           </div>
           <div style={{ overflowX: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-              <thead style={{ position: 'sticky', top: 0, background: 'var(--color-bg-secondary, #f9fafb)', zIndex: 1 }}>
+              <thead style={{ position: 'sticky', top: 0, background: 'var(--surface-2)', zIndex: 1 }}>
                 <tr>
-                  <th style={{ padding: '0.75rem', textAlign: 'start', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{isAr ? 'التاريخ' : 'Date'}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{isAr ? 'الوقود (لتر)' : 'Fuel (L)'}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{isAr ? 'الزيت (لتر)' : 'Oil (L)'}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{isAr ? 'الطاقة (كيلوواط ساعة)' : 'Energy (kWh)'}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'start', fontWeight: 600, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{isAr ? 'التاريخ' : 'Date'}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{isAr ? 'الوقود (لتر)' : 'Fuel (L)'}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{isAr ? 'الزيت (لتر)' : 'Oil (L)'}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{isAr ? 'الطاقة (كيلوواط ساعة)' : 'Energy (kWh)'}</th>
                 </tr>
               </thead>
               <tbody>
                 {trends && trends.length > 0 ? trends.map((t, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid var(--color-border, #f3f4f6)' }}>
-                    <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{new Date(t.date).toLocaleDateString('en-US')}</td>
+                  <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '0.75rem', color: 'var(--text)' }}>{new Date(t.date).toLocaleDateString('en-US')}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--primary)' }}>{fmt(t.fuelConsumedLiters)}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--warning)' }}>{fmt(t.oilConsumedLiters)}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--success)' }}>{fmt(t.energyProducedKWh)}</td>
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary, #6b7280)' }}>
+                    <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                       {isAr ? 'لا توجد بيانات اتجاهات' : 'No trend data'}
                     </td>
                   </tr>

@@ -126,7 +126,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
         {/* Branch */}
         <div style={{ position: 'relative', minWidth: '180px' }}>
-          <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary, #6b7280)', marginBottom: '0.25rem', display: 'block' }}>
+          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
             {isAr ? 'الفرع' : 'Branch'}
           </label>
           <div style={{ position: 'relative' }}>
@@ -141,13 +141,13 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
-            <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--color-text-secondary, #9ca3af)' }} />
+            <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
           </div>
         </div>
 
         {/* Station */}
         <div style={{ position: 'relative', minWidth: '180px' }}>
-          <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary, #6b7280)', marginBottom: '0.25rem', display: 'block' }}>
+          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
             {isAr ? 'المحطة' : 'Station'}
           </label>
           <div style={{ position: 'relative' }}>
@@ -163,13 +163,13 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
-            <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--color-text-secondary, #9ca3af)' }} />
+            <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
           </div>
         </div>
 
         {/* Sub Station */}
         <div style={{ position: 'relative', minWidth: '180px' }}>
-          <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary, #6b7280)', marginBottom: '0.25rem', display: 'block' }}>
+          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
             {isAr ? 'المحطة الفرعية' : 'Sub Station'}
           </label>
           <div style={{ position: 'relative' }}>
@@ -185,7 +185,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
                 <option key={ss.id} value={ss.id}>{ss.name}</option>
               ))}
             </select>
-            <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--color-text-secondary, #9ca3af)' }} />
+            <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
           </div>
         </div>
 
@@ -196,7 +196,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
               <>
                 {/* Month */}
                 <div style={{ minWidth: '140px' }}>
-                  <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary, #6b7280)', marginBottom: '0.25rem', display: 'block' }}>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
                     {isAr ? 'الشهر' : 'Month'}
                   </label>
                   <div style={{ position: 'relative' }}>
@@ -224,13 +224,13 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
                         <option key={m.value} value={m.value}>{m.label}</option>
                       ))}
                     </select>
-                    <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--color-text-secondary, #9ca3af)' }} />
+                    <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
                   </div>
                 </div>
 
                 {/* Year */}
                 <div style={{ minWidth: '110px' }}>
-                  <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary, #6b7280)', marginBottom: '0.25rem', display: 'block' }}>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
                     {isAr ? 'السنة' : 'Year'}
                   </label>
                   <div style={{ position: 'relative' }}>
@@ -246,7 +246,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
                         return <option key={y} value={String(y)}>{y}</option>;
                       })}
                     </select>
-                    <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--color-text-secondary, #9ca3af)' }} />
+                    <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
                   </div>
                 </div>
               </>
@@ -254,7 +254,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
               <>
                 {/* Date From */}
                 <div style={{ minWidth: '150px' }}>
-                  <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary, #6b7280)', marginBottom: '0.25rem', display: 'block' }}>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
                     {isAr ? 'من تاريخ' : 'From Date'}
                   </label>
                   <input
@@ -268,7 +268,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
 
                 {/* Date To */}
                 <div style={{ minWidth: '150px' }}>
-                  <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary, #6b7280)', marginBottom: '0.25rem', display: 'block' }}>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
                     {isAr ? 'إلى تاريخ' : 'To Date'}
                   </label>
                   <input
@@ -291,8 +291,8 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
             style={{
               display: 'flex', alignItems: 'center', gap: '0.25rem',
               padding: '0.5rem 0.75rem', marginTop: '1rem',
-              background: 'var(--color-danger, #ef4444)', color: '#fff',
-              border: 'none', borderRadius: '0.375rem', cursor: 'pointer',
+              background: 'var(--danger)', color: 'var(--on-accent)',
+              border: 'none', borderRadius: 'var(--radius-xs)', cursor: 'pointer',
               fontSize: '0.8rem',
             }}
           >

@@ -421,7 +421,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
         >
           <form onSubmit={handleSaveReplacement}>
             {errorMsg && (
-              <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '10px 14px', borderRadius: 6, marginBottom: 16, fontSize: '0.875rem' }}>
+              <div style={{ background: 'var(--danger-subtle)', color: 'var(--danger)', padding: '10px 14px', borderRadius: 'var(--radius-xs)', marginBottom: 16, fontSize: '0.875rem' }}>
                 {errorMsg}
               </div>
             )}
@@ -438,14 +438,14 @@ export default function GeneratorMaintenanceTable({ lang }) {
             </FormField>
 
             {modalItem.lastServiceHours != null && (
-              <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: 12 }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>
                 {ar ? `ساعات آخر صيانة: ${modalItem.lastServiceHours} h | فترة الصيانة: ${modalItem.intervalHours} h` : `Last service: ${modalItem.lastServiceHours} h | Interval: ${modalItem.intervalHours} h`}
               </div>
             )}
 
             {/* Early replacement detection */}
             {isEarlyReplacement() && (
-              <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', color: '#92400e', padding: '10px 14px', borderRadius: 6, marginBottom: 16, fontSize: '0.875rem' }}>
+              <div style={{ background: 'var(--warning-subtle)', border: '1px solid var(--warning)', color: 'var(--warning)', padding: '10px 14px', borderRadius: 'var(--radius-xs)', marginBottom: 16, fontSize: '0.875rem' }}>
                 <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <AlertTriangle size={16} />
                   {ar ? 'استبدال مبكر تم رصده' : 'Early Replacement Detected'}
@@ -461,7 +461,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
                     value={formEarlyReason}
                     onChange={handleInputChange(setFormEarlyReason)}
                     placeholder={ar ? 'مثال: تلف مبكر، تسريب، صيانة اضطرارية...' : 'e.g. premature wear, leak, emergency...'}
-                    style={{ width: '100%', borderColor: '#d97706' }}
+                    style={{ width: '100%', borderColor: 'var(--warning)' }}
                   />
                 </div>
               </div>
@@ -517,14 +517,14 @@ export default function GeneratorMaintenanceTable({ lang }) {
           {historyLoading ? (
             <div className="ft-spinner" style={{ width: 30, height: 30, margin: '20px auto' }} />
           ) : historyItems.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>
+            <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>
               {ar ? 'لا يوجد سجل سابق' : 'No service history recorded'}
             </div>
           ) : (
             <div style={{ overflowX: 'auto', maxHeight: 400 }}>
               <table className="table" style={{ width: '100%', fontSize: '0.85rem' }}>
                 <thead>
-                  <tr style={{ background: '#f9fafb' }}>
+                  <tr style={{ background: 'var(--surface-2)' }}>
                     <th style={{ padding: '8px' }}>{ar ? 'النوع' : 'Kind'}</th>
                     <th style={{ padding: '8px' }}>{ar ? 'الساعات' : 'Hours'}</th>
                     <th style={{ padding: '8px' }}>{ar ? 'التاريخ' : 'Date'}</th>
@@ -541,14 +541,14 @@ export default function GeneratorMaintenanceTable({ lang }) {
                       <td style={{ padding: '8px' }}>{new Date(h.occurredAtUtc).toLocaleDateString('en-US')}</td>
                       <td style={{ padding: '8px' }}>
                         {h.isEarly ? (
-                          <span title={h.earlyReplacementReason} style={{ color: '#d97706', fontWeight: 600 }}>
+                          <span title={h.earlyReplacementReason} style={{ color: 'var(--warning)', fontWeight: 600 }}>
                             {ar ? 'نعم' : 'Yes'}
                           </span>
                         ) : '—'}
                       </td>
                       <td style={{ padding: '8px' }}>
                         {h.voidedAtUtc ? (
-                          <span style={{ color: '#ef4444', fontSize: '0.8rem' }} title={h.voidReason}>
+                          <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }} title={h.voidReason}>
                             {ar ? 'ملغي' : 'Voided'}
                           </span>
                         ) : (
@@ -586,7 +586,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
           title={ar ? 'إلغاء سجل خدمة' : 'Void Service Record'}
         >
           <div>
-            <p style={{ fontSize: '0.9rem', color: '#374151', marginBottom: 12 }}>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text)', marginBottom: 12 }}>
               {ar ? 'إلغاء هذا السجل سيعيد حساب ساعات الاستحقاق للمولد. سبب الإلغاء إلزامي:' : 'Voiding this record will recalculate due hours. A reason is mandatory:'}
             </p>
             <textarea

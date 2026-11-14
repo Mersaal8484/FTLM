@@ -115,14 +115,14 @@ export default function RecordReplacement({ lang }) {
         </p>
       </div>
 
-      <div className="panel" style={{ padding: 24, borderRadius: 8, border: '1px solid var(--border-color, #e5e7eb)' }}>
+      <div className="panel" style={{ padding: 24, borderRadius: 'var(--radius-xs)', border: '1px solid var(--border)' }}>
         {errorMsg && (
-          <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '12px 16px', borderRadius: 6, marginBottom: 16, fontSize: '0.9rem' }}>
+          <div style={{ background: 'var(--danger-subtle)', color: 'var(--danger)', padding: '12px 16px', borderRadius: 'var(--radius-xs)', marginBottom: 16, fontSize: '0.9rem' }}>
             {errorMsg}
           </div>
         )}
         {successMsg && (
-          <div style={{ background: '#dcfce7', color: '#15803d', padding: '12px 16px', borderRadius: 6, marginBottom: 16, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ background: 'var(--success-subtle)', color: 'var(--success)', padding: '12px 16px', borderRadius: 'var(--radius-xs)', marginBottom: 16, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Check size={18} />
             {successMsg}
           </div>
