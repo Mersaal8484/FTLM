@@ -30,6 +30,8 @@ export const appTranslations = {
         sending: 'Sending...',
         saving: 'Saving...',
         cancel: 'Cancel',
+        loading: 'Loading...',
+        save: 'Save',
       },
       sidebar: {
         dashboard: 'Dashboard', operations: 'Operations', myGenerators: 'My Generators', maintenance: 'Maintenance',
@@ -376,6 +378,8 @@ export const appTranslations = {
         sending: 'جارٍ الإرسال...',
         saving: 'جاري الحفظ...',
         cancel: 'إلغاء',
+        loading: 'جارٍ التحميل...',
+        save: 'حفظ',
       },
       sidebar: {
         dashboard: 'لوحة التحكم', operations: 'لوحة التشغيل', myGenerators: 'مولداتي', maintenance: 'الصيانة',
