@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import { drawPhotoStamp } from '../utils/photoStamp';
+import OperationalBackLink from '../components/OperationalBackLink';
 
 const isoNow = () => new Date().toISOString().slice(0, 16);
 const decimal = (value) => (value === '' || value == null ? null : Number(value));
@@ -176,6 +177,7 @@ export default function OperationalCapture() {
   };
   const number = (line, key, label, required = false) => <label>{label}{required && ' *'}<input type="number" step="any" required={required} value={line.values[key] ?? ''} onChange={(e) => updateValues(line.id, { [key]: e.target.value })} /></label>;
   return <section className="capture-page">
+    <OperationalBackLink />
     <div className="capture-heading"><div><span className="operational-eyebrow"><Zap size={16} /> {t('operational.capture.eyebrow')}</span><h1>{t('operational.capture.title')}</h1><p>{t('operational.capture.pendingNote')}</p></div><Link className="capture-history-link" to="/operations/history"><ClipboardList size={18} />{t('operational.capture.myHistory')}</Link></div>
     <label className="capture-site">{t('operational.capture.site')}<select value={siteId} onChange={(e) => { setSiteId(e.target.value); setLines([]); }}><option value="">{t('operational.capture.chooseSite')}</option>{references.map((item) => <option key={item.subStationId} value={item.subStationId}>{item.name} ({item.code})</option>)}</select></label>
     {site && <div className="ft-tabs" style={{ marginBottom: 16 }}><button type="button" className={`ft-tab ${captureKind === 'periodic' ? 'active' : ''}`} onClick={() => setCaptureKind('periodic')}>{t('operational.capture.periodicRound')}</button><button type="button" className={`ft-tab ${captureKind === 'dailyClosing' ? 'active' : ''}`} onClick={() => setCaptureKind('dailyClosing')}>{t('operational.capture.dailyClosing')}</button></div>}

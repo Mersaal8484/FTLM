@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import HierarchicalFilter from '../../../../components/common/HierarchicalFilter';
 import { DATE_SHORTCUTS } from '../../hooks/useReportFilters';
 
@@ -12,7 +12,6 @@ export default function ReportFilters({ filters, lang, hideLocation = false }) {
         <div className="filter-group date-group">
           <div className="date-inputs">
             <div className="input-with-icon">
-              <Calendar size={16} className="text-gray-400" />
               <input
                 type="date"
                 value={filters.dateFrom}
@@ -22,7 +21,6 @@ export default function ReportFilters({ filters, lang, hideLocation = false }) {
             </div>
             <span className="date-separator">{isAr ? 'إلى' : 'to'}</span>
             <div className="input-with-icon">
-              <Calendar size={16} className="text-gray-400" />
               <input
                 type="date"
                 value={filters.dateTo}

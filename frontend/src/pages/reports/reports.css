@@ -76,6 +76,11 @@
   padding-inline-start: 2rem;
 }
 
+/* Native date controls already provide a localized calendar button. */
+.input-with-icon input[type="date"] {
+  padding-inline-start: 0.75rem;
+}
+
 .date-shortcuts {
   display: flex;
   gap: 0.5rem;

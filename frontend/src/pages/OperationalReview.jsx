@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { AlertTriangle, CheckCircle2, ChevronLeft, Clock3, Image, XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
+import OperationalBackLink from '../components/OperationalBackLink';
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
@@ -237,6 +238,7 @@ export default function OperationalReview() {
 
   return (
     <section className="capture-page">
+      <OperationalBackLink />
       <div className="capture-heading">
         <div>
           <span className="operational-eyebrow">

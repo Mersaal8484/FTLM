@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, BarChart3 } from 'lucide-react';
 import client from '../api/client';
+import OperationalBackLink from '../components/OperationalBackLink';
 
 const fetchBalance = (stationId, date) =>
   client.get(`/api/energy-balance/${stationId}`, { params: { date } }).then((r) => r.data);
@@ -44,6 +45,7 @@ export default function EnergyBalanceBoard() {
 
   return (
     <section className="capture-page">
+      <OperationalBackLink />
       <div className="capture-heading">
         <div>
           <span className="operational-eyebrow">

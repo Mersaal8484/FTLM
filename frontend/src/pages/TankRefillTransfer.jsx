@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ArrowRightLeft, Camera, CheckCircle, AlertTriangle, Droplet } from 'lucide-react';
 import client from '../api/client';
 import { PageHeader, Button, FormField } from '../components/ui';
+import OperationalBackLink from '../components/OperationalBackLink';
 
 export default function TankRefillTransfer() {
   const { t } = useTranslation();
@@ -94,6 +95,7 @@ export default function TankRefillTransfer() {
 
   return (
     <div className="capture-page operational-shell" style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>
+      <OperationalBackLink />
       <PageHeader
         title={t('operational.tanks.refillTitle')}
         subtitle={t('operational.tanks.refillSubtitle')}

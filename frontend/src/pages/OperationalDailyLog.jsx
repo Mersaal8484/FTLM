@@ -7,6 +7,7 @@ import client from '../api/client';
 import { PageHeader, Button } from '../components/ui';
 import { exportToExcel } from './reports/utils/reportExport';
 import { exportToPdf } from '../utils/pdfExport';
+import OperationalBackLink from '../components/OperationalBackLink';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
@@ -129,6 +130,7 @@ export default function OperationalDailyLog() {
 
   return (
     <div className="capture-page operational-shell" style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
+      <OperationalBackLink />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <PageHeader
           title={t('operational.log.dailyTitle')}
