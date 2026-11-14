@@ -1963,7 +1963,7 @@ input[type="email"] {
   --secondary-subtle: color-mix(in srgb, var(--secondary) 12%, transparent);
   --success: #25835b;
   --success-subtle: color-mix(in srgb, var(--success) 12%, transparent);
-  --warning: #a66a13;
+  --warning: #a36812;
   --warning-subtle: color-mix(in srgb, var(--warning) 12%, transparent);
   --danger: #bd454d;
   --danger-subtle: color-mix(in srgb, var(--danger) 12%, transparent);

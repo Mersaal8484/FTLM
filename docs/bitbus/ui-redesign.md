@@ -69,3 +69,89 @@ The three font binaries and their matching `Inter-OFL.txt` and `Cairo-OFL.txt` l
 - The mockup's small typography and controls were raised to the specification's readable minimums and 44px touch targets.
 - The sidebar stays on the physical right while content direction continues to follow the selected language.
 - The mobile bottom bar selects only destinations already permitted for the current user and leaves the full drawer available.
+
+## Phase 5 — cleanup-only pass
+
+**Branch:** `redesign/ui-cleanup`
+**Base:** `development` at `3ecffbb`
+
+This pass is intentionally visual-only. It changed neither routes, navigation labels,
+translation files/keys, permission checks, API/store logic, dependencies, CSP nor test files.
+No DOM structure, headings, button names, roles or business calculations were changed.
+
+### Converted to the visual system
+
+- Extended the existing design-token layer with reusable medium/pill radii, accent-counter
+  treatment and an overlay token. The light-theme warning token was adjusted from `#a66a13`
+  to `#a36812` so warning text on white clears the 4.5:1 contrast threshold.
+- Replaced one-off colours, alpha fills, radii and shadows in these interactive screens with
+  the established semantic tokens: `AddReading`, `ActiveGenerators`, `FuelMovements`,
+  `FuelOilDashboard`, `FuelStockPage`, `GeneratorMaintenanceTable`, `Generators`,
+  `GeneratorsOverview`, `InstalledParts`, `LocationsManagement`, `MyGenerators`,
+  `Notifications`, `OilInventory`, `OilStockPage`, `RecordReplacement`, `ReviewChanges`,
+  `RolesManagement`, `ServiceDefinitionsAdmin`, `StockInventory`, `SubStationReading`,
+  `TankRefillTransfer`, `TankSetup`, `TanksManagement` and `Users`.
+- Normalised the shared hierarchical filter to the same text, danger, border and radius tokens.
+
+### Contrast review
+
+Static WCAG contrast calculations from the final token values:
+
+- Dark: primary text/background **14.09:1**, muted text/background **7.61:1**, faint
+  text/background **5.32:1**.
+- Light: primary text/background **11.80:1**, muted text/background **5.51:1**, faint
+  text/background **4.60:1**.
+- Light semantic foregrounds on white: primary **5.67:1**, secondary **6.23:1**,
+  success **4.69:1**, warning **4.62:1**, danger **5.09:1**.
+
+### Intentionally retained hard-coded colours
+
+- `PeriodicInventoryPage.jsx` print markup and its `@media print` rules, plus the print block
+  in `pages/reports/reports.css`: fixed black/white/paper colours are required for legible
+  print/PDF output and are outside the interactive themes.
+- Chart data-series palettes in `Dashboard.jsx`, `OperationalDailyLog.jsx` and the report-tab
+  chart configuration remain fixed. They identify data series, rather than application chrome;
+  replacing them with one semantic UI colour would reduce chart distinction.
+
+### Deliberately not removed or changed
+
+- No selector was deleted from `frontend/src/styles.css`. A static grep cannot prove every
+  legacy selector is unused because older pages use generated class strings and attribute-based
+  selectors. Keeping them avoids a cascade regression without a rendered verification pass.
+- The legacy standalone report-listing components retain their compatible legacy token aliases
+  and fallback values for now. They require a complete rendered report matrix before a broad
+  conversion can be proved safe; no functional or theme-breaking change was made to them here.
+
+### Phase 5 files changed
+
+- `frontend/src/styles.css`
+- `frontend/src/components/common/HierarchicalFilter.jsx`
+- The 24 page components listed in **Converted to the visual system** above.
+- This report: `docs/bitbus/ui-redesign.md`.
+
+### Manual verification checklist
+
+Run these commands manually from PowerShell; they were not run by Codex:
+
+```powershell
+Set-Location D:\FTM\frontend
+npm.cmd run test -- --run
+npm.cmd run build
+npm.cmd run dev
+```
+
+Then, in both Arabic/RTL and English/LTR, and in both dark and light themes, inspect:
+
+- `FuelMovements`, `FuelStockPage`, `OilStockPage`, `OilInventory` and `TankRefillTransfer`:
+  group headers, status badges, low-stock alerts and counters.
+- `AddReading`, `TankSetup`, `SubStationReading`, `ReviewChanges`, `Notifications` and
+  `TankRefillTransfer`: alert/error/success surfaces, modal overlays and destructive actions.
+- `FuelOilDashboard`, `ActiveGenerators`, `Generators`, `GeneratorsOverview`,
+  `GeneratorMaintenanceTable`, `ServiceDefinitionsAdmin`, `RecordReplacement` and
+  `InstalledParts`: table headers, status badges, empty states and pagination.
+- The hierarchical filters wherever used: labels, disabled selectors, chevrons and the clear
+  button, including keyboard focus.
+- Print preview for periodic inventory and report pages, confirming that paper output remains
+  black-on-white and that chart series remain individually distinguishable.
+
+Build, unit tests, Playwright and screenshots remain owner-run verification steps.
