@@ -84,7 +84,7 @@ function OilInventory({ lang }) {
         <div className="grouped-container">
           {Object.entries(groupedOils).map(([stationName, stationOils]) => (
             <div key={stationName} className="station-group" style={{ marginBottom: 40 }}>
-              <div className="station-group-header" style={{ display: 'flex', alignItems: 'center', gap: 15, padding: '15px 20px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderBottom: '2px solid var(--primary)', borderRadius: '12px', marginBottom: 20, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
+              <div className="station-group-header" style={{ display: 'flex', alignItems: 'center', gap: 15, padding: '15px 20px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderBottom: '2px solid var(--primary)', borderRadius: 'var(--radius-md)', marginBottom: 20, boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, borderRadius: 10, background: 'var(--primary-light)', color: 'var(--primary)' }}>
                   <MapPin size={22} />
                 </div>
@@ -92,7 +92,7 @@ function OilInventory({ lang }) {
                   <h3 style={{ margin: 0, fontSize: 18, fontWeight: 'bold', color: 'var(--text-main)' }}>{stationName}</h3>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{ar ? 'مخزون الزيوت التابع لهذا الموقع' : 'Oil inventory for this location'}</div>
                 </div>
-                <span style={{ marginInlineStart: 'auto', padding: '6px 14px', background: 'var(--warning)', color: '#fff', borderRadius: 20, fontSize: 13, fontWeight: 'bold' }}>
+                <span style={{ marginInlineStart: 'auto', padding: '6px 14px', background: 'var(--warning)', color: 'var(--on-accent)', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 'bold' }}>
                   {stationOils.length} {ar ? 'أنواع زيوت' : 'Oil Types'}
                 </span>
               </div>
@@ -115,7 +115,7 @@ function OilInventory({ lang }) {
                         const isLow = oil.currentStock <= oil.minStock;
                         const tankCount = oil.fuelTanks?.length || 0;
                         return (
-                          <tr key={oil.id} style={{ cursor: 'pointer', ...isLow ? { background: 'hsla(4,84%,60%,0.04)' } : {} }} onClick={() => setSelectedOil(oil)}>
+                          <tr key={oil.id} style={{ cursor: 'pointer', ...isLow ? { background: 'var(--danger-subtle)' } : {} }} onClick={() => setSelectedOil(oil)}>
                             <td style={{ color: 'var(--text-faint)', width: 40 }}>{idx + 1}</td>
                             <td>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -260,7 +260,7 @@ function OilInventory({ lang }) {
             </div>
           )}
           {(!selectedOil.fuelTanks || selectedOil.fuelTanks.length === 0) && (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'rgba(0,0,0,0.15)', borderRadius: 10 }}>
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'var(--surface-2)', borderRadius: 'var(--radius-sm)' }}>
               {ar ? 'لا توجد خزانات وقود مرتبطة بهذا النوع' : 'No fuel tanks linked to this oil type'}
             </div>
           )}

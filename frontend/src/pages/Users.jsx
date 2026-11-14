@@ -321,10 +321,10 @@ function Users({ t, lang, currentUser }) {
                 <div style={{
                   width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
                   background: user.role === 'admin'
-                    ? 'linear-gradient(135deg, var(--primary), hsl(270,70%,65%))'
+                    ? 'linear-gradient(135deg, var(--primary), var(--secondary))'
                     : 'linear-gradient(135deg, var(--secondary), var(--primary))',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 16, fontWeight: 700, color: '#fff',
+                  fontSize: 16, fontWeight: 700, color: 'var(--on-accent)',
                 }}>
                   {(user.name || user.email || '?')[0].toUpperCase()}
                 </div>
@@ -540,7 +540,7 @@ function ScopeRow({ idx, scope, ar, branches, stations, subStations, stationsFor
     <div style={{
       display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap',
       padding: '8px 10px', borderRadius: 8,
-      background: isGlobal ? 'var(--primary-bg, rgba(59,130,246,0.08))' : 'var(--bg-secondary)',
+      background: isGlobal ? 'var(--primary-bg)' : 'var(--bg-secondary)',
       border: '1px solid var(--border)',
     }}>
       <div style={{ flex: '1 1 140px', minWidth: 0 }}>

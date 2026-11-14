@@ -296,7 +296,7 @@ function TanksManagement({ lang, currentUser }) {
                   <h3 style={{ margin: 0, fontSize: 18, fontWeight: 'bold', color: 'var(--text-main)' }}>{stationName}</h3>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{ar ? 'الخزانات التابعة لهذا الموقع' : 'Tanks in this location'}</div>
                 </div>
-                <span style={{ marginRight: ar ? 'auto' : 0, marginLeft: ar ? 0 : 'auto', padding: '6px 14px', background: 'var(--primary)', color: '#fff', borderRadius: 20, fontSize: 13, fontWeight: 'bold' }}>
+                <span style={{ marginRight: ar ? 'auto' : 0, marginLeft: ar ? 0 : 'auto', padding: '6px 14px', background: 'var(--primary)', color: 'var(--on-accent)', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 'bold' }}>
                   {stationTanks.length} {ar ? 'خزانات' : 'Tanks'}
                 </span>
               </div>
@@ -312,7 +312,7 @@ function TanksManagement({ lang, currentUser }) {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
                         <Droplets size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                         <span style={{ flex: 1, fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{tank.name}</span>
-                        <span style={{ fontSize: 10, background: 'hsla(217,91%,60%,0.15)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 8, fontWeight: 600 }}>
+                        <span style={{ fontSize: 10, background: 'var(--primary-subtle)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 'var(--radius-sm)', fontWeight: 600 }}>
                           {fuelLabel}
                         </span>
                         {tank.isActive === false && (

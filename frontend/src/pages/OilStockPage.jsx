@@ -8,15 +8,15 @@ const fmt = (v, d = 0) =>
   v != null ? Number(v).toLocaleString('en-US', { maximumFractionDigits: d }) : '—';
 
 const alertCfg = {
-  danger:  { color: '#ef4444', bg: '#ef444415', label: { ar: 'خطر',   en: 'Danger'  } },
-  warning: { color: 'var(--warning)', bg: 'var(--warning)15', label: { ar: 'تحذير', en: 'Warning' } },
+  danger:  { color: 'var(--danger)', bg: 'var(--danger-subtle)', label: { ar: 'خطر',   en: 'Danger'  } },
+  warning: { color: 'var(--warning)', bg: 'var(--warning-subtle)', label: { ar: 'تحذير', en: 'Warning' } },
   normal:  { color: 'var(--success)', bg: 'var(--success-subtle)', label: { ar: 'طبيعي', en: 'Normal'  } },
 };
 
 function AlertBadge({ level, ar }) {
   const cfg = alertCfg[level] || alertCfg.normal;
   return (
-    <span style={{ background: cfg.bg, color: cfg.color, padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
+    <span style={{ background: cfg.bg, color: cfg.color, padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 11, fontWeight: 700 }}>
       {ar ? cfg.label.ar : cfg.label.en}
     </span>
   );
@@ -90,7 +90,7 @@ function OilStockPage({ lang }) {
     const alertLevel = s.alertLevel || 'normal';
     const minStock = s.totalMinAlert || s.minStock || 0;
     const fillPct = minStock > 0 ? Math.min(100, (remaining / (minStock * 3)) * 100) : null;
-    const barColor = alertLevel === 'danger' ? '#ef4444' : alertLevel === 'warning' ? 'var(--warning)' : 'var(--success)';
+    const barColor = alertLevel === 'danger' ? 'var(--danger)' : alertLevel === 'warning' ? 'var(--warning)' : 'var(--success)';
 
     return (
       <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -170,10 +170,10 @@ function OilStockPage({ lang }) {
         ) : grouped.map(branch => (
           <div key={branch.id} style={{ marginBottom: 10 }}>
             <button onClick={() => toggleBranch(branch.id)}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'var(--warning)', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 14, textAlign: 'start' }}>
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'var(--warning)', color: 'var(--on-accent)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 700, fontSize: 14, textAlign: 'start' }}>
               {openBranches[branch.id] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
               <span style={{ flex: 1 }}>{branch.name}</span>
-              <span style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 99, padding: '2px 10px', fontSize: 12 }}>
+              <span style={{ background: 'var(--on-accent-subtle)', borderRadius: 'var(--radius-pill)', padding: '2px 10px', fontSize: 12 }}>
                 {Object.values(branch.stations).reduce((a, st) => a + Object.values(st.rows).reduce((b, r) => b + r.length, 0), 0)} {ar ? 'نوع' : 'types'}
               </span>
             </button>

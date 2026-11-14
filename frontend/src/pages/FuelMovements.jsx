@@ -424,7 +424,7 @@ function FuelMovements({ lang, currentUser }) {
           <div style={{ overflowX: 'auto' }}>
             <table className="data-table" style={{ borderTop: 'none' }}>
               <thead>
-                <tr style={{ background: 'hsla(220,40%,60%,0.05)' }}>
+                <tr style={{ background: 'var(--surface-2)' }}>
                   <th style={{ textAlign: 'center' }}>{ar ? 'اسم الموقع' : 'Site'}</th>
                   <th style={{ textAlign: 'center' }}>{ar ? 'سعة الخزان' : 'Capacity'}</th>
                   <th style={{ textAlign: 'center' }}>{ar ? 'الحد الأدنى' : 'Min Level'}</th>
@@ -474,7 +474,7 @@ function FuelMovements({ lang, currentUser }) {
                 display: 'flex', alignItems: 'center', gap: 15,
                 padding: '15px 20px', background: 'var(--bg-card)',
                 border: '1px solid var(--border)', borderBottom: '2px solid var(--success)',
-                borderRadius: 12, marginBottom: 20, boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
+                borderRadius: 'var(--radius-md)', marginBottom: 20, boxShadow: 'var(--shadow-md)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, borderRadius: 10, background: 'var(--success-subtle)', color: 'var(--success)' }}>
                   <MapPin size={22} />
@@ -483,7 +483,7 @@ function FuelMovements({ lang, currentUser }) {
                   <h3 style={{ margin: 0, fontSize: 18, fontWeight: 'bold' }}>{siteName}</h3>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{ar ? 'الحركات المتعلقة بهذا الموقع' : 'Movements for this location'}</div>
                 </div>
-                <span style={{ marginInlineStart: 'auto', padding: '6px 14px', background: 'var(--primary)', color: '#fff', borderRadius: 20, fontSize: 13, fontWeight: 'bold' }}>
+                <span style={{ marginInlineStart: 'auto', padding: '6px 14px', background: 'var(--primary)', color: 'var(--on-accent)', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 'bold' }}>
                   {siteMoves.length} {ar ? 'حركات' : 'Movements'}
                 </span>
               </div>
@@ -748,14 +748,14 @@ function FuelMovements({ lang, currentUser }) {
                         const capacity = Number(selectedTank.capacityLiters) || 0;
                         const current = Number(selectedTank.actualStockLiters) || 0;
                         const fillPct = capacity > 0 ? Math.min((current / capacity) * 100, 100) : 0;
-                        const fillColor = fillPct > 90 ? '#ef4444' : fillPct > 70 ? 'var(--warning)' : 'var(--success)';
+                        const fillColor = fillPct > 90 ? 'var(--danger)' : fillPct > 70 ? 'var(--warning)' : 'var(--success)';
                         const qty = Number(form.quantityLiters) || 0;
                         const wouldExceed = qty > 0 && capacity > 0 && (current + qty) > capacity;
                         return (
                           <div style={{
                             padding: '12px 16px', borderRadius: 10, marginBottom: 20,
-                            background: wouldExceed ? '#ef444415' : 'var(--glass-bg)',
-                            border: `1px solid ${wouldExceed ? '#ef444440' : 'var(--border)'}`,
+                            background: wouldExceed ? 'var(--danger-subtle)' : 'var(--glass-bg)',
+                            border: `1px solid ${wouldExceed ? 'var(--danger)' : 'var(--border)'}`,
                           }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
@@ -769,7 +769,7 @@ function FuelMovements({ lang, currentUser }) {
                               <div style={{ height: '100%', width: `${fillPct}%`, background: fillColor, borderRadius: 3, transition: 'width 0.3s' }} />
                             </div>
                             {wouldExceed && (
-                              <div style={{ marginTop: 8, fontSize: 12, color: '#ef4444', fontWeight: 600 }}>
+                              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)', fontWeight: 600 }}>
                                 <AlertCircle size={12} style={{ marginInlineEnd: 4, verticalAlign: 'middle' }} />
                                 {ar
                                   ? `الكمية المطلوبة (${qty.toLocaleString('en-US')} L) ستتجاوز السعة. المتاح: ${capacity.toLocaleString('en-US')} L`

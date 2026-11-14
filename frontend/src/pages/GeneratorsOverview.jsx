@@ -202,8 +202,8 @@ function GeneratorsOverview({ lang }) {
           <div className="kpi-icon"><Zap size={22} /></div>
           <div><div className="kpi-value">{kpi.total}</div><div className="kpi-label">{ar ? 'إجمالي المولدات' : 'Total Generators'}</div></div>
         </div>
-        <div className="kpi-card" style={{ '--kpi-color': '#10b981', '--kpi-bg': 'rgba(16,185,129,0.12)' }}>
-          <div className="kpi-icon" style={{ color: '#10b981' }}><Activity size={22} /></div>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--success)', '--kpi-bg': 'var(--success-subtle)' }}>
+          <div className="kpi-icon" style={{ color: 'var(--success)' }}><Activity size={22} /></div>
           <div><div className="kpi-value">{kpi.running}</div><div className="kpi-label">{ar ? 'يعمل' : 'Running'}</div></div>
         </div>
         <div className="kpi-card" style={{ '--kpi-color': 'var(--warning)', '--kpi-bg': 'var(--warning-glow)' }}>
@@ -279,10 +279,10 @@ function GeneratorsOverview({ lang }) {
           {grouped.map(branch => (
             <div key={branch.id} style={{ marginBottom: 10 }}>
               <button onClick={() => toggleBranch(branch.id)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 14, textAlign: 'start' }}>
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'var(--primary)', color: 'var(--on-accent)', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontWeight: 700, fontSize: 14, textAlign: 'start' }}>
                 {openBranches[branch.id] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 <span style={{ flex: 1 }}>{branch.name}</span>
-                <span style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 99, padding: '2px 10px', fontSize: 12 }}>
+                <span style={{ background: 'var(--on-accent-subtle)', borderRadius: 'var(--radius-pill)', padding: '2px 10px', fontSize: 12 }}>
                   {Object.values(branch.stations).reduce((a, st) => a + Object.values(st.rows).reduce((b, r) => b + r.length, 0), 0)} {ar ? 'مولد' : 'generator(s)'}
                 </span>
               </button>

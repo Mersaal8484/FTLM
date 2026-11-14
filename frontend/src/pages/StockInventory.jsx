@@ -238,7 +238,7 @@ function StockInventory({ lang }) {
           <div><div className="kpi-value">{kpi.sites}</div><div className="kpi-label">{ar ? 'عدد المواقع' : 'Locations'}</div></div>
         </div>
         {subTab === 'fuel' && (
-          <div className="kpi-card" style={{ '--kpi-color': 'var(--secondary)', '--kpi-bg': 'rgba(99,102,241,0.12)' }}>
+          <div className="kpi-card" style={{ '--kpi-color': 'var(--secondary)', '--kpi-bg': 'var(--secondary-subtle)' }}>
             <div className="kpi-icon" style={{ color: 'var(--secondary)' }}><Package size={22} /></div>
             <div><div className="kpi-value">{fmt(kpi.totalCap, 0)}</div><div className="kpi-label">{ar ? 'إجمالي السعة (L)' : 'Total Capacity (L)'}</div></div>
           </div>
@@ -310,7 +310,7 @@ function StockInventory({ lang }) {
               >
                 {openBranches[branch.id] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 <span style={{ flex: 1 }}>{branch.name}</span>
-                <span style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 99, padding: '2px 10px', fontSize: 12 }}>
+                <span style={{ background: 'var(--on-accent-subtle)', borderRadius: 'var(--radius-pill)', padding: '2px 10px', fontSize: 12 }}>
                   {Object.values(branch.stations).reduce((a, st) => a + Object.values(st.rows).reduce((b, r) => b + r.length, 0), 0)} {ar ? 'خزان' : 'tanks'}
                 </span>
               </button>

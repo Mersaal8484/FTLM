@@ -101,6 +101,8 @@
   --chart-grid: hsla(215, 20%, 88%, 0.12);
   --chart-tooltip-bg: hsl(220, 13%, 15%);
   --on-accent: hsl(0, 0%, 100%);
+  --on-accent-subtle: hsla(0, 0%, 100%, 0.20);
+  --overlay: hsla(220, 20%, 5%, 0.60);
 
    /* Layout */
   --sidebar-w:      252px;
@@ -189,6 +191,8 @@
   --chart-grid: hsla(220, 25%, 14%, 0.14);
   --chart-tooltip-bg: hsl(0, 0%, 100%);
   --on-accent: hsl(0, 0%, 100%);
+  --on-accent-subtle: hsla(0, 0%, 100%, 0.20);
+  --overlay: hsla(220, 25%, 14%, 0.55);
 
   /* Shadows */
   --shadow-sm:      0 1px 3px rgba(0,0,0,0.08);
@@ -1907,9 +1911,13 @@ input[type="email"] {
   --sidebar-collapsed-w: 82px;
   --radius-xs: 7px;
   --radius-sm: 10px;
+  --radius-md: 12px;
   --radius: 16px;
   --radius-lg: 20px;
   --radius-full: 999px;
+  --radius-pill: var(--radius-full);
+  --on-accent-subtle: color-mix(in srgb, white 20%, transparent);
+  --overlay: color-mix(in srgb, var(--bg) 76%, transparent);
   --shadow-sm: 0 6px 18px rgba(4, 12, 22, .10);
   --shadow-md: 0 12px 30px rgba(4, 12, 22, .15);
   --shadow-lg: 0 18px 44px rgba(4, 12, 22, .18);

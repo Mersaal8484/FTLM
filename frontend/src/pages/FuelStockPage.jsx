@@ -183,10 +183,10 @@ function FuelStockPage({ lang }) {
         ) : grouped.map(branch => (
           <div key={branch.id} style={{ marginBottom: 10 }}>
             <button onClick={() => toggleBranch(branch.id)}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 14, textAlign: 'start' }}>
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'var(--primary)', color: 'var(--on-accent)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 700, fontSize: 14, textAlign: 'start' }}>
               {openBranches[branch.id] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
               <span style={{ flex: 1 }}>{branch.name}</span>
-              <span style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 99, padding: '2px 10px', fontSize: 12 }}>
+              <span style={{ background: 'var(--on-accent-subtle)', borderRadius: 'var(--radius-pill)', padding: '2px 10px', fontSize: 12 }}>
                 {Object.values(branch.stations).reduce((a, st) => a + Object.values(st.rows).reduce((b, r) => b + r.length, 0), 0)} {ar ? 'خزان' : 'tanks'}
               </span>
             </button>
@@ -223,7 +223,7 @@ function FuelStockPage({ lang }) {
                               <th style={{ textAlign: 'center' }}>{ar ? 'الرصيد الافتتاحي' : 'Base Stock'}</th>
                               <th style={{ textAlign: 'center', color: 'var(--secondary)' }}>{ar ? 'وارد' : 'Inbound'}</th>
                               <th style={{ textAlign: 'center', color: 'var(--danger)' }}>{ar ? 'نقل مرسل' : 'Sent'}</th>
-                              <th style={{ textAlign: 'center', color: '#10b981' }}>{ar ? 'نقل مستلم' : 'Received'}</th>
+                              <th style={{ textAlign: 'center', color: 'var(--success)' }}>{ar ? 'نقل مستلم' : 'Received'}</th>
                               <th style={{ textAlign: 'center', color: 'var(--danger)' }}>{ar ? 'فاقد' : 'Loss'}</th>
                               <th style={{ textAlign: 'center', color: 'var(--warning)' }}>{ar ? 'مستهلك' : 'Consumed'}</th>
                               <th style={{ textAlign: 'center', fontWeight: 800 }}>{ar ? 'المخزون الفعلي (L)' : 'Actual Stock (L)'}</th>

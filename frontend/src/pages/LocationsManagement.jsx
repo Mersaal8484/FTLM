@@ -180,7 +180,7 @@ function LocationsManagement({ lang }) {
           <Button key={key} variant={activeTab === key ? 'primary' : 'ghost'} size="sm" onClick={() => { setActiveTab(key); resetForms(); }} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Icon size={14} />
             {label}
-            <span style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '1px 8px', fontSize: 11 }}>{count}</span>
+            <span style={{ background: 'var(--on-accent-subtle)', borderRadius: 'var(--radius-sm)', padding: '1px 8px', fontSize: 11 }}>{count}</span>
           </Button>
         ))}
       </div>
@@ -188,7 +188,7 @@ function LocationsManagement({ lang }) {
       {/* Tree View (Branches tab shows hierarchy) */}
       {activeTab === 'branches' && (
         <div className="glass-card" style={{ marginBottom: 16 }}>
-          <div style={{ background: 'hsla(217,91%,60%,0.15)', padding: '10px 16px', fontSize: 13, fontWeight: 700, color: 'var(--primary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ background: 'var(--primary-subtle)', padding: '10px 16px', fontSize: 13, fontWeight: 700, color: 'var(--primary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Building2 size={15} /> {ar ? 'شجرة المواقع' : 'Location Tree'}
           </div>
           {loading ? <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-faint)' }}>...</div> : (
@@ -260,7 +260,7 @@ function LocationsManagement({ lang }) {
       {/* Stations Tree */}
       {activeTab === 'stations' && (
         <div className="glass-card" style={{ marginBottom: 16 }}>
-          <div style={{ background: 'hsla(217,91%,60%,0.15)', padding: '10px 16px', fontSize: 13, fontWeight: 700, color: 'var(--primary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ background: 'var(--primary-subtle)', padding: '10px 16px', fontSize: 13, fontWeight: 700, color: 'var(--primary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <MapPin size={15} /> {ar ? 'شجرة المحطات' : 'Station Tree'}
           </div>
           {loading ? <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-faint)' }}>...</div> : (
@@ -318,7 +318,7 @@ function LocationsManagement({ lang }) {
       {/* SubStations → Generators Tree */}
       {activeTab === 'subStations' && (
         <div className="glass-card" style={{ marginBottom: 16 }}>
-          <div style={{ background: 'hsla(217,91%,60%,0.15)', padding: '10px 16px', fontSize: 13, fontWeight: 700, color: 'var(--primary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ background: 'var(--primary-subtle)', padding: '10px 16px', fontSize: 13, fontWeight: 700, color: 'var(--primary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Layers size={15} /> {ar ? 'شجرة المواقع والمولدات' : 'Sites & Generators Tree'}
           </div>
           {loading ? <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-faint)' }}>...</div> : (

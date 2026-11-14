@@ -101,12 +101,12 @@ export default function TankSetup({ embedded = false }) {
       )}
 
       {successMsg && (
-        <div style={{ padding: 12, borderRadius: 8, background: 'rgba(34,197,94,0.15)', border: '1px solid #22c55e', color: '#22c55e', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ padding: 12, borderRadius: 'var(--radius-sm)', background: 'var(--success-subtle)', border: '1px solid var(--success)', color: 'var(--success)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
           <CheckCircle size={18} /> {successMsg}
         </div>
       )}
       {errorMsg && (
-        <div style={{ padding: 12, borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', color: '#ef4444', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ padding: 12, borderRadius: 'var(--radius-sm)', background: 'var(--danger-subtle)', border: '1px solid var(--danger)', color: 'var(--danger)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
           <AlertTriangle size={18} /> {errorMsg}
         </div>
       )}

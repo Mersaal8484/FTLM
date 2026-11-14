@@ -10,13 +10,13 @@ function RejectModal({ ar, onConfirm, onCancel }) {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
-      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+      background: 'var(--overlay)', backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
       <div style={{
         background: 'var(--card)', border: '1px solid var(--border)',
         borderRadius: 12, padding: 28, width: 420, maxWidth: '90vw',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+        boxShadow: 'var(--shadow-modal)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
           <AlertTriangle size={20} style={{ color: 'var(--danger)' }} />
@@ -39,7 +39,7 @@ function RejectModal({ ar, onConfirm, onCancel }) {
           </button>
           <button
             className="btn"
-            style={{ background: 'var(--danger)', color: '#fff', border: 'none' }}
+            style={{ background: 'var(--danger)', color: 'var(--on-accent)', border: 'none' }}
             onClick={() => onConfirm(reason)}
           >
             <X size={14} /> {ar ? 'تأكيد الرفض' : 'Confirm Reject'}
@@ -203,9 +203,9 @@ function ReviewChanges({ lang }) {
         <div style={{
           position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
           zIndex: 8888, minWidth: 280, textAlign: 'center',
-          background: toast.type === 'success' ? 'var(--success, #22c55e)' : 'var(--danger, #ef4444)',
-          color: '#fff', borderRadius: 10, padding: '12px 24px',
-          fontWeight: 600, fontSize: 14, boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+          background: toast.type === 'success' ? 'var(--success)' : 'var(--danger)',
+          color: 'var(--on-accent)', borderRadius: 'var(--radius-sm)', padding: '12px 24px',
+          fontWeight: 600, fontSize: 14, boxShadow: 'var(--shadow-md)',
           animation: 'fadeInUp 0.3s ease',
         }}>
           {toast.type === 'success' ? <CheckCircle size={16} style={{ marginInlineStart: 8, verticalAlign: 'middle' }} /> : <X size={16} style={{ marginInlineStart: 8, verticalAlign: 'middle' }} />}
@@ -239,7 +239,7 @@ function ReviewChanges({ lang }) {
                 <span className="badge badge-warning">{readings.length}</span>
                 {readings.length > 0 && (
                   <button className="btn btn-sm"
-                    style={{ background: 'var(--secondary)', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
+                    style={{ background: 'var(--secondary)', color: 'var(--on-accent)', border: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
                     onClick={handleApproveAll} disabled={bulkLoading}>
                     <CheckSquare size={14} />
                     {bulkLoading ? (ar ? 'جاري الاعتماد...' : 'Approving...') : (ar ? `اعتماد الكل (${readings.length})` : `Approve All (${readings.length})`)}
@@ -298,7 +298,7 @@ function ReviewChanges({ lang }) {
                           <td>
                             <div style={{ display: 'flex', gap: 6 }}>
                               <button className="btn btn-sm"
-                                style={{ background: 'var(--secondary)', color: '#fff', border: 'none' }}
+                                style={{ background: 'var(--secondary)', color: 'var(--on-accent)', border: 'none' }}
                                 disabled={isRunning}
                                 onClick={() => handleApproveReading(r.id)}>
                                 {isRunning ? <div className="ft-spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <CheckCircle size={13} />}
@@ -362,7 +362,7 @@ function ReviewChanges({ lang }) {
                           <td>
                             <div style={{ display: 'flex', gap: 6 }}>
                               <button className="btn btn-sm"
-                                style={{ background: 'var(--secondary)', color: '#fff', border: 'none' }}
+                                style={{ background: 'var(--secondary)', color: 'var(--on-accent)', border: 'none' }}
                                 disabled={isRunning}
                                 onClick={() => handleApproveStationReading(r.id)}>
                                 {isRunning ? <div className="ft-spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <CheckCircle size={13} />}
@@ -423,7 +423,7 @@ function ReviewChanges({ lang }) {
                           </td>
                           <td>
                             <button className="btn btn-sm"
-                              style={{ background: 'var(--primary)', color: '#fff', border: 'none' }}
+                              style={{ background: 'var(--primary)', color: 'var(--on-accent)', border: 'none' }}
                               disabled={isRunning}
                               onClick={() => handleReviewInventory(inv.id)}>
                               {isRunning ? <div className="ft-spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <CheckCircle size={13} />}

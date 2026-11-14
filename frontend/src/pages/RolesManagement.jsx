@@ -514,7 +514,7 @@ function RoleCard({ role, selected, onEdit, onDelete, onClone, disabled, canEdit
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
         {role.permissionCount !== undefined && (
           <span style={{
-            background: 'var(--primary-light, rgba(79,70,229,0.1))',
+            background: 'var(--primary-subtle)',
             color: 'var(--primary)',
             padding: '2px 8px',
             borderRadius: 'var(--radius-xs)',
@@ -526,8 +526,8 @@ function RoleCard({ role, selected, onEdit, onDelete, onClone, disabled, canEdit
         )}
         {!role.isActive && (
           <span style={{
-            background: 'var(--danger-light, rgba(239,68,68,0.1))',
-            color: 'var(--danger, #ef4444)',
+            background: 'var(--danger-subtle)',
+            color: 'var(--danger)',
             padding: '2px 8px',
             borderRadius: 'var(--radius-xs)',
             fontSize: 11,

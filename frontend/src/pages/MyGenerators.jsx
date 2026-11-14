@@ -82,7 +82,7 @@ function MyGenerators({ lang, currentUser }) {
                         {ar ? 'محطة توليد / موقع' : 'Power Station / Site'}
                       </div>
                     </div>
-                    <Link to={readingUrl} className="btn btn-primary" style={{ padding: '10px 20px', fontSize: 13, gap: 10, boxShadow: '0 4px 12px hsla(210,100%,50%,0.2)' }}>
+                    <Link to={readingUrl} className="btn btn-primary" style={{ padding: '10px 20px', fontSize: 13, gap: 10, boxShadow: 'var(--shadow-sm)' }}>
                       <Activity size={16} />
                       {ar ? 'إدخال قراءة الموقع' : 'Enter Site Reading'}
                     </Link>
@@ -144,8 +144,8 @@ function MyGenerators({ lang, currentUser }) {
                   {oilLow && (
                     <div style={{
                       display: 'flex', alignItems: 'center', gap: 8,
-                      background: 'var(--danger-glow)', border: '1px solid hsla(4,84%,60%,0.25)',
-                      borderRadius: 8, padding: '8px 12px', fontSize: 12,
+                      background: 'var(--danger-subtle)', border: '1px solid var(--danger)',
+                      borderRadius: 'var(--radius-sm)', padding: '8px 12px', fontSize: 12,
                     }}>
                       <AlertCircle size={14} style={{ color: 'var(--danger)', flexShrink: 0 }} />
                       <span style={{ color: 'var(--danger)' }}>

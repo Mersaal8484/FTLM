@@ -213,7 +213,7 @@ function AddReading({ lang, currentUser }) {
                   {generator?.stationName ? <span> — {generator.stationName}</span> : null}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '8px 12px', borderRadius: 8, background: controller ? 'var(--card-2)' : 'rgba(220,53,69,0.1)', border: controller ? '1px solid var(--border-light)' : '1px solid var(--danger)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '8px 12px', borderRadius: 'var(--radius-sm)', background: controller ? 'var(--card-2)' : 'var(--danger-subtle)', border: controller ? '1px solid var(--border-light)' : '1px solid var(--danger)' }}>
                   <Layout size={14} style={{ color: controller ? 'var(--primary)' : 'var(--danger)' }} />
                   <div>
                     <div style={{ ...labelStyle, marginBottom: 2 }}>{ar ? 'شاشة التحكم النشطة' : 'Active Control Panel'}</div>

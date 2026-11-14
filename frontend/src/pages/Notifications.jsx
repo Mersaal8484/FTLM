@@ -25,9 +25,9 @@ const typeConfig = {
 };
 
 const severityStyle = {
-  danger:  { background: 'hsla(4,84%,60%,0.08)',  border: 'hsla(4,84%,60%,0.2)' },
-  warning: { background: 'hsla(38,92%,55%,0.08)', border: 'hsla(38,92%,55%,0.2)' },
-  info:    { background: 'hsla(217,91%,60%,0.06)', border: 'hsla(217,91%,60%,0.15)' },
+  danger:  { background: 'var(--danger-subtle)',  border: 'var(--danger)' },
+  warning: { background: 'var(--warning-subtle)', border: 'var(--warning)' },
+  info:    { background: 'var(--info-subtle)',    border: 'var(--info)' },
 };
 
 export const getNotificationId = (notification) => notification?.id || notification?._id;
@@ -152,8 +152,8 @@ function Notifications({ lang, onRead }) {
               {ar ? 'الإشعارات' : 'Notifications'}
               {unreadCount > 0 && (
                 <span style={{
-                  background: 'var(--danger)', color: '#fff',
-                  fontSize: 12, fontWeight: 700, padding: '2px 10px', borderRadius: 99,
+                  background: 'var(--danger)', color: 'var(--on-accent)',
+                  fontSize: 12, fontWeight: 700, padding: '2px 10px', borderRadius: 'var(--radius-pill)',
                 }}>
                   {unreadCount} {ar ? 'جديد' : 'new'}
                 </span>
@@ -173,7 +173,7 @@ function Notifications({ lang, onRead }) {
       {/* KPI */}
       {dangerCount > 0 && (
         <div style={{
-          background: 'var(--danger-glow)', border: '1px solid hsla(4,84%,60%,0.3)',
+          background: 'var(--danger-subtle)', border: '1px solid var(--danger)',
           borderRadius: 'var(--radius)', padding: '14px 20px', marginBottom: 20,
           display: 'flex', alignItems: 'center', gap: 12,
         }}>
