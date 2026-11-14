@@ -141,7 +141,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
-            <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
+            <ChevronDown size={16} style={{ position: 'absolute', insetInlineEnd: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
           </div>
         </div>
 
@@ -163,7 +163,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
-            <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
+            <ChevronDown size={16} style={{ position: 'absolute', insetInlineEnd: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
           </div>
         </div>
 
@@ -185,7 +185,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
                 <option key={ss.id} value={ss.id}>{ss.name}</option>
               ))}
             </select>
-            <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
+            <ChevronDown size={16} style={{ position: 'absolute', insetInlineEnd: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
           </div>
         </div>
 
@@ -224,7 +224,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
                         <option key={m.value} value={m.value}>{m.label}</option>
                       ))}
                     </select>
-                    <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
+                    <ChevronDown size={16} style={{ position: 'absolute', insetInlineEnd: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
                   </div>
                 </div>
 
@@ -246,7 +246,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
                         return <option key={y} value={String(y)}>{y}</option>;
                       })}
                     </select>
-                    <ChevronDown size={16} style={{ position: 'absolute', insetInlineStart: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
+                    <ChevronDown size={16} style={{ position: 'absolute', insetInlineEnd: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
                   </div>
                 </div>
               </>
