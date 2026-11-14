@@ -55,6 +55,110 @@ public sealed class MovementLedgerServiceTests : IDisposable
         Assert.Equal("VISIBLE-APPROVED", row.Reference);
     }
 
+    [Fact]
+    public async Task GetAsync_SortsByStation()
+    {
+        var service = CreateService([10, 20]);
+
+        var ascResult = await service.GetAsync(Filter() with { Sort = "station", SortDirection = "asc" });
+        Assert.Equal(4, ascResult.Items.Count);
+        Assert.Equal("Station A", ascResult.Items[0].Station);
+        Assert.Equal("Station A", ascResult.Items[1].Station);
+        Assert.Equal("Station B", ascResult.Items[2].Station);
+        Assert.Equal("Station B", ascResult.Items[3].Station);
+
+        var descResult = await service.GetAsync(Filter() with { Sort = "station", SortDirection = "desc" });
+        Assert.Equal(4, descResult.Items.Count);
+        Assert.Equal("Station B", descResult.Items[0].Station);
+        Assert.Equal("Station B", descResult.Items[1].Station);
+        Assert.Equal("Station A", descResult.Items[2].Station);
+        Assert.Equal("Station A", descResult.Items[3].Station);
+    }
+
+    [Fact]
+    public async Task GetAsync_SortsByType()
+    {
+        var transferLookup = new Lookup { Id = 4, CategoryId = 3, Name = "Transfer", Code = "Transfer" };
+        _db.Lookups.Add(transferLookup);
+        _db.FuelTransactions.Add(new FuelTransaction
+        {
+            Id = 5, SubStationId = 10, FuelLookupId = 1, TransactionTypeLookupId = 4,
+            TransactionDate = new DateTime(2026, 11, 5, 8, 0, 0, DateTimeKind.Utc),
+            QuantityLiters = 50, Reference = "TRANSFER-REF", IsApproved = true,
+            CreatedBy = 1, UpdatedBy = 1, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow,
+        });
+        await _db.SaveChangesAsync();
+
+        var service = CreateService([10, 20]);
+
+        var ascResult = await service.GetAsync(Filter() with { Sort = "type", SortDirection = "asc" });
+        Assert.Equal("Supply", ascResult.Items.First().MovementType);
+        Assert.Equal("Transfer", ascResult.Items.Last().MovementType);
+
+        var descResult = await service.GetAsync(Filter() with { Sort = "type", SortDirection = "desc" });
+        Assert.Equal("Transfer", descResult.Items.First().MovementType);
+        Assert.Equal("Supply", descResult.Items.Last().MovementType);
+    }
+
+    [Fact]
+    public async Task GetAsync_AppliesTextFilterAcrossBothKinds()
+    {
+        var service = CreateService([10, 20]);
+        var filter = Filter() with { Search = "VISIBLE" };
+
+        var result = await service.GetAsync(filter);
+
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal(2, result.Items.Count);
+        Assert.Contains(result.Items, row => row.Kind == "fuel" && row.Id == 1);
+        Assert.Contains(result.Items, row => row.Kind == "oil" && row.Id == 3);
+        Assert.DoesNotContain(result.Items, row => row.Id == 2);
+        Assert.DoesNotContain(result.Items, row => row.Id == 4);
+    }
+
+    [Fact]
+    public async Task GetAsync_EnforcesPageBoundaryWithoutDuplicates()
+    {
+        var service = CreateService([10, 20]);
+
+        var page1 = await service.GetAsync(Filter(page: 1, pageSize: 2));
+        var page2 = await service.GetAsync(Filter(page: 2, pageSize: 2));
+
+        Assert.Equal(4, page1.TotalCount);
+        Assert.Equal(2, page1.Items.Count);
+        Assert.Equal(4, page2.TotalCount);
+        Assert.Equal(2, page2.Items.Count);
+
+        var page1Keys = page1.Items.Select(x => (x.Kind, x.Id)).ToHashSet();
+        var page2Keys = page2.Items.Select(x => (x.Kind, x.Id)).ToHashSet();
+
+        Assert.Empty(page1Keys.Intersect(page2Keys));
+        Assert.Equal(4, page1Keys.Union(page2Keys).Count());
+    }
+
+    [Fact]
+    public async Task GetAsync_ExcludesRecordsWhenSubStationNotInScope()
+    {
+        var service = CreateService([20]);
+
+        var result = await service.GetAsync(Filter());
+
+        Assert.Equal(2, result.TotalCount);
+        Assert.All(result.Items, item => Assert.Equal(20, item.SubStationId));
+        Assert.DoesNotContain(result.Items, item => item.SubStationId == 10);
+    }
+
+    [Fact]
+    public async Task GetAsync_ReturnsEmptyWhenUserHasNoAccessibleSubStations()
+    {
+        var service = CreateService([]);
+
+        var result = await service.GetAsync(Filter());
+
+        Assert.Equal(0, result.TotalCount);
+        Assert.Empty(result.Items);
+    }
+
     private MovementLedgerService CreateService(List<int> accessibleSites) => new(
         _db,
         new Scope(accessibleSites),
