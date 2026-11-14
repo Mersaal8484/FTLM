@@ -269,12 +269,6 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
               <span className={`nav-icon-tile nav-icon-tile-${navDomain(to)}`}><Icon size={19} strokeWidth={2.25} /></span><span className="nav-item-label">{label}</span>
             </NavLink>
           ))}
-          {(can('reports') || can('warehouse')) && (
-            <NavLink to="/reports" data-nav-top={t('sidebar.reports')} title={sidebarCollapsed ? t('sidebar.reports') : undefined} onClick={closeMobile} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-              <span className="nav-icon-tile nav-icon-tile-purple"><BarChart2 size={19} strokeWidth={2.25} /></span>
-              <span className="nav-item-label">{t('sidebar.reports')}</span>
-            </NavLink>
-          )}
           <NavGroup icon={navigationGroups.settings.icon} label={t(navigationGroups.settings.labelKey)} items={setupNav} onNavigate={closeMobile} collapsed={sidebarCollapsed} />
         </nav>
 
