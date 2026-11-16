@@ -3,9 +3,11 @@ import client from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 import { Droplet, Plus, Edit2, Trash2, Check, X } from 'lucide-react';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 function SetupOils({ lang }) {
   const ar = lang === 'ar';
+  const { isCommercialMode } = useCommercialMode();
   const [oilLookups, setOilLookups] = useState([]);
   const [oils, setOils] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -63,8 +65,8 @@ function SetupOils({ lang }) {
   , [formStationId, subStations]);
 
   const handleAdd = async () => {
-    if (!newOil.oilLookupId || !newOil.stationId) {
-      setError(ar ? 'نوع الزيت والمحطة مطلوبان' : 'Oil type and Station are required');
+    if (!newOil.oilLookupId || (!isCommercialMode && !newOil.stationId)) {
+      setError(ar ? (isCommercialMode ? 'نوع الزيت مطلوب' : 'نوع الزيت والمحطة مطلوبان') : (isCommercialMode ? 'Oil type is required' : 'Oil type and Station are required'));
       return;
     }
     setSaving(true); setError('');
@@ -73,8 +75,8 @@ function SetupOils({ lang }) {
         oilLookupId: Number(newOil.oilLookupId),
         currentStock: parseFloat(newOil.currentStock) || 0,
         minStock: parseFloat(newOil.minStock) || 0,
-        stationId: Number(newOil.stationId),
-        subStationId: newOil.subStationId ? Number(newOil.subStationId) : null,
+        stationId: isCommercialMode ? null : Number(newOil.stationId),
+        subStationId: isCommercialMode ? null : (newOil.subStationId ? Number(newOil.subStationId) : null),
         isActive: newOil.isActive,
       });
       setNewOil({ oilLookupId: '', currentStock: '', minStock: '', branchId: '', stationId: '', subStationId: '', isActive: true });
@@ -93,8 +95,8 @@ function SetupOils({ lang }) {
         oilLookupId: editing.oilLookupId ? Number(editing.oilLookupId) : undefined,
         currentStock: parseFloat(editing.currentStock) || 0,
         minStock: parseFloat(editing.minStock) || 0,
-        stationId: editing.stationId ? Number(editing.stationId) : null,
-        subStationId: editing.subStationId ? Number(editing.subStationId) : null,
+        stationId: isCommercialMode ? null : (editing.stationId ? Number(editing.stationId) : null),
+        subStationId: isCommercialMode ? null : (editing.subStationId ? Number(editing.subStationId) : null),
         isActive: editing.isActive,
       });
       setEditing(null);
@@ -192,34 +194,38 @@ function SetupOils({ lang }) {
             </label>
           </div>
 
-          <div className="form-section-header">{ar ? 'الموقع' : 'Location'}</div>
-          <div className="form-row" style={{ gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'flex-end' }}>
-            <FormField label={ar ? 'الفرع' : 'Branch'}>
-              <select className="form-select" value={editing ? String(editing.branchId || '') : newOil.branchId}
-                onChange={e => editing ? setEditing({ ...editing, branchId: e.target.value, stationId: '', subStationId: '' }) : setNewOil({ ...newOil, branchId: e.target.value, stationId: '', subStationId: '' })}>
-                <option value="">— {ar ? 'كل الفروع' : 'All Branches'} —</option>
-                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </FormField>
-            <FormField label={ar ? 'المحطة الأساسية *' : 'Station *'}>
-              <select className="form-select" value={editing ? String(editing.stationId || '') : newOil.stationId}
-                onChange={e => editing ? setEditing({ ...editing, stationId: e.target.value, subStationId: '' }) : setNewOil({ ...newOil, stationId: e.target.value, subStationId: '' })}
-                disabled={!formBranchId && formBranchId !== ''}>
-                <option value="">— {ar ? 'اختر المحطة' : 'Select Station'} —</option>
-                {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </FormField>
-            <FormField label={ar ? 'المنطقة (وحدة فرعية)' : 'Area (SubStation)'}>
-              <select className="form-select" value={editing ? String(editing.subStationId || '') : newOil.subStationId}
-                onChange={e => editing ? setEditing({ ...editing, subStationId: e.target.value }) : setNewOil({ ...newOil, subStationId: e.target.value })}
-                disabled={!formStationId && formStationId !== ''}>
-                <option value="">— {ar ? 'اختر المنطقة (اختياري)' : 'Select Area (Optional)'} —</option>
-                {filteredSubStations.map(ss => (
-                  <option key={ss.id} value={ss.id}>{ss.name}</option>
-                ))}
-              </select>
-            </FormField>
-          </div>
+          {!isCommercialMode && (
+            <>
+              <div className="form-section-header">{ar ? 'الموقع' : 'Location'}</div>
+              <div className="form-row" style={{ gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'flex-end' }}>
+                <FormField label={ar ? 'الفرع' : 'Branch'}>
+                  <select className="form-select" value={editing ? String(editing.branchId || '') : newOil.branchId}
+                    onChange={e => editing ? setEditing({ ...editing, branchId: e.target.value, stationId: '', subStationId: '' }) : setNewOil({ ...newOil, branchId: e.target.value, stationId: '', subStationId: '' })}>
+                    <option value="">— {ar ? 'كل الفروع' : 'All Branches'} —</option>
+                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </FormField>
+                <FormField label={ar ? 'المحطة الأساسية *' : 'Station *'}>
+                  <select className="form-select" value={editing ? String(editing.stationId || '') : newOil.stationId}
+                    onChange={e => editing ? setEditing({ ...editing, stationId: e.target.value, subStationId: '' }) : setNewOil({ ...newOil, stationId: e.target.value, subStationId: '' })}
+                    disabled={!formBranchId && formBranchId !== ''}>
+                    <option value="">— {ar ? 'اختر المحطة' : 'Select Station'} —</option>
+                    {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </FormField>
+                <FormField label={ar ? 'المنطقة (وحدة فرعية)' : 'Area (SubStation)'}>
+                  <select className="form-select" value={editing ? String(editing.subStationId || '') : newOil.subStationId}
+                    onChange={e => editing ? setEditing({ ...editing, subStationId: e.target.value }) : setNewOil({ ...newOil, subStationId: e.target.value })}
+                    disabled={!formStationId && formStationId !== ''}>
+                    <option value="">— {ar ? 'اختر المنطقة (اختياري)' : 'Select Area (Optional)'} —</option>
+                    {filteredSubStations.map(ss => (
+                      <option key={ss.id} value={ss.id}>{ss.name}</option>
+                    ))}
+                  </select>
+                </FormField>
+              </div>
+            </>
+          )}
         </Modal>
       )}
 
@@ -247,7 +253,7 @@ function SetupOils({ lang }) {
                 <tr>
                   <th>#</th>
                   <th>{ar ? 'نوع الزيت' : 'Oil Type'}</th>
-                  <th>{ar ? 'الموقع/المحطة' : 'Station/Area'}</th>
+                  {!isCommercialMode && <th>{ar ? 'الموقع/المحطة' : 'Station/Area'}</th>}
                   <th>{ar ? 'الكمية الحالية' : 'Current Stock'}</th>
                   <th>{ar ? 'الحد الأدنى' : 'Min Stock'}</th>
                   <th>{ar ? 'الحالة' : 'Status'}</th>
@@ -259,14 +265,16 @@ function SetupOils({ lang }) {
                   <tr key={oil.id}>
                     <td style={{ color: 'var(--text-faint)', width: 40 }}>{idx + 1}</td>
                     <td style={{ fontWeight: 600 }}>{oil.oilLookupName}</td>
-                    <td>
-                      <div style={{ fontSize: 13 }}>{oil.stationName || '—'}</div>
-                      {oil.subStationName && (
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          {oil.subStationName}
-                        </div>
-                      )}
-                    </td>
+                    {!isCommercialMode && (
+                      <td>
+                        <div style={{ fontSize: 13 }}>{oil.stationName || '—'}</div>
+                        {oil.subStationName && (
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            {oil.subStationName}
+                          </div>
+                        )}
+                      </td>
+                    )}
                     <td><span style={{ fontWeight: 700 }}>{oil.currentStock}</span> <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>L</span></td>
                     <td><span style={{ color: 'var(--text-muted)' }}>{oil.minStock}</span> <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>L</span></td>
                     <td>

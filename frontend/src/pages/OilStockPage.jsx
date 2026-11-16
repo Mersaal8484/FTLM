@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Droplet, AlertTriangle, RefreshCw, ChevronDown, ChevronRight, MapPin } from 'lucide-react';
 import { useOilStockSummary, stockSummaryKeys } from '../api/stockSummaryApi';
 import connection from '../socket';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 const fmt = (v, d = 0) =>
   v != null ? Number(v).toLocaleString('en-US', { maximumFractionDigits: d }) : '—';
@@ -24,6 +25,7 @@ function AlertBadge({ level, ar }) {
 
 function OilStockPage({ lang }) {
   const ar = lang === 'ar';
+  const { isCommercialMode } = useCommercialMode();
   const queryClient = useQueryClient();
 
   const [monthStr, setMonthStr] = useState(() => new Date().toISOString().slice(0, 7));
@@ -140,10 +142,12 @@ function OilStockPage({ lang }) {
 
       {/* KPI Cards */}
       <div className="kpi-grid" style={{ marginBottom: 28 }}>
-        <div className="kpi-card" style={{ '--kpi-color': 'var(--primary)', '--kpi-bg': 'var(--primary-glow)' }}>
-          <div className="kpi-icon"><MapPin size={22} /></div>
-          <div><div className="kpi-value">{kpi.sites}</div><div className="kpi-label">{ar ? 'المواقع' : 'Locations'}</div></div>
-        </div>
+        {!isCommercialMode && (
+          <div className="kpi-card" style={{ '--kpi-color': 'var(--primary)', '--kpi-bg': 'var(--primary-glow)' }}>
+            <div className="kpi-icon"><MapPin size={22} /></div>
+            <div><div className="kpi-value">{kpi.sites}</div><div className="kpi-label">{ar ? 'المواقع' : 'Locations'}</div></div>
+          </div>
+        )}
         <div className="kpi-card" style={{ '--kpi-color': 'var(--warning)', '--kpi-bg': 'var(--warning-glow)' }}>
           <div className="kpi-icon"><Droplet size={22} /></div>
           <div><div className="kpi-value">{fmt(kpi.totalRemaining, 0)}</div><div className="kpi-label">{ar ? 'إجمالي المخزون (L)' : 'Total Stock (L)'}</div></div>
@@ -158,7 +162,7 @@ function OilStockPage({ lang }) {
         </div>
       </div>
 
-      {/* Tree */}
+      {/* Tree / Table */}
       <div className="section-card" style={{ marginBottom: 0 }}>
         {summaryLoading ? (
           <div style={{ padding: '60px 0', textAlign: 'center' }}><div className="ft-spinner" style={{ width: 36, height: 36, margin: '0 auto' }} /></div>
@@ -166,6 +170,26 @@ function OilStockPage({ lang }) {
           <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
             <Droplet size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
             <p>{ar ? 'لا توجد بيانات للفترة المحددة' : 'No data for selected period'}</p>
+          </div>
+        ) : isCommercialMode ? (
+          <div style={{ overflowX: 'auto', padding: 8 }}>
+            <table className="data-table" style={{ borderTop: 'none', fontSize: 12, minWidth: 740 }}>
+              <thead>
+                <tr style={{ background: 'var(--card-2)' }}>
+                  <th style={{ textAlign: 'center' }}>{ar ? 'نوع الزيت' : 'Oil Type'}</th>
+                  <th style={{ textAlign: 'center', color: 'var(--warning)' }}>{ar ? 'الحد الأدنى (L)' : 'Min Stock (L)'}</th>
+                  <th style={{ textAlign: 'center' }}>{ar ? 'الرصيد الافتتاحي' : 'Base Stock'}</th>
+                  <th style={{ textAlign: 'center', color: 'var(--secondary)' }}>{ar ? 'وارد' : 'Inbound'}</th>
+                  <th style={{ textAlign: 'center', color: 'var(--danger)' }}>{ar ? 'نقل مرسل' : 'Sent'}</th>
+                  <th style={{ textAlign: 'center', color: 'var(--success)' }}>{ar ? 'نقل مستلم' : 'Received'}</th>
+                  <th style={{ textAlign: 'center', color: 'var(--danger)' }}>{ar ? 'فاقد' : 'Loss'}</th>
+                  <th style={{ textAlign: 'center', color: 'var(--warning)' }}>{ar ? 'مستهلك' : 'Consumed'}</th>
+                  <th style={{ textAlign: 'center', fontWeight: 800 }}>{ar ? 'المخزون الفعلي (L)' : 'Actual Stock (L)'}</th>
+                  <th style={{ textAlign: 'center' }}>{ar ? 'التنبيه' : 'Alert'}</th>
+                </tr>
+              </thead>
+              <tbody>{summaryData.map((s, idx) => renderRow(s, idx))}</tbody>
+            </table>
           </div>
         ) : grouped.map(branch => (
           <div key={branch.id} style={{ marginBottom: 10 }}>

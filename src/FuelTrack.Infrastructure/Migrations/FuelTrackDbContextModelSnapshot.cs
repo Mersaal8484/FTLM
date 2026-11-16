@@ -1022,6 +1022,9 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<int?>("Shape")
                         .HasColumnType("int");
 
+                    b.Property<int?>("TankRole")
+                        .HasColumnType("int");
+
                     b.Property<int>("SubStationId")
                         .HasColumnType("int");
 

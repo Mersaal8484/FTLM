@@ -19,6 +19,7 @@ const ForceChangePassword = lazy(() => import('./pages/ForceChangePassword'));
 const Generators = lazy(() => import('./pages/Generators'));
 const ActiveGenerators = lazy(() => import('./pages/ActiveGenerators'));
 const TanksManagement = lazy(() => import('./pages/TanksManagement'));
+const DailyTanks = lazy(() => import('./pages/DailyTanks'));
 const FeedersManagement = lazy(() => import('./pages/FeedersManagement'));
 const OilInventory = lazy(() => import('./pages/OilInventory'));
 const LocationsManagement = lazy(() => import('./pages/LocationsManagement'));
@@ -169,6 +170,12 @@ const EnterpriseOnly = ({ children }) => {
   const { isCommercialMode, modeResolved } = useCommercialMode();
   if (!modeResolved) return <AuthBootScreen />;
   return isCommercialMode ? <Navigate to="/" replace /> : children;
+};
+
+const CommercialOnly = ({ children }) => {
+  const { isCommercialMode, modeResolved } = useCommercialMode();
+  if (!modeResolved) return <AuthBootScreen />;
+  return !isCommercialMode ? <Navigate to="/" replace /> : children;
 };
 
 function App() {
@@ -336,6 +343,7 @@ function App() {
               <Route path="/maintenance/installed-parts" element={<Protected module="maintenance"><InstalledParts lang={lang} currentUser={user} /></Protected>} />
               <Route path="/setup-oils" element={<OilSetupProtected><SetupOils t={t} lang={lang} /></OilSetupProtected>} />
               <Route path="/tanks" element={<Protected module="tanks"><TanksManagement t={t} lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/commercial/daily-tanks" element={<CommercialOnly><Protected module="tanks"><DailyTanks lang={lang} currentUser={user} /></Protected></CommercialOnly>} />
               <Route path="/feeders" element={<Protected module="settings" action="manage"><FeedersManagement lang={lang} currentUser={user} /></Protected>} />
               <Route path="/oils" element={<ExplicitProtected module="oil"><OilInventory t={t} lang={lang} currentUser={user} /></ExplicitProtected>} />
               <Route path="/users" element={<Protected module="users" action="view"><Users lang={lang} t={t} currentUser={user} /></Protected>} />

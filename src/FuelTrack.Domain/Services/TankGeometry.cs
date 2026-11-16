@@ -2,39 +2,67 @@ using FuelTrack.Domain.Enums;
 
 namespace FuelTrack.Domain.Services;
 
-/// <summary>Pure tank geometry facade. The currently confirmed shape is vertical cylinder with conical bottom.</summary>
+/// <summary>
+/// Pure tank geometry facade.
+/// Registered shapes:
+///   VerticalCylinderWithConicalBottom (0) — enterprise / legacy vertical tanks.
+///   HorizontalCylinderWithConicalEnds (1) — commercial-mode main and daily tanks.
+/// </summary>
 public static class TankGeometry
 {
-    private static readonly ITankGeometryStrategy VerticalConical = new VerticalConicalTankGeometryStrategy();
+    private static readonly ITankGeometryStrategy VerticalConical   = new VerticalConicalTankGeometryStrategy();
+    private static readonly ITankGeometryStrategy HorizontalConical = new HorizontalConicalTankGeometryStrategy();
 
-    public static decimal CalculateLitres(TankShape shape, decimal diameterCm, decimal cylinderHeightCm, decimal coneHeightCm, decimal factor, decimal liquidLevelCm) => shape switch
+    private static ITankGeometryStrategy StrategyFor(TankShape shape) => shape switch
     {
-        TankShape.VerticalCylinderWithConicalBottom => VerticalConical.CalculateLitres(diameterCm, cylinderHeightCm, coneHeightCm, factor, liquidLevelCm),
+        TankShape.VerticalCylinderWithConicalBottom => VerticalConical,
+        TankShape.HorizontalCylinderWithConicalEnds => HorizontalConical,
         _ => throw new ArgumentOutOfRangeException(nameof(shape), "No tank geometry strategy is registered for this shape."),
     };
 
+    public static decimal CalculateLitres(TankShape shape, decimal diameterCm, decimal cylinderHeightCm, decimal coneHeightCm, decimal factor, decimal liquidLevelCm)
+        => StrategyFor(shape).CalculateLitres(diameterCm, cylinderHeightCm, coneHeightCm, factor, liquidLevelCm);
+
+    /// <summary>Convenience overload — defaults to <see cref="TankShape.VerticalCylinderWithConicalBottom"/> (enterprise path).</summary>
     public static decimal CalculateLitres(decimal diameterCm, decimal cylinderHeightCm, decimal coneHeightCm, decimal factor, decimal liquidLevelCm)
         => CalculateLitres(TankShape.VerticalCylinderWithConicalBottom, diameterCm, cylinderHeightCm, coneHeightCm, factor, liquidLevelCm);
 
-    public static decimal CalculateCapacityLitres(decimal diameterCm, decimal cylinderHeightCm, decimal coneHeightCm, decimal factor) =>
-        CalculateLitres(diameterCm, cylinderHeightCm, coneHeightCm, factor, coneHeightCm + cylinderHeightCm);
+    /// <summary>Returns the full capacity of the tank in litres (liquid level = top).</summary>
+    public static decimal CalculateCapacityLitres(TankShape shape, decimal diameterCm, decimal cylinderHeightCm, decimal coneHeightCm, decimal factor)
+    {
+        // For horizontal tanks the full level equals the diameter (not cone+cylinder sum).
+        decimal fullLevel = shape == TankShape.HorizontalCylinderWithConicalEnds
+            ? diameterCm
+            : coneHeightCm + cylinderHeightCm;
+        return CalculateLitres(shape, diameterCm, cylinderHeightCm, coneHeightCm, factor, fullLevel);
+    }
 
-    /// <summary>Derives the liquid height for a stored volume without persisting a duplicate calibration value.</summary>
-    public static decimal CalculateLiquidLevelCm(decimal diameterCm, decimal cylinderHeightCm, decimal coneHeightCm, decimal factor, decimal litres)
+    /// <summary>Convenience overload — defaults to <see cref="TankShape.VerticalCylinderWithConicalBottom"/>.</summary>
+    public static decimal CalculateCapacityLitres(decimal diameterCm, decimal cylinderHeightCm, decimal coneHeightCm, decimal factor) =>
+        CalculateCapacityLitres(TankShape.VerticalCylinderWithConicalBottom, diameterCm, cylinderHeightCm, coneHeightCm, factor);
+
+    /// <summary>Derives the liquid height (cm) for a stored volume using bisection — no duplicate calibration value stored.</summary>
+    public static decimal CalculateLiquidLevelCm(TankShape shape, decimal diameterCm, decimal cylinderHeightCm, decimal coneHeightCm, decimal factor, decimal litres)
     {
         if (litres <= 0) return 0;
-        var fullHeight = coneHeightCm + cylinderHeightCm;
-        var capacity = CalculateCapacityLitres(diameterCm, cylinderHeightCm, coneHeightCm, factor);
-        if (litres >= capacity) return fullHeight;
+        decimal fullLevel = shape == TankShape.HorizontalCylinderWithConicalEnds
+            ? diameterCm
+            : coneHeightCm + cylinderHeightCm;
+        var capacity = CalculateCapacityLitres(shape, diameterCm, cylinderHeightCm, coneHeightCm, factor);
+        if (litres >= capacity) return fullLevel;
 
         var low = 0m;
-        var high = fullHeight;
+        var high = fullLevel;
         for (var iteration = 0; iteration < 48; iteration++)
         {
             var mid = (low + high) / 2m;
-            if (CalculateLitres(diameterCm, cylinderHeightCm, coneHeightCm, factor, mid) < litres) low = mid;
+            if (CalculateLitres(shape, diameterCm, cylinderHeightCm, coneHeightCm, factor, mid) < litres) low = mid;
             else high = mid;
         }
         return decimal.Round((low + high) / 2m, 4, MidpointRounding.AwayFromZero);
     }
+
+    /// <summary>Convenience overload — defaults to <see cref="TankShape.VerticalCylinderWithConicalBottom"/>.</summary>
+    public static decimal CalculateLiquidLevelCm(decimal diameterCm, decimal cylinderHeightCm, decimal coneHeightCm, decimal factor, decimal litres)
+        => CalculateLiquidLevelCm(TankShape.VerticalCylinderWithConicalBottom, diameterCm, cylinderHeightCm, coneHeightCm, factor, litres);
 }

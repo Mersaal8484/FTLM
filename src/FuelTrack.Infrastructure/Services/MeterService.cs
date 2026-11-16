@@ -10,12 +10,18 @@ public class MeterService : IMeterService
     private readonly FuelTrackDbContext _db;
     private readonly IUserScopeFilterService _scopeFilter;
     private readonly ICurrentUserService _currentUser;
+    private readonly ICommercialStationModeService _commercialMode;
 
-    public MeterService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser)
+    public MeterService(
+        FuelTrackDbContext db,
+        IUserScopeFilterService scopeFilter,
+        ICurrentUserService currentUser,
+        ICommercialStationModeService commercialMode)
     {
         _db = db;
         _scopeFilter = scopeFilter;
         _currentUser = currentUser;
+        _commercialMode = commercialMode;
     }
 
     public async Task<MeterDetailDto> CreateAsync(CreateMeterDto dto)
@@ -37,6 +43,27 @@ public class MeterService : IMeterService
         _db.Meters.Add(meter);
         await _db.SaveChangesAsync();
 
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var scope = await _commercialMode.GetScopeAsync();
+            var subStationId = meter.SubStationId ?? scope?.SubStationId;
+            if (subStationId.HasValue)
+            {
+                var feeder = new Feeder
+                {
+                    SubStationId = subStationId.Value,
+                    Code = $"FDR-{meter.Id}",
+                    Name = string.IsNullOrWhiteSpace(meter.Name) ? $"Feeder {meter.Id}" : meter.Name,
+                    MeterMultiplier = 1m,
+                    MeterId = meter.Id,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                };
+                _db.Feeders.Add(feeder);
+                await _db.SaveChangesAsync();
+            }
+        }
+
         return (await MapToDetailAsync(meter.Id))!;
     }
 
@@ -56,6 +83,19 @@ public class MeterService : IMeterService
         meter.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
+
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var feeder = await _db.Feeders.FirstOrDefaultAsync(f => f.MeterId == meter.Id && f.DeletedAt == null);
+            if (feeder is not null)
+            {
+                feeder.Name = meter.Name;
+                if (meter.SubStationId.HasValue) feeder.SubStationId = meter.SubStationId.Value;
+                feeder.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+            }
+        }
+
         return (await MapToDetailAsync(meter.Id))!;
     }
 
@@ -208,6 +248,17 @@ public class MeterService : IMeterService
     {
         var meter = await _db.Meters.FindAsync(id)
             ?? throw new KeyNotFoundException($"Meter {id} not found.");
+
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var feeder = await _db.Feeders.FirstOrDefaultAsync(f => f.MeterId == id && f.DeletedAt == null);
+            if (feeder is not null)
+            {
+                feeder.DeletedAt = DateTime.UtcNow;
+                feeder.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
         _db.Meters.Remove(meter);
         await _db.SaveChangesAsync();
     }

@@ -1,3 +1,5 @@
+using FuelTrack.Domain.Enums;
+
 namespace FuelTrack.Application.DTOs.FuelTanks;
 
 public record FuelTankDetailDto(
@@ -24,4 +26,10 @@ public record FuelTankDetailDto(
     decimal? DiameterCm = null,
     decimal? CylinderHeightCm = null,
     decimal? ConeHeightCm = null,
-    decimal? MultiplicationFactor = null);
+    decimal? MultiplicationFactor = null,
+    TankRole? TankRole = null,
+    int? GeneratorId = null,
+    string? GeneratorName = null,
+    int? ParentTankId = null,
+    string? ParentTankName = null,
+    TankShape? Shape = null);

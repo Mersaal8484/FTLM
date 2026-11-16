@@ -1,7 +1,12 @@
 namespace FuelTrack.Domain.Enums;
 
-/// <summary>The approved Bitbus calibration shape: a vertical cylinder above a conical bottom.</summary>
+/// <summary>
+/// Tank calibration shapes.
+/// VerticalCylinderWithConicalBottom (0): enterprise / legacy vertical tanks.
+/// HorizontalCylinderWithConicalEnds (1): commercial-mode main and daily tanks (owner design rule).
+/// </summary>
 public enum TankShape
 {
-    VerticalCylinderWithConicalBottom = 0
+    VerticalCylinderWithConicalBottom = 0,
+    HorizontalCylinderWithConicalEnds = 1,
 }

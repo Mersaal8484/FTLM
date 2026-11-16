@@ -18,7 +18,8 @@ public static class TankVolumeService
             && tank.DiameterCm.HasValue && tank.CylinderHeightCm.HasValue
             && tank.ConeHeightCm.HasValue && tank.MultiplicationFactor.HasValue)
         {
-            return TankGeometry.CalculateLitres(tank.DiameterCm.Value, tank.CylinderHeightCm.Value,
+            var shape = tank.Shape ?? Enums.TankShape.VerticalCylinderWithConicalBottom;
+            return TankGeometry.CalculateLitres(shape, tank.DiameterCm.Value, tank.CylinderHeightCm.Value,
                 tank.ConeHeightCm.Value, tank.MultiplicationFactor.Value, tank.DeadStockLevelCm.Value);
         }
         return (decimal)(tank.DeadStockLiters ?? 0d);

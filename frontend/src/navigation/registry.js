@@ -79,6 +79,7 @@ export const navigationRegistry = [
   { id: 'meters', route: '/meters', labelKey: 'sidebar.meters', icon: Gauge, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 93, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'setup-oils', route: '/setup-oils', labelKey: 'sidebar.setupOils', icon: Droplet, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 94, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'tanks', route: '/tanks', labelKey: 'sidebar.setupTanks', icon: Database, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 95, legacyDuplicate: false, modeVisibility: 'all' },
+  { id: 'daily-tanks', route: '/commercial/daily-tanks', labelKey: 'sidebar.dailyTanks', icon: Database, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 95.2, legacyDuplicate: false, modeVisibility: 'commercial' },
   { id: 'feeders', route: '/feeders', labelKey: 'sidebar.feeders', icon: Zap, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 95.5, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'controllers', route: '/controllers', labelKey: 'sidebar.controllers', icon: Cpu, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 96, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'users', route: '/users', labelKey: 'sidebar.users', icon: Users, permissionRule: moduleRule('users'), group: 'settings', order: 97, legacyDuplicate: false, modeVisibility: 'all' },
@@ -104,6 +105,7 @@ export function isNavigationItemVisible(item, context) {
   if (item.modeVisibility === 'new' && !context.isNewMode) return false;
   if (item.modeVisibility === 'legacy' && context.isNewMode) return false;
   if (item.modeVisibility === 'enterprise' && context.isCommercialMode) return false;
+  if (item.modeVisibility === 'commercial' && !context.isCommercialMode) return false;
   if (item.legacyDuplicate) {
     if (!context.modeResolved) return false;
     if (context.isNewMode && !context.hasAssignedPermission('legacy_screens', 'view')) return false;

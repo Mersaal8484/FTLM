@@ -11,12 +11,18 @@ public class OilService : IOilService
     private readonly FuelTrackDbContext _db;
     private readonly IUserScopeFilterService _scopeFilter;
     private readonly ICurrentUserService _currentUser;
+    private readonly ICommercialStationModeService _commercialMode;
 
-    public OilService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser)
+    public OilService(
+        FuelTrackDbContext db,
+        IUserScopeFilterService scopeFilter,
+        ICurrentUserService currentUser,
+        ICommercialStationModeService commercialMode)
     {
         _db = db;
         _scopeFilter = scopeFilter;
         _currentUser = currentUser;
+        _commercialMode = commercialMode;
     }
 
     public async Task<OilDetailDto?> GetByIdAsync(int id, CancellationToken ct = default)
@@ -295,13 +301,26 @@ public class OilService : IOilService
         if (!lookupExists)
             throw new KeyNotFoundException($"Lookup {dto.OilLookupId} not found.");
 
+        var stationId = dto.StationId;
+        var subStationId = dto.SubStationId;
+
+        if (await _commercialMode.IsCommercialModeAsync(ct))
+        {
+            var scope = await _commercialMode.GetScopeAsync(ct);
+            if (scope != null)
+            {
+                stationId ??= scope.StationId;
+                subStationId ??= scope.SubStationId;
+            }
+        }
+
         var oil = new Oil
         {
             OilLookupId = dto.OilLookupId,
             CurrentStock = dto.CurrentStock,
             MinStock = dto.MinStock,
-            StationId = dto.StationId,
-            SubStationId = dto.SubStationId,
+            StationId = stationId,
+            SubStationId = subStationId,
             IsActive = dto.IsActive,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = userId,

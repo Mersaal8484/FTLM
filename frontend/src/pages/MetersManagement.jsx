@@ -3,6 +3,7 @@ import { AlertCircle, Gauge, Pencil, Plus, Save, Trash2, X, Search, RefreshCw, Z
 import client from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 const METER_ICON_MAP = {
   'GeneratorMeter': { icon: <Zap size={13} />,    color: 'var(--primary)',   colorVar: 'primary' },
@@ -23,6 +24,7 @@ function MeterTypeBadge({ type, code }) {
 
 function MetersManagement({ lang }) {
   const ar = lang === 'ar';
+  const { isCommercialMode } = useCommercialMode();
 
   const [meters, setMeters] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -75,10 +77,23 @@ function MetersManagement({ lang }) {
 
   const resetForm = () => {
     setForm({ branchId: '', stationId: '', subStationId: '', generatorId: '', meterName: '', serialNumber: '', hoursReading: '', energyReading: '', isActive: true });
-    setActiveTab('fuel'); setEditItem(null); setShowForm(false);
+    setActiveTab(isCommercialMode ? 'energy' : 'fuel'); setEditItem(null); setShowForm(false);
   };
 
-  const openAdd  = () => { resetForm(); setShowForm(true); };
+  const openAdd = () => {
+    resetForm();
+    if (isCommercialMode) {
+      setActiveTab('energy');
+      if (subStations.length > 0) {
+        setForm(f => ({
+          ...f,
+          subStationId: String(subStations[0].id),
+          stationId: String(subStations[0].stationId || subStations[0].station_id || ''),
+        }));
+      }
+    }
+    setShowForm(true);
+  };
 
   const typeCodeForTab = (tab) => {
     if (tab === 'fuel') return 'FuelDrain';
@@ -144,28 +159,30 @@ function MetersManagement({ lang }) {
     if (!form.meterName || !form.serialNumber) {
       setError(ar ? 'الرجاء تعبئة اسم العداد والرقم التسلسلي' : 'Please fill meter name and serial number'); return;
     }
-    if (activeTab !== 'energy' && !form.subStationId) {
+    const resolvedSubStationId = form.subStationId || (isCommercialMode && subStations[0]?.id ? String(subStations[0].id) : '');
+    if (!isCommercialMode && activeTab !== 'energy' && !resolvedSubStationId) {
       setError(ar ? 'الرجاء اختيار المحطة والموقع' : 'Please select station and sub-station'); return;
     }
-    if (activeTab === 'energy' && !form.subStationId) {
+    if (!isCommercialMode && activeTab === 'energy' && !resolvedSubStationId) {
       setError(ar ? 'عداد الطاقة يجب ربطه بموقع/فرع محدد' : 'Energy meter must be linked to a specific site'); return;
     }
-    if (activeTab === 'generator' && !form.generatorId) {
+    if (!isCommercialMode && activeTab === 'generator' && !form.generatorId) {
       setError(ar ? 'الرجاء اختيار المولد المرتبط' : 'Please select the linked generator'); return;
     }
 
-    const meterType = meterTypes.find(mt => mt.code === typeCodeForTab(activeTab));
+    const currentTab = isCommercialMode ? 'energy' : activeTab;
+    const meterType = meterTypes.find(mt => mt.code === typeCodeForTab(currentTab));
     setSaving(true); setError('');
     try {
       const payload = {
         meterName: form.meterName,
         code: null,
-        stationId: form.stationId ? Number(form.stationId) : null,
-        subStationId: form.subStationId ? Number(form.subStationId) : null,
+        stationId: form.stationId ? Number(form.stationId) : (isCommercialMode && subStations[0]?.stationId ? Number(subStations[0].stationId) : null),
+        subStationId: resolvedSubStationId ? Number(resolvedSubStationId) : null,
         meterType: meterType?.name,
         meterTypeLookupId: meterType?.id,
         serialNumber: form.serialNumber,
-        generatorId: activeTab === 'generator' && form.generatorId ? Number(form.generatorId) : null,
+        generatorId: currentTab === 'generator' && form.generatorId ? Number(form.generatorId) : null,
         fuelTankId: null,
         hoursReading: Number(form.hoursReading) || 0,
         energyReading: Number(form.energyReading) || 0,
@@ -202,17 +219,30 @@ function MetersManagement({ lang }) {
   const fuelCount   = fuelLookup ? meters.filter(m => m.meterType === fuelLookup.name).length : 0;
   const gridCount   = gridLookup ? meters.filter(m => m.meterType === gridLookup.name).length : 0;
 
-  const tabs = [
-    { key: 'fuel',      label: ar ? 'عداد الوقود' : 'Fuel Meter',     icon: <Fuel size={14} />  },
-    { key: 'generator', label: ar ? 'عداد المولدات' : 'Gen Meter',    icon: <Zap size={14} />   },
-    { key: 'energy',    label: ar ? 'عداد الطاقة' : 'Energy Meter',   icon: <Radio size={14} /> },
-  ];
+  const tabs = isCommercialMode
+    ? [{ key: 'energy', label: ar ? 'عداد الفيدر' : 'Feeder Meter', icon: <Radio size={14} /> }]
+    : [
+        { key: 'fuel',      label: ar ? 'عداد الوقود' : 'Fuel Meter',     icon: <Fuel size={14} />  },
+        { key: 'generator', label: ar ? 'عداد المولدات' : 'Gen Meter',    icon: <Zap size={14} />   },
+        { key: 'energy',    label: ar ? 'عداد الطاقة' : 'Energy Meter',   icon: <Radio size={14} /> },
+      ];
+
+  const kpiItems = isCommercialMode
+    ? [
+        { label: ar ? 'إجمالي عدادات الفيدر' : 'Total Feeder Meters', value: gridCount || total, icon: <Radio size={20} />, colorClass: 'primary' }
+      ]
+    : [
+        { label: ar ? 'الإجمالي' : 'Total',           value: total,     icon: <Gauge size={20} />,  colorClass: 'primary' },
+        ...(genLookup  ? [{ label: genLookup.name,  value: genCount,  icon: <Zap size={20} />,   colorClass: METER_ICON_MAP[genLookup.code]?.colorVar  || 'primary' }] : []),
+        ...(fuelLookup ? [{ label: fuelLookup.name, value: fuelCount, icon: <Fuel size={20} />,  colorClass: METER_ICON_MAP[fuelLookup.code]?.colorVar || 'warning' }] : []),
+        ...(gridLookup ? [{ label: gridLookup.name, value: gridCount, icon: <Radio size={20} />, colorClass: METER_ICON_MAP[gridLookup.code]?.colorVar || 'secondary' }] : []),
+      ];
 
   return (
     <div>
       <PageHeader
-        title={ar ? 'العدادات' : 'Meters'}
-        subtitle={ar ? 'إدارة العدادات المرتبطة بالمواقع والمولدات' : 'Manage meters linked to sites and generators'}
+        title={isCommercialMode ? (ar ? 'عدادات الفيدر' : 'Feeder Meters') : (ar ? 'العدادات' : 'Meters')}
+        subtitle={isCommercialMode ? (ar ? 'إدارة ومتابعة عدادات الفيدر بالمحطة التجارية' : 'Manage commercial station feeder meters') : (ar ? 'إدارة العدادات المرتبطة بالمواقع والمولدات' : 'Manage meters linked to sites and generators')}
         actions={
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="ghost" size="sm" icon={RefreshCw} onClick={fetchAll} />
@@ -223,12 +253,7 @@ function MetersManagement({ lang }) {
 
       {/* KPI Cards */}
       <div className="kpi-grid">
-        {[
-          { label: ar ? 'الإجمالي' : 'Total',           value: total,     icon: <Gauge size={20} />,  colorClass: 'primary' },
-          ...(genLookup  ? [{ label: genLookup.name,  value: genCount,  icon: <Zap size={20} />,   colorClass: METER_ICON_MAP[genLookup.code]?.colorVar  || 'primary' }] : []),
-          ...(fuelLookup ? [{ label: fuelLookup.name, value: fuelCount, icon: <Fuel size={20} />,  colorClass: METER_ICON_MAP[fuelLookup.code]?.colorVar || 'warning' }] : []),
-          ...(gridLookup ? [{ label: gridLookup.name, value: gridCount, icon: <Radio size={20} />, colorClass: METER_ICON_MAP[gridLookup.code]?.colorVar || 'secondary' }] : []),
-        ].map((s, i) => (
+        {kpiItems.map((s, i) => (
           <div key={i} className="kpi-card" style={{ '--kpi-color': `var(--${s.colorClass === 'warning' ? 'warning' : s.colorClass === 'secondary' ? 'secondary' : 'primary'})` }}>
             <div className={`kpi-icon ${s.colorClass}`}>{s.icon}</div>
             <div><div className="kpi-value">{s.value}</div><div className="kpi-label">{s.label}</div></div>
@@ -314,8 +339,8 @@ function MetersManagement({ lang }) {
                      )}
                      {typeCode === 'ExportEnergy' && (
                        <div className="meter-stat">
-                         <div className="meter-stat-label">{ar ? 'نوع العداد' : 'Meter Type'}</div>
-                         <div className="meter-stat-value" style={{ color: cfg.color, fontWeight: 600 }}>{meter.meterType || '—'}</div>
+                         <div className="meter-stat-label">{isCommercialMode ? (ar ? 'تصنيف العداد' : 'Category') : (ar ? 'نوع العداد' : 'Meter Type')}</div>
+                         <div className="meter-stat-value" style={{ color: cfg.color, fontWeight: 600 }}>{isCommercialMode ? (ar ? 'عداد الفيدر' : 'Feeder Meter') : (meter.meterType || '—')}</div>
                        </div>
                      )}
                    </div>
@@ -358,47 +383,53 @@ function MetersManagement({ lang }) {
           }
         >
           {/* Tab bar */}
-          <div style={{ display: 'flex', gap: 2, marginBottom: 16, background: 'var(--bg)', borderRadius: 10, padding: 3 }}>
-            {tabs.map(t => (
-              <button key={t.key} type="button" onClick={() => switchTab(t.key)} style={{
-                flex: 1, padding: '8px 6px', borderRadius: 8, border: 'none',
-                background: activeTab === t.key ? 'var(--card)' : 'transparent',
-                color: activeTab === t.key ? 'var(--text)' : 'var(--text-muted)',
-                cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                transition: 'all 0.2s',
-              }}>
-                {t.icon}{t.label}
-              </button>
-            ))}
-          </div>
+          {!isCommercialMode && (
+            <div style={{ display: 'flex', gap: 2, marginBottom: 16, background: 'var(--bg)', borderRadius: 10, padding: 3 }}>
+              {tabs.map(t => (
+                <button key={t.key} type="button" onClick={() => switchTab(t.key)} style={{
+                  flex: 1, padding: '8px 6px', borderRadius: 8, border: 'none',
+                  background: activeTab === t.key ? 'var(--card)' : 'transparent',
+                  color: activeTab === t.key ? 'var(--text)' : 'var(--text-muted)',
+                  cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                  transition: 'all 0.2s',
+                }}>
+                  {t.icon}{t.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Location */}
-          <div className="form-section-header">{ar ? 'الموقع' : 'Location'}</div>
+          {!isCommercialMode && (
+            <>
+              <div className="form-section-header">{ar ? 'الموقع' : 'Location'}</div>
 
-          <FormField label={ar ? 'المحافظة *' : 'Governorate *'} required error={!form.subStationId && form.meterName ? (ar ? 'الرجاء اختيار المحطة والموقع' : 'Please select station and sub-station') : null}>
-            <select className="form-select" value={form.branchId} onChange={e => fld('branchId', e.target.value)}>
-              <option value="">— {ar ? 'اختر' : 'Select'} —</option>
-              {branchOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-            </select>
-          </FormField>
-          {form.branchId && (
-            <FormField label={ar ? 'المحطة *' : 'Station *'}>
-              <select className="form-select" value={form.stationId} onChange={e => fld('stationId', e.target.value)}>
-                <option value="">— {ar ? 'اختر' : 'Select'} —</option>
-                {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </FormField>
+              <FormField label={ar ? 'المحافظة *' : 'Governorate *'} required error={!form.subStationId && form.meterName ? (ar ? 'الرجاء اختيار المحطة والموقع' : 'Please select station and sub-station') : null}>
+                <select className="form-select" value={form.branchId} onChange={e => fld('branchId', e.target.value)}>
+                  <option value="">— {ar ? 'اختر' : 'Select'} —</option>
+                  {branchOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+                </select>
+              </FormField>
+              {form.branchId && (
+                <FormField label={ar ? 'المحطة *' : 'Station *'}>
+                  <select className="form-select" value={form.stationId} onChange={e => fld('stationId', e.target.value)}>
+                    <option value="">— {ar ? 'اختر' : 'Select'} —</option>
+                    {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </FormField>
+              )}
+              {form.stationId && (
+                <FormField label={ar ? 'الموقع/الفرع *' : 'Site / Branch *'}>
+                  <select className="form-select" value={form.subStationId} onChange={e => fld('subStationId', e.target.value)}>
+                    <option value="">— {ar ? 'اختر' : 'Select'} —</option>
+                    {filteredSubStations.map(ss => <option key={ss.id} value={ss.id}>{ss.name}</option>)}
+                  </select>
+                </FormField>
+              )}
+            </>
           )}
-          {form.stationId && (
-            <FormField label={ar ? 'الموقع/الفرع *' : 'Site / Branch *'}>
-              <select className="form-select" value={form.subStationId} onChange={e => fld('subStationId', e.target.value)}>
-                <option value="">— {ar ? 'اختر' : 'Select'} —</option>
-                {filteredSubStations.map(ss => <option key={ss.id} value={ss.id}>{ss.name}</option>)}
-              </select>
-            </FormField>
-          )}
-          {activeTab === 'generator' && form.subStationId && (
+          {!isCommercialMode && activeTab === 'generator' && form.subStationId && (
             <FormField label={ar ? 'المولد *' : 'Generator *'}>
               <select className="form-select" value={form.generatorId} onChange={e => fld('generatorId', e.target.value)}>
                 <option value="">— {ar ? 'اختر' : 'Select'} —</option>

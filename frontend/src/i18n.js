@@ -710,9 +710,13 @@ Object.assign(appTranslations.ar.translation.sidebar, {
   audits: '\u0633\u062c\u0644 \u0627\u0644\u062a\u062f\u0642\u064a\u0642',
   rollback: '\u0627\u0644\u062a\u0631\u0627\u062c\u0639 \u0639\u0646 \u0627\u0644\u0627\u0639\u062a\u0645\u0627\u062f',
   feeders: '\u0627\u0644\u0641\u064a\u062f\u0631\u0627\u062a',
+  dailyTanks: '\u0627\u0644\u062e\u0632\u0627\u0646\u0627\u062a \u0627\u0644\u064a\u0648\u0645\u064a\u0629',
 });
 
-Object.assign(appTranslations.en.translation.sidebar, { feeders: 'Feeders' });
+Object.assign(appTranslations.en.translation.sidebar, {
+  feeders: 'Feeders',
+  dailyTanks: 'Daily Tanks',
+});
 Object.assign(appTranslations.en.translation, {
   feeders: {
     title: 'Feeders', subtitle: 'Manage site-level feeders and their optional energy meters.',

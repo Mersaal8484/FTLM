@@ -4,6 +4,7 @@ import client from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 const initialForm = {
   name: '',
@@ -64,6 +65,7 @@ function StatusBadge({ status, lang }) {
 
 function Generators({ t, lang, currentUser }) {
   const ar = lang === 'ar';
+  const { isCommercialMode } = useCommercialMode();
 
   const perms = currentUser?.permissions?.generators || {};
   const canAdd = currentUser?.role === 'admin' || perms.add || perms.create;
@@ -143,7 +145,14 @@ function Generators({ t, lang, currentUser }) {
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openAdd = () => { setForm(initialForm); setEditId(null); setShowModal(true); setError(null); };
+  const openAdd = () => {
+    const initial = { ...initialForm };
+    if (isCommercialMode && subStations.length > 0) {
+      initial.subStation = String(subStations[0].id);
+      initial.station = String(subStations[0].stationId || subStations[0].station_id || '');
+    }
+    setForm(initial); setEditId(null); setShowModal(true); setError(null);
+  };
   const openEdit = (gen) => {
     const subStationId = gen.subStationId || gen.subStation?.id || gen.subStation || '';
     const subStationObj = subStationId ? subStations.find(ss => String(ss.id) === String(subStationId)) : null;
@@ -180,30 +189,33 @@ function Generators({ t, lang, currentUser }) {
 
   const fieldError = (key) => {
     if (key === 'name' && !form.name) return ar ? 'اسم المولد مطلوب' : 'Generator name is required';
-    if (key === 'subStation' && !form.subStation) return ar ? 'المنطقة (وحدة فرعية) مطلوبة' : 'SubStation is required';
-    if (key === 'ratedCapacityKw' && (!form.ratedCapacityKw || Number(form.ratedCapacityKw) <= 0)) return ar ? 'القدرة الاسمية مطلوبة ويجب أن تكون أكبر من صفر' : 'Nominal power is required and must be greater than zero';
-    if (key === 'fuelConsumptionRatePerHour' && (!form.fuelConsumptionRatePerHour || Number(form.fuelConsumptionRatePerHour) <= 0)) return ar ? 'معدل استهلاك الوقود مطلوب ويجب أن يكون أكبر من صفر' : 'Fuel consumption rate is required and must be greater than zero';
+    if (!isCommercialMode && key === 'subStation' && !form.subStation) return ar ? 'المنطقة (وحدة فرعية) مطلوبة' : 'SubStation is required';
+    if (!isCommercialMode && key === 'ratedCapacityKw' && (!form.ratedCapacityKw || Number(form.ratedCapacityKw) <= 0)) return ar ? 'القدرة الاسمية مطلوبة ويجب أن تكون أكبر من صفر' : 'Nominal power is required and must be greater than zero';
+    if (!isCommercialMode && key === 'fuelConsumptionRatePerHour' && (!form.fuelConsumptionRatePerHour || Number(form.fuelConsumptionRatePerHour) <= 0)) return ar ? 'معدل استهلاك الوقود مطلوب ويجب أن يكون أكبر من صفر' : 'Fuel consumption rate is required and must be greater than zero';
     return null;
   };
 
   const handleSubmit = async () => {
-    const err = fieldError('name') || fieldError('subStation') || fieldError('ratedCapacityKw') || fieldError('fuelConsumptionRatePerHour');
+    const err = isCommercialMode
+      ? fieldError('name') || (!form.subStation && subStations.length === 0 ? (ar ? 'الموقع مطلوب' : 'SubStation is required') : null)
+      : fieldError('name') || fieldError('subStation') || fieldError('ratedCapacityKw') || fieldError('fuelConsumptionRatePerHour');
     if (err) { setError(err); return; }
     setSaving(true); setError(null);
     try {
       let generatorId;
+      const targetSubStationId = Number(form.subStation) || (isCommercialMode && subStations[0]?.id ? Number(subStations[0].id) : 0);
       if (editId) {
         const payload = {
-          SubStationId: Number(form.subStation),
+          SubStationId: targetSubStationId,
           Name: form.name,
           SerialNumber: form.serialNo || null,
           Model: form.model || null,
           Manufacturer: form.manufacturer || null,
-          NominalPower: Number(form.ratedCapacityKw) || 0,
+          NominalPower: isCommercialMode ? 0 : (Number(form.ratedCapacityKw) || 0),
           ActualPowerKW: Number(form.actualPowerKw) || 0,
-          FuelConsumptionRatePerHour: Number(form.fuelConsumptionRatePerHour) || 0,
+          FuelConsumptionRatePerHour: isCommercialMode ? 0 : (Number(form.fuelConsumptionRatePerHour) || 0),
           OwnerName: form.owner || null,
-          PowerFactor: form.powerFactor ? Number(form.powerFactor) : null,
+          PowerFactor: isCommercialMode ? null : (form.powerFactor ? Number(form.powerFactor) : null),
           InstallationDate: form.installationDate || null,
           Notes: form.notes || null,
           GeneratorTypeLookupId: form.genType ? Number(form.genType) : null,
@@ -218,16 +230,16 @@ function Generators({ t, lang, currentUser }) {
       } else {
         const genCode = (form.name || 'GEN').substring(0, 12).toUpperCase().replace(/\s+/g, '') + '-' + Date.now().toString(36).toUpperCase().slice(-4);
         const payload = {
-          SubStationId: Number(form.subStation),
+          SubStationId: targetSubStationId,
           Name: form.name,
           SerialNumber: form.serialNo || genCode,
           Model: form.model || null,
           Manufacturer: form.manufacturer || null,
-          NominalPower: Number(form.ratedCapacityKw) || 0,
+          NominalPower: isCommercialMode ? 0 : (Number(form.ratedCapacityKw) || 0),
           ActualPowerKW: Number(form.actualPowerKw) || 0,
-          FuelConsumptionRatePerHour: Number(form.fuelConsumptionRatePerHour) || 0,
+          FuelConsumptionRatePerHour: isCommercialMode ? 0 : (Number(form.fuelConsumptionRatePerHour) || 0),
           OwnerName: form.owner || null,
-          PowerFactor: form.powerFactor ? Number(form.powerFactor) : null,
+          PowerFactor: isCommercialMode ? null : (form.powerFactor ? Number(form.powerFactor) : null),
           InstallationDate: form.installationDate || null,
           Notes: form.notes || null,
           GeneratorTypeLookupId: form.genType ? Number(form.genType) : null,
@@ -547,102 +559,110 @@ function Generators({ t, lang, currentUser }) {
           <FormField label={ar ? 'اسم المولد *' : 'Generator Name *'} required error={fieldError('name')}>
             <Input value={form.name} onChange={e => fld('name', e.target.value)} />
           </FormField>
-          <div className="form-row">
-            <FormField label={ar ? 'المحافظة *' : 'Governorate *'} required error={fieldError('branchId')}>
-              <select className="form-select" value={form.branchId} onChange={e => {
-                fld('branchId', e.target.value);
-                fld('station', '');
-                fld('subStation', '');
-              }}>
-                <option value="">— {ar ? 'اختر المحافظة' : 'Select Governorate'} —</option>
-                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </FormField>
-            {form.branchId && (
-              <FormField label={ar ? 'المحطة *' : 'Station *'} required error={fieldError('station')}>
-                <select className="form-select" value={form.station} onChange={e => {
-                  fld('station', e.target.value);
+          {!isCommercialMode && (
+            <div className="form-row">
+              <FormField label={ar ? 'المحافظة *' : 'Governorate *'} required error={fieldError('branchId')}>
+                <select className="form-select" value={form.branchId} onChange={e => {
+                  fld('branchId', e.target.value);
+                  fld('station', '');
                   fld('subStation', '');
                 }}>
-                  <option value="">— {ar ? 'اختر المحطة' : 'Select Station'} —</option>
-                  {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  <option value="">— {ar ? 'اختر المحافظة' : 'Select Governorate'} —</option>
+                  {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
+              </FormField>
+              {form.branchId && (
+                <FormField label={ar ? 'المحطة *' : 'Station *'} required error={fieldError('station')}>
+                  <select className="form-select" value={form.station} onChange={e => {
+                    fld('station', e.target.value);
+                    fld('subStation', '');
+                  }}>
+                    <option value="">— {ar ? 'اختر المحطة' : 'Select Station'} —</option>
+                    {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </FormField>
+              )}
+              {form.station && (
+                <FormField label={ar ? 'الموقع/الفرع *' : 'Site / Branch *'} required error={fieldError('subStation')}>
+                  <select className="form-select" value={form.subStation} onChange={e => fld('subStation', e.target.value)}>
+                    <option value="">— {ar ? 'اختر الموقع' : 'Select Site'} —</option>
+                    {filteredSubStations.map(ss => (
+                      <option key={ss.id} value={ss.id}>{ss.name}</option>
+                    ))}
+                  </select>
+                </FormField>
+               )}
+             </div>
+          )}
+          <div className="form-row">
+            <FormField label={ar ? 'الرقم التسلسلي' : 'Serial No.'}>
+              <Input value={form.serialNo} onChange={e => fld('serialNo', e.target.value)} />
+            </FormField>
+            <FormField label={ar ? 'الشركة المصنعة' : 'Manufacturer'}>
+              <Input value={form.manufacturer} onChange={e => fld('manufacturer', e.target.value)} />
+            </FormField>
+          </div>
+          <div className="form-row">
+            <FormField label={ar ? 'الموديل' : 'Model'}>
+              <Input value={form.model} onChange={e => fld('model', e.target.value)} />
+            </FormField>
+            <FormField label={ar ? 'نوع المولد' : 'Generator Type'}>
+              <select className="form-select" value={form.genType} onChange={e => fld('genType', e.target.value)}>
+                <option value="">— {ar ? 'اختر' : 'Select'} —</option>
+                {genTypes.map(item => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+            </FormField>
+           </div>
+          {!isCommercialMode && (
+            <div className="form-row">
+              <FormField label={ar ? 'القدرة الاسمية (تصنيف المولد)' : 'Nominal Capacity'}>
+                <Input type="number" value={form.ratedCapacityKw} onChange={e => fld('ratedCapacityKw', e.target.value)} />
+              </FormField>
+            </div>
+          )}
+
+          <div className="form-section-header">{ar ? 'بيانات شاشة التحكم' : 'Controller Data'}</div>
+          <div className="form-row">
+            <FormField label={ar ? 'شاشة التحكم المرتبطة' : 'Linked Controller'} error={null}>
+              <select className="form-select" value={form.controller} onChange={e => {
+                const ctrlId = e.target.value;
+                fld('controller', ctrlId);
+              }}>
+                <option value="">— {ar ? 'اختر الشاشة' : 'Select Screen'} —</option>
+                {controllers.filter(c => !c.generatorId || c.generatorId === editId).map(c => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.code}) — {c.controllerType}</option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label={ar ? 'وحدة الطاقة' : 'Energy Unit'}>
+              <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.energyUnit || 'KW'} style={{ background: 'var(--card-2)', color: 'var(--secondary)', fontWeight: 600 }} />
+            </FormField>
+          </div>
+          <div className="form-row">
+            <FormField label={ar ? 'قراءة عداد الطاقة الحالية' : 'Current Energy Reading'}>
+              <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.energyReading || 0} style={{ background: 'var(--card-2)' }} />
+            </FormField>
+            <FormField label={ar ? 'قراءة ساعات التشغيل الحالية' : 'Current Operating Hours'}>
+              <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.operatingHours || 0} style={{ background: 'var(--card-2)' }} />
+            </FormField>
+          </div>
+          <div className="form-row">
+            {!isCommercialMode && (
+              <FormField label={ar ? 'معامل القدرة' : 'Power Factor'}>
+                <Input value={form.powerFactor} onChange={e => fld('powerFactor', e.target.value)} />
               </FormField>
             )}
-            {form.station && (
-              <FormField label={ar ? 'الموقع/الفرع *' : 'Site / Branch *'} required error={fieldError('subStation')}>
-                <select className="form-select" value={form.subStation} onChange={e => fld('subStation', e.target.value)}>
-                  <option value="">— {ar ? 'اختر الموقع' : 'Select Site'} —</option>
-                  {filteredSubStations.map(ss => (
-                    <option key={ss.id} value={ss.id}>{ss.name}</option>
-                  ))}
-                </select>
+            <FormField label={ar ? 'القدرة الفعلية (KW)' : 'Actual Power (KW)'}>
+              <Input type="number" value={form.actualPowerKw} onChange={e => fld('actualPowerKw', e.target.value)} />
+            </FormField>
+            {!isCommercialMode && (
+              <FormField label={ar ? 'معدل استهلاك الوقود (لتر/KWh)' : 'Fuel Consumption Rate (L/KWh)'}>
+                <Input value={form.fuelConsumptionRatePerHour} onChange={e => fld('fuelConsumptionRatePerHour', e.target.value)} />
               </FormField>
-             )}
-           </div>
-           <div className="form-row">
-             <FormField label={ar ? 'الرقم التسلسلي' : 'Serial No.'}>
-               <Input value={form.serialNo} onChange={e => fld('serialNo', e.target.value)} />
-             </FormField>
-             <FormField label={ar ? 'الشركة المصنعة' : 'Manufacturer'}>
-               <Input value={form.manufacturer} onChange={e => fld('manufacturer', e.target.value)} />
-             </FormField>
-           </div>
-           <div className="form-row">
-             <FormField label={ar ? 'الموديل' : 'Model'}>
-               <Input value={form.model} onChange={e => fld('model', e.target.value)} />
-             </FormField>
-             <FormField label={ar ? 'نوع المولد' : 'Generator Type'}>
-               <select className="form-select" value={form.genType} onChange={e => fld('genType', e.target.value)}>
-                 <option value="">— {ar ? 'اختر' : 'Select'} —</option>
-                 {genTypes.map(item => (
-                   <option key={item.id} value={item.id}>{item.name}</option>
-                 ))}
-               </select>
-             </FormField>
-            </div>
-           <div className="form-row">
-             <FormField label={ar ? 'القدرة الاسمية (تصنيف المولد)' : 'Nominal Capacity'}>
-               <Input type="number" value={form.ratedCapacityKw} onChange={e => fld('ratedCapacityKw', e.target.value)} />
-             </FormField>
-           </div>
-
-           <div className="form-section-header">{ar ? 'بيانات شاشة التحكم' : 'Controller Data'}</div>
-           <div className="form-row">
-             <FormField label={ar ? 'شاشة التحكم المرتبطة' : 'Linked Controller'} error={null}>
-               <select className="form-select" value={form.controller} onChange={e => {
-                 const ctrlId = e.target.value;
-                 fld('controller', ctrlId);
-               }}>
-                 <option value="">— {ar ? 'اختر الشاشة' : 'Select Screen'} —</option>
-                 {controllers.filter(c => !c.generatorId || c.generatorId === editId).map(c => (
-                   <option key={c.id} value={c.id}>{c.name} ({c.code}) — {c.controllerType}</option>
-                 ))}
-               </select>
-             </FormField>
-             <FormField label={ar ? 'وحدة الطاقة' : 'Energy Unit'}>
-               <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.energyUnit || 'KW'} style={{ background: 'var(--card-2)', color: 'var(--secondary)', fontWeight: 600 }} />
-             </FormField>
-           </div>
-           <div className="form-row">
-             <FormField label={ar ? 'قراءة عداد الطاقة الحالية' : 'Current Energy Reading'}>
-               <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.energyReading || 0} style={{ background: 'var(--card-2)' }} />
-             </FormField>
-             <FormField label={ar ? 'قراءة ساعات التشغيل الحالية' : 'Current Operating Hours'}>
-               <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.operatingHours || 0} style={{ background: 'var(--card-2)' }} />
-             </FormField>
-           </div>
-           <div className="form-row">
-             <FormField label={ar ? 'معامل القدرة' : 'Power Factor'}>
-               <Input value={form.powerFactor} onChange={e => fld('powerFactor', e.target.value)} />
-             </FormField>
-             <FormField label={ar ? 'القدرة الفعلية (KW)' : 'Actual Power (KW)'}>
-               <Input type="number" value={form.actualPowerKw} onChange={e => fld('actualPowerKw', e.target.value)} />
-             </FormField>
-             <FormField label={ar ? 'معدل استهلاك الوقود (لتر/KWh)' : 'Fuel Consumption Rate (L/KWh)'}>
-               <Input value={form.fuelConsumptionRatePerHour} onChange={e => fld('fuelConsumptionRatePerHour', e.target.value)} />
-             </FormField>
-           </div>
+            )}
+          </div>
            <div className="form-row">
              <FormField label={ar ? 'مستوى الفولتات' : 'Voltage Level'}>
                <select className="form-select" value={form.voltage} onChange={e => fld('voltage', e.target.value)}>

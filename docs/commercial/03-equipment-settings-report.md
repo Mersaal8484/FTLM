@@ -1,0 +1,125 @@
+# Phase C3 — Equipment Settings Report
+
+**Branch:** `feature/commercial-foundation`  
+**Date:** 2026-11-17  
+**Status:** ✅ Completed & Ready for Review
+
+---
+
+## 1. Overview & Owner Design Rules Implemented
+
+This phase implements Phase C3 (Equipment Settings) of the FuelTrack Commercial Station Mode, strictly adhering to the owner's design rules:
+
+1. **Tank Geometry Strategy (`HorizontalCylinderWithConicalEnds`):**
+   - Both main storage tanks and generator daily tanks follow the horizontal cylinder with conical ends specification (`TankShape.HorizontalCylinderWithConicalEnds = 1`).
+   - Implemented via `HorizontalConicalTankGeometryStrategy` using exact circular segment integration for the horizontal cylindrical barrel and composite Simpson integration for the two conical end-caps.
+   - `TankGeometry` facade extended with overloads for full capacity and bisection liquid-level inversion.
+   - `TankVolumeService` dead stock calculation uses the configured tank shape.
+
+2. **TankRole Schema & Constraints:**
+   - Added `TankRole` enum: `Main = 1`, `Daily = 2` (nullable on entity, enterprise-safe with nulls).
+   - Additive SQL migration `20261116120000_AddTankRoleAndHorizontalShape` adding `[TankRole] int NULL` to `FuelTanks`.
+   - `FuelTankService` validates that daily tanks are associated with a generator (`GeneratorId` required when `TankRole == Daily`).
+
+3. **Generator Settings & Field Hiding:**
+   - In commercial mode, nominal power (`ratedCapacityKw`), power factor (`powerFactor`), and theoretical fuel consumption rate (`fuelConsumptionRatePerHour`) are completely hidden in the UI.
+   - No zeros or defaults displayed.
+   - Not required in commercial mode forms.
+   - Validators (`CreateGeneratorDtoValidator`, `UpdateGeneratorDtoValidator`) allow non-negative values for backward compatibility.
+
+4. **Feeder Meters:**
+   - In commercial mode, meters page focuses exclusively on "عداد الفيدر / Feeder Meter".
+   - Fuel and generator meter tabs and options hidden in commercial mode.
+   - `MeterService` automatically maintains a hidden 1:1 `Feeder` entity in commercial mode on create, update, and delete.
+
+5. **Oil Stock Unlinking:**
+   - Site/station dropdowns hidden in `SetupOils.jsx` in commercial mode.
+   - `OilService.CreateAsync` automatically assigns the technical station and substation from the commercial scope.
+   - `OilStockPage.jsx` renders a clean, flat table for the commercial station instead of the 3-level hierarchical accordion (Branch → Station → Site), and hides the redundant "Locations" KPI card.
+
+6. **Daily Fuel Tanks Page:**
+   - Created dedicated commercial page: `frontend/src/pages/DailyTanks.jsx`.
+   - Route `/commercial/daily-tanks` guarded by `<CommercialOnly>` and `<Protected module="tanks">`.
+   - Navigation item registered in `frontend/src/navigation/registry.js` with `modeVisibility: 'commercial'`.
+   - i18n parity for `sidebar.dailyTanks` in both Arabic (`الخزانات اليومية`) and English (`Daily Tanks`).
+
+---
+
+## 2. Changes Summary
+
+### New Files (5)
+
+| File | Purpose |
+|------|---------|
+| `src/FuelTrack.Domain/Enums/TankRole.cs` | Enum: `Main = 1`, `Daily = 2` |
+| `src/FuelTrack.Domain/Services/HorizontalConicalTankGeometryStrategy.cs` | Mathematical volume calculator for horizontal cylinder with conical ends |
+| `src/FuelTrack.Infrastructure/Migrations/20261116120000_AddTankRoleAndHorizontalShape.cs` | Additive SQL migration adding `TankRole` column to `FuelTanks` |
+| `tests/FuelTrack.Tests/Services/HorizontalConicalTankGeometryTests.cs` | 8 unit tests verifying calibration, symmetry, bisection, and dead stock |
+| `frontend/src/pages/DailyTanks.jsx` | Dedicated daily fuel tanks management page for commercial stations |
+
+### Modified Files (24)
+
+| Component | Files | Changes |
+|-----------|-------|---------|
+| **Domain** | `TankShape.cs` | Added `HorizontalCylinderWithConicalEnds = 1` |
+| | `FuelTank.cs` | Added `TankRole? TankRole { get; set; }` |
+| | `TankGeometry.cs` | Registered strategy, horizontal capacity & level derivation |
+| | `TankVolumeService.cs` | Uses `tank.Shape` when deriving dead stock volume |
+| **Application** | `CreateFuelTankDto.cs` | Added `TankRole?`, `GeneratorId?`, `ParentTankId?`, `Shape?` |
+| | `UpdateFuelTankDto.cs` | Added `TankRole?`, `GeneratorId?`, `ParentTankId?`, `Shape?` |
+| | `FuelTankDetailDto.cs` | Added `TankRole?`, `GeneratorId?`, `GeneratorName?`, `ParentTankId?`, `ParentTankName?`, `Shape?` |
+| | `FuelTankListDto.cs` | Added `TankRole?`, `GeneratorId?`, `GeneratorName?`, `ParentTankId?`, `Shape?` |
+| | `TankCalibrationDto.cs` | Added `TankShape? Shape = null` |
+| | `CreateGeneratorDtoValidator.cs` | Allows non-negative nominal power & fuel rate |
+| | `UpdateGeneratorDtoValidator.cs` | Allows non-negative nominal power & fuel rate |
+| **Infrastructure** | `FuelTrackDbContextModelSnapshot.cs` | Added `TankRole` property mapping |
+| | `FuelTankService.cs` | Added daily tank generator validation, mapped role/generator/parent/shape |
+| | `TankCalibrationService.cs` | Injected commercial mode, supports horizontal conical geometry in preview & upsert |
+| | `MeterService.cs` | Auto-maintains hidden 1:1 `Feeder` records in commercial mode |
+| | `OilService.cs` | Auto-populates station/substation from commercial scope |
+| **Frontend** | `App.jsx` | Added `CommercialOnly` guard, `DailyTanks` lazy import and route |
+| | `navigation/registry.js` | Added `daily-tanks` item with `modeVisibility: 'commercial'` |
+| | `i18n.js` | Added `dailyTanks` key in Arabic and English |
+| | `pages/Generators.jsx` | Hid nominal capacity, power factor, fuel consumption rate in commercial mode |
+| | `pages/MetersManagement.jsx` | Renamed to Feeder Meter, hid non-feeder tabs/types, auto-scoped site |
+| | `pages/SetupOils.jsx` | Hid location inputs and table column in commercial mode |
+| | `pages/OilStockPage.jsx` | Renders direct table instead of accordion, hid Locations KPI in commercial mode |
+| | `pages/TankSetup.jsx` | Sends `shape: 1` in commercial mode |
+
+---
+
+## 3. Tests Added
+
+### `HorizontalConicalTankGeometryTests` (8 tests)
+1. `CalculateLitres_ReturnsZeroWhenEmpty` — Verifies 0 L at level 0 cm.
+2. `CalculateLitres_FullTankEqualsCalculatedCapacity` — Verifies volume at `h = D` matches capacity ($V_{cyl} + 2 V_{cone}$).
+3. `CalculateLitres_HalfFullEqualsHalfCapacityBySymmetry` — Verifies geometric symmetry (volume at $h = R$ is exactly 50% capacity).
+4. `CalculateLitres_IsMonotonicallyIncreasing` — Verifies volume increases monotonically from empty to full.
+5. `CalculateLitres_AppliesMultiplicationFactor` — Verifies density/calibration scaling factor.
+6. `CalculateLitres_RejectsLevelOutsideDiameter` — Verifies exceptions for $h < 0$ or $h > D$.
+7. `CalculateLiquidLevelCm_InvertsVolumeAccurately` — Verifies numerical bisection recovers original cm from volume.
+8. `TankVolumeService_ResolvesDeadStockForHorizontalConicalTank` — Verifies dead stock resolution for horizontal conical tanks.
+
+---
+
+## 4. Owner Verification Commands
+
+```powershell
+# 1. Run geometry tests
+cd D:\FTM
+dotnet test tests/FuelTrack.Tests/FuelTrack.Tests.csproj --filter "HorizontalConicalTankGeometryTests|TankGeometryTests" --logger "console;verbosity=normal"
+
+# 2. Run commercial foundation and controller tests
+cd D:\FTM
+dotnet test tests/FuelTrack.Tests/FuelTrack.Tests.csproj --filter "CommercialStationModeServiceTests|CommercialHierarchyGuardTests" --logger "console;verbosity=normal"
+
+# 3. Run frontend unit tests
+cd D:\FTM\frontend
+npm test -- --watchAll=false --testPathPattern="Sidebar"
+
+# 4. Full test suite regression
+cd D:\FTM
+dotnet test tests/FuelTrack.Tests/FuelTrack.Tests.csproj --logger "console;verbosity=minimal"
+cd D:\FTM\frontend
+npm test -- --watchAll=false
+```

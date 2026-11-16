@@ -1,3 +1,5 @@
+using FuelTrack.Domain.Enums;
+
 namespace FuelTrack.Application.DTOs.FuelTanks;
 
 public record UpdateFuelTankDto(
@@ -13,4 +15,8 @@ public record UpdateFuelTankDto(
     double? MeterReading,
     double? MeterReadingActual,
     string? Notes,
-    bool? IsActive);
+    bool? IsActive,
+    TankRole? TankRole = null,
+    int? GeneratorId = null,
+    int? ParentTankId = null,
+    TankShape? Shape = null);

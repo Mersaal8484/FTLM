@@ -3,9 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { Eye, CheckCircle, AlertTriangle, Layers } from 'lucide-react';
 import client from '../api/client';
 import { PageHeader, Button, FormField } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 export default function TankSetup({ embedded = false }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const ar = i18n.language === 'ar';
+  const { isCommercialMode } = useCommercialMode();
   const [tanks, setTanks] = useState([]);
   const [tankId, setTankId] = useState('');
   const [diameterCm, setDiameterCm] = useState('');
@@ -54,6 +57,7 @@ export default function TankSetup({ embedded = false }) {
     multiplicationFactor: parseFloat(multiplicationFactor || '1.0'),
     deadStockLitres: deadStockMode === 'litres' && deadStockLitres !== '' ? parseFloat(deadStockLitres) : null,
     deadStockLevelCm: deadStockMode === 'cm' && deadStockLevelCm !== '' ? parseFloat(deadStockLevelCm) : null,
+    shape: isCommercialMode ? 1 : 0,
   });
 
   const handlePreview = async () => {

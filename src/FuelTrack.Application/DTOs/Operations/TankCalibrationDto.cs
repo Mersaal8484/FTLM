@@ -1,3 +1,5 @@
+using FuelTrack.Domain.Enums;
+
 namespace FuelTrack.Application.DTOs.Operations;
 
 public sealed record UpdateTankCalibrationDto(
@@ -6,7 +8,8 @@ public sealed record UpdateTankCalibrationDto(
     decimal ConeHeightCm,
     decimal MultiplicationFactor,
     decimal? DeadStockLitres = null,
-    decimal? DeadStockLevelCm = null);
+    decimal? DeadStockLevelCm = null,
+    TankShape? Shape = null);
 public sealed record TankCalibrationDto(
     int FuelTankId,
     decimal DiameterCm,
@@ -16,7 +19,8 @@ public sealed record TankCalibrationDto(
     decimal ComputedCapacityLitres,
     decimal? DeadStockLitres,
     decimal? DeadStockLevelCm,
-    string DeadStockInputUnit);
+    string DeadStockInputUnit,
+    TankShape? Shape = null);
 public sealed record TankCalibrationPreviewDto(
     decimal ComputedCapacityLitres,
     IReadOnlyList<TankCalibrationPreviewPointDto> Points,

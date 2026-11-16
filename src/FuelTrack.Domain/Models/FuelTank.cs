@@ -4,6 +4,12 @@ namespace FuelTrack.Domain.Models
 {
     public class FuelTank : BaseEntity
     {
+        /// <summary>
+        /// Commercial-mode role of this tank.
+        /// Null for enterprise-mode tanks (backward-compatible).
+        /// Main (1) = primary horizontal main tank; Daily (2) = generator daily service tank.
+        /// </summary>
+        public TankRole? TankRole { get; set; }
         public int SubStationId { get; set; }
         public int FuelLookupId { get; set; }
         public string Name { get; set; } = string.Empty;

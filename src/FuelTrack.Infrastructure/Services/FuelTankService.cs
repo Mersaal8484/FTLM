@@ -1,5 +1,6 @@
 using FuelTrack.Application.DTOs.FuelTanks;
 using FuelTrack.Application.Interfaces;
+using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
 using FuelTrack.Domain.Services;
 using Microsoft.EntityFrameworkCore;
@@ -11,18 +12,32 @@ public class FuelTankService : IFuelTankService
     private readonly FuelTrackDbContext _db;
     private readonly IUserScopeFilterService _scopeFilter;
     private readonly ICurrentUserService _currentUser;
+    private readonly ICommercialStationModeService _commercialMode;
 
-    public FuelTankService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser)
+    public FuelTankService(
+        FuelTrackDbContext db,
+        IUserScopeFilterService scopeFilter,
+        ICurrentUserService currentUser,
+        ICommercialStationModeService commercialMode)
     {
         _db = db;
         _scopeFilter = scopeFilter;
         _currentUser = currentUser;
+        _commercialMode = commercialMode;
     }
 
     public async Task<FuelTankDetailDto> CreateAsync(CreateFuelTankDto dto, int userId)
     {
         var subStation = await _db.SubStations.FindAsync(dto.SubStationId)
             ?? throw new KeyNotFoundException($"SubStation {dto.SubStationId} not found.");
+
+        if (dto.TankRole == TankRole.Daily && !dto.GeneratorId.HasValue)
+        {
+            throw new ArgumentException("Daily tank must be associated with a generator.");
+        }
+
+        var isCommercial = await _commercialMode.IsCommercialModeAsync();
+        var shape = dto.Shape ?? (isCommercial ? TankShape.HorizontalCylinderWithConicalEnds : null);
 
         var tank = new FuelTank
         {
@@ -36,12 +51,21 @@ public class FuelTankService : IFuelTankService
             ActualStockLiters = dto.ActualStockLiters,
             Notes = dto.Notes,
             IsActive = dto.IsActive,
+            TankRole = dto.TankRole,
+            GeneratorId = dto.GeneratorId,
+            ParentTankId = dto.ParentTankId,
+            Shape = shape,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
 
         _db.FuelTanks.Add(tank);
         await _db.SaveChangesAsync();
+
+        if (tank.GeneratorId.HasValue)
+            await _db.Entry(tank).Reference(t => t.Generator).LoadAsync();
+        if (tank.ParentTankId.HasValue)
+            await _db.Entry(tank).Reference(t => t.ParentTank).LoadAsync();
 
         return MapToDetail(tank, subStation, null, (false, null, null));
     }
@@ -73,9 +97,18 @@ public class FuelTankService : IFuelTankService
         }
         if (dto.Notes is not null) tank.Notes = dto.Notes;
         if (dto.IsActive.HasValue) tank.IsActive = dto.IsActive.Value;
+        if (dto.TankRole.HasValue) tank.TankRole = dto.TankRole.Value;
+        if (dto.GeneratorId.HasValue) tank.GeneratorId = dto.GeneratorId.Value;
+        if (dto.ParentTankId.HasValue) tank.ParentTankId = dto.ParentTankId.Value;
+        if (dto.Shape.HasValue) tank.Shape = dto.Shape.Value;
         tank.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
+
+        if (tank.GeneratorId.HasValue && tank.Generator == null)
+            await _db.Entry(tank).Reference(t => t.Generator).LoadAsync();
+        if (tank.ParentTankId.HasValue && tank.ParentTank == null)
+            await _db.Entry(tank).Reference(t => t.ParentTank).LoadAsync();
 
         var fuelLookup = await _db.Lookups.FindAsync(tank.FuelLookupId);
         var meterDict = await GetLatestMeterReadingsAsync(new[] { tank.Id });
@@ -97,6 +130,8 @@ public class FuelTankService : IFuelTankService
                      .AsNoTracking()
                      .Include(ft => ft.SubStation)
                      .Include(ft => ft.FuelLookup)
+                     .Include(ft => ft.Generator)
+                     .Include(ft => ft.ParentTank)
                      .FirstOrDefaultAsync(ft => ft.Id == id && ft.DeletedAt == null && accessibleIds.Contains(ft.SubStationId));
                 if (tank is null) return null;
 
@@ -104,18 +139,7 @@ public class FuelTankService : IFuelTankService
 
                 meterDict.TryGetValue(tank.SubStationId, out var meterInfo);
 
-                return new FuelTankDetailDto(
-                    tank.Id, tank.SubStationId, tank.SubStation.Name,
-                    tank.FuelLookupId, tank.FuelLookup.Name,
-                    tank.Name, tank.Code, tank.CapacityLiters,
-                    tank.MinAlertLiters,
-                    (double?)TankVolumeService.DeadStockLitres(tank), tank.ActualStockLiters,
-                    meterInfo.HasMeter, meterInfo.MeterReading, meterInfo.MeterReadingActual,
-                    tank.Notes,
-                    tank.IsActive,
-                    tank.CreatedAt, tank.UpdatedAt,
-                    tank.DeadStockLevelCm, tank.DeadStockInputUnit,
-                    tank.DiameterCm, tank.CylinderHeightCm, tank.ConeHeightCm, tank.MultiplicationFactor);
+                return MapToDetail(tank, tank.SubStation, tank.FuelLookup, meterInfo);
             }
         }
 
@@ -123,6 +147,8 @@ public class FuelTankService : IFuelTankService
             .AsNoTracking()
             .Include(ft => ft.SubStation)
             .Include(ft => ft.FuelLookup)
+            .Include(ft => ft.Generator)
+            .Include(ft => ft.ParentTank)
             .FirstOrDefaultAsync(ft => ft.Id == id && ft.DeletedAt == null);
 
         if (originalTank is null) return null;
@@ -130,18 +156,7 @@ public class FuelTankService : IFuelTankService
         var originalMeterDict = await GetLatestMeterReadingsAsync(new[] { id });
         originalMeterDict.TryGetValue(originalTank.SubStationId, out var originalMeterInfo);
 
-        return new FuelTankDetailDto(
-            originalTank.Id, originalTank.SubStationId, originalTank.SubStation.Name,
-            originalTank.FuelLookupId, originalTank.FuelLookup.Name,
-            originalTank.Name, originalTank.Code, originalTank.CapacityLiters,
-            originalTank.MinAlertLiters,
-            (double?)TankVolumeService.DeadStockLitres(originalTank), originalTank.ActualStockLiters,
-            originalMeterInfo.HasMeter, originalMeterInfo.MeterReading, originalMeterInfo.MeterReadingActual,
-            originalTank.Notes,
-            originalTank.IsActive,
-            originalTank.CreatedAt, originalTank.UpdatedAt,
-            originalTank.DeadStockLevelCm, originalTank.DeadStockInputUnit,
-            originalTank.DiameterCm, originalTank.CylinderHeightCm, originalTank.ConeHeightCm, originalTank.MultiplicationFactor);
+        return MapToDetail(originalTank, originalTank.SubStation, originalTank.FuelLookup, originalMeterInfo);
     }
 
     public async Task<List<FuelTankListDto>> GetAllAsync()
@@ -158,6 +173,8 @@ public class FuelTankService : IFuelTankService
                     .AsNoTracking()
                     .Include(ft => ft.SubStation)
                     .Include(ft => ft.FuelLookup)
+                    .Include(ft => ft.Generator)
+                    .Include(ft => ft.ParentTank)
                     .Where(ft => ft.DeletedAt == null && accessibleIds.Contains(ft.SubStationId))
                     .OrderBy(ft => ft.SubStation.Name)
                     .ThenBy(ft => ft.Name)
@@ -176,7 +193,8 @@ public class FuelTankService : IFuelTankService
                         ft.MinAlertLiters, (double?)TankVolumeService.DeadStockLitres(ft), ft.ActualStockLiters,
                         m.HasMeter, m.MeterReading, m.MeterReadingActual,
                         ft.IsActive, ft.DeadStockLevelCm, ft.DeadStockInputUnit,
-                        ft.DiameterCm, ft.CylinderHeightCm, ft.ConeHeightCm, ft.MultiplicationFactor);
+                        ft.DiameterCm, ft.CylinderHeightCm, ft.ConeHeightCm, ft.MultiplicationFactor,
+                        ft.TankRole, ft.GeneratorId, ft.Generator?.Name, ft.ParentTankId, ft.Shape);
                 }).ToList();
             }
         }
@@ -185,6 +203,8 @@ public class FuelTankService : IFuelTankService
             .AsNoTracking()
             .Include(ft => ft.SubStation)
             .Include(ft => ft.FuelLookup)
+            .Include(ft => ft.Generator)
+            .Include(ft => ft.ParentTank)
             .Where(ft => ft.DeletedAt == null)
             .OrderBy(ft => ft.SubStation.Name)
             .ThenBy(ft => ft.Name)
@@ -203,7 +223,8 @@ public class FuelTankService : IFuelTankService
                 ft.MinAlertLiters, (double?)TankVolumeService.DeadStockLitres(ft), ft.ActualStockLiters,
                 m.HasMeter, m.MeterReading, m.MeterReadingActual,
                 ft.IsActive, ft.DeadStockLevelCm, ft.DeadStockInputUnit,
-                ft.DiameterCm, ft.CylinderHeightCm, ft.ConeHeightCm, ft.MultiplicationFactor);
+                ft.DiameterCm, ft.CylinderHeightCm, ft.ConeHeightCm, ft.MultiplicationFactor,
+                ft.TankRole, ft.GeneratorId, ft.Generator?.Name, ft.ParentTankId, ft.Shape);
         }).ToList();
     }
 
@@ -224,6 +245,8 @@ public class FuelTankService : IFuelTankService
             .AsNoTracking()
             .Include(ft => ft.SubStation)
             .Include(ft => ft.FuelLookup)
+            .Include(ft => ft.Generator)
+            .Include(ft => ft.ParentTank)
             .Where(ft => ft.DeletedAt == null && ft.SubStationId == subStationId)
             .ToListAsync();
 
@@ -240,7 +263,8 @@ public class FuelTankService : IFuelTankService
                 ft.MinAlertLiters, (double?)TankVolumeService.DeadStockLitres(ft), ft.ActualStockLiters,
                 m.HasMeter, m.MeterReading, m.MeterReadingActual,
                 ft.IsActive, ft.DeadStockLevelCm, ft.DeadStockInputUnit,
-                ft.DiameterCm, ft.CylinderHeightCm, ft.ConeHeightCm, ft.MultiplicationFactor);
+                ft.DiameterCm, ft.CylinderHeightCm, ft.ConeHeightCm, ft.MultiplicationFactor,
+                ft.TankRole, ft.GeneratorId, ft.Generator?.Name, ft.ParentTankId, ft.Shape);
         }).ToList();
     }
 
@@ -264,6 +288,13 @@ public class FuelTankService : IFuelTankService
             (double?)TankVolumeService.DeadStockLitres(tank),
             tank.ActualStockLiters,
             meterInfo.HasMeter, meterInfo.MeterReading, meterInfo.MeterReadingActual,
+            tank.Notes,
+            tank.IsActive,
+            tank.CreatedAt, tank.UpdatedAt,
+            tank.DeadStockLevelCm, tank.DeadStockInputUnit,
+            tank.DiameterCm, tank.CylinderHeightCm, tank.ConeHeightCm, tank.MultiplicationFactor,
+            tank.TankRole, tank.GeneratorId, tank.Generator?.Name, tank.ParentTankId, tank.ParentTank?.Name, tank.Shape);
+    }
             tank.Notes,
             tank.IsActive,
             tank.CreatedAt, tank.UpdatedAt,
