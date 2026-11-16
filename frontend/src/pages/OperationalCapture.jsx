@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import client from '../api/client';
 import { drawPhotoStamp } from '../utils/photoStamp';
 import OperationalBackLink from '../components/OperationalBackLink';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 const isoNow = () => new Date().toISOString().slice(0, 16);
 const decimal = (value) => (value === '' || value == null ? null : Number(value));
@@ -65,6 +66,7 @@ function BaseLine({ title, code, icon: Icon, capturedAt, onCapturedAt, photoIds,
 
 export default function OperationalCapture() {
   const { t } = useTranslation();
+  const { isCommercial } = useCommercialMode();
   const [references, setReferences] = useState([]);
   const [siteId, setSiteId] = useState('');
   const [lines, setLines] = useState([]);
@@ -75,7 +77,15 @@ export default function OperationalCapture() {
   const [clientSentAt] = useState(() => new Date().toISOString());
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { client.get('/api/operational-captures/references').then((r) => setReferences(r.data)).catch(() => setReferences([])); }, []);
+  useEffect(() => {
+    client.get('/api/operational-captures/references').then((r) => {
+      const list = r.data || [];
+      setReferences(list);
+      if (list.length > 0 && (!siteId || isCommercial)) {
+        setSiteId(String(list[0].subStationId));
+      }
+    }).catch(() => setReferences([]));
+  }, [isCommercial]);
   const site = useMemo(() => references.find((x) => x.subStationId === Number(siteId)), [references, siteId]);
   useEffect(() => {
     if (!siteId) { setPreviousReadings([]); return; }
@@ -179,11 +189,11 @@ export default function OperationalCapture() {
   return <section className="capture-page">
     <OperationalBackLink />
     <div className="capture-heading"><div><span className="operational-eyebrow"><Zap size={16} /> {t('operational.capture.eyebrow')}</span><h1>{t('operational.capture.title')}</h1><p>{t('operational.capture.pendingNote')}</p></div><Link className="capture-history-link" to="/operations/history"><ClipboardList size={18} />{t('operational.capture.myHistory')}</Link></div>
-    <label className="capture-site">{t('operational.capture.site')}<select value={siteId} onChange={(e) => { setSiteId(e.target.value); setLines([]); }}><option value="">{t('operational.capture.chooseSite')}</option>{references.map((item) => <option key={item.subStationId} value={item.subStationId}>{item.name} ({item.code})</option>)}</select></label>
-    {site && <div className="ft-tabs" style={{ marginBottom: 16 }}><button type="button" className={`ft-tab ${captureKind === 'periodic' ? 'active' : ''}`} onClick={() => setCaptureKind('periodic')}>{t('operational.capture.periodicRound')}</button><button type="button" className={`ft-tab ${captureKind === 'dailyClosing' ? 'active' : ''}`} onClick={() => setCaptureKind('dailyClosing')}>{t('operational.capture.dailyClosing')}</button></div>}
+    {!isCommercial && <label className="capture-site">{t('operational.capture.site')}<select value={siteId} onChange={(e) => { setSiteId(e.target.value); setLines([]); }}><option value="">{t('operational.capture.chooseSite')}</option>{references.map((item) => <option key={item.subStationId} value={item.subStationId}>{item.name} ({item.code})</option>)}</select></label>}
+    {site && <div className="ft-tabs" style={{ marginBottom: 16 }}><button type="button" className={`ft-tab ${captureKind === 'periodic' ? 'active' : ''}`} onClick={() => setCaptureKind('periodic')}>{isCommercial ? (t('operational.capture.hourlyMonitoring', 'قراءات ساعية')) : t('operational.capture.periodicRound')}</button><button type="button" className={`ft-tab ${captureKind === 'dailyClosing' ? 'active' : ''}`} onClick={() => setCaptureKind('dailyClosing')}>{t('operational.capture.dailyClosing')}</button></div>}
     {site && captureKind === 'dailyClosing' && <label className="capture-site">{t('operational.capture.businessDate')}<input type="date" value={businessDate} onChange={(event) => setBusinessDate(event.target.value)} /></label>}
     {site && <label className="capture-site">{t('operational.capture.capturedAt')}<input type="datetime-local" value={submissionTime} onChange={(e) => setSubmissionTime(e.target.value)} /></label>}
-    {site && <><div className="capture-adds"><button onClick={() => add('generator')} type="button"><Zap />{t('operational.capture.generator')}</button>{captureKind === 'periodic' && <button onClick={() => add('tank')} type="button"><Droplets />{t('operational.capture.tank')}</button>}<button onClick={() => add('feeder')} type="button"><Gauge />{t('operational.capture.feeder')}</button></div>
+    {site && <><div className="capture-adds"><button onClick={() => add('generator')} type="button"><Zap />{t('operational.capture.generator')}</button><button onClick={() => add('tank')} type="button"><Droplets />{captureKind === 'dailyClosing' ? (t('operational.capture.dailyTankClosing', 'خزانات الوقود (إقفال)')) : t('operational.capture.tank')}</button><button onClick={() => add('feeder')} type="button"><Gauge />{isCommercial ? (t('sidebar.meters', 'عداد الفيدر')) : t('operational.capture.feeder')}</button></div>
       <div className="capture-lines">{lines.map((line) => <BaseLine key={line.id} title={sourceName(line)} code={sourceCode(line)} icon={line.kind === 'tank' ? Droplets : line.kind === 'feeder' ? Gauge : Zap} capturedAt={line.capturedAt || submissionTime} onCapturedAt={(capturedAt) => update(line.id, { capturedAt })} photoIds={line.photoAttachmentIds} onUploaded={(photoId) => update(line.id, { photoAttachmentIds: [photoId] })} onRemove={() => setLines((current) => current.filter((x) => x.id !== line.id))} disabled={submitting} timeZone={site.timeZone || 'Asia/Aden'}>
         {line.kind === 'generator' && <>
           <label className="capture-switch"><input type="checkbox" checked={line.isRunning} onChange={(e) => update(line.id, { isRunning: e.target.checked })}/>{t('operational.capture.running')}</label>

@@ -870,4 +870,186 @@ public sealed class FuelLoadSafetyServiceTests
         Assert.Empty(await dbTenantB.OperatingLimitEpisodes.ToListAsync());
         Assert.Equal(0, notifB.PublishCallCount);
     }
+
+    [Fact]
+    public async Task GetDailyConsumptionAsync_CalculatesOpeningPlusRefillsMinusClosing()
+    {
+        await using var db = CreateDb();
+        var (_, subStationId, generatorId, _, submissionId) = await SeedBaseAsync(db);
+        var date = new DateOnly(2026, 11, 10);
+        var startUtc = date.ToDateTime(new TimeOnly(8, 0), DateTimeKind.Utc);
+
+        var dailyTank = new FuelTank
+        {
+            SubStationId = subStationId,
+            FuelLookupId = 1,
+            Name = "Generator Daily Tank",
+            Code = "DT-01",
+            CapacityLiters = 2000,
+            DeadStockLiters = 100,
+            GeneratorId = generatorId,
+            TankRole = TankRole.Daily,
+            Shape = TankShape.HorizontalCylinderWithConicalEnds,
+            DiameterCm = 150m,
+            CylinderHeightCm = 100m,
+            ConeHeightCm = 30m,
+            MultiplicationFactor = 1m
+        };
+        db.FuelTanks.Add(dailyTank);
+        await db.SaveChangesAsync();
+
+        // 1. Prior reading before date -> Opening balance = 1000 L
+        db.TankLevelReadings.Add(new TankLevelReading
+        {
+            OperationalSubmissionId = submissionId,
+            FuelTankId = dailyTank.Id,
+            ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = startUtc.AddDays(-1),
+            ReceivedAtUtc = startUtc.AddDays(-1),
+            BusinessDate = date.AddDays(-1),
+            Status = OperationalReadingStatus.Approved,
+            EventType = TankEventType.Level,
+            ComputedLitres = 1000m,
+            CreatedAt = startUtc.AddDays(-1),
+            UpdatedAt = startUtc.AddDays(-1)
+        });
+
+        // 2. Inbound transfer during the day -> Refill = 500 L
+        db.TankLevelReadings.Add(new TankLevelReading
+        {
+            OperationalSubmissionId = submissionId,
+            FuelTankId = dailyTank.Id,
+            ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = startUtc.AddHours(2),
+            ReceivedAtUtc = startUtc.AddHours(2),
+            BusinessDate = date,
+            Status = OperationalReadingStatus.Approved,
+            EventType = TankEventType.TransferIn,
+            BeforeComputedLitres = 900m,
+            ComputedLitres = 1400m, // +500 L
+            CreatedAt = startUtc.AddHours(2),
+            UpdatedAt = startUtc.AddHours(2)
+        });
+
+        // 3. Closing reading -> 1100 L
+        db.TankLevelReadings.Add(new TankLevelReading
+        {
+            OperationalSubmissionId = submissionId,
+            FuelTankId = dailyTank.Id,
+            ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = startUtc.AddHours(10),
+            ReceivedAtUtc = startUtc.AddHours(10),
+            BusinessDate = date,
+            Status = OperationalReadingStatus.Approved,
+            EventType = TankEventType.Level,
+            ComputedLitres = 1100m,
+            CreatedAt = startUtc.AddHours(10),
+            UpdatedAt = startUtc.AddHours(10)
+        });
+
+        // 4. Energy meter reading: 1000 kWh before, 2200 kWh after -> 1200 kWh produced
+        db.MeterReadings.AddRange(
+            new MeterReading
+            {
+                OperationalSubmissionId = submissionId,
+                SubjectType = MeterReadingSubjectType.GeneratorEnergyProduced,
+                SubjectId = generatorId,
+                ClientLineId = Guid.NewGuid(),
+                CapturedAtUtc = startUtc.AddDays(-1),
+                ReceivedAtUtc = startUtc.AddDays(-1),
+                BusinessDate = date.AddDays(-1),
+                Status = OperationalReadingStatus.Approved,
+                RawValue = 1000m,
+                MultiplierSnapshot = 1m,
+                CreatedAt = startUtc.AddDays(-1),
+                UpdatedAt = startUtc.AddDays(-1)
+            },
+            new MeterReading
+            {
+                OperationalSubmissionId = submissionId,
+                SubjectType = MeterReadingSubjectType.GeneratorEnergyProduced,
+                SubjectId = generatorId,
+                ClientLineId = Guid.NewGuid(),
+                CapturedAtUtc = startUtc.AddHours(10),
+                ReceivedAtUtc = startUtc.AddHours(10),
+                BusinessDate = date,
+                Status = OperationalReadingStatus.Approved,
+                RawValue = 2200m,
+                MultiplierSnapshot = 1m,
+                CreatedAt = startUtc.AddHours(10),
+                UpdatedAt = startUtc.AddHours(10)
+            }
+        );
+
+        await db.SaveChangesAsync();
+
+        var service = new FuelLoadSafetyService(db, new SiteScope(), new TrackingNotificationService());
+        var result = await service.GetDailyConsumptionAsync(generatorId, date, 1);
+
+        Assert.True(result.IsSuccess);
+        var dto = result.Value!;
+        Assert.Equal(generatorId, dto.GeneratorId);
+        Assert.Equal(dailyTank.Id, dto.DailyTankId);
+        Assert.Equal(1000m, dto.OpeningBalanceLitres);
+        Assert.Equal(500m, dto.InboundRefillsLitres);
+        Assert.Equal(1100m, dto.ClosingBalanceLitres);
+        // Formula: 1000 + 500 - 1100 = 400 L
+        Assert.Equal(400m, dto.ConsumptionLitres);
+        Assert.Equal(1200m, dto.ProducedKwh);
+        // Efficiency: 1200 / 400 = 3.00 kWh/L
+        Assert.Equal(3.00m, dto.KwhPerLiter);
+        Assert.Empty(dto.Warnings);
+    }
+
+    [Fact]
+    public async Task GetDailyConsumptionAsync_DeadStockWarning_WhenClosingBalanceBelowDeadStock()
+    {
+        await using var db = CreateDb();
+        var (_, subStationId, generatorId, _, submissionId) = await SeedBaseAsync(db);
+        var date = new DateOnly(2026, 11, 11);
+        var time = date.ToDateTime(new TimeOnly(18, 0), DateTimeKind.Utc);
+
+        var dailyTank = new FuelTank
+        {
+            SubStationId = subStationId,
+            FuelLookupId = 1,
+            Name = "Generator Daily Tank 2",
+            Code = "DT-02",
+            CapacityLiters = 1000,
+            DeadStockLiters = 150, // Dead stock is 150 L
+            GeneratorId = generatorId,
+            TankRole = TankRole.Daily,
+            Shape = TankShape.HorizontalCylinderWithConicalEnds,
+            DiameterCm = 100m,
+            CylinderHeightCm = 80m,
+            ConeHeightCm = 20m,
+            MultiplicationFactor = 1m
+        };
+        db.FuelTanks.Add(dailyTank);
+        await db.SaveChangesAsync();
+
+        // Closing reading at 100 L (below 150 L dead stock)
+        db.TankLevelReadings.Add(new TankLevelReading
+        {
+            OperationalSubmissionId = submissionId,
+            FuelTankId = dailyTank.Id,
+            ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = time,
+            ReceivedAtUtc = time,
+            BusinessDate = date,
+            Status = OperationalReadingStatus.Approved,
+            EventType = TankEventType.Level,
+            BeforeComputedLitres = 500m,
+            ComputedLitres = 100m,
+            CreatedAt = time,
+            UpdatedAt = time
+        });
+        await db.SaveChangesAsync();
+
+        var service = new FuelLoadSafetyService(db, new SiteScope(), new TrackingNotificationService());
+        var result = await service.GetDailyConsumptionAsync(generatorId, date, 1);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains("operational.warnings.dailyTankAtDeadStock", result.Value!.Warnings);
+    }
 }

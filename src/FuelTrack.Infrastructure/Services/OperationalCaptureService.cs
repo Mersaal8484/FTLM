@@ -17,14 +17,23 @@ public sealed class OperationalCaptureService(
     IUserScopeFilterService scopeFilter,
     ICurrentUserService currentUser,
     IIdempotencyService idempotency,
-    IFuelLoadSafetyService fuelLoadSafety) : IOperationalCaptureService
+    IFuelLoadSafetyService fuelLoadSafety,
+    ICommercialStationModeService? commercialMode = null) : IOperationalCaptureService
 {
     private const string Operation = "operational.capture.v1";
     private static readonly TimeSpan FutureTolerance = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan SkewWarning = TimeSpan.FromHours(12);
+    private readonly ICommercialStationModeService _commercialMode = commercialMode ?? new CommercialStationModeService(db);
 
     public async Task<Result<PreviousMeterReadingsDto>> GetPreviousReadingsAsync(int subStationId, int userId, CancellationToken cancellationToken = default)
     {
+        if (subStationId <= 0)
+        {
+            var commercialScope = await _commercialMode.GetScopeAsync(cancellationToken);
+            if (commercialScope is not null)
+                subStationId = commercialScope.SubStationId;
+        }
+
         if (subStationId <= 0 || !await CanAccessSiteAsync(userId, subStationId, cancellationToken))
             return Result<PreviousMeterReadingsDto>.NotFound("Site not found or outside your scope.");
 
@@ -78,6 +87,13 @@ public sealed class OperationalCaptureService(
 
     public async Task<Result<OperationalSubmissionDto>> SubmitAsync(SubmitOperationalCaptureDto dto, int userId, CancellationToken cancellationToken = default)
     {
+        if (dto.SubStationId <= 0)
+        {
+            var commercialScope = await _commercialMode.GetScopeAsync(cancellationToken);
+            if (commercialScope is not null)
+                dto = dto with { SubStationId = commercialScope.SubStationId };
+        }
+
         if (dto.ClientRequestId == Guid.Empty || dto.SubStationId <= 0)
             return Result<OperationalSubmissionDto>.Failure("A site and client request ID are required.");
         var lineCount = dto.GeneratorReadings.Count + dto.TankLevelReadings.Count + dto.FeederLoadReadings.Count + dto.MeterReadings.Count;
@@ -117,7 +133,9 @@ public sealed class OperationalCaptureService(
             }
             var settings = await db.StationOperationalSettings.AsNoTracking().SingleOrDefaultAsync(x => x.StationId == site.StationId, cancellationToken);
             var timeZone = await GetStationTimeZoneAsync(site.StationId, cancellationToken);
-            var tier1RequiresApproval = settings?.Tier1RequiresApproval ?? false;
+            var isCommercial = await _commercialMode.IsCommercialModeAsync(cancellationToken);
+            var tier1RequiresApproval = !isCommercial && (settings?.Tier1RequiresApproval ?? false);
+            var isDailyClosing = dto.MeterReadings.Any(x => x.Kind == MeterReadingKind.DailyClosing);
             var (newDto, duplicateLines) = await ExcludeKnownClientLinesAsync(dto, cancellationToken);
             var (captureDto, duplicateTimeLines) = await ExcludeDuplicateTimesAsync(newDto, now, cancellationToken);
             duplicateLines = duplicateLines.Concat(duplicateTimeLines).ToList();
@@ -186,7 +204,7 @@ public sealed class OperationalCaptureService(
                 var litres = TankGeometry.CalculateLitres(tank.DiameterCm!.Value, tank.CylinderHeightCm!.Value, tank.ConeHeightCm!.Value, tank.MultiplicationFactor!.Value, line.LiquidLevelCm);
                 var beforeLitres = line.BeforeLiquidLevelCm is null ? (decimal?)null : TankGeometry.CalculateLitres(tank.DiameterCm!.Value, tank.CylinderHeightCm!.Value, tank.ConeHeightCm!.Value, tank.MultiplicationFactor!.Value, line.BeforeLiquidLevelCm.Value);
                 var awaitingPhoto = dto.IsOfflineQueue && line.PhotoAttachmentIds.Count == 0;
-                var requiresApproval = ReadingApprovalPolicy.RequiresApproval(OperationalSubjectType.Tank, eventType: line.EventType, tier1RequiresApproval: tier1RequiresApproval);
+                var requiresApproval = isDailyClosing || ReadingApprovalPolicy.RequiresApproval(OperationalSubjectType.Tank, eventType: line.EventType, tier1RequiresApproval: tier1RequiresApproval);
                 var entity = new TankLevelReading
                 {
                     OperationalSubmission = submission, FuelTankId = tank.Id, CapturedAtUtc = captured, ReceivedAtUtc = now,
@@ -296,7 +314,19 @@ public sealed class OperationalCaptureService(
 
     public async Task<IReadOnlyList<OperationalCaptureReferenceDto>> GetCaptureReferencesAsync(int userId, CancellationToken cancellationToken = default)
     {
-        var siteIds = currentUser.HasAnyAdminRole ? null : await scopeFilter.GetAccessibleSubStationIdsAsync(userId);
+        var isCommercial = await _commercialMode.IsCommercialModeAsync(cancellationToken);
+        int[]? siteIds = null;
+        if (isCommercial)
+        {
+            var commercialScope = await _commercialMode.GetScopeAsync(cancellationToken);
+            siteIds = commercialScope is null ? [] : [commercialScope.SubStationId];
+        }
+        else if (!currentUser.HasAnyAdminRole)
+        {
+            var accessible = await scopeFilter.GetAccessibleSubStationIdsAsync(userId);
+            siteIds = accessible.ToArray();
+        }
+
         var sites = db.SubStations.AsNoTracking().Where(x => siteIds == null || siteIds.Contains(x.Id));
         return await sites.OrderBy(x => x.Name).Select(x => new OperationalCaptureReferenceDto(
             x.Id, x.Name, x.Code, db.StationOperationalSettings.Where(s => s.StationId == x.StationId).Select(s => s.TimeZone).FirstOrDefault() ?? StationOperationalSettings.DefaultTimeZone,
@@ -375,10 +405,10 @@ public sealed class OperationalCaptureService(
         var tankIds = dto.TankLevelReadings.Select(x => x.FuelTankId).Distinct().ToList();
         if (await db.FuelTanks.CountAsync(x => tankIds.Contains(x.Id) && x.SubStationId == siteId, cancellationToken) != tankIds.Count)
             return "Every tank must belong to the selected site.";
-        var tanksById = await db.FuelTanks.Where(x => tankIds.Contains(x.Id)).Select(x => new { x.Id, x.ParentTankId }).ToDictionaryAsync(x => x.Id, cancellationToken);
+        var tanksById = await db.FuelTanks.Where(x => tankIds.Contains(x.Id)).Select(x => new { x.Id, x.ParentTankId, x.TankRole }).ToDictionaryAsync(x => x.Id, cancellationToken);
         foreach (var line in dto.TankLevelReadings)
         {
-            if (line.EventType == TankEventType.Receipt && tanksById[line.FuelTankId].ParentTankId is not null)
+            if (line.EventType == TankEventType.Receipt && (tanksById[line.FuelTankId].ParentTankId is not null || tanksById[line.FuelTankId].TankRole == TankRole.Daily))
                 return "Tank receipts must be recorded on a main tank.";
             if (line.EventType is TankEventType.TransferOut or TankEventType.TransferIn)
             {
@@ -386,7 +416,7 @@ public sealed class OperationalCaptureService(
                 var paired = dto.TankLevelReadings.SingleOrDefault(x => x.ClientLineId == line.LinkedClientLineId);
                 if (paired is null || (line.EventType == TankEventType.TransferOut && paired.EventType != TankEventType.TransferIn) || (line.EventType == TankEventType.TransferIn && paired.EventType != TankEventType.TransferOut))
                     return "Each tank transfer must contain linked outgoing and incoming lines.";
-                if (line.EventType == TankEventType.TransferIn && tanksById[line.FuelTankId].ParentTankId != paired.FuelTankId)
+                if (line.EventType == TankEventType.TransferIn && tanksById[line.FuelTankId].ParentTankId != paired.FuelTankId && tanksById[line.FuelTankId].TankRole != TankRole.Daily)
                     return "The incoming transfer tank must be a daily tank of the outgoing main tank.";
             }
         }

@@ -2,7 +2,9 @@ using FuelTrack.Application.Common;
 using FuelTrack.Application.DTOs.Generators;
 using FuelTrack.Application.DTOs.Generators.My;
 using FuelTrack.Application.Interfaces;
+using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
+using FuelTrack.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Services;
@@ -560,6 +562,117 @@ public class GeneratorService : IGeneratorService
         }
 
         return null;
+    }
+
+    public async Task<List<GeneratorOperationalCardDto>> GetOperationalCardsAsync(int userId, CancellationToken ct = default)
+    {
+        var query = _db.Generators
+            .AsNoTracking()
+            .Include(g => g.StatusLookup)
+            .Where(g => g.IsActive);
+
+        if (!_currentUser.HasAnyAdminRole)
+        {
+            var accessible = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId);
+            if (accessible.Count == 0) return [];
+            query = query.Where(g => accessible.Contains(g.SubStationId));
+        }
+
+        var generators = await query
+            .OrderBy(g => g.Name)
+            .Select(g => new
+            {
+                g.Id,
+                g.Name,
+                Status = g.StatusLookup != null ? g.StatusLookup.Name : null,
+                ActualPowerKW = (decimal)g.ActualPowerKW,
+                g.Manufacturer,
+                g.Model,
+            })
+            .ToListAsync(ct);
+
+        var genIds = generators.Select(g => g.Id).ToList();
+
+        var latestOpReadings = await _db.OperationalGeneratorReadings.AsNoTracking()
+            .Where(r => genIds.Contains(r.GeneratorId) && r.Status != OperationalReadingStatus.Voided && r.Status != OperationalReadingStatus.Rejected)
+            .GroupBy(r => r.GeneratorId)
+            .Select(g => g.OrderByDescending(r => r.CapturedAtUtc).ThenByDescending(r => r.Id).First())
+            .ToListAsync(ct);
+        var opMap = latestOpReadings.ToDictionary(r => r.GeneratorId);
+
+        var meterReadings = await _db.MeterReadings.AsNoTracking()
+            .Where(r => genIds.Contains(r.SubjectId)
+                        && (r.SubjectType == MeterReadingSubjectType.GeneratorRunningHours || r.SubjectType == MeterReadingSubjectType.GeneratorEnergyProduced)
+                        && ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
+            .GroupBy(r => new { r.SubjectId, r.SubjectType })
+            .Select(g => g.OrderByDescending(r => r.CapturedAtUtc).ThenByDescending(r => r.Id).First())
+            .ToListAsync(ct);
+        var hoursMap = meterReadings.Where(r => r.SubjectType == MeterReadingSubjectType.GeneratorRunningHours).ToDictionary(r => r.SubjectId, r => r.RawValue * r.MultiplierSnapshot);
+        var energyMap = meterReadings.Where(r => r.SubjectType == MeterReadingSubjectType.GeneratorEnergyProduced).ToDictionary(r => r.SubjectId, r => r.RawValue * r.MultiplierSnapshot);
+
+        var dailyTanks = await _db.FuelTanks.AsNoTracking()
+            .Where(t => t.GeneratorId.HasValue && genIds.Contains(t.GeneratorId.Value))
+            .Select(t => new { t.Id, GeneratorId = t.GeneratorId!.Value, t.Name, t.ActualStockLiters })
+            .ToListAsync(ct);
+        var tankMap = dailyTanks.GroupBy(t => t.GeneratorId).ToDictionary(g => g.Key, g => g.First());
+        var tankIds = dailyTanks.Select(t => t.Id).ToList();
+
+        var latestTankLevels = await _db.TankLevelReadings.AsNoTracking()
+            .Where(r => tankIds.Contains(r.FuelTankId) && ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
+            .GroupBy(r => r.FuelTankId)
+            .Select(g => g.OrderByDescending(r => r.CapturedAtUtc).ThenByDescending(r => r.Id).First())
+            .ToListAsync(ct);
+        var tankLevelMap = latestTankLevels.ToDictionary(r => r.FuelTankId);
+
+        var result = new List<GeneratorOperationalCardDto>(generators.Count);
+        foreach (var g in generators)
+        {
+            opMap.TryGetValue(g.Id, out var op);
+            hoursMap.TryGetValue(g.Id, out var hours);
+            energyMap.TryGetValue(g.Id, out var energy);
+            tankMap.TryGetValue(g.Id, out var tank);
+
+            decimal? tankLevel = null;
+            decimal? tankStock = null;
+            if (tank != null)
+            {
+                if (tankLevelMap.TryGetValue(tank.Id, out var tl))
+                {
+                    tankLevel = tl.LiquidLevelCm;
+                    tankStock = tl.ComputedLitres;
+                }
+                else if (tank.ActualStockLiters.HasValue)
+                {
+                    tankStock = (decimal)tank.ActualStockLiters.Value;
+                }
+            }
+
+            result.Add(new GeneratorOperationalCardDto(
+                g.Id,
+                g.Name,
+                g.Status,
+                g.ActualPowerKW,
+                g.Manufacturer,
+                g.Model,
+                op?.CapturedAtUtc,
+                op?.IsRunning,
+                op?.ActiveLoadKw,
+                op?.PeakLoadKw,
+                op?.LineVoltageVolts,
+                op?.CurrentAmps,
+                op?.FrequencyHz,
+                op?.WaterTemperatureCelsius,
+                op?.OilTemperatureCelsius,
+                op?.OilPressure,
+                op?.AirPressureBar,
+                hours > 0 ? hours : null,
+                energy > 0 ? energy : null,
+                tank?.Name,
+                tankLevel,
+                tankStock));
+        }
+
+        return result;
     }
 
     private async Task<int?> ResolveLookupIdAsync(string? categoryName, string? lookupName, CancellationToken ct)

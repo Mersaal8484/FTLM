@@ -15,4 +15,5 @@ public interface IGeneratorService
     Task<MyGeneratorDetailDto?> GetMyGeneratorByIdAsync(int id, int userId, CancellationToken ct = default);
     Task<List<ActiveGeneratorDto>> GetActiveWithControllersAsync(int userId, CancellationToken ct = default);
     Task<LastReadingDto?> GetLastReadingAsync(int generatorId, CancellationToken ct = default);
+    Task<List<GeneratorOperationalCardDto>> GetOperationalCardsAsync(int userId, CancellationToken ct = default);
 }

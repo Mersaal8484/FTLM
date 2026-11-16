@@ -21,14 +21,15 @@ function loadMode() {
 export default function useCommercialMode() {
   const [state, setState] = useState(() => ({
     isCommercialMode: cachedMode === true,
+    isCommercial: cachedMode === true,
     modeResolved: cachedMode !== undefined,
   }));
 
   useEffect(() => {
     let active = true;
     loadMode()
-      .then((isCommercialMode) => active && setState({ isCommercialMode, modeResolved: true }))
-      .catch(() => active && setState({ isCommercialMode: false, modeResolved: true }));
+      .then((isCommercialMode) => active && setState({ isCommercialMode, isCommercial: isCommercialMode, modeResolved: true }))
+      .catch(() => active && setState({ isCommercialMode: false, isCommercial: false, modeResolved: true }));
     return () => { active = false; };
   }, []);
 

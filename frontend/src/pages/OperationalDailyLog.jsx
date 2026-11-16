@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Download, AlertTriangle, FileText } from 'lucide-react';
+import { Download, AlertTriangle, FileText, Droplet } from 'lucide-react';
 import { Bar } from 'react-chartjs-2';
 import { BarElement, CategoryScale, Chart as ChartJS, Legend, LinearScale, Tooltip } from 'chart.js';
 import client from '../api/client';
@@ -18,6 +18,7 @@ export default function OperationalDailyLog() {
   const [businessDate, setBusinessDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [logData, setLogData] = useState(null);
   const [completeness, setCompleteness] = useState(null);
+  const [dailyFuel, setDailyFuel] = useState(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -36,16 +37,19 @@ export default function OperationalDailyLog() {
     setLoading(true);
     setErrorMsg('');
     try {
-      const [log, quality] = await Promise.all([
+      const [log, quality, fuel] = await Promise.all([
         client.get(`/api/fuel-load-safety/generators/${generatorId}/daily-log/${businessDate}`),
-        client.get(`/api/operational-completeness/generators/${generatorId}/${businessDate}`),
+        client.get(`/api/operational-completeness/generators/${generatorId}/${businessDate}`).catch(() => ({ data: null })),
+        client.get(`/api/fuel-load-safety/generators/${generatorId}/daily-consumption/${businessDate}`).catch(() => ({ data: null })),
       ]);
       setLogData(log.data);
       setCompleteness(quality.data);
+      setDailyFuel(fuel.data);
     } catch (err) {
       setErrorMsg(err.response?.data?.error || 'Failed to fetch operational log');
       setLogData(null);
       setCompleteness(null);
+      setDailyFuel(null);
     } finally {
       setLoading(false);
     }
@@ -191,6 +195,59 @@ export default function OperationalDailyLog() {
           {completeness.missingSlots?.length > 0 && <span>{t('operational.log.missingHours', { hours: completeness.missingSlots.join(', ') })} </span>}
           {completeness.missingDailyClosing && <span>{t('operational.log.missingDailyClosing')}</span>}
         </div>
+      )}
+
+      {dailyFuel && dailyFuel.dailyTankId && (
+        <section style={{
+          marginBottom: 16, padding: 16, borderRadius: 12,
+          border: '1px solid var(--border)', background: 'var(--card-bg)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 700 }}>
+              <Droplet size={18} style={{ color: 'var(--warning)' }} />
+              {t('operational.review.dailyFuelConsumptionTitle', 'استهلاك الوقود اليومي للمولد')}
+              <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-muted)' }}>({dailyFuel.dailyTankName || 'الخزان اليومي'})</span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              {t('operational.review.fuelFormulaNote', 'معادلة الاستهلاك = رصيد البداية + التعبئة/التحويلات − رصيد نهاية اليوم')}
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, textAlign: 'center' }}>
+            <div style={{ background: 'var(--surface-2)', padding: '10px 8px', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('operational.review.openingBalance', 'رصيد البداية')}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>{dailyFuel.openingBalanceLitres.toLocaleString()} L</div>
+            </div>
+            <div style={{ background: 'var(--surface-2)', padding: '10px 8px', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('operational.review.refillsIn', 'التعبئة / التحويل')}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--success)', marginTop: 4 }}>+{dailyFuel.inboundRefillsLitres.toLocaleString()} L</div>
+            </div>
+            <div style={{ background: 'var(--surface-2)', padding: '10px 8px', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('operational.review.closingBalance', 'رصيد الإقفال')}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>{dailyFuel.closingBalanceLitres.toLocaleString()} L</div>
+            </div>
+            <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '10px 8px', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--warning)', fontWeight: 600 }}>{t('operational.review.consumptionLitres', 'الاستهلاك اليومي')}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--primary)', marginTop: 4 }}>{dailyFuel.consumptionLitres.toLocaleString()} L</div>
+            </div>
+            <div style={{ background: 'var(--surface-2)', padding: '10px 8px', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('operational.review.producedKwh', 'الطاقة المنتجة')}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>{dailyFuel.producedKwh != null ? `${dailyFuel.producedKwh.toLocaleString()} kWh` : '—'}</div>
+            </div>
+            <div style={{ background: 'var(--surface-2)', padding: '10px 8px', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('operational.review.kwhPerLiter', 'كفاءة')}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>{dailyFuel.kwhPerLiter != null ? `${dailyFuel.kwhPerLiter} kWh/L` : '—'}</div>
+            </div>
+          </div>
+          {dailyFuel.warnings?.length > 0 && (
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {dailyFuel.warnings.map((w, idx) => (
+                <div key={idx} style={{ color: 'var(--warning)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <AlertTriangle size={14} /> {t(w, w)}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {productionChart && (

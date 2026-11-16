@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Zap, Search, ChevronDown, ChevronRight, RefreshCw, X,
-  MapPin, Clock, Activity, AlertTriangle, Shield
+  MapPin, Clock, Activity, AlertTriangle, Shield, Droplet
 } from 'lucide-react';
 import client from '../api/client';
 import connection from '../socket';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 /* ─── Status config ─────────────────────────────────────────────── */
 const statusConfig = {
@@ -33,11 +34,25 @@ function StatusBadge({ status, lang }) {
 const fmt = (v, u = '') => v != null && v !== '' ? `${Number(v).toLocaleString('en-US')} ${u}`.trim() : '—';
 
 /* ─── Detail Modal ───────────────────────────────────────────────── */
-function GeneratorDetailModal({ gen, lang, onClose }) {
+function GeneratorDetailModal({ gen, lang, onClose, isCommercial }) {
   const ar = lang === 'ar';
   if (!gen) return null;
 
-  const fields = [
+  const fields = isCommercial ? [
+    { label: ar ? 'الاسم' : 'Name', value: gen.name },
+    { label: ar ? 'الحالة' : 'Status', value: <StatusBadge status={gen.statusLookupName || gen.status} lang={lang} /> },
+    { label: ar ? 'القدرة الفعلية' : 'Actual Power', value: fmt(gen.actualPowerKW, 'KW') },
+    { label: ar ? 'ساعات التشغيل التراكمية' : 'Cumulative Running Hours', value: fmt(gen.cumulativeRunningHours ?? gen.controllerOperatingHours, 'h') },
+    { label: ar ? 'إجمالي الطاقة المنتجة' : 'Total Energy Produced', value: fmt(gen.cumulativeEnergyKwh ?? gen.controllerEnergyReading, 'KWh') },
+    { label: ar ? 'الخزان اليومي المرتبط' : 'Linked Daily Tank', value: gen.dailyTankName || '—' },
+    { label: ar ? 'مستوى الخزان اليومي' : 'Daily Tank Level', value: gen.dailyTankLevelCm != null ? `${gen.dailyTankLevelCm} cm` : '—' },
+    { label: ar ? 'مخزون الخزان اليومي' : 'Daily Tank Stock', value: fmt(gen.dailyTankStockLitres, 'L') },
+    { label: ar ? 'الشركة المصنعة' : 'Manufacturer', value: gen.manufacturer || '—' },
+    { label: ar ? 'الموديل' : 'Model', value: gen.model || '—' },
+    { label: ar ? 'الرقم التسلسلي' : 'Serial No.', value: gen.serialNumber || '—' },
+    { label: ar ? 'الجهد الكهربائي' : 'Voltage', value: gen.voltageLookupName || (gen.lineVoltageVolts != null ? `${gen.lineVoltageVolts} V` : '—') },
+    { label: ar ? 'التردد' : 'Frequency', value: gen.frequencyLookupName || (gen.frequencyHz != null ? `${gen.frequencyHz} Hz` : '—') },
+  ] : [
     { label: ar ? 'الاسم' : 'Name', value: gen.name },
     { label: ar ? 'الحالة' : 'Status', value: <StatusBadge status={gen.statusLookupName} lang={lang} /> },
     { label: ar ? 'الشاشة المرتبطة' : 'Linked Controller', value: gen.controllerName || (ar ? 'بدون شاشة' : 'No Controller') },
@@ -86,6 +101,7 @@ function GeneratorDetailModal({ gen, lang, onClose }) {
 /* ─── Main Component ─────────────────────────────────────────────── */
 function GeneratorsOverview({ lang }) {
   const ar = lang === 'ar';
+  const { isCommercial } = useCommercialMode();
   const [generators, setGenerators] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
@@ -100,14 +116,15 @@ function GeneratorsOverview({ lang }) {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const res = await client.get('/api/generators/active', { params: { _t: Date.now() } });
+      const url = isCommercial ? '/api/generators/operational-cards' : '/api/generators/active';
+      const res = await client.get(url, { params: { _t: Date.now() } });
       setGenerators(Array.isArray(res.data) ? res.data : []);
     } catch {
       setError(ar ? 'فشل تحميل بيانات المولدات' : 'Failed to load generators');
     } finally {
       setLoading(false);
     }
-  }, [ar]);
+  }, [ar, isCommercial]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -125,9 +142,9 @@ function GeneratorsOverview({ lang }) {
   /* ── KPIs ───────────────────────────────────────────────────── */
   const kpi = useMemo(() => ({
     total: generators.length,
-    running:     generators.filter(g => g.statusLookupName === 'شغال').length,
-    idle:        generators.filter(g => g.statusLookupName === 'واقف').length,
-    maintenance: generators.filter(g => g.statusLookupName === 'تحت الصيانة').length,
+    running:     generators.filter(g => (g.statusLookupName || g.status) === 'شغال').length,
+    idle:        generators.filter(g => (g.statusLookupName || g.status) === 'واقف').length,
+    maintenance: generators.filter(g => (g.statusLookupName || g.status) === 'تحت الصيانة').length,
   }), [generators]);
 
   /* ── Unique ownership types for filter ─────────────────────── */
@@ -145,8 +162,13 @@ function GeneratorsOverview({ lang }) {
         g.stationName?.toLowerCase().includes(q) ||
         g.branchName?.toLowerCase().includes(q) ||
         g.controllerName?.toLowerCase().includes(q) ||
+        g.model?.toLowerCase().includes(q) ||
         g.generatorTypeLookupName?.toLowerCase().includes(q);
-      const matchStatus = statusFilter === 'all' || g.statusLookupName === statusFilter;
+      const matchStatus = statusFilter === 'all' || (g.statusLookupName || g.status) === statusFilter;
+      const matchOwner = ownerFilter === 'all' || g.ownershipTypeLookupName === ownerFilter;
+      return matchSearch && matchStatus && (isCommercial || matchOwner);
+    });
+  }, [generators, search, statusFilter, ownerFilter, isCommercial]);
       const matchOwner  = ownerFilter === 'all' || g.ownershipTypeLookupName === ownerFilter;
       return matchSearch && matchStatus && matchOwner;
     });
@@ -244,16 +266,18 @@ function GeneratorsOverview({ lang }) {
         </FormField>
 
         {/* Ownership filter */}
-        <FormField label={ar ? 'الملكية' : 'Ownership'} style={{ minWidth: 160 }}>
-          <select
-            className="form-select"
-            value={ownerFilter}
-            onChange={e => setOwnerFilter(e.target.value)}
-          >
-            <option value="all">{ar ? 'كل أنواع الملكية' : 'All Ownership'}</option>
-            {ownershipTypes.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </FormField>
+        {!isCommercial && (
+          <FormField label={ar ? 'الملكية' : 'Ownership'} style={{ minWidth: 160 }}>
+            <select
+              className="form-select"
+              value={ownerFilter}
+              onChange={e => setOwnerFilter(e.target.value)}
+            >
+              <option value="all">{ar ? 'كل أنواع الملكية' : 'All Ownership'}</option>
+              {ownershipTypes.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </FormField>
+        )}
 
       </div>
 
@@ -273,8 +297,78 @@ function GeneratorsOverview({ lang }) {
         </div>
       )}
 
+      {/* ── Commercial Generator Cards Grid ────────────────── */}
+      {!loading && filtered.length > 0 && isCommercial && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+          gap: 16
+        }}>
+          {filtered.map(gen => (
+            <div key={gen.id || gen.generatorId} style={{
+              background: 'var(--card-bg)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)', padding: 18, cursor: 'pointer',
+              display: 'flex', flexDirection: 'column', gap: 14,
+              boxShadow: 'var(--shadow-card)'
+            }} onClick={() => setSelectedGen(gen)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Zap size={18} style={{ color: 'var(--primary)' }} />
+                    {gen.name}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    {fmt(gen.actualPowerKW, 'KW')} {gen.model ? `· ${gen.model}` : ''}
+                  </div>
+                </div>
+                <StatusBadge status={gen.status || gen.statusLookupName} lang={lang} />
+              </div>
+
+              {/* Telemetry metrics */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', background: 'var(--surface-2)', padding: 12, borderRadius: 8, fontSize: 12 }}>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>{ar ? 'ضغط الزيت' : 'Oil Pressure'}:</span>
+                  <strong style={{ marginInlineStart: 6 }}>{gen.oilPressureBar != null ? `${gen.oilPressureBar} bar` : '—'}</strong>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>{ar ? 'حرارة الماء' : 'Water Temp'}:</span>
+                  <strong style={{ marginInlineStart: 6 }}>{gen.waterTemperatureCelsius != null ? `${gen.waterTemperatureCelsius} °C` : '—'}</strong>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>{ar ? 'ضغط الهواء' : 'Air Pressure'}:</span>
+                  <strong style={{ marginInlineStart: 6 }}>{gen.airPressureBar != null ? `${gen.airPressureBar} bar` : '—'}</strong>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>{ar ? 'حرارة الزيت' : 'Oil Temp'}:</span>
+                  <strong style={{ marginInlineStart: 6 }}>{gen.oilTemperatureCelsius != null ? `${gen.oilTemperatureCelsius} °C` : '—'}</strong>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>{ar ? 'الحمل الحالي' : 'Active Load'}:</span>
+                  <strong style={{ marginInlineStart: 6, color: 'var(--primary)' }}>{gen.activeLoadKw != null ? `${gen.activeLoadKw} kW` : '—'}</strong>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>{ar ? 'ساعات التشغيل' : 'Run Hours'}:</span>
+                  <strong style={{ marginInlineStart: 6 }}>{fmt(gen.cumulativeRunningHours ?? gen.controllerOperatingHours, 'h')}</strong>
+                </div>
+              </div>
+
+              {/* Daily Tank Link */}
+              {gen.dailyTankName && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                  <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Droplet size={14} style={{ color: 'var(--primary)' }} />
+                    {gen.dailyTankName}
+                  </span>
+                  <strong>{fmt(gen.dailyTankStockLitres, 'L')} {gen.dailyTankLevelCm != null ? `(${gen.dailyTankLevelCm} cm)` : ''}</strong>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ── Tree View ──────────────────────────────────────── */}
-      {!loading && filtered.length > 0 && (
+      {!loading && filtered.length > 0 && !isCommercial && (
         <div className="section-card" style={{ marginBottom: 0 }}>
           {grouped.map(branch => (
             <div key={branch.id} style={{ marginBottom: 10 }}>
@@ -359,7 +453,7 @@ function GeneratorsOverview({ lang }) {
 
       {/* ── Detail Modal ────────────────────────────────────── */}
       {selectedGen && (
-        <GeneratorDetailModal gen={selectedGen} lang={lang} onClose={() => setSelectedGen(null)} />
+        <GeneratorDetailModal gen={selectedGen} lang={lang} onClose={() => setSelectedGen(null)} isCommercial={isCommercial} />
       )}
     </div>
   );

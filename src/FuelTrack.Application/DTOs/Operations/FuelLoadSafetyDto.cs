@@ -57,3 +57,17 @@ public sealed record OperationalDailyLogDto(
     DateOnly BusinessDate,
     IReadOnlyList<OperationalTrendPointDto> Rows,
     IReadOnlyList<HourlyProductionPointDto> HourlyProduction);
+
+public sealed record DailyGeneratorFuelConsumptionDto(
+    int GeneratorId,
+    string GeneratorName,
+    int? DailyTankId,
+    string? DailyTankName,
+    DateOnly BusinessDate,
+    decimal OpeningBalanceLitres,
+    decimal InboundRefillsLitres,
+    decimal ClosingBalanceLitres,
+    decimal ConsumptionLitres,
+    decimal? ProducedKwh,
+    decimal? KwhPerLiter,
+    IReadOnlyList<string> Warnings);

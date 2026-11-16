@@ -1,0 +1,25 @@
+namespace FuelTrack.Application.DTOs.Generators;
+
+public sealed record GeneratorOperationalCardDto(
+    int GeneratorId,
+    string Name,
+    string? Status,
+    decimal ActualPowerKW,
+    string? Manufacturer,
+    string? Model,
+    DateTime? LastCapturedAtUtc,
+    bool? IsRunning,
+    decimal? ActiveLoadKw,
+    decimal? PeakLoadKw,
+    decimal? LineVoltageVolts,
+    decimal? CurrentAmps,
+    decimal? FrequencyHz,
+    decimal? WaterTemperatureCelsius,
+    decimal? OilTemperatureCelsius,
+    decimal? OilPressureBar,
+    decimal? AirPressureBar,
+    decimal? CumulativeRunningHours,
+    decimal? CumulativeEnergyKwh,
+    string? DailyTankName,
+    decimal? DailyTankLevelCm,
+    decimal? DailyTankStockLitres);

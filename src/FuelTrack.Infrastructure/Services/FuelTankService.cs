@@ -295,12 +295,6 @@ public class FuelTankService : IFuelTankService
             tank.DiameterCm, tank.CylinderHeightCm, tank.ConeHeightCm, tank.MultiplicationFactor,
             tank.TankRole, tank.GeneratorId, tank.Generator?.Name, tank.ParentTankId, tank.ParentTank?.Name, tank.Shape);
     }
-            tank.Notes,
-            tank.IsActive,
-            tank.CreatedAt, tank.UpdatedAt,
-            tank.DeadStockLevelCm, tank.DeadStockInputUnit,
-            tank.DiameterCm, tank.CylinderHeightCm, tank.ConeHeightCm, tank.MultiplicationFactor);
-    }
 
     private async Task<Dictionary<int, (bool HasMeter, double? MeterReading, double? MeterReadingActual)>> GetLatestMeterReadingsAsync(int[] tankIds)
     {

@@ -108,4 +108,12 @@ public class GeneratorsController : BaseApiController
         return Ok(result);
     }
 
+    [HttpGet("operational-cards")]
+    public async Task<IActionResult> GetOperationalCards(CancellationToken ct)
+    {
+        var userId = GetUserId();
+        var result = await _generatorService.GetOperationalCardsAsync(userId, ct);
+        return Ok(result);
+    }
+
 }

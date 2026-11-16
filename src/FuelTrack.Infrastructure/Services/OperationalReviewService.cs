@@ -223,12 +223,36 @@ public sealed class OperationalReviewService(
                 delta?.SpanDays));
         }
 
+        List<DailyGeneratorFuelConsumptionDto>? dailyConsumptions = null;
+        var hasDailyClosing = meterLines.Any(r => r.Kind == MeterReadingKind.DailyClosing);
+        if (hasDailyClosing)
+        {
+            var businessDate = meterLines.FirstOrDefault(r => r.Kind == MeterReadingKind.DailyClosing)?.BusinessDate
+                ?? DateOnly.FromDateTime(submission.ReceivedAtUtc);
+
+            var siteGeneratorIds = await db.Generators.AsNoTracking()
+                .Where(g => g.SubStationId == submission.SubStationId && g.IsActive)
+                .Select(g => g.Id)
+                .ToListAsync(cancellationToken);
+
+            dailyConsumptions = new List<DailyGeneratorFuelConsumptionDto>();
+            foreach (var gId in siteGeneratorIds)
+            {
+                var consRes = await fuelLoadSafety.GetDailyConsumptionAsync(gId, businessDate, userId, cancellationToken);
+                if (consRes.IsSuccess && consRes.Value != null)
+                {
+                    dailyConsumptions.Add(consRes.Value);
+                }
+            }
+        }
+
         return Result<SubmissionDetailDto>.Success(new SubmissionDetailDto(
             submission.Id, submission.SubStationId, submission.SiteName,
             submission.ReceivedAtUtc,
             submission.SubmittedByUserId ?? 0, submission.SubmitterName,
             submission.Status.ToString(),
-            genDtos, tankDtos, feederDtos, meterDtos));
+            genDtos, tankDtos, feederDtos, meterDtos,
+            dailyConsumptions));
     }
 
     // ── Approve ──────────────────────────────────────────────────────────────

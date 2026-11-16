@@ -117,6 +117,131 @@ public sealed class FuelLoadSafetyService(
             warnings.Distinct().ToList()));
     }
 
+    public async Task<Result<DailyGeneratorFuelConsumptionDto>> GetDailyConsumptionAsync(
+        int generatorId, DateOnly businessDate, int userId, CancellationToken ct = default)
+    {
+        var allowed = await scopeFilter.GetAccessibleSubStationIdsAsync(userId);
+        var generator = await db.Generators.AsNoTracking()
+            .Where(g => g.Id == generatorId && allowed.Contains(g.SubStationId))
+            .Select(g => new { g.Id, g.Name, g.SubStationId })
+            .SingleOrDefaultAsync(ct);
+
+        if (generator is null)
+            return Result<DailyGeneratorFuelConsumptionDto>.NotFound("Generator not found or outside your scope.");
+
+        var dailyTank = await db.FuelTanks.AsNoTracking()
+            .Where(t => t.GeneratorId == generatorId && (t.TankRole == TankRole.Daily || t.ParentTankId != null))
+            .Select(t => new { t.Id, t.Name, t.DeadStockLiters })
+            .FirstOrDefaultAsync(ct);
+
+        if (dailyTank is null)
+        {
+            dailyTank = await db.FuelTanks.AsNoTracking()
+                .Where(t => t.GeneratorId == generatorId)
+                .Select(t => new { t.Id, t.Name, t.DeadStockLiters })
+                .FirstOrDefaultAsync(ct);
+        }
+
+        if (dailyTank is null)
+        {
+            return Result<DailyGeneratorFuelConsumptionDto>.Success(new(
+                generatorId, generator.Name, null, null, businessDate,
+                0m, 0m, 0m, 0m, null, null,
+                ["No daily fuel tank is linked to this generator."]));
+        }
+
+        var startUtc = businessDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var endUtc = businessDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+
+        var tankReadings = await db.TankLevelReadings.AsNoTracking()
+            .Where(r => r.FuelTankId == dailyTank.Id && r.CapturedAtUtc <= endUtc
+                        && ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
+            .OrderBy(r => r.CapturedAtUtc).ThenBy(r => r.Id)
+            .ToListAsync(ct);
+
+        var priorReadings = tankReadings.Where(r => r.CapturedAtUtc < startUtc).ToList();
+        var dateReadings = tankReadings.Where(r => r.CapturedAtUtc >= startUtc && r.CapturedAtUtc <= endUtc).ToList();
+
+        decimal openingBalance = 0;
+        if (priorReadings.Count > 0)
+        {
+            openingBalance = priorReadings.Last().ComputedLitres;
+        }
+        else if (dateReadings.Count > 0)
+        {
+            var first = dateReadings.First();
+            openingBalance = first.BeforeComputedLitres ?? first.ComputedLitres;
+        }
+
+        decimal inboundRefills = 0;
+        foreach (var r in dateReadings.Where(r => r.EventType is TankEventType.Receipt or TankEventType.TransferIn))
+        {
+            var added = r.ComputedLitres - (r.BeforeComputedLitres ?? r.ComputedLitres);
+            if (added > 0)
+                inboundRefills += added;
+            else if (r.DeliveryNoteLitres.HasValue && r.DeliveryNoteLitres.Value > 0)
+                inboundRefills += r.DeliveryNoteLitres.Value;
+        }
+
+        decimal closingBalance = openingBalance;
+        if (dateReadings.Count > 0)
+        {
+            closingBalance = dateReadings.Last().ComputedLitres;
+        }
+
+        var warnings = new List<string>();
+        decimal consumption = openingBalance + inboundRefills - closingBalance;
+
+        if (consumption < 0)
+        {
+            warnings.Add("Unregistered fuel addition or meter variance: Closing balance exceeds Opening + Inbound refills.");
+            consumption = 0;
+        }
+
+        var deadStock = (decimal)(dailyTank.DeadStockLiters ?? 0);
+        if (closingBalance <= deadStock)
+        {
+            warnings.Add("operational.warnings.dailyTankAtDeadStock");
+        }
+
+        var energyReadings = await db.MeterReadings.AsNoTracking()
+            .Where(r => r.SubjectType == MeterReadingSubjectType.GeneratorEnergyProduced && r.SubjectId == generatorId
+                        && r.CapturedAtUtc <= endUtc
+                        && ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
+            .OrderBy(r => r.CapturedAtUtc).ThenBy(r => r.Id)
+            .Select(r => new { r.CapturedAtUtc, Value = r.RawValue * r.MultiplierSnapshot })
+            .ToListAsync(ct);
+
+        decimal? producedKwh = null;
+        var dateEnergy = energyReadings.Where(r => r.CapturedAtUtc >= startUtc && r.CapturedAtUtc <= endUtc).ToList();
+        var priorEnergy = energyReadings.Where(r => r.CapturedAtUtc < startUtc).ToList();
+        if (dateEnergy.Count > 0)
+        {
+            var prevValue = priorEnergy.Count > 0 ? priorEnergy.Last().Value : dateEnergy.First().Value;
+            var currValue = dateEnergy.Last().Value;
+            if (currValue >= prevValue)
+                producedKwh = currValue - prevValue;
+        }
+
+        decimal? kwhPerL = (consumption > 0 && producedKwh.HasValue && producedKwh.Value > 0)
+            ? Math.Round(producedKwh.Value / consumption, 2)
+            : null;
+
+        return Result<DailyGeneratorFuelConsumptionDto>.Success(new(
+            generatorId,
+            generator.Name,
+            dailyTank.Id,
+            dailyTank.Name,
+            businessDate,
+            openingBalance,
+            inboundRefills,
+            closingBalance,
+            consumption,
+            producedKwh,
+            kwhPerL,
+            warnings));
+    }
+
     public async Task<Result<FuelReconciliationReportDto>> GetReconciliationAsync(
         int subStationId, DateTime fromUtc, DateTime toUtc, int userId, CancellationToken ct = default)
     {

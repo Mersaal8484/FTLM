@@ -36,6 +36,14 @@ public class RollbackController : BaseApiController
     [HttpPost("execute")]
     public async Task<IActionResult> Execute([FromBody] RollbackRequestDto dto)
     {
+        var roles = GetUserRoles();
+        var isPermitted = roles.Any(r => r.Equals("Admin", StringComparison.OrdinalIgnoreCase)
+                                      || r.Equals("OperationsManager", StringComparison.OrdinalIgnoreCase)
+                                      || r.Equals("StationManager", StringComparison.OrdinalIgnoreCase))
+                          || User.IsInRole("Admin") || User.IsInRole("OperationsManager");
+        if (!isPermitted)
+            return StatusCode(403, new { error = "Only Operations Manager or Administrator can execute a rollback." });
+
         var userId = GetUserId();
         await _rollbackService.ExecuteRollbackAsync(dto.AuditLogId, userId);
         await _notifier.NotifyAllAsync("RollbackExecuted", new { auditLogId = dto.AuditLogId });

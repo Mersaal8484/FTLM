@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, CheckCircle2, ChevronLeft, Clock3, Image, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronLeft, Clock3, Droplet, Image, XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import OperationalBackLink from '../components/OperationalBackLink';
@@ -137,6 +137,64 @@ function SubmissionDetail({ id, onBack }) {
       {approveMutation.isError && (
         <div style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius-sm)', padding: 12, marginBottom: 16, color: 'var(--danger)' }}>
           {approveMutation.error?.response?.data?.error}
+        </div>
+      )}
+
+      {data.dailyFuelConsumptions?.length > 0 && (
+        <div style={{
+          background: 'var(--card-bg)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)', padding: 16, marginBottom: 16
+        }}>
+          <h3 style={{ margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 16 }}>
+            <Droplet size={18} style={{ color: 'var(--warning)' }} />
+            {t('operational.review.dailyFuelConsumptionTitle', 'استهلاك الوقود اليومي للمولدات')}
+          </h3>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' }}>
+            {t('operational.review.fuelFormulaNote', 'معادلة الاستهلاك = رصيد البداية + التعبئة/التحويلات − رصيد نهاية اليوم')}
+          </p>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table" style={{ fontSize: 13, width: '100%' }}>
+              <thead>
+                <tr>
+                  <th>{t('generators.table.name', 'المولد')}</th>
+                  <th>{t('operational.capture.tank', 'الخزان اليومي')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('operational.review.openingBalance', 'رصيد البداية (لتر)')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('operational.review.refillsIn', 'التعبئة / التحويل (لتر)')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('operational.review.closingBalance', 'رصيد الإقفال (لتر)')}</th>
+                  <th style={{ textAlign: 'center', fontWeight: 800, color: 'var(--primary)' }}>
+                    {t('operational.review.consumptionLitres', 'الاستهلاك اليومي (لتر)')}
+                  </th>
+                  <th style={{ textAlign: 'center' }}>{t('operational.review.producedKwh', 'الطاقة المنتجة (KWh)')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('operational.review.kwhPerLiter', 'كفاءة (KWh/لتر)')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.dailyFuelConsumptions.map((c) => (
+                  <tr key={c.generatorId}>
+                    <td style={{ fontWeight: 700 }}>{c.generatorName}</td>
+                    <td>{c.dailyTankName || '—'}</td>
+                    <td style={{ textAlign: 'center' }}>{c.openingBalanceLitres.toLocaleString()}</td>
+                    <td style={{ textAlign: 'center', color: 'var(--success)' }}>+{c.inboundRefillsLitres.toLocaleString()}</td>
+                    <td style={{ textAlign: 'center' }}>{c.closingBalanceLitres.toLocaleString()}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--primary)', fontSize: 14 }}>
+                      {c.consumptionLitres.toLocaleString()} L
+                    </td>
+                    <td style={{ textAlign: 'center' }}>{c.producedKwh != null ? c.producedKwh.toLocaleString() : '—'}</td>
+                    <td style={{ textAlign: 'center' }}>{c.kwhPerLiter != null ? c.kwhPerLiter : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {data.dailyFuelConsumptions.some((c) => c.warnings?.length > 0) && (
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {data.dailyFuelConsumptions.flatMap((c) => c.warnings || []).map((w, idx) => (
+                <div key={idx} style={{ color: 'var(--warning)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <AlertTriangle size={14} /> {t(w, w)}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

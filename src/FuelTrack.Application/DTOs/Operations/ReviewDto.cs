@@ -28,7 +28,8 @@ public sealed record SubmissionDetailDto(
     IReadOnlyList<ReviewLineDto> GeneratorLines,
     IReadOnlyList<ReviewLineDto> TankLines,
     IReadOnlyList<ReviewLineDto> FeederLines,
-    IReadOnlyList<ReviewMeterLineDto> MeterLines);
+    IReadOnlyList<ReviewMeterLineDto> MeterLines,
+    IReadOnlyList<DailyGeneratorFuelConsumptionDto>? DailyFuelConsumptions = null);
 
 public sealed record ReviewLineDto(
     int Id,

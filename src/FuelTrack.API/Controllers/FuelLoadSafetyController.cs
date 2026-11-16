@@ -50,6 +50,13 @@ public sealed class FuelLoadSafetyController(IFuelLoadSafetyService service) : B
         return result.IsSuccess ? Ok(result.Value) : StatusCode(result.StatusCode, new { error = result.Error });
     }
 
+    [HttpGet("generators/{generatorId:int}/daily-consumption/{businessDate}")]
+    public async Task<IActionResult> DailyConsumption(int generatorId, DateOnly businessDate, CancellationToken ct)
+    {
+        var result = await service.GetDailyConsumptionAsync(generatorId, businessDate, GetUserId(), ct);
+        return result.IsSuccess ? Ok(result.Value) : StatusCode(result.StatusCode, new { error = result.Error });
+    }
+
     [HttpGet("generators/{generatorId:int}/daily-log/{businessDate}.csv")]
     public async Task<IActionResult> ExportDailyLog(int generatorId, DateOnly businessDate, CancellationToken ct)
     {
