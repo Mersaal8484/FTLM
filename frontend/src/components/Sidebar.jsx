@@ -12,6 +12,7 @@ import useTenantBranding from '../hooks/useTenantBranding';
 import { useTranslation } from 'react-i18next';
 import NavGroup from './NavGroup';
 import useOperationalMode from '../hooks/useOperationalMode';
+import useCommercialMode from '../hooks/useCommercialMode';
 import {
   navigationGroups,
   preferredMobileNavigationIds,
@@ -31,6 +32,7 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
   const hasRole = (name) => userRoles.includes(name) || roleKey.toLowerCase() === name;
   const { can, canExplicit, hasAssignedPermission } = usePermissions(currentUser);
   const { isNewMode, modeResolved } = useOperationalMode(Boolean(currentUser));
+  const { isCommercialMode } = useCommercialMode();
 
   const navDomain = (path) => {
     if (path === '/' || path.startsWith('/generators') || path.startsWith('/my-generators') || path.startsWith('/operations')) return 'blue';
@@ -115,12 +117,14 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
     hasRole,
     isNewMode,
     modeResolved,
+    isCommercialMode,
   }).map(item => ({ ...item, to: item.route, label: t(item.labelKey) })), [
     can,
     canExplicit,
     hasAssignedPermission,
     isNewMode,
     modeResolved,
+    isCommercialMode,
     roleKey,
     t,
     userRoles.join('|'),

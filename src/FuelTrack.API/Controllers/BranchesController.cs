@@ -12,15 +12,18 @@ namespace FuelTrack.API.Controllers;
 public class BranchesController : BaseApiController
 {
     private readonly IBranchService _branchService;
+    private readonly ICommercialStationModeService _commercialMode;
 
-    public BranchesController(IBranchService branchService)
+    public BranchesController(IBranchService branchService, ICommercialStationModeService commercialMode)
     {
         _branchService = branchService;
+        _commercialMode = commercialMode;
     }
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateBranchDto dto)
     {
+        if (await _commercialMode.IsCommercialModeAsync()) return NotFound();
         var userId = GetUserId();
         var result = await _branchService.CreateAsync(dto, userId);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
@@ -29,6 +32,7 @@ public class BranchesController : BaseApiController
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateBranchDto dto)
     {
+        if (await _commercialMode.IsCommercialModeAsync()) return NotFound();
         var userId = GetUserId();
         var result = await _branchService.UpdateAsync(id, dto, userId);
         return Ok(result);
@@ -38,6 +42,7 @@ public class BranchesController : BaseApiController
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
+        if (await _commercialMode.IsCommercialModeAsync()) return NotFound();
         await _branchService.DeleteAsync(id);
         return NoContent();
     }
@@ -45,6 +50,7 @@ public class BranchesController : BaseApiController
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {
+        if (await _commercialMode.IsCommercialModeAsync()) return NotFound();
         var result = await _branchService.GetByIdAsync(id);
         if (result is null) return NotFound();
         return Ok(result);
@@ -53,6 +59,7 @@ public class BranchesController : BaseApiController
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
+        if (await _commercialMode.IsCommercialModeAsync()) return NotFound();
         var result = await _branchService.GetAllAsync();
         return Ok(result);
     }
@@ -60,6 +67,7 @@ public class BranchesController : BaseApiController
     [HttpGet("by-parent/{parentId:int?}")]
     public async Task<IActionResult> GetByParent(int? parentId)
     {
+        if (await _commercialMode.IsCommercialModeAsync()) return NotFound();
         return BadRequest("Endpoint removed");
     }
 

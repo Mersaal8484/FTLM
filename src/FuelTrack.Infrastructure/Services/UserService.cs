@@ -12,11 +12,13 @@ public class UserService : IUserService
 {
     private readonly UserManager<User> _userManager;
     private readonly FuelTrackDbContext _db;
+    private readonly ICommercialStationModeService _commercialMode;
 
-    public UserService(UserManager<User> userManager, FuelTrackDbContext db)
+    public UserService(UserManager<User> userManager, FuelTrackDbContext db, ICommercialStationModeService? commercialMode = null)
     {
         _userManager = userManager;
         _db = db;
+        _commercialMode = commercialMode ?? new CommercialStationModeService(db);
     }
 
     public async Task<List<UserDto>> GetAllAsync()
@@ -36,6 +38,9 @@ public class UserService : IUserService
             .Select(s => new UserScopeDto(s.BranchId, s.StationId, s.SubStationId))
             .ToListAsync();
 
+        if (await _commercialMode.IsCommercialModeAsync())
+            scopes = [];
+
         return new UserDetailDto(
             user.Id, user.UserName!, user.FullName, user.Email,
             user.PhoneNumber, user.IsActive, user.CreatedAt,
@@ -44,6 +49,9 @@ public class UserService : IUserService
 
     public async Task<Result<UserDto>> CreateAsync(CreateUserDto dto, int createdBy)
     {
+        if (dto.Scopes?.Count > 0 && await _commercialMode.IsCommercialModeAsync())
+            return Result<UserDto>.Forbidden("Data scopes are not used in commercial station mode.");
+
         var user = new User
         {
             UserName = dto.UserName,
@@ -197,6 +205,9 @@ public class UserService : IUserService
 
     public async Task<Result> AssignScopesAsync(int userId, List<UserScopeDto> scopes)
     {
+        if (await _commercialMode.IsCommercialModeAsync())
+            return Result.Failure("Data scopes are not used in commercial station mode.", 403);
+
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user is null)
             return Result.NotFound($"User {userId} not found.");

@@ -6,14 +6,20 @@ namespace FuelTrack.Infrastructure.Services;
 public class UserScopeFilterService : IUserScopeFilterService
 {
     private readonly FuelTrackDbContext _db;
+    private readonly ICommercialStationModeService _commercialMode;
 
-    public UserScopeFilterService(FuelTrackDbContext db)
+    public UserScopeFilterService(FuelTrackDbContext db, ICommercialStationModeService? commercialMode = null)
     {
         _db = db;
+        _commercialMode = commercialMode ?? new CommercialStationModeService(db);
     }
 
     public async Task<List<int>> GetAccessibleSubStationIdsAsync(int userId)
     {
+        var commercialScope = await _commercialMode.GetScopeAsync();
+        if (commercialScope is not null)
+            return [commercialScope.SubStationId];
+
         var scopes = await _db.UserScopes
             .Where(s => s.UserId == userId && s.DeletedAt == null)
             .ToListAsync();
@@ -56,6 +62,10 @@ public class UserScopeFilterService : IUserScopeFilterService
 
     public async Task<List<int>> GetAccessibleStationIdsAsync(int userId)
     {
+        var commercialScope = await _commercialMode.GetScopeAsync();
+        if (commercialScope is not null)
+            return [commercialScope.StationId];
+
         var scopes = await _db.UserScopes
             .Where(s => s.UserId == userId && s.DeletedAt == null)
             .ToListAsync();
@@ -96,6 +106,10 @@ public class UserScopeFilterService : IUserScopeFilterService
 
     public async Task<List<int>> GetAccessibleBranchIdsAsync(int userId)
     {
+        var commercialScope = await _commercialMode.GetScopeAsync();
+        if (commercialScope is not null)
+            return [commercialScope.BranchId];
+
         var scopes = await _db.UserScopes
             .Where(s => s.UserId == userId && s.DeletedAt == null)
             .ToListAsync();
@@ -140,6 +154,14 @@ public class UserScopeFilterService : IUserScopeFilterService
 
     public async Task<List<int>> GetUserIdsWithAccessToSubStationAsync(int subStationId)
     {
+        var commercialScope = await _commercialMode.GetScopeAsync();
+        if (commercialScope is not null)
+        {
+            if (commercialScope.SubStationId != subStationId)
+                return [];
+            return await _db.Users.Where(user => user.IsActive).Select(user => user.Id).ToListAsync();
+        }
+
         var subStation = await _db.SubStations
             .Where(ss => ss.Id == subStationId)
             .Select(ss => new { ss.StationId, ss.Station.BranchId })
@@ -167,6 +189,10 @@ public class UserScopeFilterService : IUserScopeFilterService
 
     public async Task<bool> HasFullAccessToStationAsync(int userId, int stationId)
     {
+        var commercialScope = await _commercialMode.GetScopeAsync();
+        if (commercialScope is not null)
+            return commercialScope.StationId == stationId;
+
         return await _db.Stations.AnyAsync(station => station.Id == stationId && station.DeletedAt == null && station.IsActive &&
             _db.UserScopes.Any(scope => scope.UserId == userId && scope.DeletedAt == null && scope.SubStationId == null &&
                 (scope.StationId == station.Id || (scope.StationId == null && (scope.BranchId == null || scope.BranchId == station.BranchId)))));

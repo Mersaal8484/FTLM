@@ -118,7 +118,7 @@ public class UsersController : BaseApiController
     public async Task<IActionResult> AssignScopes(int id, [FromBody] AssignScopesDto dto)
     {
         var result = await _userService.AssignScopesAsync(id, dto.Scopes);
-        if (!result.IsSuccess) return BadRequest(new { msg = result.Error });
+        if (!result.IsSuccess) return StatusCode(result.StatusCode, new { msg = result.Error });
         await _notifier.NotifyAllAsync("UserScopesAssigned", new { userId = id, scopes = dto.Scopes });
         return NoContent();
     }

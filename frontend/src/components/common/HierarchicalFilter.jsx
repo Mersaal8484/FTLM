@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Filter, ChevronDown, X } from 'lucide-react';
 import client from '../../api/client';
+import useCommercialMode from '../../hooks/useCommercialMode';
 
 const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true, showMonthPicker = false }) => {
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
   const isAr = lang === 'ar';
+  const { isCommercialMode, modeResolved } = useCommercialMode();
 
   const [branches, setBranches] = useState([]);
   const [stations, setStations] = useState([]);
@@ -42,12 +44,18 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
 
   // Load branches
   useEffect(() => {
+    if (!modeResolved || isCommercialMode) {
+      setBranches([]);
+      setStations([]);
+      setSubStations([]);
+      return;
+    }
     setLoadingBranches(true);
     client.get('/api/branches')
       .then(res => setBranches(res.data))
       .catch(() => {})
       .finally(() => setLoadingBranches(false));
-  }, []);
+  }, [isCommercialMode, modeResolved]);
 
   // Load stations when branch changes
   useEffect(() => {
@@ -124,6 +132,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
   return (
     <div className="filter-bar" dir={dir} style={{ marginBottom: '1rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+        {!isCommercialMode && <>
         {/* Branch */}
         <div style={{ position: 'relative', minWidth: '180px' }}>
           <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
@@ -189,6 +198,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
           </div>
         </div>
 
+        </>}
         {/* Month/Year Picker or Date Range */}
         {showDateRange && (
           <>

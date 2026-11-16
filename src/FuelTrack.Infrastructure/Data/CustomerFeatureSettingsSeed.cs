@@ -16,6 +16,7 @@ public static class CustomerFeatureSettingsSeed
         ("inventory", true, null),
         ("maintenance", true, null),
         ("solar", false, null),
+        (CommercialStationModeService.FeatureKey, false, CommercialStationModeService.EnterpriseModeValue),
     ];
 
     public static async Task SeedAsync(FuelTrackDbContext db, CancellationToken cancellationToken = default)

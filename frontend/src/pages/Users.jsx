@@ -3,6 +3,7 @@ import { Users as UsersIcon, ShieldCheck, Shield, Trash2, Edit2, LogIn, Plus, X,
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 /* ── Map backend API ↔ frontend form field names ── */
 function normalizeUser(u, rolesList) {
@@ -18,14 +19,14 @@ function normalizeUser(u, rolesList) {
     scopes: u.scopes || [],
   };
 }
-function normalizeForApi(form) {
+function normalizeForApi(form, isCommercialMode) {
   return {
     userName: form.email,
     fullName: form.name,
     email: form.email,
     phoneNumber: form.phone ? `967${form.phone}` : '',
     roles: form.role ? [form.role] : [],
-    scopes: form.scopes || [],
+    scopes: isCommercialMode ? [] : (form.scopes || []),
   };
 }
 
@@ -58,6 +59,7 @@ const isShiftAssignableRole = (role) => SHIFT_ASSIGNABLE_ROLES.has(role);
 
 function Users({ t, lang, currentUser }) {
   const ar = lang === 'ar';
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   
   const perms = currentUser?.permissions?.users || {};
   const canManage = currentUser?.role === 'admin' || perms.manage;
@@ -83,13 +85,18 @@ function Users({ t, lang, currentUser }) {
   const loadData = async () => {
     setLoading(true); setError(null);
     try {
-      const [uRes, bRes, sRes, subRes, rRes] = await Promise.allSettled([
+      const requests = [
         client.get('/api/users'),
-        client.get('/api/branches'),
-        client.get('/api/stations'),
-        client.get('/api/sub-stations'),
         client.get('/api/roles'),
-      ]);
+      ];
+      if (!isCommercialMode) {
+        requests.push(
+          client.get('/api/branches'),
+          client.get('/api/stations'),
+          client.get('/api/sub-stations'),
+        );
+      }
+      const [uRes, rRes, bRes, sRes, subRes] = await Promise.allSettled(requests);
 
       const getValue = (res, fallback) => {
         if (res.status === 'fulfilled') {
@@ -101,9 +108,9 @@ function Users({ t, lang, currentUser }) {
 
       const rawUsers = getValue(uRes, []);
       setUsers(rawUsers.filter(u => u.isActive !== false).map(u => normalizeUser(u, getValue(rRes, []))));
-      setBranches(getValue(bRes, []));
-      setStations(getValue(sRes, []));
-      setSubStations(getValue(subRes, []).filter(s => s.isActive !== false));
+      setBranches(isCommercialMode ? [] : getValue(bRes, []));
+      setStations(isCommercialMode ? [] : getValue(sRes, []));
+      setSubStations(isCommercialMode ? [] : getValue(subRes, []).filter(s => s.isActive !== false));
       setRoles(getValue(rRes, []));
 
       const authFailed = [uRes, rRes].some(
@@ -118,7 +125,9 @@ function Users({ t, lang, currentUser }) {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { loadData(); }, [t]);
+  useEffect(() => {
+    if (modeResolved) loadData();
+  }, [t, isCommercialMode, modeResolved]);
 
   const openAdd = () => { setForm(initialForm); setEditId(null); setShowModal(true); };
 
@@ -134,7 +143,7 @@ function Users({ t, lang, currentUser }) {
         password: '',
         role: matchedRole ? matchedRole.key : (detailRole || u.role || ''),
         phone: normalizePhoneForInput(detail.phoneNumber || u.phone),
-        scopes: detail.scopes || u.scopes || [],
+        scopes: isCommercialMode ? [] : (detail.scopes || u.scopes || []),
       });
     } catch {
       setForm({
@@ -143,7 +152,7 @@ function Users({ t, lang, currentUser }) {
         password: '',
         role: u.role || '',
         phone: normalizePhoneForInput(u.phone || u.phoneNumber),
-        scopes: u.scopes || [],
+        scopes: isCommercialMode ? [] : (u.scopes || []),
       });
     }
     setEditId(u.id);
@@ -215,9 +224,11 @@ function Users({ t, lang, currentUser }) {
         if (form.role) {
           await client.post(`/api/users/${editId}/assign-roles`, [form.role]);
         }
-        await client.post(`/api/users/${editId}/scopes`, { scopes: form.scopes });
+        if (!isCommercialMode) {
+          await client.post(`/api/users/${editId}/scopes`, { scopes: form.scopes });
+        }
       } else {
-        const payload = normalizeForApi(form);
+        const payload = normalizeForApi(form, isCommercialMode);
         payload.password = form.password;
         await client.post('/api/users', payload);
       }
@@ -426,7 +437,7 @@ function Users({ t, lang, currentUser }) {
             </FormField>
           </div>
 
-          {isShiftAssignableRole(form.role) && (
+          {!isCommercialMode && isShiftAssignableRole(form.role) && (
             <FormField label={ar ? 'وردية المشغل' : 'Operator Shift'}>
               <select
                 className="form-select"
@@ -444,7 +455,7 @@ function Users({ t, lang, currentUser }) {
           )}
 
               {/* ── Scope Selector ── */}
-              <div className="form-group">
+              {!isCommercialMode && <div className="form-group">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <label className="form-label" style={{ marginBottom: 0, color: 'var(--primary)' }}>
                     {ar ? 'نطاق البيانات' : 'Data Scope'}
@@ -488,7 +499,7 @@ function Users({ t, lang, currentUser }) {
                     </div>
                   )}
                 </div>
-              </div>
+              </div>}
             </Modal>
           )}
 

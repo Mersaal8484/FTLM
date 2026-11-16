@@ -121,6 +121,7 @@ public static class DependencyInjection
         services.AddScoped<ITwoFactorService, TwoFactorService>();
         services.AddScoped<IStationOperationalSettingsService, StationOperationalSettingsService>();
         services.AddScoped<ICustomerFeatureService, CustomerFeatureService>();
+        services.AddScoped<ICommercialStationModeService, CommercialStationModeService>();
         services.AddScoped<IIdempotencyService, IdempotencyService>();
         services.Configure<AttachmentStorageOptions>(configuration.GetSection(AttachmentStorageOptions.SectionName));
         services.AddSingleton<IAttachmentStorage, PrivateFileAttachmentStorage>();

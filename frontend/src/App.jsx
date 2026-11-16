@@ -10,6 +10,7 @@ import useAuthStore from './store/authStore';
 import useUiStore from './store/uiStore';
 import Toast from './components/Toast';
 import socket from './socket';
+import useCommercialMode from './hooks/useCommercialMode';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Login = lazy(() => import('./pages/Login'));
@@ -164,6 +165,12 @@ const OilSetupProtected = ({
   return <ErrorBoundary name="oil-setup">{children}</ErrorBoundary>;
 };
 
+const EnterpriseOnly = ({ children }) => {
+  const { isCommercialMode, modeResolved } = useCommercialMode();
+  if (!modeResolved) return <AuthBootScreen />;
+  return isCommercialMode ? <Navigate to="/" replace /> : children;
+};
+
 function App() {
   const { user, login, setUser, setIsAuthenticated, setAuthChecked, logout } = useAuthStore();
   const { lang, theme, unreadCount, setUnreadCount, toggleTheme, sidebarCollapsed } = useUiStore();
@@ -306,7 +313,7 @@ function App() {
               <Route path="/notifications" element={<Protected module="alerts"><Notifications lang={lang} onRead={() => setUnreadCount(Math.max(0, unreadCount - 1))} /></Protected>} />
 
               {/* Admin Setup */}
-              <Route path="/locations" element={<Protected module="settings" action="manage"><LocationsManagement lang={lang} /></Protected>} />
+              <Route path="/locations" element={<EnterpriseOnly><Protected module="settings" action="manage"><LocationsManagement lang={lang} /></Protected></EnterpriseOnly>} />
               <Route path="/meters" element={<Protected module="settings" action="manage"><MetersManagement lang={lang} /></Protected>} />
               <Route path="/generators" element={<ExplicitProtected module="generators" action="view"><Generators lang={lang} t={t} currentUser={user} /></ExplicitProtected>} />
                <Route path="/generators/active" element={<Protected module="generators" action="view"><ActiveGenerators lang={lang} t={t} currentUser={user} /></Protected>} />
@@ -343,7 +350,7 @@ function App() {
               <Route path="/my-generators" element={<Protected><MyGenerators lang={lang} currentUser={user} /></Protected>} />
               <Route path="/generators/:generatorId/add-reading" element={<Protected module="readings" action="add"><AddReading lang={lang} currentUser={user} /></Protected>} />
               <Route path="/generators/:generatorId/add-oil" element={<Protected module="oil" action="add"><AddOilToGenerator lang={lang} /></Protected>} />
-              <Route path="/stations/:stationId/reading" element={<Protected module="readings" action="add"><SubStationReading lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/stations/:stationId/reading" element={<EnterpriseOnly><Protected module="readings" action="add"><SubStationReading lang={lang} currentUser={user} /></Protected></EnterpriseOnly>} />
 
               {/* Fuel Manager */}
               <Route path="/fuel-movements" element={<Protected module="fuel_movements"><FuelMovements lang={lang} currentUser={user} /></Protected>} />

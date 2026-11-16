@@ -33,6 +33,7 @@ public static class PermissionMapping
         ["TankCalibrations"] = "operational_data",
         ["OperationalFeeders"] = "operational_data",
         ["CustomerFeatures"] = "settings",
+        ["CommercialStationMode"] = "settings",
         ["FuelMovements"] = "fuel_movements",
         ["MovementLedger"] = "fuel_movements",
         ["OilTransactions"] = "oil_transactions",

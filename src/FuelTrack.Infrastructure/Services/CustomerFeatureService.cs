@@ -19,6 +19,9 @@ public sealed class CustomerFeatureService(FuelTrackDbContext db) : ICustomerFea
 
     public async Task<Result<CustomerFeatureSettingDto>> UpdateAsync(string key, UpdateCustomerFeatureSettingDto dto, int userId, CancellationToken cancellationToken = default)
     {
+        if (string.Equals(key, CommercialStationModeService.FeatureKey, StringComparison.OrdinalIgnoreCase))
+            return Result<CustomerFeatureSettingDto>.Forbidden("Commercial station mode must be changed through its activation workflow.");
+
         var feature = await db.CustomerFeatureSettings.SingleOrDefaultAsync(x => x.Key == key, cancellationToken);
         if (feature is null) return Result<CustomerFeatureSettingDto>.NotFound("Feature setting was not found.");
 

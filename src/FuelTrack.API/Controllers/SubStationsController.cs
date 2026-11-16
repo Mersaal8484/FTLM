@@ -12,16 +12,19 @@ public class SubStationsController : BaseApiController
 {
     private readonly ISubStationService _subStationService;
     private readonly IRealtimeNotifier _notifier;
+    private readonly ICommercialStationModeService _commercialMode;
 
-    public SubStationsController(ISubStationService subStationService, IRealtimeNotifier notifier)
+    public SubStationsController(ISubStationService subStationService, IRealtimeNotifier notifier, ICommercialStationModeService commercialMode)
     {
         _subStationService = subStationService;
         _notifier = notifier;
+        _commercialMode = commercialMode;
     }
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateSubStationDto dto)
     {
+        if (await _commercialMode.IsCommercialModeAsync()) return NotFound();
         var userId = GetUserId();
         var result = await _subStationService.CreateAsync(dto, userId);
         if (!result.IsSuccess) return BadRequest(result.Error);
@@ -32,6 +35,7 @@ public class SubStationsController : BaseApiController
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateSubStationDto dto)
     {
+        if (await _commercialMode.IsCommercialModeAsync()) return NotFound();
         var userId = GetUserId();
         var result = await _subStationService.UpdateAsync(id, dto, userId);
         await _notifier.NotifyAllAsync("SubStationUpdated", new { id });
@@ -42,6 +46,7 @@ public class SubStationsController : BaseApiController
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
+        if (await _commercialMode.IsCommercialModeAsync()) return NotFound();
         await _subStationService.DeleteAsync(id);
         await _notifier.NotifyAllAsync("SubStationDeleted", new { id });
         return NoContent();
@@ -50,6 +55,7 @@ public class SubStationsController : BaseApiController
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {
+        if (await _commercialMode.IsCommercialModeAsync()) return NotFound();
         var result = await _subStationService.GetByIdAsync(id);
         if (result is null) return NotFound();
         return Ok(result);
@@ -58,6 +64,7 @@ public class SubStationsController : BaseApiController
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] bool includeInactive = false)
     {
+        if (await _commercialMode.IsCommercialModeAsync()) return NotFound();
         var result = await _subStationService.GetAllAsync(includeInactive);
         return Ok(result);
     }
@@ -65,6 +72,7 @@ public class SubStationsController : BaseApiController
     [HttpGet("by-station/{stationId:int}")]
     public async Task<IActionResult> GetByStation(int stationId, [FromQuery] bool includeInactive = false)
     {
+        if (await _commercialMode.IsCommercialModeAsync()) return NotFound();
         var result = await _subStationService.GetByStationAsync(stationId, includeInactive);
         return Ok(result);
     }

@@ -12,6 +12,7 @@ vi.mock('../permissions/usePermissions', () => ({
   default: () => ({ can: () => true, canExplicit: () => true, hasAssignedPermission: () => false }),
 }));
 vi.mock('../hooks/useOperationalMode', () => ({ default: () => ({ isNewMode: false, modeResolved: true }) }));
+vi.mock('../hooks/useCommercialMode', () => ({ default: vi.fn(() => ({ isCommercialMode: false, modeResolved: true })) }));
 
 const user = { name: 'Admin', role: 'admin', roles: ['admin'], permissions: {} };
 const props = { lang: 'en', theme: 'dark', onToggleTheme: vi.fn(), currentUser: user, unreadCount: 0, onLogout: vi.fn() };
@@ -50,5 +51,12 @@ describe('Sidebar navigation', () => {
     expect(reportsLink).toHaveClass('active');
     expect(document.querySelector('[data-nav-group="Reports"]')).not.toBeInTheDocument();
     expect(screen.queryByText('Warehouse Reports')).not.toBeInTheDocument();
+  });
+
+  it('hides the hierarchy setup destination in commercial mode', async () => {
+    const useCommercialMode = (await import('../hooks/useCommercialMode')).default;
+    useCommercialMode.mockReturnValueOnce({ isCommercialMode: true, modeResolved: true });
+    renderSidebar('/');
+    expect(screen.queryByText('Locations & Stations')).not.toBeInTheDocument();
   });
 });
