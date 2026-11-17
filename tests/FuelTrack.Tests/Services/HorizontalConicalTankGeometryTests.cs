@@ -1,3 +1,5 @@
+#pragma warning disable CS0618 // Type or member is obsolete
+
 using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
 using FuelTrack.Domain.Services;

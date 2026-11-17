@@ -2,7 +2,6 @@ using FuelTrack.Application.DTOs.Controllers;
 using FuelTrack.Application.DTOs.Generators;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Application.Validators.Generators;
-using FuelTrack.Domain.Entities;
 using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
 using FuelTrack.Domain.Services;
@@ -246,7 +245,7 @@ public sealed class CommercialC3_2Tests : IDisposable
             SubjectType = MeterReadingSubjectType.GeneratorRunningHours,
             SubjectId = 50,
             Kind = MeterReadingKind.DailyClosing,
-            Status = ReadingStatus.Approved,
+            Status = OperationalReadingStatus.Approved,
             RawValue = 120.0m,
             MultiplierSnapshot = 1.0m,
             CapturedAtUtc = DateTime.UtcNow.AddDays(-1),
