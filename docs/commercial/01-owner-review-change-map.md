@@ -23,7 +23,15 @@ The technical hierarchy stays active and invisible: exactly **one Branch, one St
    *(رصيد البداية + التعبئة/التحويلات الداخلة − رصيد نهاية اليوم)*.
 5. **Main Tank Accounting:** Main tank balance depends strictly on physical level readings and actual movements (receipts, transfers out).
 6. **Hidden Technical Fields:** Nominal power (`NominalPower`), power factor (`PowerFactor`), and consumption rate (`FuelConsumptionRatePerHour`) are hidden in commercial mode; they must not appear as zero or default values in the UI, and must not enter any consumption calculations.
-7. **Feeder Definition:** A feeder is the single export/sale metering point. Energy from diesel generators and solar joins the station bus and exports through the feeder meter. Solar does not create a parallel selling feeder or double-count exported energy.
+7. **Feeder Definition:** A feeder is an export/sale metering point. Energy from diesel generators and solar joins the station bus and exports through feeder meters. Total energy sent to the grid is the sum of all active feeder meters.
+8. **Solar Plant Metering & Solar Feeder (Confirmed by Owner in C4.1):**
+   - The solar plant has its own independent cumulative production meter (`SolarEnergyProduced`), captured at daily closing under the Tier-2 approval workflow.
+   - The solar plant also has its own feeder with its own energy meter. It is an ordinary feeder meter, summed alongside generator feeders into "energy sent to the grid" (`FeederEnergySent`).
+9. **Maintenance Oil Stock Dynamic Configuration (Confirmed by Owner in C4.1, for C6):**
+   - The oil item and quantity for oil-change replacements are NOT hardcoded. The owner configures them in oil stock settings.
+   - If a generator's service definition has no oil item or quantity configured, the service replacement record must display a prominent warning indicating stock was not decremented; it must never fail or skip silently.
+10. **Permit Numbering Prefix (Confirmed by Owner in C4.1, for C6):**
+    - Work permit numbering format is confirmed and approved: `{StationCode}-WP-{seq:D5}`.
 
 ---
 
@@ -282,9 +290,9 @@ Commit: d928ea7
    - Feeder meter is the sole export sale meter; hidden 1:1 Feeder row preserves capture and energy balance.
    - Tank geometry strategy: vertical cylinder with conical bottom (VerticalCylinderWithConicalBottom = 0); horizontal conical strategy obsoleted in C3.1/C3.2.
 4. Decisions needed from the owner:
-   - Solar production metering details (metered vs. unmetered bus contribution).
-   - Maintenance oil change set default item & quantity.
-   - Permit numbering prefix confirmation.
+   - Solar production metering details: **CLOSED / CONFIRMED (C4.1)** — Dedicated independent cumulative production meter (`SolarEnergyProduced`) read at daily closing (Tier 2), plus ordinary feeder meter for solar export to grid.
+   - Maintenance oil change set default item & quantity: **CLOSED / CONFIRMED (C4.1 / C6)** — Dynamic configuration in oil stock settings; never hard-coded; warning displayed when unconfigured.
+   - Permit numbering prefix confirmation: **CLOSED / CONFIRMED (C4.1 / C6)** — `{StationCode}-WP-{seq:D5}`.
 5. Tests:
    - Added 0 (read-only phase).
    - Owner verification is UNVERIFIED (no executable code modified).
