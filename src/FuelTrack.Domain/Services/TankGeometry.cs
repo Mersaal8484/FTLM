@@ -11,6 +11,8 @@ namespace FuelTrack.Domain.Services;
 public static class TankGeometry
 {
     private static readonly ITankGeometryStrategy VerticalConical   = new VerticalConicalTankGeometryStrategy();
+#pragma warning disable CS0618 // Type or member is obsolete
+    [Obsolete("Not used by any station mode")]
     private static readonly ITankGeometryStrategy HorizontalConical = new HorizontalConicalTankGeometryStrategy();
 
     private static ITankGeometryStrategy StrategyFor(TankShape shape) => shape switch
@@ -19,6 +21,7 @@ public static class TankGeometry
         TankShape.HorizontalCylinderWithConicalEnds => HorizontalConical,
         _ => throw new ArgumentOutOfRangeException(nameof(shape), "No tank geometry strategy is registered for this shape."),
     };
+#pragma warning restore CS0618
 
     public static decimal CalculateLitres(TankShape shape, decimal diameterCm, decimal cylinderHeightCm, decimal coneHeightCm, decimal factor, decimal liquidLevelCm)
         => StrategyFor(shape).CalculateLitres(diameterCm, cylinderHeightCm, coneHeightCm, factor, liquidLevelCm);

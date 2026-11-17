@@ -15,7 +15,7 @@ The technical hierarchy stays active and invisible: exactly **one Branch, one St
 
 ### Binding Product & Design Rules (Confirmed by Owner)
 
-1. **Tank Geometry:** Main and daily fuel tanks are **horizontal cylinders with conical ends** (*أسطوانية أفقية بنهايات قمعية*).
+1. **Tank Geometry:** Main and daily fuel tanks are **vertical cylinders with a conical bottom** (*أسطوانية عمودية بقاع قمعي*) where fuel exits; level is measured from the cone apex. *(Note: C3 initially implemented horizontal cylinders with conical ends based on an early misunderstanding; corrected in C3.1/C3.2 to VerticalCylinderWithConicalBottom = 0).*
 2. **Main Tank Dead Stock:** Main tank has an unusable dead-stock level (*مخزون ميت غير قابل للاستخدام*); it is used exclusively to compute available/usable stock (`Usable = Max(0, Actual − DeadStock)`), never as dispensable stock.
 3. **No Theoretical Consumption:** Generator fuel consumption does **not** depend on the legacy theoretical consumption rate (`FuelConsumptionRatePerHour` / `StandardFuelRate`) under any circumstances.
 4. **Daily Consumption Formula:** Daily generator fuel consumption is calculated strictly from daily generator tank readings:
@@ -105,8 +105,8 @@ The technical hierarchy stays active and invisible: exactly **one Branch, one St
 | Field Requested | Existing `FuelTank` Mapping | Gap / Confirmed Design Change |
 |---|---|---|
 | Generator link | `GeneratorId` exists and is nullable | Required for daily-tank records in commercial mode; exactly one active daily tank per generator. |
-| Tank shape | `TankShape.cs:6` currently defines `VerticalCylinderWithConicalBottom` only | **Confirmed Owner Rule:** Both main and daily tanks are **horizontal cylinders with conical ends** (*أسطوانية أفقية بنهايات قمعية*). Add `TankShape.HorizontalCylinderWithConicalEnds` and new strategy `HorizontalConicalTankGeometryStrategy`. |
-| Tank length | Geometry currently stores `DiameterCm`, `CylinderHeightCm`, `ConeHeightCm` | For horizontal cylinder: `DiameterCm` is cross-section diameter; `CylinderLengthCm` (or `CylinderHeightCm`) is cylinder length; `ConeLengthCm` (or `ConeHeightCm`) is conical end depth. |
+| Tank shape | `TankShape.cs:6` defines `VerticalCylinderWithConicalBottom = 0` | **Corrected Owner Rule (C3.1/C3.2):** Both main and daily tanks are **vertical cylinders with conical bottom** (*أسطوانية عمودية بقاع قمعي*) with fuel outlet at the cone apex. Uses `VerticalCylinderWithConicalBottom` (shape 0). The obsolete horizontal shape (shape 1) is rejected by API validators. |
+| Tank dimensions | Geometry stores `DiameterCm`, `CylinderHeightCm`, `ConeHeightCm` | For vertical cylinder with conical bottom: `DiameterCm` is tank cylinder diameter, `ConeHeightCm` is cone height from apex, and `CylinderHeightCm` is cylinder height above the cone. Total height = `ConeHeightCm + CylinderHeightCm`. |
 | Multiplication factor | `MultiplicationFactor` exists and is nullable | Required for commercial daily tanks; preserves calibration semantics. |
 | Fuel type | Required `FuelLookupId` | Reused directly. |
 | Actual level | `ActualStockLiters` holds current stock, while immutable level history is `TankLevelReading` | UI and API distinguish current displayed stock from an approved/recorded level observation. |
@@ -274,13 +274,13 @@ Branch: feature/commercial-change-map
 Commit: d928ea7
 1. Done:
    - Mapped all 10 owner-review items with file, line, and entity evidence.
-   - Incorporated all 6 confirmed owner design rules: horizontal conical tanks, dead stock usable calculation, elimination of theoretical consumption, opening+refill-closing daily formula, physical main tank movements, and hidden generator fields.
+   - Incorporated all 6 confirmed owner design rules: vertical conical bottom tanks (corrected in C3.1/C3.2), dead stock usable calculation, elimination of theoretical consumption, opening+refill-closing daily formula, physical main tank movements, and hidden generator fields.
    - Mapped operator/approval two-tier workflow, maintenance C6 gaps, single-station invariant, feeder strategy, daily fuel tank geometry mapping, role matrix proposal, and C2–C7 delivery plan.
 2. Not done (and why):
    - No runtime, schema, migration, test, tenant, or UI code was changed, per strict C1 read-only contract.
 3. Assumptions made / decisions applied:
    - Feeder meter is the sole export sale meter; hidden 1:1 Feeder row preserves capture and energy balance.
-   - Horizontal conical geometry strategy will be added additively behind ITankGeometryStrategy in C3.
+   - Tank geometry strategy: vertical cylinder with conical bottom (VerticalCylinderWithConicalBottom = 0); horizontal conical strategy obsoleted in C3.1/C3.2.
 4. Decisions needed from the owner:
    - Solar production metering details (metered vs. unmetered bus contribution).
    - Maintenance oil change set default item & quantity.
@@ -291,10 +291,10 @@ Commit: d928ea7
 6. Migrations:
    - None. Destructive operations: none. Rollback: not applicable.
 7. Conflicts found:
-   - Reconciled: Tanks were previously vertical conical in D2/code; owner confirmed horizontal conical geometry.
+   - Reconciled: Owner confirmed tanks are vertical cylinder with conical bottom where fuel exits at apex (corrected from initial horizontal misconception).
    - Reconciled: "Generator screens" terminology corresponds to Modbus controllers in backend; manufacturer/model live on Generator entity.
 8. Risks and follow-ups:
-   - Additive schema for horizontal tank dimensions (length) and TankRole in C3.
+   - Additive schema for TankRole in C3 and PostgreSQL upgrade 010.
    - Atomic link between service replacement and oil stock decrement in C6.
 9. Suggested manual check in the UI:
    - None for C1 (documentation only).

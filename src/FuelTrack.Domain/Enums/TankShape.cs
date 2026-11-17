@@ -2,11 +2,13 @@ namespace FuelTrack.Domain.Enums;
 
 /// <summary>
 /// Tank calibration shapes.
-/// VerticalCylinderWithConicalBottom (0): enterprise / legacy vertical tanks.
-/// HorizontalCylinderWithConicalEnds (1): commercial-mode main and daily tanks (owner design rule).
+/// VerticalCylinderWithConicalBottom (0): vertical cylinder with conical bottom (commercial and enterprise default).
+/// HorizontalCylinderWithConicalEnds (1): obsolete — owner confirmed commercial tanks are vertical with conical bottom.
 /// </summary>
 public enum TankShape
 {
     VerticalCylinderWithConicalBottom = 0,
+    [Obsolete("Not used by any station mode")]
     HorizontalCylinderWithConicalEnds = 1,
 }
+

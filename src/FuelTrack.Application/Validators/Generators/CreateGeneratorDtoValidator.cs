@@ -10,7 +10,7 @@ public class CreateGeneratorDtoValidator : AbstractValidator<CreateGeneratorDto>
         RuleFor(x => x.SubStationId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.SerialNumber).NotEmpty().MaximumLength(50);
-        RuleFor(x => x.NominalPower).GreaterThanOrEqualTo(0);
-        RuleFor(x => x.FuelConsumptionRatePerHour).GreaterThanOrEqualTo(0);
+        When(x => x.NominalPower.HasValue, () => RuleFor(x => x.NominalPower!.Value).GreaterThanOrEqualTo(0));
+        When(x => x.FuelConsumptionRatePerHour.HasValue, () => RuleFor(x => x.FuelConsumptionRatePerHour!.Value).GreaterThanOrEqualTo(0));
     }
 }

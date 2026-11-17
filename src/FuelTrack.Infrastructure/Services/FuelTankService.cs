@@ -36,8 +36,15 @@ public class FuelTankService : IFuelTankService
             throw new ArgumentException("Daily tank must be associated with a generator.");
         }
 
+#pragma warning disable CS0618
+        if (dto.Shape == TankShape.HorizontalCylinderWithConicalEnds)
+        {
+            throw new ArgumentException("Horizontal tanks with conical ends (Shape = 1) are not supported. Commercial and enterprise tanks must use vertical cylinder with conical bottom.");
+        }
+#pragma warning restore CS0618
+
         var isCommercial = await _commercialMode.IsCommercialModeAsync();
-        var shape = dto.Shape ?? (isCommercial ? TankShape.HorizontalCylinderWithConicalEnds : null);
+        var shape = dto.Shape ?? (isCommercial ? TankShape.VerticalCylinderWithConicalBottom : null);
 
         var tank = new FuelTank
         {
@@ -55,6 +62,10 @@ public class FuelTankService : IFuelTankService
             GeneratorId = dto.GeneratorId,
             ParentTankId = dto.ParentTankId,
             Shape = shape,
+            DiameterCm = dto.DiameterCm,
+            CylinderHeightCm = dto.CylinderHeightCm,
+            ConeHeightCm = dto.ConeHeightCm,
+            MultiplicationFactor = dto.MultiplicationFactor,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
@@ -100,7 +111,17 @@ public class FuelTankService : IFuelTankService
         if (dto.TankRole.HasValue) tank.TankRole = dto.TankRole.Value;
         if (dto.GeneratorId.HasValue) tank.GeneratorId = dto.GeneratorId.Value;
         if (dto.ParentTankId.HasValue) tank.ParentTankId = dto.ParentTankId.Value;
+#pragma warning disable CS0618
+        if (dto.Shape == TankShape.HorizontalCylinderWithConicalEnds)
+        {
+            throw new ArgumentException("Horizontal tanks with conical ends (Shape = 1) are not supported. Commercial and enterprise tanks must use vertical cylinder with conical bottom.");
+        }
+#pragma warning restore CS0618
         if (dto.Shape.HasValue) tank.Shape = dto.Shape.Value;
+        if (dto.DiameterCm.HasValue) tank.DiameterCm = dto.DiameterCm.Value;
+        if (dto.CylinderHeightCm.HasValue) tank.CylinderHeightCm = dto.CylinderHeightCm.Value;
+        if (dto.ConeHeightCm.HasValue) tank.ConeHeightCm = dto.ConeHeightCm.Value;
+        if (dto.MultiplicationFactor.HasValue) tank.MultiplicationFactor = dto.MultiplicationFactor.Value;
         tank.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();

@@ -5,6 +5,7 @@ import client from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 import TankSetup from './TankSetup';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 const emptyForm = {
   code: '', name: '',
@@ -34,6 +35,7 @@ function TankTabs({ activeTab, onChange, ar }) {
 
 function TanksManagement({ lang, currentUser }) {
   const ar = lang === 'ar';
+  const { isCommercialMode } = useCommercialMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') === 'calibration' ? 'calibration' : 'basic';
   const setActiveTab = (tab) => setSearchParams(tab === 'calibration' ? { tab } : {});
@@ -106,7 +108,7 @@ function TanksManagement({ lang, currentUser }) {
       setFormError(ar ? 'سعة الخزان يجب أن تكون أكبر من صفر.' : 'Tank capacity must be greater than zero.');
       return false;
     }
-    if (!form.subStation) {
+    if (!isCommercialMode && !form.subStation) {
       setFormError(ar ? 'يجب ربط الخزان بمنطقة.' : 'Tank must be linked to an area.');
       return false;
     }
@@ -142,6 +144,10 @@ function TanksManagement({ lang, currentUser }) {
     setSaving(true);
     setFormError('');
     try {
+      const effectiveSubStationId = isCommercialMode
+        ? (Number(form.subStation) || subStations[0]?.id || 0)
+        : (Number(form.subStation) || 0);
+
       const payload = {
         name: form.name,
         code: form.code,
@@ -150,7 +156,7 @@ function TanksManagement({ lang, currentUser }) {
         deadStockLiters: Number(form.deadStockLiters) || null,
         actualStockLiters: Number(form.actualStockLiters) || null,
         fuelLookupId: Number(form.fuelLookupId) || 0,
-        subStationId: Number(form.subStation) || 0,
+        subStationId: effectiveSubStationId,
         isActive: form.isActive,
         notes: form.notes || null,
       };
@@ -207,7 +213,7 @@ function TanksManagement({ lang, currentUser }) {
 
   const groupedTanks = {};
   filtered.forEach(tank => {
-    const stationName = getStaName(tank.subStationId);
+    const stationName = isCommercialMode ? (ar ? 'خزانات الوقود' : 'Fuel Tanks') : getStaName(tank.subStationId);
     if (!groupedTanks[stationName]) groupedTanks[stationName] = [];
     groupedTanks[stationName].push(tank);
   });
@@ -294,7 +300,9 @@ function TanksManagement({ lang, currentUser }) {
                 </div>
                 <div>
                   <h3 style={{ margin: 0, fontSize: 18, fontWeight: 'bold', color: 'var(--text-main)' }}>{stationName}</h3>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{ar ? 'الخزانات التابعة لهذا الموقع' : 'Tanks in this location'}</div>
+                  {!isCommercialMode && (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{ar ? 'الخزانات التابعة لهذا الموقع' : 'Tanks in this location'}</div>
+                  )}
                 </div>
                 <span style={{ marginRight: ar ? 'auto' : 0, marginLeft: ar ? 0 : 'auto', padding: '6px 14px', background: 'var(--primary)', color: 'var(--on-accent)', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 'bold' }}>
                   {stationTanks.length} {ar ? 'خزانات' : 'Tanks'}
@@ -348,7 +356,7 @@ function TanksManagement({ lang, currentUser }) {
                           { label: ar?'الحد الأدنى للمخزون':'Min Stock', value: tank.minAlertLiters ? `${Number(tank.minAlertLiters).toLocaleString('en-US')} L` : '—' },
                           { label: ar?'النقطة الميتة':'Dead Stock', value: tank.deadStockLiters ? `${Number(tank.deadStockLiters).toLocaleString('en-US')} L` : '—' },
                           { label: ar?'المخزون الفعلي':'Actual Stock', value: tank.actualStockLiters ? `${Number(tank.actualStockLiters).toLocaleString('en-US')} L` : '—' },
-                          { label: ar?'المنطقة':'Area', value: getSubName(tank.subStationId), accent: true },
+                          ...(!isCommercialMode ? [{ label: ar?'المنطقة':'Area', value: getSubName(tank.subStationId), accent: true }] : []),
                         ].map((row, i) => (
                           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
                             <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>{row.label}</span>
@@ -443,43 +451,47 @@ function TanksManagement({ lang, currentUser }) {
             </FormField>
           </div>
 
-          <div className="form-section-header">{ar ? 'الموقع' : 'Location'}</div>
-          <div className="form-row">
-            <FormField label={ar ? 'الفرع' : 'Branch'}>
-              <select className="form-select" value={form.branchId}
-                onChange={e => setForm(f => ({ ...f, branchId: e.target.value, stationId: '', subStation: '' }))}>
-                <option value="">— {ar ? 'كل الفروع' : 'All Branches'} —</option>
-                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </FormField>
-            <FormField label={ar ? 'المحطة' : 'Station'}>
-              <select className="form-select" value={form.stationId}
-                onChange={e => setForm(f => ({ ...f, stationId: e.target.value, subStation: '' }))}
-                disabled={!form.branchId && form.branchId !== ''}>
-                <option value="">— {ar ? 'اختر المحطة' : 'Select Station'} —</option>
-                {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </FormField>
-          </div>
-          <FormField label={ar ? 'ربط الخزان بالمنطقة (الموقع)' : 'Link Tank to Area (Location)'} required error={!form.subStation && formError ? (ar ? 'يجب ربط الخزان بمنطقة.' : 'Tank must be linked to an area.') : null}>
-            <select className="form-select" value={form.subStation}
-              onChange={e => setForm(f => ({ ...f, subStation: e.target.value }))}
-              disabled={!form.stationId && form.stationId !== ''}>
-              <option value="">— {ar ? 'اختر المنطقة' : 'Select Area'} —</option>
-              {filteredSubStations.map(ss => {
-                const sta = stations.find(s => s.id === (ss.station_id ?? ss.stationId));
-                return (
-                  <option key={ss.id} value={ss.id}>
-                    {sta ? `${sta.name} ← ` : ''}{ss.name}
-                  </option>
-                );
-              })}
-            </select>
-          </FormField>
-          {subStations.length === 0 && (
-            <p style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4, marginBottom: 12 }}>
-              {ar ? '⚠️ أضف مواقع من صفحة "إدارة المواقع" أولاً' : '⚠️ Add locations from "Locations Management" first'}
-            </p>
+          {!isCommercialMode && (
+            <>
+              <div className="form-section-header">{ar ? 'الموقع' : 'Location'}</div>
+              <div className="form-row">
+                <FormField label={ar ? 'الفرع' : 'Branch'}>
+                  <select className="form-select" value={form.branchId}
+                    onChange={e => setForm(f => ({ ...f, branchId: e.target.value, stationId: '', subStation: '' }))}>
+                    <option value="">— {ar ? 'كل الفروع' : 'All Branches'} —</option>
+                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </FormField>
+                <FormField label={ar ? 'المحطة' : 'Station'}>
+                  <select className="form-select" value={form.stationId}
+                    onChange={e => setForm(f => ({ ...f, stationId: e.target.value, subStation: '' }))}
+                    disabled={!form.branchId && form.branchId !== ''}>
+                    <option value="">— {ar ? 'اختر المحطة' : 'Select Station'} —</option>
+                    {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </FormField>
+              </div>
+              <FormField label={ar ? 'ربط الخزان بالمنطقة (الموقع)' : 'Link Tank to Area (Location)'} required error={!form.subStation && formError ? (ar ? 'يجب ربط الخزان بمنطقة.' : 'Tank must be linked to an area.') : null}>
+                <select className="form-select" value={form.subStation}
+                  onChange={e => setForm(f => ({ ...f, subStation: e.target.value }))}
+                  disabled={!form.stationId && form.stationId !== ''}>
+                  <option value="">— {ar ? 'اختر المنطقة' : 'Select Area'} —</option>
+                  {filteredSubStations.map(ss => {
+                    const sta = stations.find(s => s.id === (ss.station_id ?? ss.stationId));
+                    return (
+                      <option key={ss.id} value={ss.id}>
+                        {sta ? `${sta.name} ← ` : ''}{ss.name}
+                      </option>
+                    );
+                  })}
+                </select>
+              </FormField>
+              {subStations.length === 0 && (
+                <p style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4, marginBottom: 12 }}>
+                  {ar ? '⚠️ أضف مواقع من صفحة "إدارة المواقع" أولاً' : '⚠️ Add locations from "Locations Management" first'}
+                </p>
+              )}
+            </>
           )}
 
           <div className="form-section-header">{ar ? 'إضافية' : 'Additional'}</div>

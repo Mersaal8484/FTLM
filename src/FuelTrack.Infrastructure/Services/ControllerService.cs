@@ -16,6 +16,9 @@ public class ControllerService : IControllerService
 
     public async Task<ControllerDetailDto> CreateAsync(CreateControllerDto dto)
     {
+        if (dto.OperatingHours < 0)
+            throw new ArgumentException("Operating hours must be non-negative.");
+
         if (dto.GeneratorId.HasValue)
         {
             var generator = await _db.Generators.FindAsync(dto.GeneratorId.Value)
@@ -60,8 +63,33 @@ public class ControllerService : IControllerService
 
     public async Task<ControllerDetailDto> UpdateAsync(int id, CreateControllerDto dto)
     {
+        if (dto.OperatingHours < 0)
+            throw new ArgumentException("Operating hours must be non-negative.");
+
         var controller = await _db.Controllers.FindAsync(id)
             ?? throw new KeyNotFoundException($"Controller {id} not found.");
+
+        var targetGenId = dto.GeneratorId ?? controller.GeneratorId;
+        if (targetGenId.HasValue)
+        {
+            var latestOfficialReading = await _db.MeterReadings
+                .AsNoTracking()
+                .Where(r => r.SubjectType == FuelTrack.Domain.Enums.MeterReadingSubjectType.GeneratorRunningHours &&
+                            r.SubjectId == targetGenId.Value &&
+                            r.Kind == FuelTrack.Domain.Enums.MeterReadingKind.DailyClosing &&
+                            FuelTrack.Domain.Services.ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
+                .OrderByDescending(r => r.CapturedAtUtc)
+                .FirstOrDefaultAsync();
+
+            if (latestOfficialReading != null)
+            {
+                var approvedHours = (double)(latestOfficialReading.RawValue * latestOfficialReading.MultiplierSnapshot);
+                if (dto.OperatingHours < approvedHours)
+                {
+                    throw new ArgumentException($"Cumulative running hours cannot be less than the latest approved daily closing reading ({approvedHours:F1} hrs).");
+                }
+            }
+        }
 
         if (dto.GeneratorId.HasValue)
         {

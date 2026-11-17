@@ -33,6 +33,11 @@ public class ExceptionHandlingMiddleware
             _logger.LogWarning(ex, "Resource not found");
             await WriteProblemDetails(context, StatusCodes.Status404NotFound, "Not Found", ex.Message);
         }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid argument");
+            await WriteProblemDetails(context, StatusCodes.Status400BadRequest, "Bad Request", ex.Message);
+        }
         catch (InvalidOperationException ex)
         {
             _logger.LogWarning(ex, "Invalid operation");

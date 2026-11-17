@@ -8,6 +8,7 @@ import client from '../api/client';
 import socket from '../socket';
 import ConfirmModal from '../components/ConfirmModal';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 const CONTROLLER_MODELS = [
   { value: 'DSE8610', label: 'DSE 8610' },
@@ -37,6 +38,7 @@ const INIT_FORM = {
   registerType: 'FC03', autoConnect: true,
   energyReading: 0, energyUnit: 'kWh', operatingHours: 0,
   isActive: true,
+  manufacturer: '',
 };
 
 function ConnBadge({ status, ar }) {
@@ -52,6 +54,7 @@ function ConnBadge({ status, ar }) {
 
 function Controllers({ lang, t }) {
   const ar = lang === 'ar';
+  const { isCommercialMode } = useCommercialMode();
 
   const [items,      setItems]      = useState([]);
   const [generators, setGenerators] = useState([]);
@@ -102,25 +105,46 @@ function Controllers({ lang, t }) {
     };
   }, [load]);
 
-  const openAdd  = () => { setForm(INIT_FORM); setEditId(null); setActiveTab('basic'); setError(null); setShowModal(true); };
+  const openAdd  = () => {
+    setForm({
+      ...INIT_FORM,
+      controllerType: isCommercialMode ? '' : 'DSE8610',
+      manufacturer: isCommercialMode ? '' : 'Deep Sea Electronics',
+    });
+    setEditId(null);
+    setActiveTab('basic');
+    setError(null);
+    setShowModal(true);
+  };
+
   const openEdit = (item) => {
     setForm({
-      controllerType: item.controllerType || 'DSE8610', serialNumber: item.serialNumber || '',
-      generatorId: item.generatorId || '', ipAddress: item.ipAddress || '',
-      port: item.port ?? 502, modbusUnitId: item.modbusUnitId ?? 1,
-      registerType: item.registerType || 'FC03', autoConnect: item.autoConnect ?? true,
-      energyReading: item.energyReading ?? 0, energyUnit: item.energyUnit || 'kWh',
+      controllerType: item.controllerType || (isCommercialMode ? '' : 'DSE8610'),
+      serialNumber: item.serialNumber || '',
+      generatorId: item.generatorId || '',
+      ipAddress: item.ipAddress || '',
+      port: item.port ?? 502,
+      modbusUnitId: item.modbusUnitId ?? 1,
+      registerType: item.registerType || 'FC03',
+      autoConnect: item.autoConnect ?? true,
+      energyReading: item.energyReading ?? 0,
+      energyUnit: item.energyUnit || 'kWh',
       operatingHours: item.operatingHours ?? 0,
       isActive: item.isActive !== false,
+      manufacturer: item.manufacturer || (isCommercialMode ? '' : 'Deep Sea Electronics'),
     });
-    setEditId(item.id); setActiveTab('basic'); setError(null); setShowModal(true);
+    setEditId(item.id);
+    setActiveTab('basic');
+    setError(null);
+    setShowModal(true);
   };
   const closeModal = () => { setShowModal(false); setError(null); };
   const fld = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async () => {
     if (!form.serialNumber.trim()) { setError(ar ? 'الرقم التسلسلي مطلوب' : 'Serial number is required'); return; }
-    if (form.ipAddress && !/^(\d{1,3}\.){3}\d{1,3}$/.test(form.ipAddress.trim())) {
+    if (!form.controllerType?.trim()) { setError(ar ? 'الموديل مطلوب' : 'Model is required'); return; }
+    if (!isCommercialMode && form.ipAddress && !/^(\d{1,3}\.){3}\d{1,3}$/.test(form.ipAddress.trim())) {
       setError(ar ? 'صيغة IP غير صحيحة' : 'Invalid IP format'); return;
     }
     if (form.generatorId && linkedGeneratorIds[Number(form.generatorId)]) {
@@ -129,18 +153,28 @@ function Controllers({ lang, t }) {
     }
     const modelLabel = CONTROLLER_MODELS.find(m => m.value === form.controllerType)?.label || form.controllerType;
     const genName = generators.find(g => g.id === Number(form.generatorId))?.name || '';
-    const autoName = genName ? `${genName} — ${modelLabel}` : `${modelLabel} — ${form.serialNumber}`;
+    const mfrPrefix = form.manufacturer?.trim() ? `${form.manufacturer.trim()} ` : '';
+    const autoName = genName
+      ? `${genName} — ${mfrPrefix}${modelLabel}`
+      : `${mfrPrefix}${modelLabel} — ${form.serialNumber}`;
     const autoCode = `CTRL-${form.serialNumber.replace(/\s+/g, '-').toUpperCase()}`;
     setSaving(true); setError(null);
     try {
       const payload = {
-        name: autoName, code: autoCode, controllerType: form.controllerType,
+        name: autoName,
+        code: autoCode,
+        controllerType: form.controllerType.trim(),
         generatorId: form.generatorId ? Number(form.generatorId) : null,
-        ipAddress: form.ipAddress || null, port: Number(form.port) || 502,
-        modbusUnitId: Number(form.modbusUnitId) || 1, serialNumber: form.serialNumber || null,
-        firmwareVersion: null, energyReading: Number(form.energyReading) || 0,
-        operatingHours: Number(form.operatingHours) || 0, registerType: form.registerType || 'FC03',
-        autoConnect: form.autoConnect, energyUnit: form.energyUnit || 'kWh',
+        ipAddress: isCommercialMode ? null : (form.ipAddress || null),
+        port: isCommercialMode ? 502 : (Number(form.port) || 502),
+        modbusUnitId: isCommercialMode ? 1 : (Number(form.modbusUnitId) || 1),
+        serialNumber: form.serialNumber || null,
+        firmwareVersion: null,
+        energyReading: Number(form.energyReading) || 0,
+        operatingHours: Number(form.operatingHours) || 0,
+        registerType: isCommercialMode ? 'FC03' : (form.registerType || 'FC03'),
+        autoConnect: isCommercialMode ? false : form.autoConnect,
+        energyUnit: form.energyUnit || 'kWh',
         isActive: form.isActive,
       };
       if (editId) await client.put(`/api/controllers/${editId}`, payload);
@@ -218,7 +252,7 @@ function Controllers({ lang, t }) {
 
   const TABS = [
     { key: 'basic',      icon: <Settings size={14} />, label_ar: 'البيانات الأساسية',  label_en: 'Basic Info' },
-    { key: 'connection', icon: <Wifi size={14} />,      label_ar: 'إعدادات الاتصال',    label_en: 'Connection' },
+    ...(!isCommercialMode ? [{ key: 'connection', icon: <Wifi size={14} />,      label_ar: 'إعدادات الاتصال',    label_en: 'Connection' }] : []),
     { key: 'readings',   icon: <Zap size={14} />,       label_ar: 'القراءات اليدوية',   label_en: 'Readings' },
   ];
 
@@ -240,8 +274,10 @@ function Controllers({ lang, t }) {
         {[
           { label: ar ? 'الإجمالي'     : 'Total',   value: total,      icon: <Cpu size={20} />,        colorClass: 'primary' },
           { label: ar ? 'مرتبطة بمولد'  : 'Linked',  value: linked,     icon: <Activity size={20} />,   colorClass: 'secondary' },
-          { label: ar ? 'متصلة الآن'    : 'Online',  value: connected,  icon: <Wifi size={20} />,       colorClass: 'secondary' },
-          { label: ar ? 'بها أخطاء'     : 'Errors',  value: withErrors, icon: <AlertCircle size={20} />,colorClass: 'danger' },
+          ...(!isCommercialMode ? [
+            { label: ar ? 'متصلة الآن'    : 'Online',  value: connected,  icon: <Wifi size={20} />,       colorClass: 'secondary' },
+            { label: ar ? 'بها أخطاء'     : 'Errors',  value: withErrors, icon: <AlertCircle size={20} />,colorClass: 'danger' },
+          ] : []),
         ].map((s, i) => (
           <div key={i} className="kpi-card" style={{ '--kpi-color': `var(--${s.colorClass === 'secondary' ? 'secondary' : s.colorClass === 'danger' ? 'danger' : 'primary'})` }}>
             <div className={`kpi-icon ${s.colorClass}`}>
@@ -260,7 +296,7 @@ function Controllers({ lang, t }) {
         <div className="search-bar" style={{ maxWidth: 400 }}>
           <Search size={16} />
           <input className="form-control"
-            placeholder={ar ? 'بحث بالاسم، الرقم التسلسلي، أو IP...' : 'Search name, serial, or IP...'}
+            placeholder={ar ? (isCommercialMode ? 'بحث بالاسم أو الرقم التسلسلي...' : 'بحث بالاسم، الرقم التسلسلي، أو IP...') : (isCommercialMode ? 'Search name or serial...' : 'Search name, serial, or IP...')}
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
@@ -289,7 +325,7 @@ function Controllers({ lang, t }) {
                   </div>
                     <div className="ctrl-card-badge-stack">
                       <span className={`status-badge ${item.isActive !== false ? 'status-active' : 'status-inactive'}`}>{item.isActive !== false ? (ar ? 'نشط' : 'Active') : (ar ? 'غير نشط' : 'Inactive')}</span>
-                      <ConnBadge status={item.connectionStatus || 'unknown'} ar={ar} />
+                      {!isCommercialMode && <ConnBadge status={item.connectionStatus || 'unknown'} ar={ar} />}
                     </div>
                 </div>
 
@@ -331,7 +367,7 @@ function Controllers({ lang, t }) {
                     </div>
 
                   {/* Test result */}
-                  {tr && (
+                  {!isCommercialMode && tr && (
                     <div className={`ctrl-test-result ${tr.ok ? 'ok' : 'err'}`}>
                       {tr.ok
                         ? <CheckCircle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
@@ -343,7 +379,7 @@ function Controllers({ lang, t }) {
 
                 {/* Card footer */}
                 <div className="ctrl-card-footer">
-                  {item.ipAddress && (
+                  {!isCommercialMode && item.ipAddress && (
                     <Button variant="ghost" size="sm" icon={testing === item.id ? null : Wifi} onClick={() => handleTest(item)} disabled={testing === item.id}>
                       {testing === item.id ? <span className="ft-spinner" style={{ width: 12, height: 12 }} /> : null}
                       {ar ? 'اختبار' : 'Test'}
@@ -402,21 +438,45 @@ function Controllers({ lang, t }) {
           <div className={`ctrl-tab-content ${activeTab === 'basic' ? 'active' : ''}`}>
              <div className="ctrl-tab-section-title">{ar ? 'معلومات الجهاز' : 'Device Information'}</div>
 
-            {/* Manufacturer — read-only */}
-            <div className="ctrl-readonly-field" style={{ marginBottom: 16 }}>
-              <div>
-                <div className="ctrl-readonly-label">{ar ? 'الشركة المصنعة' : 'Manufacturer'}</div>
+            {/* Manufacturer */}
+            {isCommercialMode ? (
+              <FormField label={ar ? 'الشركة المصنعة' : 'Manufacturer'}>
+                <Input
+                  value={form.manufacturer}
+                  onChange={e => fld('manufacturer', e.target.value)}
+                  placeholder={ar ? 'مثال: Deep Sea Electronics, ComAp...' : 'e.g. Deep Sea Electronics, ComAp...'}
+                />
+              </FormField>
+            ) : (
+              <div className="ctrl-readonly-field" style={{ marginBottom: 16 }}>
+                <div>
+                  <div className="ctrl-readonly-label">{ar ? 'الشركة المصنعة' : 'Manufacturer'}</div>
+                </div>
+                <div className="ctrl-readonly-value">Deep Sea Electronics</div>
               </div>
-              <div className="ctrl-readonly-value">Deep Sea Electronics</div>
-            </div>
+            )}
 
             {/* Model */}
-            <FormField label={ar ? 'الموديل *' : 'Model *'} required>
-              <select className="form-select" value={form.controllerType}
-                onChange={e => fld('controllerType', e.target.value)}>
-                {CONTROLLER_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </select>
-            </FormField>
+            {isCommercialMode ? (
+              <FormField label={ar ? 'الموديل *' : 'Model *'} required error={!form.controllerType?.trim() ? (ar ? 'الموديل مطلوب' : 'Model is required') : null}>
+                <Input
+                  list="controller-models-list"
+                  value={form.controllerType}
+                  onChange={e => fld('controllerType', e.target.value)}
+                  placeholder="e.g. DSE8610, DSE8920, InteliLite AMF 25..."
+                />
+                <datalist id="controller-models-list">
+                  {CONTROLLER_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                </datalist>
+              </FormField>
+            ) : (
+              <FormField label={ar ? 'الموديل *' : 'Model *'} required>
+                <select className="form-select" value={form.controllerType}
+                  onChange={e => fld('controllerType', e.target.value)}>
+                  {CONTROLLER_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                </select>
+              </FormField>
+            )}
 
             {/* Serial number */}
             <FormField label={ar ? 'الرقم التسلسلي *' : 'Serial Number *'} required error={!form.serialNumber.trim() ? (ar ? 'الرقم التسلسلي مطلوب' : 'Serial number is required') : null}>
@@ -467,72 +527,74 @@ function Controllers({ lang, t }) {
           </div>
 
           {/* Tab 2 — Connection */}
-          <div className={`ctrl-tab-content ${activeTab === 'connection' ? 'active' : ''}`}>
-            <div className="ctrl-infobox">
-              <Shield size={15} />
-              <span>
-                <span className="ctrl-infobox-strong">Modbus TCP</span>
-                {ar ? ' — تأكد من تفعيل Modbus في إعدادات الشاشة' : ' — Enable Modbus in controller settings'}
-              </span>
-            </div>
-
-            <div className="ctrl-tab-section-title">{ar ? 'عنوان الشبكة' : 'Network Address'}</div>
-
-            <div className="form-row" style={{ marginBottom: 16 }}>
-              <FormField label={ar ? 'عنوان IP' : 'IP Address'} error={form.ipAddress && !/^(\d{1,3}\.){3}\d{1,3}$/.test(form.ipAddress.trim()) ? (ar ? 'صيغة IP غير صحيحة' : 'Invalid IP format') : null}>
-                <Input dir="ltr" value={form.ipAddress}
-                  onChange={e => fld('ipAddress', e.target.value.trim())}
-                  placeholder="192.168.1.100" />
-              </FormField>
-              <FormField label={ar ? 'المنفذ' : 'Port'}>
-                <Input type="number" value={form.port}
-                  onChange={e => fld('port', parseInt(e.target.value, 10) || 502)}
-                  min={1} max={65535} />
-              </FormField>
-            </div>
-
-            <div className="ctrl-tab-divider" />
-            <div className="ctrl-tab-section-title">{ar ? 'إعدادات Modbus' : 'Modbus Settings'}</div>
-
-            <FormField label={
-              <span>
-                Unit ID
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginInlineStart: 6 }}>
-                  ({ar ? 'عادةً 1' : 'usually 1'})
+          {!isCommercialMode && (
+            <div className={`ctrl-tab-content ${activeTab === 'connection' ? 'active' : ''}`}>
+              <div className="ctrl-infobox">
+                <Shield size={15} />
+                <span>
+                  <span className="ctrl-infobox-strong">Modbus TCP</span>
+                  {ar ? ' — تأكد من تفعيل Modbus في إعدادات الشاشة' : ' — Enable Modbus in controller settings'}
                 </span>
-              </span>
-            }>
-              <Input type="number" value={form.modbusUnitId}
-                onChange={e => fld('modbusUnitId', parseInt(e.target.value, 10) || 1)}
-                min={1} max={247} />
-            </FormField>
-
-            <FormField label={ar ? 'نوع السجلات' : 'Register Type'}>
-              <select className="form-select" value={form.registerType}
-                onChange={e => fld('registerType', e.target.value)}>
-                {REGISTER_TYPES.map(r => (
-                  <option key={r.value} value={r.value}>{ar ? r.label_ar : r.label}</option>
-                ))}
-              </select>
-            </FormField>
-
-            <div className="ctrl-tab-divider" />
-            <div className="ctrl-tab-section-title">{ar ? 'الاتصال التلقائي' : 'Auto-Connect'}</div>
-
-            <div className="ctrl-toggle-wrap">
-              <div>
-                <div className="ctrl-toggle-label">{ar ? 'تفعيل الاتصال التلقائي' : 'Enable Auto-connect'}</div>
-                <div className="ctrl-toggle-sub">
-                  {ar ? 'الخدمة ستتصل تلقائياً بالشاشة عبر Modbus TCP' : 'Service will auto-connect via Modbus TCP'}
-                </div>
               </div>
-              <label className="ctrl-toggle">
-                <input type="checkbox" checked={form.autoConnect}
-                  onChange={e => fld('autoConnect', e.target.checked)} />
-                <span className="slider"></span>
-              </label>
+
+              <div className="ctrl-tab-section-title">{ar ? 'عنوان الشبكة' : 'Network Address'}</div>
+
+              <div className="form-row" style={{ marginBottom: 16 }}>
+                <FormField label={ar ? 'عنوان IP' : 'IP Address'} error={form.ipAddress && !/^(\d{1,3}\.){3}\d{1,3}$/.test(form.ipAddress.trim()) ? (ar ? 'صيغة IP غير صحيحة' : 'Invalid IP format') : null}>
+                  <Input dir="ltr" value={form.ipAddress}
+                    onChange={e => fld('ipAddress', e.target.value.trim())}
+                    placeholder="192.168.1.100" />
+                </FormField>
+                <FormField label={ar ? 'المنفذ' : 'Port'}>
+                  <Input type="number" value={form.port}
+                    onChange={e => fld('port', parseInt(e.target.value, 10) || 502)}
+                    min={1} max={65535} />
+                </FormField>
+              </div>
+
+              <div className="ctrl-tab-divider" />
+              <div className="ctrl-tab-section-title">{ar ? 'إعدادات Modbus' : 'Modbus Settings'}</div>
+
+              <FormField label={
+                <span>
+                  Unit ID
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', marginInlineStart: 6 }}>
+                    ({ar ? 'عادةً 1' : 'usually 1'})
+                  </span>
+                </span>
+              }>
+                <Input type="number" value={form.modbusUnitId}
+                  onChange={e => fld('modbusUnitId', parseInt(e.target.value, 10) || 1)}
+                  min={1} max={247} />
+              </FormField>
+
+              <FormField label={ar ? 'نوع السجلات' : 'Register Type'}>
+                <select className="form-select" value={form.registerType}
+                  onChange={e => fld('registerType', e.target.value)}>
+                  {REGISTER_TYPES.map(r => (
+                    <option key={r.value} value={r.value}>{ar ? r.label_ar : r.label}</option>
+                  ))}
+                </select>
+              </FormField>
+
+              <div className="ctrl-tab-divider" />
+              <div className="ctrl-tab-section-title">{ar ? 'الاتصال التلقائي' : 'Auto-Connect'}</div>
+
+              <div className="ctrl-toggle-wrap">
+                <div>
+                  <div className="ctrl-toggle-label">{ar ? 'تفعيل الاتصال التلقائي' : 'Enable Auto-connect'}</div>
+                  <div className="ctrl-toggle-sub">
+                    {ar ? 'الخدمة ستتصل تلقائياً بالشاشة عبر Modbus TCP' : 'Service will auto-connect via Modbus TCP'}
+                  </div>
+                </div>
+                <label className="ctrl-toggle">
+                  <input type="checkbox" checked={form.autoConnect}
+                    onChange={e => fld('autoConnect', e.target.checked)} />
+                  <span className="slider"></span>
+                </label>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Tab 3 — Readings */}
           <div className={`ctrl-tab-content ${activeTab === 'readings' ? 'active' : ''}`}>

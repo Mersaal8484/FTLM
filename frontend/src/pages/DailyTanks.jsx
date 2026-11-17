@@ -11,6 +11,10 @@ const initialDailyTankForm = {
   generatorId: '',
   fuelLookupId: '',
   capacityLiters: '',
+  diameterCm: '',
+  cylinderHeightCm: '',
+  coneHeightCm: '',
+  multiplicationFactor: '1.0',
   minAlertLiters: '',
   deadStockLiters: '',
   actualStockLiters: '',
@@ -93,6 +97,10 @@ export default function DailyTanks({ lang, currentUser }) {
       generatorId: tank.generatorId ? String(tank.generatorId) : '',
       fuelLookupId: tank.fuelLookupId ? String(tank.fuelLookupId) : '',
       capacityLiters: tank.capacityLiters ?? '',
+      diameterCm: tank.diameterCm != null ? String(tank.diameterCm) : '',
+      cylinderHeightCm: tank.cylinderHeightCm != null ? String(tank.cylinderHeightCm) : '',
+      coneHeightCm: tank.coneHeightCm != null ? String(tank.coneHeightCm) : '',
+      multiplicationFactor: tank.multiplicationFactor != null ? String(tank.multiplicationFactor) : '1.0',
       minAlertLiters: tank.minAlertLiters ?? '',
       deadStockLiters: tank.deadStockLiters ?? '',
       actualStockLiters: tank.actualStockLiters ?? '',
@@ -134,6 +142,12 @@ export default function DailyTanks({ lang, currentUser }) {
       const subStationId = subStations[0]?.id || 1;
       const fuelId = form.fuelLookupId ? Number(form.fuelLookupId) : (fuelTypes[0]?.id || 1);
 
+      const dCm = form.diameterCm ? parseFloat(form.diameterCm) : null;
+      const cylCm = form.cylinderHeightCm ? parseFloat(form.cylinderHeightCm) : null;
+      const coneCm = form.coneHeightCm ? parseFloat(form.coneHeightCm) : null;
+      const factor = form.multiplicationFactor ? parseFloat(form.multiplicationFactor) : 1.0;
+
+      let savedId = editId;
       if (editId) {
         await client.put(`/api/fuel-tanks/${editId}`, {
           name: form.name.trim(),
@@ -145,13 +159,17 @@ export default function DailyTanks({ lang, currentUser }) {
           fuelLookupId: fuelId,
           generatorId: Number(form.generatorId),
           tankRole: 2, // TankRole.Daily
-          shape: 1,    // TankShape.HorizontalCylinderWithConicalEnds
+          shape: 0,    // TankShape.VerticalCylinderWithConicalBottom
+          diameterCm: dCm,
+          cylinderHeightCm: cylCm,
+          coneHeightCm: coneCm,
+          multiplicationFactor: factor,
           notes: form.notes || null,
           isActive: form.isActive,
         });
       } else {
         const autoCode = form.code.trim() || `DT-${Date.now().toString(36).toUpperCase().slice(-4)}`;
-        await client.post('/api/fuel-tanks', {
+        const createRes = await client.post('/api/fuel-tanks', {
           subStationId,
           fuelLookupId: fuelId,
           name: form.name.trim(),
@@ -162,11 +180,27 @@ export default function DailyTanks({ lang, currentUser }) {
           actualStockLiters: form.actualStockLiters ? parseFloat(form.actualStockLiters) : null,
           generatorId: Number(form.generatorId),
           tankRole: 2, // TankRole.Daily
-          shape: 1,    // TankShape.HorizontalCylinderWithConicalEnds
+          shape: 0,    // TankShape.VerticalCylinderWithConicalBottom
+          diameterCm: dCm,
+          cylinderHeightCm: cylCm,
+          coneHeightCm: coneCm,
+          multiplicationFactor: factor,
           notes: form.notes || null,
           isActive: form.isActive,
           hasMeter: false,
         });
+        savedId = createRes.data?.id;
+      }
+
+      if (savedId && dCm && coneCm) {
+        await client.put(`/api/fuel-tanks/${savedId}/calibration`, {
+          diameterCm: dCm,
+          cylinderHeightCm: cylCm ?? 0,
+          coneHeightCm: coneCm,
+          multiplicationFactor: factor,
+          deadStockLitres: form.deadStockLiters ? parseFloat(form.deadStockLiters) : null,
+          shape: 0,
+        }).catch(() => {});
       }
 
       await fetchData();
@@ -203,7 +237,7 @@ export default function DailyTanks({ lang, currentUser }) {
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px' }}>
       <PageHeader
         title={ar ? 'خزانات الوقود اليومية' : 'Daily Fuel Tanks'}
-        subtitle={ar ? 'إدارة الخزانات اليومية الأفقية بنهايات قمعية المرتبطة بالمولدات' : 'Manage horizontal conical daily tanks linked to generators'}
+        subtitle={ar ? 'إدارة الخزانات اليومية الرأسية ذات القاعدة القمعية المرتبطة بالمولدات' : 'Manage vertical cylindrical daily tanks with conical bottom linked to generators'}
         actions={
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="ghost" size="sm" icon={RefreshCw} onClick={fetchData} />
@@ -222,8 +256,8 @@ export default function DailyTanks({ lang, currentUser }) {
         <Info size={18} style={{ flexShrink: 0 }} />
         <span>
           {ar
-            ? 'تصميم الخزانات اليومية: أسطوانية أفقية بنهايات قمعية، كل خزان مرتبط مباشرة بمولد خاص وتُحسب الاستهلاكات من قراءات الخزان اليومية الفعلية.'
-            : 'Daily tank specification: Horizontal cylinder with conical ends, each linked directly to a specific generator.'}
+            ? 'تصميم الخزانات اليومية: أسطوانية رأسية ذات قاعدة قمعية، كل خزان مرتبط مباشرة بمولد خاص وتُحسب الاستهلاكات من قراءات الخزان اليومية الفعلية.'
+            : 'Daily tank specification: Vertical cylinder with conical bottom, each linked directly to a specific generator.'}
         </span>
       </div>
 
@@ -367,10 +401,42 @@ export default function DailyTanks({ lang, currentUser }) {
             </FormField>
           </div>
 
+          {/* Vertical Tank Calibration Fields (Reused from TankSetup) */}
+          <div style={{
+            margin: '12px 0', padding: 12, borderRadius: 8,
+            background: 'var(--surface-2, rgba(255,255,255,0.03))', border: '1px solid var(--border)'
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: 'var(--primary)' }}>
+              {ar ? 'أبعاد ومعايرة الخزان الرأسي (قاعدة قمعية)' : 'Vertical Conical Tank Calibration'}
+            </div>
+            <div className="form-row">
+              <FormField label={ar ? 'القطر (سم)' : 'Diameter (cm)'}>
+                <Input type="number" step="0.1" value={form.diameterCm} onChange={e => fld('diameterCm', e.target.value)} placeholder="200" />
+              </FormField>
+              <FormField label={ar ? 'ارتفاع الأسطوانة (سم)' : 'Cylinder Height (cm)'}>
+                <Input type="number" step="0.1" value={form.cylinderHeightCm} onChange={e => fld('cylinderHeightCm', e.target.value)} placeholder="150" />
+              </FormField>
+            </div>
+            <div className="form-row">
+              <FormField label={ar ? 'ارتفاع القمع (سم)' : 'Cone Height (cm)'}>
+                <Input type="number" step="0.1" value={form.coneHeightCm} onChange={e => fld('coneHeightCm', e.target.value)} placeholder="50" />
+              </FormField>
+              <FormField label={ar ? 'معامل الضرب' : 'Multiplication Factor'}>
+                <Input type="number" step="0.0001" value={form.multiplicationFactor} onChange={e => fld('multiplicationFactor', e.target.value)} placeholder="1.0" />
+              </FormField>
+            </div>
+          </div>
+
           <div className="form-row">
             <FormField label={ar ? 'الرصيد الفعلي الحالي (لتر)' : 'Current Stock (L)'}>
               <Input type="number" step="1" value={form.actualStockLiters} onChange={e => fld('actualStockLiters', e.target.value)} placeholder="0" />
             </FormField>
+            <FormField label={ar ? 'المخزون الميت (لتر)' : 'Dead Stock (L)'}>
+              <Input type="number" step="0.1" value={form.deadStockLiters} onChange={e => fld('deadStockLiters', e.target.value)} placeholder="0" />
+            </FormField>
+          </div>
+
+          <div className="form-row">
             <FormField label={ar ? 'حد التنبيه الأدنى (لتر)' : 'Min Alert (L)'}>
               <Input type="number" step="1" value={form.minAlertLiters} onChange={e => fld('minAlertLiters', e.target.value)} placeholder="100" />
             </FormField>

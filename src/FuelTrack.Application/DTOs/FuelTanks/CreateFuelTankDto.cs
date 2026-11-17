@@ -19,4 +19,8 @@ public record CreateFuelTankDto(
     TankRole? TankRole = null,
     int? GeneratorId = null,
     int? ParentTankId = null,
-    TankShape? Shape = null);
+    TankShape? Shape = null,
+    decimal? DiameterCm = null,
+    decimal? CylinderHeightCm = null,
+    decimal? ConeHeightCm = null,
+    decimal? MultiplicationFactor = null);

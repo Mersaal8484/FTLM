@@ -23,6 +23,7 @@ namespace FuelTrack.Domain.Services;
 /// Total liquid volume (cm³) = V_cyl + 2 × V_cone_end
 /// Result in litres = total_cm³ × factor / 1000
 /// </summary>
+[Obsolete("Not used by any station mode")]
 public sealed class HorizontalConicalTankGeometryStrategy : ITankGeometryStrategy
 {
     public TankShape Shape => TankShape.HorizontalCylinderWithConicalEnds;

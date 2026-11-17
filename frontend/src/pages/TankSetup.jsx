@@ -57,7 +57,7 @@ export default function TankSetup({ embedded = false }) {
     multiplicationFactor: parseFloat(multiplicationFactor || '1.0'),
     deadStockLitres: deadStockMode === 'litres' && deadStockLitres !== '' ? parseFloat(deadStockLitres) : null,
     deadStockLevelCm: deadStockMode === 'cm' && deadStockLevelCm !== '' ? parseFloat(deadStockLevelCm) : null,
-    shape: isCommercialMode ? 1 : 0,
+    shape: 0,
   });
 
   const handlePreview = async () => {

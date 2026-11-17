@@ -123,3 +123,75 @@ dotnet test tests/FuelTrack.Tests/FuelTrack.Tests.csproj --logger "console;verbo
 cd D:\FTM\frontend
 npm test -- --watchAll=false
 ```
+
+---
+
+## 5. Correction: Vertical Cylinder with Conical Bottom Geometry
+
+### Owner Rule
+The station owner clarified and confirmed that all commercial station fuel tanks (both the main storage tanks and the generator daily service tanks) are **VERTICAL cylinders with a CONICAL BOTTOM** where fuel exits at the apex (the ruler/level reading is measured from the cone apex $h = 0$).
+
+Phase C3 had erroneously implemented `TankShape.HorizontalCylinderWithConicalEnds` (Shape = 1). The system has been corrected so commercial station mode routes to the standard vertical conical geometry (`TankShape.VerticalCylinderWithConicalBottom = 0`), reusing `VerticalConicalTankGeometryStrategy` unchanged.
+
+### Summary of Changes
+1. **`FuelTankService.cs` (~line 40):** Default shape in commercial mode is `TankShape.VerticalCylinderWithConicalBottom` (enum value `0`). Creation and update validate that `Shape = 1` is strictly rejected with an argument error.
+2. **`TankCalibrationService.cs` (~lines 21, 43, 79):**
+   - Commercial default shape set to `VerticalCylinderWithConicalBottom`.
+   - Removed horizontal geometry branches for height and level bounds:
+     $$\text{fullHeight} = \text{ConeHeightCm} + \text{CylinderHeightCm}$$
+     $$\text{maxLevel} = \text{CylinderHeightCm} + \text{ConeHeightCm}$$
+   - Validation rejects any calibration payload specifying `Shape = 1`.
+3. **`TankGeometry.cs` & `TankShape.cs`:**
+   - Retained `HorizontalConicalTankGeometryStrategy` and enum value `TankShape.HorizontalCylinderWithConicalEnds = 1` for backward compatibility without mutating already-applied migration `20261116120000`.
+   - Marked both enum member and strategy class as `[Obsolete("Not used by any station mode")]`.
+4. **API Validation:**
+   - `CreateFuelTankDtoValidator` and `UpdateFuelTankDtoValidator` reject `Shape = 1` across all station modes with HTTP 400 Bad Request.
+   - `ExceptionHandlingMiddleware` handles `ArgumentException` returning 400 Bad Request.
+5. **`DailyTanks.jsx` & `TankSetup.jsx`:**
+   - `DailyTanks.jsx`: sends `shape: 0` on create and edit.
+   - Form exposes vertical geometry inputs (`diameterCm`, `cylinderHeightCm`, `coneHeightCm`, `multiplicationFactor`), fuel type, dead stock, and actual level reusing standard calibration fields.
+   - Subtitle and descriptive text updated to reflect vertical cylindrical tanks with conical bottoms.
+   - `TankSetup.jsx`: payload sends `shape: 0`.
+6. **Audit Query (`docs/commercial/sql/list-horizontal-tanks.sql`):**
+   - Read-only script listing all `FuelTanks` where `Shape = 1` for administrative review without automated destructive conversion.
+7. **Verification Tests:**
+   - Added `CommercialTankVerticalGeometryTests.cs` verifying default shape 0 in commercial mode, API rejection of shape 1, vertical conical calibration fixtures ($D=200, H_c=50, H_{cyl}=150$), density factor scaling, and dead stock deduction.
+
+---
+
+## 6. Phase C3.2 Corrections (Equipment Settings Refinements)
+
+### 1. Generators & Cumulative Running Hours
+- **Field Hiding in Commercial Mode:** `Owner Name`, `Ownership Type`, and `Generator Type` are completely hidden from the commercial generator form.
+- **Null Values Sent:** In commercial mode, `handleSubmit` sends `null` (not `0`) for `NominalPower`, `FuelConsumptionRatePerHour`, `OwnerName`, `GeneratorTypeLookupId`, and `OwnershipTypeLookupId`.
+- **Consumer Impact Audit:**
+  - `Generator.NominalPower` and `Generator.FuelConsumptionRatePerHour` remain non-nullable columns in the database with server-side default `0`.
+  - `CreateGeneratorDto` and `UpdateGeneratorDto` accept nullable `double?` and `decimal?`.
+  - Service layer (`GeneratorService`) assigns `dto.NominalPower ?? 0` and `dto.FuelConsumptionRatePerHour ?? 0m`.
+  - `ReportService`, `LossAnalysisService`, `FuelConsumptionAnalysisService`, and `ServiceDueEngine` all check `if (FuelConsumptionRatePerHour > 0)` or sum safely, ensuring zero produces no calculation errors or divide-by-zero exceptions.
+- **Cumulative Running Hours Field:**
+  - Mapped directly to `Controller.OperatingHours` on the linked controller.
+  - Validated $\ge 0$ and $\ge$ latest approved daily-closing meter reading for running hours.
+  - Serves as the baseline for the service-due engine without requiring any schema changes.
+
+### 2. Controllers (Generator Screens)
+- **Manufacturer & Model:** In commercial mode, Manufacturer and Model are editable free-text fields. Model provides a datalist with `DSE8610` and `DSE8920` as suggestions.
+- **Hidden Network Controls:** IP address, port, Modbus unit ID, register type, auto-connect toggle, and connection-status test controls/calls are hidden in commercial mode.
+- **Server Defaults:** Backend defaults (`port: 502`, `modbusUnitId: 1`, `registerType: FC03`, `autoConnect: false`, `ipAddress: null`) are maintained.
+
+### 3. Tanks Management (Location Hiding)
+- **Hierarchy Hidden:** Branch, Station, and Area (SubStation) selector fields are hidden in the commercial modal.
+- **Card Display:** Region/Area row is hidden from tank cards in commercial mode; grouping displays unified station tanks.
+- **Auto-Scoping:** Form validation skips SubStation selection and automatically attaches the tenant's single commercial technical substation.
+
+### 4. PostgreSQL Tenant Upgrade 010 (TankRole Parity)
+- **Migration Script:** `010_commercial_tankrole.sql` introduces `"TankRole" integer` on `"FuelTanks"` with an idempotent index for filtering daily/main tanks.
+- **Catalog Registration:** Version 10 registered in `TenantSchemaUpgradeCatalog.cs`.
+- **Embedded Resource:** Configured in `FuelTrack.Infrastructure.csproj`.
+- **Rollback Plan:**
+  ```sql
+  DROP INDEX IF EXISTS "IX_FuelTanks_TankRole";
+  ALTER TABLE "FuelTanks" DROP COLUMN IF EXISTS "TankRole";
+  ```
+
+

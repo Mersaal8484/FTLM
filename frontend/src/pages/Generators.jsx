@@ -28,6 +28,7 @@ const initialForm = {
   subStation: '',
   ownershipType: '',
   controller: '',
+  cumulativeRunningHours: '',
   isActive: true,
 };
 
@@ -159,6 +160,7 @@ function Generators({ t, lang, currentUser }) {
     const stationId = subStationObj?.station_id || subStationObj?.stationId || gen.stationId || gen.station?.id || '';
     const stationObj = stationId ? stations.find(s => String(s.id) === String(stationId)) : null;
     const branchId = stationObj?.branchId || '';
+    const linkedCtrl = controllers.find(c => c.generatorId === getId(gen) || (gen.controllerName && c.name === gen.controllerName));
     setForm({
       name: gen.name || '',
       serialNo: gen.serialNumber || '',
@@ -179,7 +181,8 @@ function Generators({ t, lang, currentUser }) {
       branchId: branchId ? String(branchId) : '',
       station: stationId ? String(stationId) : '',
       subStation: subStationId ? String(subStationId) : '',
-      controller: gen.controllerName ? controllers.find(c => c.name === gen.controllerName)?.id || '' : '',
+      controller: linkedCtrl?.id ? String(linkedCtrl.id) : (gen.controllerName ? controllers.find(c => c.name === gen.controllerName)?.id || '' : ''),
+      cumulativeRunningHours: linkedCtrl?.operatingHours != null ? String(linkedCtrl.operatingHours) : '',
       isActive: gen.isActive !== false,
     });
     setEditId(getId(gen)); setShowModal(true); setError(null);
@@ -200,6 +203,15 @@ function Generators({ t, lang, currentUser }) {
       ? fieldError('name') || (!form.subStation && subStations.length === 0 ? (ar ? 'الموقع مطلوب' : 'SubStation is required') : null)
       : fieldError('name') || fieldError('subStation') || fieldError('ratedCapacityKw') || fieldError('fuelConsumptionRatePerHour');
     if (err) { setError(err); return; }
+
+    if (isCommercialMode && form.cumulativeRunningHours !== '' && form.cumulativeRunningHours !== null) {
+      const hrs = Number(form.cumulativeRunningHours);
+      if (isNaN(hrs) || hrs < 0) {
+        setError(ar ? 'ساعات التشغيل التراكمية يجب أن تكون صفراً أو أكثر' : 'Cumulative running hours must be zero or positive');
+        return;
+      }
+    }
+
     setSaving(true); setError(null);
     try {
       let generatorId;
@@ -211,17 +223,17 @@ function Generators({ t, lang, currentUser }) {
           SerialNumber: form.serialNo || null,
           Model: form.model || null,
           Manufacturer: form.manufacturer || null,
-          NominalPower: isCommercialMode ? 0 : (Number(form.ratedCapacityKw) || 0),
+          NominalPower: isCommercialMode ? null : (Number(form.ratedCapacityKw) || 0),
           ActualPowerKW: Number(form.actualPowerKw) || 0,
-          FuelConsumptionRatePerHour: isCommercialMode ? 0 : (Number(form.fuelConsumptionRatePerHour) || 0),
-          OwnerName: form.owner || null,
+          FuelConsumptionRatePerHour: isCommercialMode ? null : (Number(form.fuelConsumptionRatePerHour) || 0),
+          OwnerName: isCommercialMode ? null : (form.owner || null),
           PowerFactor: isCommercialMode ? null : (form.powerFactor ? Number(form.powerFactor) : null),
           InstallationDate: form.installationDate || null,
           Notes: form.notes || null,
-          GeneratorTypeLookupId: form.genType ? Number(form.genType) : null,
+          GeneratorTypeLookupId: isCommercialMode ? null : (form.genType ? Number(form.genType) : null),
           VoltageLookupId: form.voltage ? Number(form.voltage) : null,
           FrequencyLookupId: form.frequency ? Number(form.frequency) : null,
-          OwnershipTypeLookupId: form.ownershipType ? Number(form.ownershipType) : null,
+          OwnershipTypeLookupId: isCommercialMode ? null : (form.ownershipType ? Number(form.ownershipType) : null),
           StatusLookupId: form.status ? Number(form.status) : null,
           IsActive: form.isActive,
         };
@@ -235,17 +247,17 @@ function Generators({ t, lang, currentUser }) {
           SerialNumber: form.serialNo || genCode,
           Model: form.model || null,
           Manufacturer: form.manufacturer || null,
-          NominalPower: isCommercialMode ? 0 : (Number(form.ratedCapacityKw) || 0),
+          NominalPower: isCommercialMode ? null : (Number(form.ratedCapacityKw) || 0),
           ActualPowerKW: Number(form.actualPowerKw) || 0,
-          FuelConsumptionRatePerHour: isCommercialMode ? 0 : (Number(form.fuelConsumptionRatePerHour) || 0),
-          OwnerName: form.owner || null,
+          FuelConsumptionRatePerHour: isCommercialMode ? null : (Number(form.fuelConsumptionRatePerHour) || 0),
+          OwnerName: isCommercialMode ? null : (form.owner || null),
           PowerFactor: isCommercialMode ? null : (form.powerFactor ? Number(form.powerFactor) : null),
           InstallationDate: form.installationDate || null,
           Notes: form.notes || null,
-          GeneratorTypeLookupId: form.genType ? Number(form.genType) : null,
+          GeneratorTypeLookupId: isCommercialMode ? null : (form.genType ? Number(form.genType) : null),
           VoltageLookupId: form.voltage ? Number(form.voltage) : null,
           FrequencyLookupId: form.frequency ? Number(form.frequency) : null,
-          OwnershipTypeLookupId: form.ownershipType ? Number(form.ownershipType) : null,
+          OwnershipTypeLookupId: isCommercialMode ? null : (form.ownershipType ? Number(form.ownershipType) : null),
           StatusLookupId: form.status ? Number(form.status) : null,
           IsActive: form.isActive,
         };
@@ -261,6 +273,19 @@ function Generators({ t, lang, currentUser }) {
         }
         if (selectedCtrlId) {
           await client.patch(`/api/controllers/${selectedCtrlId}/assign-generator`, { generatorId });
+          if (isCommercialMode && form.cumulativeRunningHours !== '' && form.cumulativeRunningHours !== null) {
+            const hrs = Number(form.cumulativeRunningHours);
+            if (!isNaN(hrs) && hrs >= 0) {
+              const ctrlObj = controllers.find(c => c.id === selectedCtrlId);
+              if (ctrlObj) {
+                await client.put(`/api/controllers/${selectedCtrlId}`, {
+                  ...ctrlObj,
+                  generatorId,
+                  operatingHours: hrs,
+                }).catch(() => {});
+              }
+            }
+          }
         }
       }
 
@@ -606,14 +631,16 @@ function Generators({ t, lang, currentUser }) {
             <FormField label={ar ? 'الموديل' : 'Model'}>
               <Input value={form.model} onChange={e => fld('model', e.target.value)} />
             </FormField>
-            <FormField label={ar ? 'نوع المولد' : 'Generator Type'}>
-              <select className="form-select" value={form.genType} onChange={e => fld('genType', e.target.value)}>
-                <option value="">— {ar ? 'اختر' : 'Select'} —</option>
-                {genTypes.map(item => (
-                  <option key={item.id} value={item.id}>{item.name}</option>
-                ))}
-              </select>
-            </FormField>
+            {!isCommercialMode && (
+              <FormField label={ar ? 'نوع المولد' : 'Generator Type'}>
+                <select className="form-select" value={form.genType} onChange={e => fld('genType', e.target.value)}>
+                  <option value="">— {ar ? 'اختر' : 'Select'} —</option>
+                  {genTypes.map(item => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </select>
+              </FormField>
+            )}
            </div>
           {!isCommercialMode && (
             <div className="form-row">
@@ -644,9 +671,22 @@ function Generators({ t, lang, currentUser }) {
             <FormField label={ar ? 'قراءة عداد الطاقة الحالية' : 'Current Energy Reading'}>
               <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.energyReading || 0} style={{ background: 'var(--card-2)' }} />
             </FormField>
-            <FormField label={ar ? 'قراءة ساعات التشغيل الحالية' : 'Current Operating Hours'}>
-              <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.operatingHours || 0} style={{ background: 'var(--card-2)' }} />
-            </FormField>
+            {isCommercialMode ? (
+              <FormField label={ar ? 'ساعات التشغيل التراكمية' : 'Cumulative Running Hours'}>
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={form.cumulativeRunningHours}
+                  onChange={e => fld('cumulativeRunningHours', e.target.value)}
+                  placeholder="0"
+                />
+              </FormField>
+            ) : (
+              <FormField label={ar ? 'قراءة ساعات التشغيل الحالية' : 'Current Operating Hours'}>
+                <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.operatingHours || 0} style={{ background: 'var(--card-2)' }} />
+              </FormField>
+            )}
           </div>
           <div className="form-row">
             {!isCommercialMode && (
@@ -682,17 +722,21 @@ function Generators({ t, lang, currentUser }) {
              </FormField>
            </div>
            <div className="form-row">
-             <FormField label={ar ? 'اسم المالك' : 'Owner Name'}>
-               <Input value={form.owner} onChange={e => fld('owner', e.target.value)} />
-             </FormField>
-             <FormField label={ar ? 'نوع الملكية' : 'Ownership Type'}>
-               <select className="form-select" value={form.ownershipType} onChange={e => fld('ownershipType', e.target.value)}>
-                 <option value="">—</option>
-                  {ownershipTypes.map(item => (
-                    <option key={item.id} value={item.id}>{item.name}</option>
-                  ))}
-                </select>
-              </FormField>
+             {!isCommercialMode && (
+               <>
+                 <FormField label={ar ? 'اسم المالك' : 'Owner Name'}>
+                   <Input value={form.owner} onChange={e => fld('owner', e.target.value)} />
+                 </FormField>
+                 <FormField label={ar ? 'نوع الملكية' : 'Ownership Type'}>
+                   <select className="form-select" value={form.ownershipType} onChange={e => fld('ownershipType', e.target.value)}>
+                     <option value="">—</option>
+                      {ownershipTypes.map(item => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </select>
+                  </FormField>
+               </>
+             )}
               <FormField label={ar ? 'حالة التشغيل' : 'Operating Status'}>
                 <select className="form-select" value={form.status} onChange={e => fld('status', e.target.value)}>
                   <option value="">—</option>

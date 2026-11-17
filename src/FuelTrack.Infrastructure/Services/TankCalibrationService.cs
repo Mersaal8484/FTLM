@@ -18,7 +18,7 @@ public sealed class TankCalibrationService(
         if (!IsValid(dto))
             throw new ArgumentOutOfRangeException(nameof(dto), "Tank calibration values are invalid.");
         var shape = dto.Shape ?? TankShape.VerticalCylinderWithConicalBottom;
-        var fullHeight = shape == TankShape.HorizontalCylinderWithConicalEnds ? dto.DiameterCm : dto.ConeHeightCm + dto.CylinderHeightCm;
+        var fullHeight = dto.ConeHeightCm + dto.CylinderHeightCm;
         var points = new[] { 0m, 25m, 50m, 75m, 100m }
             .Select(percent => new TankCalibrationPreviewPointDto(percent, fullHeight * percent / 100m,
                 TankGeometry.CalculateLitres(shape, dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor, fullHeight * percent / 100m)))
@@ -39,8 +39,7 @@ public sealed class TankCalibrationService(
         if (tank is null || (!currentUser.HasAnyAdminRole && !await scopeFilter.HasAccessToSubStationAsync(userId, tank.SubStationId)))
             return Result<TankCalibrationDto>.NotFound("Tank not found or outside your scope.");
 
-        var isCommercial = await commercialMode.IsCommercialModeAsync(cancellationToken);
-        var shape = dto.Shape ?? tank.Shape ?? (isCommercial ? TankShape.HorizontalCylinderWithConicalEnds : TankShape.VerticalCylinderWithConicalBottom);
+        var shape = dto.Shape ?? tank.Shape ?? TankShape.VerticalCylinderWithConicalBottom;
 
         tank.Shape = shape;
         tank.DiameterCm = dto.DiameterCm;
@@ -75,8 +74,11 @@ public sealed class TankCalibrationService(
 
     private static bool IsValid(UpdateTankCalibrationDto dto)
     {
-        var shape = dto.Shape ?? TankShape.VerticalCylinderWithConicalBottom;
-        var maxLevel = shape == TankShape.HorizontalCylinderWithConicalEnds ? dto.DiameterCm : dto.CylinderHeightCm + dto.ConeHeightCm;
+#pragma warning disable CS0618
+        if (dto.Shape == TankShape.HorizontalCylinderWithConicalEnds)
+            return false;
+#pragma warning restore CS0618
+        var maxLevel = dto.CylinderHeightCm + dto.ConeHeightCm;
 
         return dto.DiameterCm > 0 && dto.CylinderHeightCm >= 0 && dto.ConeHeightCm > 0 && dto.MultiplicationFactor > 0 &&
             !(dto.DeadStockLitres.HasValue && dto.DeadStockLevelCm.HasValue) &&

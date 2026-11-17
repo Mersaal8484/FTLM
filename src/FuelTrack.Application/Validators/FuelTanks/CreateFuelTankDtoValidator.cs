@@ -1,5 +1,6 @@
 using FluentValidation;
 using FuelTrack.Application.DTOs.FuelTanks;
+using FuelTrack.Domain.Enums;
 
 namespace FuelTrack.Application.Validators.FuelTanks;
 
@@ -16,5 +17,11 @@ public class CreateFuelTankDtoValidator : AbstractValidator<CreateFuelTankDto>
         RuleFor(x => x.DeadStockLiters).GreaterThanOrEqualTo(0).When(x => x.DeadStockLiters.HasValue);
         RuleFor(x => x.ActualStockLiters).GreaterThanOrEqualTo(0).When(x => x.ActualStockLiters.HasValue);
         RuleFor(x => x.Notes).MaximumLength(1000).When(x => x.Notes is not null);
+#pragma warning disable CS0618 // Type or member is obsolete
+        RuleFor(x => x.Shape)
+            .Must(s => s != TankShape.HorizontalCylinderWithConicalEnds)
+            .When(x => x.Shape.HasValue)
+            .WithMessage("Horizontal cylinder with conical ends (Shape = 1) is not supported. Tanks must use vertical cylinder with conical bottom (Shape = 0).");
+#pragma warning restore CS0618
     }
 }
