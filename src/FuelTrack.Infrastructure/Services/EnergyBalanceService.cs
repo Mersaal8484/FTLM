@@ -16,7 +16,7 @@ public sealed class EnergyBalanceService(
     FuelTrackDbContext db,
     IMeterDeltaService meterDelta) : IEnergyBalanceService
 {
-    private const string UnexplainedLabel = "غير مفسَّر (يشمل الاستهلاك الداخلي)";
+    private const string UnexplainedLabel = "الفاقد والاستهلاك المساعد للمحطة (يشمل الاستهلاك الداخلي)";
 
     public async Task<EnergyBalanceDto> GetStationBalanceAsync(
         int stationId, DateOnly date, CancellationToken cancellationToken = default)
@@ -38,6 +38,15 @@ public sealed class EnergyBalanceService(
 
         if (subStationIds.Count == 0)
             return ZeroBalance(stationId, date);
+
+        // Check if an active solar production meter exists for this station/substations
+        bool hasActiveSolarMeter = await db.Meters
+            .AsNoTracking()
+            .AnyAsync(m => m.SubStationId.HasValue && subStationIds.Contains(m.SubStationId.Value) &&
+                           m.IsActive &&
+                           m.MeterTypeLookup != null &&
+                           (m.MeterTypeLookup.Code == "SolarProductionMeter" || m.MeterTypeLookup.Code == "SolarMeter"),
+                           cancellationToken);
 
         // All approved MeterReading DailyClosing rows for this date in this station
         var closings = await db.MeterReadings
@@ -72,21 +81,15 @@ public sealed class EnergyBalanceService(
             .Select(r => r.SubjectId).Distinct().ToList();
         decimal generatorImport = await SumDeltasAsync(MeterReadingSubjectType.GeneratorEnergyProduced, genSubjectIds);
 
-        // Solar import: SolarImport (if the enum value exists)
-        decimal solarImport = 0m;
-        bool hasSolarEnum = Enum.IsDefined(typeof(MeterReadingSubjectType), "SolarImport");
-        if (hasSolarEnum)
-        {
-            var solarType = (MeterReadingSubjectType)Enum.Parse(typeof(MeterReadingSubjectType), "SolarImport");
-            var solarSubjectIds = closings
-                .Where(r => r.SubjectType == solarType)
-                .Select(r => r.SubjectId).Distinct().ToList();
-            solarImport = await SumDeltasAsync(solarType, solarSubjectIds);
-        }
+        // Solar production: SolarEnergyProduced
+        var solarSubjectIds = closings
+            .Where(r => r.SubjectType == MeterReadingSubjectType.SolarEnergyProduced)
+            .Select(r => r.SubjectId).Distinct().ToList();
+        decimal solarImport = await SumDeltasAsync(MeterReadingSubjectType.SolarEnergyProduced, solarSubjectIds);
 
         decimal totalImport = generatorImport + solarImport;
 
-        // Export: FeederEnergySent
+        // Export: FeederEnergySent (sum of all feeder meters)
         var feederSubjectIds = closings
             .Where(r => r.SubjectType == MeterReadingSubjectType.FeederEnergySent)
             .Select(r => r.SubjectId).Distinct().ToList();
@@ -107,7 +110,7 @@ public sealed class EnergyBalanceService(
         decimal unexplained = totalImport - exportKwh - (internalKwh ?? 0m);
         decimal unexplainedPct = totalImport > 0 ? unexplained / totalImport * 100m : 0m;
         bool thresholdExceeded = internalKwh.HasValue && Math.Abs(unexplainedPct) > threshold;
-        decimal? solarShare = (hasSolarEnum && totalImport > 0) ? solarImport / totalImport * 100m : null;
+        decimal? solarShare = (hasActiveSolarMeter && totalImport > 0) ? solarImport / totalImport * 100m : null;
 
         return new EnergyBalanceDto(
             stationId, date,
@@ -118,9 +121,10 @@ public sealed class EnergyBalanceService(
             unexplained, unexplainedPct,
             solarShare,
             thresholdExceeded,
-            internalKwh.HasValue ? string.Empty : UnexplainedLabel);
+            internalKwh.HasValue ? string.Empty : UnexplainedLabel,
+            HasSolarMeter: hasActiveSolarMeter);
     }
 
     private static EnergyBalanceDto ZeroBalance(int stationId, DateOnly date) =>
-        new(stationId, date, 0, 0, 0, 0, null, false, 0, 0, null, false, UnexplainedLabel);
+        new(stationId, date, 0, 0, 0, 0, null, false, 0, 0, null, false, UnexplainedLabel, false);
 }

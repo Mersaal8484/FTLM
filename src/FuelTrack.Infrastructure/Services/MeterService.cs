@@ -26,11 +26,33 @@ public class MeterService : IMeterService
 
     public async Task<MeterDetailDto> CreateAsync(CreateMeterDto dto)
     {
+        var meterTypeLookupId = dto.MeterTypeLookupId;
+        if (!meterTypeLookupId.HasValue && !string.IsNullOrWhiteSpace(dto.MeterType))
+        {
+            var lookup = await _db.Lookups.FirstOrDefaultAsync(l => l.Category == "MeterType" && (l.Code == dto.MeterType || l.Name == dto.MeterType));
+            if (lookup == null && (dto.MeterType == "SolarProductionMeter" || dto.MeterType == "SolarMeter" || dto.MeterType == "عداد إنتاج الطاقة الشمسية"))
+            {
+                lookup = new Lookup
+                {
+                    Category = "MeterType",
+                    Code = "SolarProductionMeter",
+                    Name = "عداد إنتاج الطاقة الشمسية",
+                    Description = "Solar Production Meter",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _db.Lookups.Add(lookup);
+                await _db.SaveChangesAsync();
+            }
+            meterTypeLookupId = lookup?.Id;
+        }
+
         var meter = new Meter
         {
             Name = dto.MeterName ?? string.Empty,
             SubStationId = dto.SubStationId,
-            MeterTypeLookupId = dto.MeterTypeLookupId,
+            MeterTypeLookupId = meterTypeLookupId,
             SerialNumber = dto.SerialNumber,
             GeneratorId = dto.GeneratorId,
             HoursReading = dto.HoursReading,
@@ -45,22 +67,35 @@ public class MeterService : IMeterService
 
         if (await _commercialMode.IsCommercialModeAsync())
         {
-            var scope = await _commercialMode.GetScopeAsync();
-            var subStationId = meter.SubStationId ?? scope?.SubStationId;
-            if (subStationId.HasValue)
+            var isSolarProduction = false;
+            if (meter.MeterTypeLookupId.HasValue)
             {
-                var feeder = new Feeder
+                var lookup = await _db.Lookups.FindAsync(meter.MeterTypeLookupId.Value);
+                if (lookup != null && (lookup.Code == "SolarProductionMeter" || lookup.Code == "SolarMeter"))
                 {
-                    SubStationId = subStationId.Value,
-                    Code = $"FDR-{meter.Id}",
-                    Name = string.IsNullOrWhiteSpace(meter.Name) ? $"Feeder {meter.Id}" : meter.Name,
-                    MeterMultiplier = 1m,
-                    MeterId = meter.Id,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                };
-                _db.Feeders.Add(feeder);
-                await _db.SaveChangesAsync();
+                    isSolarProduction = true;
+                }
+            }
+
+            if (!isSolarProduction)
+            {
+                var scope = await _commercialMode.GetScopeAsync();
+                var subStationId = meter.SubStationId ?? scope?.SubStationId;
+                if (subStationId.HasValue)
+                {
+                    var feeder = new Feeder
+                    {
+                        SubStationId = subStationId.Value,
+                        Code = $"FDR-{meter.Id}",
+                        Name = string.IsNullOrWhiteSpace(meter.Name) ? $"Feeder {meter.Id}" : meter.Name,
+                        MeterMultiplier = 1m,
+                        MeterId = meter.Id,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow,
+                    };
+                    _db.Feeders.Add(feeder);
+                    await _db.SaveChangesAsync();
+                }
             }
         }
 
@@ -72,9 +107,31 @@ public class MeterService : IMeterService
         var meter = await _db.Meters.FindAsync(id)
             ?? throw new KeyNotFoundException($"Meter {id} not found.");
 
+        var meterTypeLookupId = dto.MeterTypeLookupId;
+        if (!meterTypeLookupId.HasValue && !string.IsNullOrWhiteSpace(dto.MeterType))
+        {
+            var lookup = await _db.Lookups.FirstOrDefaultAsync(l => l.Category == "MeterType" && (l.Code == dto.MeterType || l.Name == dto.MeterType));
+            if (lookup == null && (dto.MeterType == "SolarProductionMeter" || dto.MeterType == "SolarMeter" || dto.MeterType == "عداد إنتاج الطاقة الشمسية"))
+            {
+                lookup = new Lookup
+                {
+                    Category = "MeterType",
+                    Code = "SolarProductionMeter",
+                    Name = "عداد إنتاج الطاقة الشمسية",
+                    Description = "Solar Production Meter",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _db.Lookups.Add(lookup);
+                await _db.SaveChangesAsync();
+            }
+            meterTypeLookupId = lookup?.Id;
+        }
+
         meter.Name = dto.MeterName ?? meter.Name;
         meter.SubStationId = dto.SubStationId;
-        meter.MeterTypeLookupId = dto.MeterTypeLookupId;
+        if (meterTypeLookupId.HasValue) meter.MeterTypeLookupId = meterTypeLookupId.Value;
         meter.SerialNumber = dto.SerialNumber;
         meter.GeneratorId = dto.GeneratorId;
         meter.HoursReading = dto.HoursReading;

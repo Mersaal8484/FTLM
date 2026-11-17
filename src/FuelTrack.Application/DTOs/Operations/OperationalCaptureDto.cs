@@ -63,7 +63,7 @@ public sealed record OperationalCaptureReferenceDto(
 public sealed record OperationalGeneratorReferenceDto(int Id, string Name, string? Model, int? MeterId);
 public sealed record OperationalTankReferenceDto(int Id, string Name, string Code, bool IsCalibrated);
 public sealed record OperationalFeederReferenceDto(int Id, string Name, string Code, decimal MeterMultiplier, int? MeterId);
-public sealed record OperationalMeterReferenceDto(int Id, string Name, string? SerialNumber, int? GeneratorId);
+public sealed record OperationalMeterReferenceDto(int Id, string Name, string? SerialNumber, int? GeneratorId, string? MeterTypeCode = null);
 
 /// <summary>Latest raw and official counter values for a capture site's generators and feeders.</summary>
 public sealed record PreviousMeterReadingsDto(IReadOnlyList<PreviousMeterReadingDto> Readings);

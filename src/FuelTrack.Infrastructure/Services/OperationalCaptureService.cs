@@ -45,12 +45,19 @@ public sealed class OperationalCaptureService(
             .Where(x => x.SubStationId == subStationId)
             .Select(x => x.Id)
             .ToListAsync(cancellationToken);
+        var solarMeterIds = await db.Meters.AsNoTracking()
+            .Where(x => x.SubStationId == subStationId && x.IsActive &&
+                        x.MeterTypeLookup != null &&
+                        (x.MeterTypeLookup.Code == "SolarProductionMeter" || x.MeterTypeLookup.Code == "SolarMeter"))
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
 
         var candidates = await db.MeterReadings.AsNoTracking()
             .Where(x => x.Status != OperationalReadingStatus.Voided && x.Status != OperationalReadingStatus.Rejected &&
                 ((x.SubjectType == MeterReadingSubjectType.GeneratorEnergyProduced && generatorIds.Contains(x.SubjectId)) ||
                  (x.SubjectType == MeterReadingSubjectType.GeneratorRunningHours && generatorIds.Contains(x.SubjectId)) ||
-                 (x.SubjectType == MeterReadingSubjectType.FeederEnergySent && feederIds.Contains(x.SubjectId))))
+                 (x.SubjectType == MeterReadingSubjectType.FeederEnergySent && feederIds.Contains(x.SubjectId)) ||
+                 (x.SubjectType == MeterReadingSubjectType.SolarEnergyProduced && solarMeterIds.Contains(x.SubjectId))))
             .OrderByDescending(x => x.CapturedAtUtc).ThenByDescending(x => x.Id)
             .ToListAsync(cancellationToken);
 
@@ -61,7 +68,9 @@ public sealed class OperationalCaptureService(
         {
             (SubjectType: MeterReadingSubjectType.GeneratorEnergyProduced, SubjectId: id),
             (SubjectType: MeterReadingSubjectType.GeneratorRunningHours, SubjectId: id),
-        }).Concat(feederIds.Select(id => (SubjectType: MeterReadingSubjectType.FeederEnergySent, SubjectId: id)));
+        })
+        .Concat(feederIds.Select(id => (SubjectType: MeterReadingSubjectType.FeederEnergySent, SubjectId: id)))
+        .Concat(solarMeterIds.Select(id => (SubjectType: MeterReadingSubjectType.SolarEnergyProduced, SubjectId: id)));
 
         var readings = requiredSubjects.Select(subject =>
         {
@@ -333,7 +342,7 @@ public sealed class OperationalCaptureService(
             x.Generators.OrderBy(g => g.Name).Select(g => new OperationalGeneratorReferenceDto(g.Id, g.Name, g.Model, db.Meters.Where(m => m.GeneratorId == g.Id).Select(m => (int?)m.Id).FirstOrDefault())).ToList(),
             x.FuelTanks.OrderBy(t => t.Name).Select(t => new OperationalTankReferenceDto(t.Id, t.Name, t.Code, t.Shape != null && t.DiameterCm != null && t.CylinderHeightCm != null && t.ConeHeightCm != null && t.MultiplicationFactor != null)).ToList(),
             x.Feeders.OrderBy(f => f.Name).Select(f => new OperationalFeederReferenceDto(f.Id, f.Name, f.Code, f.MeterMultiplier, f.MeterId)).ToList(),
-            x.Meters.OrderBy(m => m.Name).Select(m => new OperationalMeterReferenceDto(m.Id, m.Name, m.SerialNumber, m.GeneratorId)).ToList()))
+            x.Meters.OrderBy(m => m.Name).Select(m => new OperationalMeterReferenceDto(m.Id, m.Name, m.SerialNumber, m.GeneratorId, m.MeterTypeLookup != null ? m.MeterTypeLookup.Code : null)).ToList()))
             .ToListAsync(cancellationToken);
     }
 

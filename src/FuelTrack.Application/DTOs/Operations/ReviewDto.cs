@@ -94,4 +94,5 @@ public sealed record EnergyBalanceDto(
     decimal UnexplainedDiffPct,
     decimal? SolarSharePct,
     bool ThresholdExceeded,
-    string UnexplainedLabel);
+    string UnexplainedLabel,
+    bool HasSolarMeter = false);

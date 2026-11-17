@@ -1,14 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Gauge, Pencil, Plus, Save, Trash2, X, Search, RefreshCw, Zap, Fuel, Radio, MapPin } from 'lucide-react';
+import { AlertCircle, Gauge, Pencil, Plus, Save, Trash2, X, Search, RefreshCw, Zap, Fuel, Radio, MapPin, Sun } from 'lucide-react';
 import client from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 import useCommercialMode from '../hooks/useCommercialMode';
 
 const METER_ICON_MAP = {
-  'GeneratorMeter': { icon: <Zap size={13} />,    color: 'var(--primary)',   colorVar: 'primary' },
-  'FuelDrain':      { icon: <Fuel size={13} />,   color: 'var(--warning)',   colorVar: 'warning' },
-  'ExportEnergy':   { icon: <Radio size={13} />,  color: 'var(--secondary)', colorVar: 'secondary' },
+  'GeneratorMeter':       { icon: <Zap size={13} />,    color: 'var(--primary)',   colorVar: 'primary' },
+  'FuelDrain':            { icon: <Fuel size={13} />,   color: 'var(--warning)',   colorVar: 'warning' },
+  'ExportEnergy':         { icon: <Radio size={13} />,  color: 'var(--secondary)', colorVar: 'secondary' },
+  'SolarProductionMeter': { icon: <Sun size={13} />,    color: 'var(--operational-amber, #f59e0b)', colorVar: 'warning' },
+  'SolarMeter':           { icon: <Sun size={13} />,    color: 'var(--operational-amber, #f59e0b)', colorVar: 'warning' },
 };
 const METER_DEFAULT_ICON = { icon: <Gauge size={13} />, color: 'var(--text-muted)', colorVar: 'secondary' };
 
@@ -98,6 +100,7 @@ function MetersManagement({ lang }) {
   const typeCodeForTab = (tab) => {
     if (tab === 'fuel') return 'FuelDrain';
     if (tab === 'generator') return 'GeneratorMeter';
+    if (tab === 'solar') return 'SolarProductionMeter';
     return 'ExportEnergy';
   };
 
@@ -105,6 +108,7 @@ function MetersManagement({ lang }) {
     const typeCode = meterTypes.find(mt => mt.name === item.meterType)?.code || 'FuelDrain';
     let tab = 'fuel';
     if (typeCode === 'GeneratorMeter') tab = 'generator';
+    else if (typeCode === 'SolarProductionMeter' || typeCode === 'SolarMeter') tab = 'solar';
     else if (typeCode === 'ExportEnergy') tab = 'energy';
     setActiveTab(tab);
 
@@ -160,18 +164,19 @@ function MetersManagement({ lang }) {
       setError(ar ? 'الرجاء تعبئة اسم العداد والرقم التسلسلي' : 'Please fill meter name and serial number'); return;
     }
     const resolvedSubStationId = form.subStationId || (isCommercialMode && subStations[0]?.id ? String(subStations[0].id) : '');
-    if (!isCommercialMode && activeTab !== 'energy' && !resolvedSubStationId) {
+    if (!isCommercialMode && activeTab !== 'energy' && activeTab !== 'solar' && !resolvedSubStationId) {
       setError(ar ? 'الرجاء اختيار المحطة والموقع' : 'Please select station and sub-station'); return;
     }
-    if (!isCommercialMode && activeTab === 'energy' && !resolvedSubStationId) {
+    if (!isCommercialMode && (activeTab === 'energy' || activeTab === 'solar') && !resolvedSubStationId) {
       setError(ar ? 'عداد الطاقة يجب ربطه بموقع/فرع محدد' : 'Energy meter must be linked to a specific site'); return;
     }
     if (!isCommercialMode && activeTab === 'generator' && !form.generatorId) {
       setError(ar ? 'الرجاء اختيار المولد المرتبط' : 'Please select the linked generator'); return;
     }
 
-    const currentTab = isCommercialMode ? 'energy' : activeTab;
-    const meterType = meterTypes.find(mt => mt.code === typeCodeForTab(currentTab));
+    const currentTab = isCommercialMode ? (activeTab === 'solar' ? 'solar' : 'energy') : activeTab;
+    const targetCode = typeCodeForTab(currentTab);
+    const meterType = meterTypes.find(mt => mt.code === targetCode);
     setSaving(true); setError('');
     try {
       const payload = {
@@ -179,7 +184,7 @@ function MetersManagement({ lang }) {
         code: null,
         stationId: form.stationId ? Number(form.stationId) : (isCommercialMode && subStations[0]?.stationId ? Number(subStations[0].stationId) : null),
         subStationId: resolvedSubStationId ? Number(resolvedSubStationId) : null,
-        meterType: meterType?.name,
+        meterType: meterType?.name || (currentTab === 'solar' ? 'SolarProductionMeter' : (currentTab === 'energy' ? 'ExportEnergy' : undefined)),
         meterTypeLookupId: meterType?.id,
         serialNumber: form.serialNumber,
         generatorId: currentTab === 'generator' && form.generatorId ? Number(form.generatorId) : null,
@@ -215,12 +220,23 @@ function MetersManagement({ lang }) {
   const genLookup   = meterTypes.find(t => t.code === 'GeneratorMeter');
   const fuelLookup  = meterTypes.find(t => t.code === 'FuelDrain');
   const gridLookup  = meterTypes.find(t => t.code === 'ExportEnergy');
+  const solarLookup = meterTypes.find(t => t.code === 'SolarProductionMeter' || t.code === 'SolarMeter');
   const genCount    = genLookup  ? meters.filter(m => m.meterType === genLookup.name).length  : 0;
   const fuelCount   = fuelLookup ? meters.filter(m => m.meterType === fuelLookup.name).length : 0;
-  const gridCount   = gridLookup ? meters.filter(m => m.meterType === gridLookup.name).length : 0;
+  const gridCount   = meters.filter(m => {
+    const code = meterTypes.find(t => t.name === m.meterType)?.code;
+    return code === 'ExportEnergy' || (!code && m.meterType === gridLookup?.name);
+  }).length;
+  const solarCount  = meters.filter(m => {
+    const code = meterTypes.find(t => t.name === m.meterType)?.code;
+    return code === 'SolarProductionMeter' || code === 'SolarMeter' || m.meterType === solarLookup?.name;
+  }).length;
 
   const tabs = isCommercialMode
-    ? [{ key: 'energy', label: ar ? 'عداد الفيدر' : 'Feeder Meter', icon: <Radio size={14} /> }]
+    ? [
+        { key: 'energy', label: ar ? 'عدادات الفيدر' : 'Feeder Meters', icon: <Radio size={14} /> },
+        { key: 'solar',  label: ar ? 'عداد إنتاج الطاقة الشمسية' : 'Solar Production Meter', icon: <Sun size={14} /> },
+      ]
     : [
         { key: 'fuel',      label: ar ? 'عداد الوقود' : 'Fuel Meter',     icon: <Fuel size={14} />  },
         { key: 'generator', label: ar ? 'عداد المولدات' : 'Gen Meter',    icon: <Zap size={14} />   },
@@ -229,7 +245,8 @@ function MetersManagement({ lang }) {
 
   const kpiItems = isCommercialMode
     ? [
-        { label: ar ? 'إجمالي عدادات الفيدر' : 'Total Feeder Meters', value: gridCount || total, icon: <Radio size={20} />, colorClass: 'primary' }
+        { label: ar ? 'إجمالي عدادات الفيدر' : 'Total Feeder Meters', value: gridCount, icon: <Radio size={20} />, colorClass: 'secondary' },
+        { label: ar ? 'عداد إنتاج الطاقة الشمسية' : 'Solar Production Meter', value: solarCount, icon: <Sun size={20} />, colorClass: 'warning' },
       ]
     : [
         { label: ar ? 'الإجمالي' : 'Total',           value: total,     icon: <Gauge size={20} />,  colorClass: 'primary' },
@@ -241,8 +258,8 @@ function MetersManagement({ lang }) {
   return (
     <div>
       <PageHeader
-        title={isCommercialMode ? (ar ? 'عدادات الفيدر' : 'Feeder Meters') : (ar ? 'العدادات' : 'Meters')}
-        subtitle={isCommercialMode ? (ar ? 'إدارة ومتابعة عدادات الفيدر بالمحطة التجارية' : 'Manage commercial station feeder meters') : (ar ? 'إدارة العدادات المرتبطة بالمواقع والمولدات' : 'Manage meters linked to sites and generators')}
+        title={isCommercialMode ? (ar ? 'عدادات المحطة' : 'Station Meters') : (ar ? 'العدادات' : 'Meters')}
+        subtitle={isCommercialMode ? (ar ? 'إدارة ومتابعة عدادات الفيدر وإنتاج الطاقة الشمسية بالمحطة التجارية' : 'Manage commercial station feeder and solar production meters') : (ar ? 'إدارة العدادات المرتبطة بالمواقع والمولدات' : 'Manage meters linked to sites and generators')}
         actions={
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="ghost" size="sm" icon={RefreshCw} onClick={fetchAll} />
@@ -331,16 +348,22 @@ function MetersManagement({ lang }) {
                        <div className="meter-stat-label">{ar ? 'طاقة' : 'Energy'}</div>
                        <div className="meter-stat-value">{Number(meter.energyReading || 0).toLocaleString('en-US')} kWh</div>
                      </div>
-                     {typeCode !== 'ExportEnergy' && (
+                     {typeCode !== 'ExportEnergy' && typeCode !== 'SolarProductionMeter' && typeCode !== 'SolarMeter' && (
                        <div className="meter-stat">
                          <div className="meter-stat-label">{ar ? 'ساعات' : 'Hours'}</div>
                          <div className="meter-stat-value">{Number(meter.hoursReading || 0).toLocaleString('en-US')} h</div>
                        </div>
                      )}
-                     {typeCode === 'ExportEnergy' && (
+                     {(typeCode === 'ExportEnergy' || typeCode === 'SolarProductionMeter' || typeCode === 'SolarMeter') && (
                        <div className="meter-stat">
                          <div className="meter-stat-label">{isCommercialMode ? (ar ? 'تصنيف العداد' : 'Category') : (ar ? 'نوع العداد' : 'Meter Type')}</div>
-                         <div className="meter-stat-value" style={{ color: cfg.color, fontWeight: 600 }}>{isCommercialMode ? (ar ? 'عداد الفيدر' : 'Feeder Meter') : (meter.meterType || '—')}</div>
+                         <div className="meter-stat-value" style={{ color: cfg.color, fontWeight: 600 }}>
+                           {isCommercialMode
+                             ? (typeCode === 'SolarProductionMeter' || typeCode === 'SolarMeter'
+                                 ? (ar ? 'عداد إنتاج شمسي' : 'Solar Production')
+                                 : (ar ? 'عداد الفيدر' : 'Feeder Meter'))
+                             : (meter.meterType || '—')}
+                         </div>
                        </div>
                      )}
                    </div>
@@ -383,22 +406,20 @@ function MetersManagement({ lang }) {
           }
         >
           {/* Tab bar */}
-          {!isCommercialMode && (
-            <div style={{ display: 'flex', gap: 2, marginBottom: 16, background: 'var(--bg)', borderRadius: 10, padding: 3 }}>
-              {tabs.map(t => (
-                <button key={t.key} type="button" onClick={() => switchTab(t.key)} style={{
-                  flex: 1, padding: '8px 6px', borderRadius: 8, border: 'none',
-                  background: activeTab === t.key ? 'var(--card)' : 'transparent',
-                  color: activeTab === t.key ? 'var(--text)' : 'var(--text-muted)',
-                  cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                  transition: 'all 0.2s',
-                }}>
-                  {t.icon}{t.label}
-                </button>
-              ))}
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: 2, marginBottom: 16, background: 'var(--bg)', borderRadius: 10, padding: 3 }}>
+            {tabs.map(t => (
+              <button key={t.key} type="button" onClick={() => switchTab(t.key)} style={{
+                flex: 1, padding: '8px 6px', borderRadius: 8, border: 'none',
+                background: activeTab === t.key ? 'var(--card)' : 'transparent',
+                color: activeTab === t.key ? 'var(--text)' : 'var(--text-muted)',
+                cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                transition: 'all 0.2s',
+              }}>
+                {t.icon}{t.label}
+              </button>
+            ))}
+          </div>
 
           {/* Location */}
           {!isCommercialMode && (
@@ -449,7 +470,7 @@ function MetersManagement({ lang }) {
 
           <div className="form-section-header">{ar ? 'القراءات' : 'Readings'}</div>
 
-          {activeTab !== 'energy' ? (
+          {activeTab !== 'energy' && activeTab !== 'solar' ? (
             <div className="form-row">
               <FormField label={ar ? 'قراءة العياري' : 'Standard Reading'}>
                 <Input type="number" value={form.energyReading} onChange={e => fld('energyReading', e.target.value)} placeholder="0" />
@@ -459,8 +480,10 @@ function MetersManagement({ lang }) {
               </FormField>
             </div>
           ) : (
-            <FormField label={ar ? 'قراءة الطاقة' : 'Reading'}>
+            <FormField label={activeTab === 'solar' ? (ar ? 'قراءة إنتاج الطاقة الشمسية (kWh)' : 'Solar Production Reading (kWh)') : (ar ? 'قراءة الطاقة (kWh)' : 'Energy Reading (kWh)')}>
               <Input type="number" value={form.energyReading} onChange={e => fld('energyReading', e.target.value)} placeholder="0" />
+            </FormField>
+          )}
             </FormField>
           )}
 

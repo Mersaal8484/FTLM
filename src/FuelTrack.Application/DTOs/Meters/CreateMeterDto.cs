@@ -9,4 +9,5 @@ namespace FuelTrack.Application.DTOs.Meters;
         int? GeneratorId,
         double? HoursReading,
         double? EnergyReading,
-        bool? IsActive = null);
+        bool? IsActive = null,
+        string? MeterType = null);

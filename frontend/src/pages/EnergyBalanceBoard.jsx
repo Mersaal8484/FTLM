@@ -92,7 +92,7 @@ export default function EnergyBalanceBoard() {
 
           <BalanceRow label={t('operational.balance.import')} value={data.importKwh} highlight />
           <BalanceRow label={`  · ${t('operational.balance.generatorImport')}`} value={data.generatorImportKwh} />
-          {data.solarImportKwh > 0 && (
+          {(data.hasSolarMeter ? data.hasSolarMeter : (data.solarImportKwh > 0)) && (
             <BalanceRow label={`  · ${t('operational.balance.solarImport')}`} value={data.solarImportKwh} />
           )}
           <BalanceRow label={t('operational.balance.export')} value={data.exportKwh} />
@@ -114,7 +114,7 @@ export default function EnergyBalanceBoard() {
           </div>
 
           {/* Solar share */}
-          {data.solarSharePct != null && (
+          {((data.hasSolarMeter ?? false) ? data.solarSharePct != null : (data.solarSharePct != null && data.solarImportKwh > 0)) && (
             <div style={{ padding: '10px 0', display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--text-muted)' }}>{t('operational.balance.solarShare')}</span>
               <strong style={{ color: 'var(--operational-amber)' }}>{pct(data.solarSharePct)}</strong>

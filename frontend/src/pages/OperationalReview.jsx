@@ -206,7 +206,19 @@ function SubmissionDetail({ id, onBack }) {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
               <StatusChip status={line.status} />
-              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{line._type} · {dateStr(line.capturedAtUtc)}</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                {line._type === 'meter'
+                  ? (line.subjectType === 3 || line.subjectType === 'SolarEnergyProduced'
+                      ? (document.documentElement.lang === 'ar' ? '☀️ إنتاج طاقة شمسية' : '☀️ Solar Production')
+                      : (line.subjectType === 0 || line.subjectType === 'GeneratorEnergyProduced'
+                          ? (document.documentElement.lang === 'ar' ? '⚡ طاقة مولد' : '⚡ Generator Energy')
+                          : (line.subjectType === 1 || line.subjectType === 'GeneratorRunningHours'
+                              ? (document.documentElement.lang === 'ar' ? '⏱️ ساعات تشغيل' : '⏱️ Running Hours')
+                              : (line.subjectType === 2 || line.subjectType === 'FeederEnergySent'
+                                  ? (document.documentElement.lang === 'ar' ? '📡 فيدر' : '📡 Feeder')
+                                  : 'meter'))))
+                  : line._type} · {dateStr(line.capturedAtUtc)}
+              </span>
               {line.hasSkewWarning && (
                 <span style={{ color: 'var(--warning)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
                   <AlertTriangle size={14} /> {t('operational.review.skewWarning')}
