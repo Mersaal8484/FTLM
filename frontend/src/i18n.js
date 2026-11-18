@@ -7,7 +7,12 @@ export const appTranslations = {
       dashboard: 'Dashboard', overview: 'System Overview', totalGenerators: 'Total Generators',
       totalFuel: 'Total Fuel (L)', totalUsed: 'Used Fuel (L)', fuelType: 'Fuel Type',
       fuelConsumption: 'Fuel Consumption', summary: 'System Summary', noData: 'No Data Available',
-      generators: 'Generators', manageGenerators: 'Manage Generators', addGenerator: 'Add Generator',
+      generators: {
+        table: {
+          name: 'Generator',
+        },
+      },
+      manageGenerators: 'Manage Generators', addGenerator: 'Add Generator',
       activeGenerators: 'Active Generators', activeGeneratorsDesc: 'Active generators linked to control screens',
       edit: 'Edit', delete: 'Delete', close: 'Close', save: 'Save', loading: 'Saving...',
       userManagement: 'Users Management', manageUsers: 'Manage Users & Roles',
@@ -70,12 +75,15 @@ export const appTranslations = {
           comingNext: 'Coming next',
         },
         capture: {
-          eyebrow: 'Field capture', title: 'Submit operational readings', pendingNote: 'Each line needs a verified photo. Captures remain pending until a later review phase.', myHistory: 'My submissions', site: 'Site', chooseSite: 'Choose a site', generator: 'Generator', tank: 'Tank', feeder: 'Feeder', meter: 'Meter', solarProduction: 'Solar Production', solarCumulativeCounter: 'Solar Production Cumulative Meter (kWh)', capturedAt: 'Capture time', addPhoto: 'Add meter photo', compressing: 'Compressing photo…', photoReady: 'Photo ready', remove: 'Remove line', running: 'Generator running', voltage: 'Voltage (V)', current: 'Current (A)', waterTemp: 'Water temperature (°C)', oilPressure: 'Oil pressure', oilTemp: 'Oil temperature (°C)', activeKw: 'Active load (kW)', apparentKva: 'Apparent load (kVA)', frequency: 'Frequency (Hz)', levelCm: 'Liquid level (cm)', rawValue: 'Raw meter value', multiplier: 'Multiplier', subjectType: 'Meter type', subject: 'Meter subject', energy: 'Produced energy', hours: 'Running hours', sent: 'Sent energy', meterReset: 'Meter reset', resetNote: 'Reset note', submit: 'Submit for review', submitting: 'Submitting…', success: 'The capture was submitted as pending.', failed: 'Unable to submit the capture.'
+          eyebrow: 'Field capture', title: 'Submit operational readings', pendingNote: 'Each line needs a verified photo. Captures remain pending until a later review phase.', myHistory: 'My submissions', site: 'Site', chooseSite: 'Choose a site', generator: 'Generator', tank: 'Tank', feeder: 'Feeder', meter: 'Meter', solarProduction: 'Solar Production', solarCumulativeCounter: 'Solar Production Cumulative Meter (kWh)', hourlyMonitoring: 'Hourly Monitoring', dailyTankClosing: 'Daily Tank Closing', capturedAt: 'Capture time', addPhoto: 'Add meter photo', compressing: 'Compressing photo…', photoReady: 'Photo ready', remove: 'Remove line', running: 'Generator running', voltage: 'Voltage (V)', current: 'Current (A)', waterTemp: 'Water temperature (°C)', oilPressure: 'Oil pressure', oilTemp: 'Oil temperature (°C)', activeKw: 'Active load (kW)', apparentKva: 'Apparent load (kVA)', frequency: 'Frequency (Hz)', levelCm: 'Liquid level (cm)', rawValue: 'Raw meter value', multiplier: 'Multiplier', subjectType: 'Meter type', subject: 'Meter subject', energy: 'Produced energy', hours: 'Running hours', sent: 'Sent energy', meterReset: 'Meter reset', resetNote: 'Reset note', submit: 'Submit for review', submitting: 'Submitting…', success: 'The capture was submitted as pending.', failed: 'Unable to submit the capture.'
         },
         history: { title: 'My pending submissions', note: 'These raw captures do not affect official values until they are reviewed.', newCapture: 'New capture', pending: 'Pending', lines: 'lines', empty: 'No operational submissions yet.' },
         review: {
           title: 'Review Submissions', queue: 'Pending Submissions', empty: 'No pending submissions.',
           approveSubmission: 'Approve Submission', rejectLine: 'Reject Line', rejectReason: 'Rejection reason (required)',
+          dailyFuelConsumptionTitle: 'Daily Generator Fuel Consumption', fuelFormulaNote: 'Consumption Formula = Opening Stock + Refills/Transfers − Closing Stock',
+          openingBalance: 'Opening Stock', refillsIn: 'Refills / In', closingBalance: 'Closing Stock',
+          consumptionLitres: 'Consumption (L)', producedKwh: 'Produced Energy (kWh)', kwhPerLiter: 'Efficiency Rate (kWh/L)',
           skewWarning: 'Time skew warning: device clock differs by more than 12 hours.',
           previousValue: 'Previous approved value', deltaPreview: 'Delta preview',
           reuseWarning: 'This photo was used in another submission.',
@@ -116,6 +124,12 @@ export const appTranslations = {
           receipt: 'External Delivery / Receipt',
           transferIn: 'Transfer In',
           transferOut: 'Transfer Out',
+          transferMainToDaily: 'Transfer Main to Daily Tank',
+          sourceMainTank: 'Source Main Tank',
+          destDailyTank: 'Destination Daily Tank',
+          selectDailyTank: 'Select Daily Tank',
+          destBeforeLevelCm: 'Daily Tank Level Before Transfer (cm)',
+          destAfterLevelCm: 'Daily Tank Level After Transfer (cm)',
           beforeLevelCm: 'Before Level (cm)',
           afterLevelCm: 'After Level (cm)',
           deliveryNoteLitres: 'Delivery Note Litres',
@@ -362,7 +376,12 @@ export const appTranslations = {
       dashboard: 'لوحة التحكم', overview: 'نظرة عامة', totalGenerators: 'إجمالي المولدات',
       totalFuel: 'إجمالي الوقود (لتر)', totalUsed: 'الوقود المستهلك (لتر)', fuelType: 'نوع الوقود',
       fuelConsumption: 'استهلاك الوقود', summary: 'ملخص النظام', noData: 'لا توجد بيانات',
-      generators: 'المولدات', manageGenerators: 'إدارة المولدات', addGenerator: 'إضافة مولد',
+      generators: {
+        table: {
+          name: 'المولد',
+        },
+      },
+      manageGenerators: 'إدارة المولدات', addGenerator: 'إضافة مولد',
       activeGenerators: 'المولدات النشطة', activeGeneratorsDesc: 'المولدات النشطة المرتبطة بشاشات التحكم',
       edit: 'تعديل', delete: 'حذف', close: 'إغلاق', save: 'حفظ', loading: 'جاري الحفظ...',
       userManagement: 'إدارة المستخدمين', manageUsers: 'إدارة أدوار وصلاحيات المستخدمين',
@@ -403,12 +422,15 @@ export const appTranslations = {
         description: 'مساحة عمل مضبوطة للإدخال الميداني والمراجعة وسجل البيانات التشغيلية المعتمدة.',
         foundationStatus: 'الإدخال متاح الآن؛ تبقى السجلات معلّقة حتى مرحلة المراجعة.',
         capture: {
-          eyebrow: 'إدخال ميداني', title: 'إرسال القراءات التشغيلية', pendingNote: 'كل سطر يحتاج صورة متحققة. تبقى القراءات معلّقة حتى مرحلة المراجعة.', myHistory: 'إرسالاتي', site: 'الموقع', chooseSite: 'اختر موقعاً', generator: 'مولد', tank: 'خزان', feeder: 'فيدر', meter: 'عداد', solarProduction: 'إنتاج الطاقة الشمسية', solarCumulativeCounter: 'عداد إنتاج الطاقة الشمسية التراكمي (kWh)', capturedAt: 'وقت الالتقاط', addPhoto: 'إضافة صورة العداد', compressing: 'يجري ضغط الصورة…', photoReady: 'الصورة جاهزة', remove: 'حذف السطر', running: 'المولد يعمل', voltage: 'الجهد (فولت)', current: 'التيار (أمبير)', waterTemp: 'حرارة الماء (°م)', oilPressure: 'ضغط الزيت', oilTemp: 'حرارة الزيت (°م)', activeKw: 'الحمل الفعال (kW)', apparentKva: 'الحمل الظاهري (kVA)', frequency: 'التردد (Hz)', levelCm: 'مستوى السائل (سم)', rawValue: 'قيمة العداد الخام', multiplier: 'المضاعف', subjectType: 'نوع العداد', subject: 'مرتبط العداد', energy: 'الطاقة المنتجة', hours: 'ساعات التشغيل', sent: 'الطاقة المرسلة', meterReset: 'إعادة ضبط العداد', resetNote: 'ملاحظة إعادة الضبط', submit: 'إرسال للمراجعة', submitting: 'جارٍ الإرسال…', success: 'تم إرسال القراءة بحالة معلّقة.', failed: 'تعذر إرسال القراءة.'
+          eyebrow: 'إدخال ميداني', title: 'إرسال القراءات التشغيلية', pendingNote: 'كل سطر يحتاج صورة متحققة. تبقى القراءات معلّقة حتى مرحلة المراجعة.', myHistory: 'إرسالاتي', site: 'الموقع', chooseSite: 'اختر موقعاً', generator: 'مولد', tank: 'خزان', feeder: 'فيدر', meter: 'عداد', solarProduction: 'إنتاج الطاقة الشمسية', solarCumulativeCounter: 'عداد إنتاج الطاقة الشمسية التراكمي (kWh)', hourlyMonitoring: 'قراءات ساعية', dailyTankClosing: 'خزانات الوقود (إقفال)', capturedAt: 'وقت الالتقاط', addPhoto: 'إضافة صورة العداد', compressing: 'يجري ضغط الصورة…', photoReady: 'الصورة جاهزة', remove: 'حذف السطر', running: 'المولد يعمل', voltage: 'الجهد (فولت)', current: 'التيار (أمبير)', waterTemp: 'حرارة الماء (°م)', oilPressure: 'ضغط الزيت', oilTemp: 'حرارة الزيت (°م)', activeKw: 'الحمل الفعال (kW)', apparentKva: 'الحمل الظاهري (kVA)', frequency: 'التردد (Hz)', levelCm: 'مستوى السائل (سم)', rawValue: 'قيمة العداد الخام', multiplier: 'المضاعف', subjectType: 'نوع العداد', subject: 'مرتبط العداد', energy: 'الطاقة المنتجة', hours: 'ساعات التشغيل', sent: 'الطاقة المرسلة', meterReset: 'إعادة ضبط العداد', resetNote: 'ملاحظة إعادة الضبط', submit: 'إرسال للمراجعة', submitting: 'جارٍ الإرسال…', success: 'تم إرسال القراءة بحالة معلّقة.', failed: 'تعذر إرسال القراءة.'
         },
         history: { title: '\u0625\u0631\u0633\u0627\u0644\u0627\u062a\u064a \u0627\u0644\u0645\u0639\u0644\u0651\u0642\u0629', note: '\u0647\u0630\u0647 \u0627\u0644\u0642\u0631\u0627\u0621\u0627\u062a \u0627\u0644\u062e\u0627\u0645 \u0644\u0627 \u062a\u0624\u062b\u0631 \u0639\u0644\u0649 \u0627\u0644\u0642\u064a\u0645 \u0627\u0644\u0631\u0633\u0645\u064a\u0629 \u062d\u062a\u0649 \u0645\u0631\u0627\u062c\u0639\u062a\u0647\u0627.', newCapture: '\u0625\u062f\u062e\u0627\u0644 \u062c\u062f\u064a\u062f', pending: '\u0645\u0639\u0644\u0651\u0642', lines: '\u0623\u0633\u0637\u0631', empty: '\u0644\u0627 \u062a\u0648\u062c\u062f \u0625\u0631\u0633\u0627\u0644\u0627\u062a \u062a\u0634\u063a\u064a\u0644\u064a\u0629 \u0628\u0639\u062f.' },
         review: {
           title: '\u0645\u0631\u0627\u062c\u0639\u0629 \u0627\u0644\u0625\u0631\u0633\u0627\u0644\u0627\u062a', queue: '\u0627\u0644\u0625\u0631\u0633\u0627\u0644\u0627\u062a \u0627\u0644\u0645\u0639\u0644\u0651\u0642\u0629', empty: '\u0644\u0627 \u062a\u0648\u062c\u062f \u0625\u0631\u0633\u0627\u0644\u0627\u062a \u0645\u0639\u0644\u0651\u0642\u0629.',
           approveSubmission: '\u0627\u0639\u062a\u0645\u0627\u062f \u0627\u0644\u0625\u0631\u0633\u0627\u0644', rejectLine: '\u0631\u0641\u0636 \u0627\u0644\u0633\u0637\u0631', rejectReason: '\u0633\u0628\u0628 \u0627\u0644\u0631\u0641\u0636 (\u0645\u0637\u0644\u0648\u0628)',
+          dailyFuelConsumptionTitle: 'استهلاك الوقود اليومي للمولدات', fuelFormulaNote: 'معادلة الاستهلاك = رصيد البداية + التعبئة/التحويلات − رصيد نهاية اليوم',
+          openingBalance: 'رصيد البداية', refillsIn: 'الوارد / التعبئة', closingBalance: 'رصيد النهاية',
+          consumptionLitres: 'الاستهلاك (لتر)', producedKwh: 'الطاقة المنتجة (kWh)', kwhPerLiter: 'معدل الكفاءة (kWh/L)',
           skewWarning: '\u062a\u062d\u0630\u064a\u0631 \u0627\u0646\u062d\u0631\u0627\u0641 \u0627\u0644\u062a\u0648\u0642\u064a\u062a: \u0633\u0627\u0639\u0629 \u0627\u0644\u062c\u0647\u0627\u0632 \u062a\u062e\u062a\u0644\u0641 \u0628\u0623\u0643\u062b\u0631 \u0645\u0646 12 \u0633\u0627\u0639\u0629.',
           previousValue: '\u0627\u0644\u0642\u064a\u0645\u0629 \u0627\u0644\u0645\u0639\u062a\u0645\u062f\u0629 \u0627\u0644\u0633\u0627\u0628\u0642\u0629', deltaPreview: '\u0645\u0639\u0627\u064a\u0646\u0629 \u0627\u0644\u0641\u0627\u0631\u0642',
           reuseWarning: '\u0647\u0630\u0647 \u0627\u0644\u0635\u0648\u0631\u0629 \u0645\u0633\u062a\u062e\u062f\u0645\u0629 \u0641\u064a \u0625\u0631\u0633\u0627\u0644 \u0622\u062e\u0631.',
@@ -461,6 +483,12 @@ export const appTranslations = {
           receipt: 'توريد خارجي / استلام',
           transferIn: 'تحويل وارد',
           transferOut: 'تحويل صادر',
+          transferMainToDaily: 'تحويل من الخزان الرئيسي إلى الخزان اليومي',
+          sourceMainTank: 'الخزان الرئيسي (المصدر)',
+          destDailyTank: 'الخزان اليومي (الوجهة)',
+          selectDailyTank: 'اختر الخزان اليومي',
+          destBeforeLevelCm: 'مستوى الخزان اليومي قبل التحويل (سم)',
+          destAfterLevelCm: 'مستوى الخزان اليومي بعد التحويل (سم)',
           beforeLevelCm: 'المستوى قبل (سم)',
           afterLevelCm: 'المستوى بعد (سم)',
           deliveryNoteLitres: 'كمية سند التوريد (لتر)',

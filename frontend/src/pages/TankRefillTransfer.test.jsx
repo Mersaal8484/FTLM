@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, test, expect, vi, afterEach } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import TankRefillTransfer from './TankRefillTransfer';
 import i18n from '../i18n';
 
@@ -24,7 +25,9 @@ describe('TankRefillTransfer', () => {
       return { data: [] };
     });
 
-    render(<TankRefillTransfer />);
+    render(<TankRefillTransfer />, {
+      wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter>,
+    });
 
     await waitFor(() => {
       expect(screen.getByText(i18n.t('operational.tanks.refillTitle'))).toBeInTheDocument();

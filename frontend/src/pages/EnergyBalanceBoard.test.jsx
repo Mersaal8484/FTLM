@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, test, expect, vi, afterEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 
 // ── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -21,7 +22,9 @@ function makeWrapper() {
     defaultOptions: { queries: { retry: false } },
   });
   return ({ children }) => (
-    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    <MemoryRouter>
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    </MemoryRouter>
   );
 }
 
