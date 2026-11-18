@@ -1,5 +1,6 @@
 using FuelTrack.Application.DTOs.Oils;
 using FuelTrack.Application.DTOs.OilTransactions;
+using FuelTrack.Application.DTOs.Operations;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
 using Microsoft.EntityFrameworkCore;
@@ -304,14 +305,11 @@ public class OilService : IOilService
         var stationId = dto.StationId;
         var subStationId = dto.SubStationId;
 
-        if (await _commercialMode.IsCommercialModeAsync(ct))
+        var commercialScope = await GetCommercialScopeAsync(ct);
+        if (commercialScope is not null)
         {
-            var scope = await _commercialMode.GetScopeAsync(ct);
-            if (scope != null)
-            {
-                stationId ??= scope.StationId;
-                subStationId ??= scope.SubStationId;
-            }
+            stationId = commercialScope.StationId;
+            subStationId = commercialScope.SubStationId;
         }
 
         var oil = new Oil
@@ -358,6 +356,10 @@ public class OilService : IOilService
             .FirstOrDefaultAsync(o => o.Id == id && o.DeletedAt == null, ct)
             ?? throw new KeyNotFoundException($"Oil with id {id} not found");
 
+        var commercialScope = await GetCommercialScopeAsync(ct);
+        if (commercialScope is not null && (oil.StationId != commercialScope.StationId || oil.SubStationId != commercialScope.SubStationId))
+            throw new KeyNotFoundException($"Oil with id {id} not found");
+
         if (dto.OilLookupId.HasValue)
         {
             var lookupExists = await _db.Lookups.AnyAsync(l => l.Id == dto.OilLookupId.Value, ct);
@@ -367,8 +369,16 @@ public class OilService : IOilService
         }
         if (dto.CurrentStock.HasValue) oil.CurrentStock = dto.CurrentStock.Value;
         if (dto.MinStock.HasValue) oil.MinStock = dto.MinStock.Value;
-        if (dto.StationId is not null) oil.StationId = dto.StationId;
-        if (dto.SubStationId is not null) oil.SubStationId = dto.SubStationId;
+        if (commercialScope is not null)
+        {
+            oil.StationId = commercialScope.StationId;
+            oil.SubStationId = commercialScope.SubStationId;
+        }
+        else
+        {
+            if (dto.StationId is not null) oil.StationId = dto.StationId;
+            if (dto.SubStationId is not null) oil.SubStationId = dto.SubStationId;
+        }
         if (dto.IsActive.HasValue) oil.IsActive = dto.IsActive.Value;
 
         oil.UpdatedAt = DateTime.UtcNow;
@@ -397,11 +407,24 @@ public class OilService : IOilService
             .FirstOrDefaultAsync(o => o.Id == id && o.IsActive, ct)
             ?? throw new KeyNotFoundException($"Oil with id {id} not found");
 
+        var commercialScope = await GetCommercialScopeAsync(ct);
+        if (commercialScope is not null && (oil.StationId != commercialScope.StationId || oil.SubStationId != commercialScope.SubStationId))
+            throw new KeyNotFoundException($"Oil with id {id} not found");
+
         oil.IsActive = false;
         oil.DeletedAt = DateTime.UtcNow;
         oil.UpdatedAt = DateTime.UtcNow;
         oil.UpdatedBy = userId;
 
         await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task<CommercialStationScope?> GetCommercialScopeAsync(CancellationToken ct)
+    {
+        if (!await _commercialMode.IsCommercialModeAsync(ct))
+            return null;
+
+        return await _commercialMode.GetScopeAsync(ct)
+            ?? throw new InvalidOperationException("Commercial mode has no active technical station scope.");
     }
 }

@@ -26,13 +26,16 @@ function SetupOils({ lang }) {
     setLoading(true);
     try {
       const ts = Date.now();
-      const [oilsRes, stRes, subRes, lookupsRes, brRes] = await Promise.all([
+      const responses = await Promise.all([
         client.get(`/api/oils?t=${ts}`),
-        client.get(`/api/stations?t=${ts}`),
-        client.get(`/api/sub-stations?t=${ts}`),
         client.get(`/api/lookups/by-category/OilType?t=${ts}`),
-        client.get(`/api/branches?t=${ts}`).catch(() => ({ data: [] })),
+        ...(isCommercialMode ? [] : [
+          client.get(`/api/stations?t=${ts}`),
+          client.get(`/api/sub-stations?t=${ts}`),
+          client.get(`/api/branches?t=${ts}`).catch(() => ({ data: [] })),
+        ]),
       ]);
+      const [oilsRes, lookupsRes, stRes = { data: [] }, subRes = { data: [] }, brRes = { data: [] }] = responses;
       setOils(oilsRes.data);
       setStations(Array.isArray(stRes.data) ? stRes.data : []);
       setSubStations(Array.isArray(subRes.data) ? subRes.data.filter(s => s.isActive !== false) : []);
@@ -45,7 +48,7 @@ function SetupOils({ lang }) {
     }
   };
 
-  useEffect(() => { fetchOils(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchOils(); }, [isCommercialMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const flash = (msg) => {
     setSuccessMsg(msg);

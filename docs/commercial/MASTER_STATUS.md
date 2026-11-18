@@ -15,7 +15,7 @@ This is the single implementation-status checklist for Commercial Station Mode.
 | C2.5 B3 — tank commercial residual audit | In progress | Server-side technical-scope resolution now covers tank create, read, update and delete; tank screens omit hierarchy requests in commercial mode. Owner verification remains required. |
 | C2.5 B4 — feeder-meter-only screen | In progress | Meter service resolves create/read/update/delete operations to the technical site and keeps feeder mapping service-owned; solar metering remains preserved from C4.1. Owner verification remains required. |
 | C2.5 B5 — controller commercial residual audit | Pending audit | Do not mark complete without active-mode screen and API evidence |
-| C2.5 B6 — oil setup commercial residual audit | Pending audit | Do not mark complete without active-mode screen and API evidence |
+| C2.5 B6 — oil setup commercial residual audit | In progress | Oil setup hides hierarchy controls and the service now resolves create/update/delete actions to the technical station. Owner verification remains required. |
 | C2.5 B7 — daily fuel tanks | Done in C3, pending active-mode verification | `DailyTanks` and C3 report |
 | C2.5 B8 — users shift/scope hiding | Done in C2, pending active-mode verification | `Users.jsx`, `UserService` |
 | C2.5 B10 — feeders hidden/redirected | In progress | Registry remains enterprise-only and the direct `/feeders` route now redirects in commercial mode. The hidden mapping remains owned by `MeterService`. Owner verification remains required. |
