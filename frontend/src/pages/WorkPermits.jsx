@@ -26,6 +26,13 @@ const statusCfg = {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+function responseList(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.data)) return data.data;
+  throw new Error('Unexpected list response');
+}
+
 const initialForm = {
   subStationId: '',
   generatorId: '',
@@ -93,11 +100,13 @@ function WorkPermits({ lang, currentUser }) {
         client.get('/api/lookups/by-category/MaintenanceDepartment'),
         client.get('/api/lookups/by-category/MaintenancePriority'),
       ]);
-      if (!isCommercialMode && subRes.status === 'fulfilled') setSubStations(subRes.value.data || []);
-      if (mtRes.status === 'fulfilled') setMaintenanceTypes(mtRes.value.data || []);
-      if (depRes.status === 'fulfilled') setDepartments(depRes.value.data || []);
-      if (priRes.status === 'fulfilled') setPriorities(priRes.value.data || []);
-    } catch { /* ignore lookup errors */ }
+      if (!isCommercialMode && subRes.status === 'fulfilled') setSubStations(responseList(subRes.value.data));
+      if (mtRes.status === 'fulfilled') setMaintenanceTypes(responseList(mtRes.value.data));
+      if (depRes.status === 'fulfilled') setDepartments(responseList(depRes.value.data));
+      if (priRes.status === 'fulfilled') setPriorities(responseList(priRes.value.data));
+      if ([subRes, mtRes, depRes, priRes].some(result => result.status === 'rejected'))
+        setError(ar ? 'تعذر تحميل بعض بيانات النموذج. حاول مجدداً.' : 'Some form data could not be loaded. Please try again.');
+    } catch { setError(ar ? 'تعذر تحميل بيانات النموذج' : 'Failed to load form data'); }
     finally { setLookupsLoading(false); }
   };
 
@@ -111,15 +120,17 @@ function WorkPermits({ lang, currentUser }) {
         client.get('/api/work-permits', { params }),
         client.get('/api/generators', { params: { _t: Date.now() } }),
       ]);
-      if (wpRes.status === 'fulfilled') setPermits(wpRes.value.data?.items || wpRes.value.data || []);
+      if (wpRes.status === 'fulfilled') setPermits(responseList(wpRes.value.data));
       if (genRes.status === 'fulfilled') {
-        const items = Array.isArray(genRes.value.data?.data) ? genRes.value.data.data : (Array.isArray(genRes.value.data) ? genRes.value.data : []);
+        const items = responseList(genRes.value.data);
         setGenerators(items);
         if (isCommercialMode) {
           const sites = [...new Map(items.filter(g => g.subStationId).map(g => [g.subStationId, { id: g.subStationId, name: g.subStationName || (ar ? 'المحطة التجارية' : 'Commercial station') }])).values()];
           setSubStations(sites);
         }
       }
+      if ([wpRes, genRes].some(result => result.status === 'rejected'))
+        setError(ar ? 'تعذر تحميل بعض البيانات. حاول مجدداً.' : 'Some data could not be loaded. Please try again.');
     } catch { setError(ar ? 'فشل تحميل البيانات' : 'Failed to load data'); }
     finally { setLoading(false); }
   };
