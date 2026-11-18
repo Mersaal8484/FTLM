@@ -5,6 +5,7 @@ import client from '../../api/client';
 import ConfirmModal from '../../components/ConfirmModal';
 import Pagination from '../../components/Pagination';
 import { exportToExcel } from '../reports/utils/reportExport';
+import useCommercialMode from '../../hooks/useCommercialMode';
 
 const INITIAL_FILTERS = {
   dateFrom: '', dateTo: '', stationId: '', subStationId: '', kind: '',
@@ -12,6 +13,7 @@ const INITIAL_FILTERS = {
 };
 
 export default function GeneralMovementLog({ lang, canApprove = false }) {
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const { t } = useTranslation();
   const locale = lang === 'ar' ? 'ar-YE-u-nu-latn' : 'en-US';
   const [filters, setFilters] = useState(INITIAL_FILTERS);
@@ -49,11 +51,12 @@ export default function GeneralMovementLog({ lang, canApprove = false }) {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
+    if (!modeResolved || isCommercialMode) return;
     Promise.allSettled([client.get('/api/stations'), client.get('/api/sub-stations')]).then(([stationResult, siteResult]) => {
       if (stationResult.status === 'fulfilled') setStations(stationResult.value.data || []);
       if (siteResult.status === 'fulfilled') setSites(siteResult.value.data || []);
     });
-  }, []);
+  }, [isCommercialMode, modeResolved]);
 
   const changeSort = (sort) => {
     setApplied(current => ({

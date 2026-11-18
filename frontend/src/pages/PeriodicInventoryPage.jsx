@@ -126,24 +126,28 @@ function PeriodicInventoryPage({ lang, currentUser }) {
     [currentUser?.assignedSubStations]
   );
   const canSeeAllSites = currentUser?.role === 'admin' || assignedSubStationIds.size === 0;
-  const siteOptions = useMemo(() => subStations.filter(site => {
+  const siteOptions = useMemo(() => {
+    if (isCommercialMode) {
+      const ids = [...new Set([...tanks, ...oils].map(item => item.subStationId).filter(Boolean))];
+      return ids.map(id => ({ id, stationId: 'commercial', label: ar ? 'المحطة التجارية' : 'Commercial station' }));
+    }
+    return subStations.filter(site => {
     const siteId = site.id || site._id;
     return canSeeAllSites || assignedSubStationIds.has(String(siteId));
   }).map(site => {
     const station = stations.find(s =>
-      s.id === site.station_id ||
-      s._id === site.station_id ||
-      String(s.stationId) === String(site.station_id)
+      String(s.id || s._id) === String(site.stationId ?? site.station_id)
     );
     return {
       id: site.id || site._id,
-      stationId: station?.id || station?._id || site.station_id,
+      stationId: station?.id || station?._id || site.stationId || site.station_id,
       label: station?.name ? `${station.name} — ${site.name}` : site.name,
     };
-  }), [stations, subStations, canSeeAllSites, assignedSubStationIds]);
+    });
+  }, [stations, subStations, canSeeAllSites, assignedSubStationIds, isCommercialMode, tanks, oils, ar]);
 
   const handleLocationChange = (siteId) => {
-    const site = siteOptions.find(s => s.id === siteId);
+    const site = siteOptions.find(s => String(s.id) === String(siteId));
     setNewForm(f => ({
       ...f,
       station: site?.stationId || '',
@@ -157,14 +161,14 @@ function PeriodicInventoryPage({ lang, currentUser }) {
   useEffect(() => {
     if (newForm.station) {
       const stationTanks = tanks.filter(t => {
-        const tankStation = getRefId(t.station);
-        const tankSubStation = getRefId(t.subStation);
-        return newForm.subStation ? tankSubStation === newForm.subStation : tankStation === newForm.station;
+        const tankStation = getRefId(t.stationId ?? t.station);
+        const tankSubStation = getRefId(t.subStationId ?? t.subStation);
+        return newForm.subStation ? String(tankSubStation) === String(newForm.subStation) : String(tankStation) === String(newForm.station);
       });
       const stationOils = oils.filter(o => {
-        const oilStation = getRefId(o.station);
-        const oilSubStation = getRefId(o.subStation);
-        return newForm.subStation ? oilSubStation === newForm.subStation : oilStation === newForm.station;
+        const oilStation = getRefId(o.stationId ?? o.station);
+        const oilSubStation = getRefId(o.subStationId ?? o.subStation);
+        return newForm.subStation ? String(oilSubStation) === String(newForm.subStation) : String(oilStation) === String(newForm.station);
       });
       setNewForm(f => ({
         ...f,

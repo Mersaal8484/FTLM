@@ -4,6 +4,7 @@ import client from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 const priorityCfg = {
   low:      { cls: 'badge-secondary', label: { ar: 'عادي', en: 'Normal' } },
@@ -43,6 +44,7 @@ const initialForm = {
 
 function WorkPermits({ lang, currentUser }) {
   const ar = lang === 'ar';
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const [permits, setPermits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -86,12 +88,12 @@ function WorkPermits({ lang, currentUser }) {
     setLookupsLoading(true);
     try {
       const [subRes, mtRes, depRes, priRes] = await Promise.allSettled([
-        client.get('/api/sub-stations', { params: { _t: Date.now() } }),
+        isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/sub-stations', { params: { _t: Date.now() } }),
         client.get('/api/lookups/by-category/MaintenanceType'),
         client.get('/api/lookups/by-category/MaintenanceDepartment'),
         client.get('/api/lookups/by-category/MaintenancePriority'),
       ]);
-      if (subRes.status === 'fulfilled') setSubStations(subRes.value.data || []);
+      if (!isCommercialMode && subRes.status === 'fulfilled') setSubStations(subRes.value.data || []);
       if (mtRes.status === 'fulfilled') setMaintenanceTypes(mtRes.value.data || []);
       if (depRes.status === 'fulfilled') setDepartments(depRes.value.data || []);
       if (priRes.status === 'fulfilled') setPriorities(priRes.value.data || []);
@@ -110,13 +112,20 @@ function WorkPermits({ lang, currentUser }) {
         client.get('/api/generators', { params: { _t: Date.now() } }),
       ]);
       if (wpRes.status === 'fulfilled') setPermits(wpRes.value.data?.items || wpRes.value.data || []);
-      if (genRes.status === 'fulfilled') setGenerators(Array.isArray(genRes.value.data?.data) ? genRes.value.data.data : (Array.isArray(genRes.value.data) ? genRes.value.data : []));
+      if (genRes.status === 'fulfilled') {
+        const items = Array.isArray(genRes.value.data?.data) ? genRes.value.data.data : (Array.isArray(genRes.value.data) ? genRes.value.data : []);
+        setGenerators(items);
+        if (isCommercialMode) {
+          const sites = [...new Map(items.filter(g => g.subStationId).map(g => [g.subStationId, { id: g.subStationId, name: g.subStationName || (ar ? 'المحطة التجارية' : 'Commercial station') }])).values()];
+          setSubStations(sites);
+        }
+      }
     } catch { setError(ar ? 'فشل تحميل البيانات' : 'Failed to load data'); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [statusFilter, priorityFilter]); // eslint-disable-line
-  useEffect(() => { loadLookups(); }, []); // eslint-disable-line
+  useEffect(() => { if (modeResolved) load(); }, [statusFilter, priorityFilter, isCommercialMode, modeResolved]); // eslint-disable-line
+  useEffect(() => { if (modeResolved) loadLookups(); }, [isCommercialMode, modeResolved]); // eslint-disable-line
 
   const openAdd = () => { setForm(initialForm); setEditId(null); setShowModal(true); setError(null); };
   const openEdit = async (p) => {

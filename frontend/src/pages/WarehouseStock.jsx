@@ -2,11 +2,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { PackageSearch, AlertTriangle, RefreshCw } from 'lucide-react';
 import client from '../api/client';
 import Pagination from '../components/Pagination';
+import useCommercialMode from '../hooks/useCommercialMode';
+import { useNavigate } from 'react-router-dom';
 
 const fmt = (v, d = 0) => v != null ? Number(v).toLocaleString('en-US', { maximumFractionDigits: d }) : '—';
 
 function WarehouseStock({ lang, currentUser }) {
   const ar = lang === 'ar';
+  const navigate = useNavigate();
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const [stock, setStock] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -16,8 +20,8 @@ function WarehouseStock({ lang, currentUser }) {
   const PAGE_SIZE = 20;
   const [activeTab, setActiveTab] = useState('all');
 
-  const perms = currentUser?.permissions?.warehouse || {};
-  const canRequest = currentUser?.role === 'admin' || perms.add || perms.request;
+  const canSupply = ['admin', 'manager'].includes(currentUser?.role?.toLowerCase()) ||
+    (currentUser?.roles || []).some(role => ['admin', 'manager'].includes(String(role).toLowerCase()));
 
   const load = async () => {
     setLoading(true); setError(null);
@@ -26,7 +30,7 @@ function WarehouseStock({ lang, currentUser }) {
       if (stationFilter) params.stationId = stationFilter;
       const [stockRes, stRes] = await Promise.allSettled([
         client.get('/api/warehouse/stock', { params }),
-        client.get('/api/stations', { params: { _t: Date.now() } }),
+        isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/stations', { params: { _t: Date.now() } }),
       ]);
       if (stockRes.status === 'fulfilled') setStock(stockRes.value.data?.items || stockRes.value.data || []);
       if (stRes.status === 'fulfilled') setStations(stRes.value.data || []);
@@ -34,7 +38,7 @@ function WarehouseStock({ lang, currentUser }) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [stationFilter]);
+  useEffect(() => { if (modeResolved) load(); }, [stationFilter, modeResolved, isCommercialMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = useMemo(() => {
     let data = stock;
@@ -55,18 +59,6 @@ function WarehouseStock({ lang, currentUser }) {
     if (row.currentQuantity <= row.minStockQuantity) return { background: 'var(--danger-subtle)' };
     if (row.currentQuantity <= row.minStockQuantity * 1.2) return { background: 'var(--warning-subtle)' };
     return { background: 'color-mix(in srgb, var(--success) 7%, transparent)' };
-  };
-
-  const requestSupply = async (row) => {
-    try {
-      const qty = Math.max((row.minStockQuantity || 0) - (row.currentQuantity || 0), 0);
-      await client.post('/api/warehouse/dispatch', {
-        subStationId: row.stationId,
-        stationId: row.stationId,
-        items: [{ sparePartId: row.sparePartId, requestedQuantity: qty, notes: '' }],
-      });
-      alert(ar ? 'تم إرسال طلب التوريد' : 'Supply request sent');
-    } catch { alert(ar ? 'فشل إرسال الطلب' : 'Failed to send request'); }
   };
 
   return (
@@ -134,9 +126,9 @@ function WarehouseStock({ lang, currentUser }) {
                     <td style={{ color: row.availableQuantity <= 0 ? 'var(--danger)' : 'var(--primary)', fontWeight: 700 }}>{fmt(row.availableQuantity)}</td>
                     <td>{fmt(row.minStockQuantity)}</td>
                     <td style={{ textAlign: 'center' }}>
-                      {(row.availableQuantity <= 0 || row.currentQuantity <= (row.minStockQuantity || 0)) && canRequest && (
-                        <button className="btn btn-sm btn-primary" onClick={() => requestSupply(row)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <AlertTriangle size={14} /> {ar ? 'طلب توريد' : 'Request Supply'}
+                      {(row.availableQuantity <= 0 || row.currentQuantity <= (row.minStockQuantity || 0)) && canSupply && (
+                        <button className="btn btn-sm btn-primary" onClick={() => navigate('/warehouse/supply')} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <AlertTriangle size={14} /> {ar ? 'سند توريد' : 'Supply voucher'}
                         </button>
                       )}
                     </td>
