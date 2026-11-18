@@ -8,6 +8,19 @@ namespace FuelTrack.Tests.Services;
 public class StartupSecretsValidatorTests
 {
     [Fact]
+    public void Validate_KnownDefaults_AreRejected()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["JwtSettings:Key"] = "FuelTrack2026!SecureJwtKey12345678901234567890",
+            ["AdminSettings:DefaultPassword"] = "FuelTrack!2026Secure#Pass"
+        }).Build();
+        var result = new StartupSecretsValidator(config).Validate();
+        Assert.Contains(result.Errors, e => e.Contains("JwtSettings:Key"));
+        Assert.Contains(result.Errors, e => e.Contains("AdminSettings:DefaultPassword"));
+    }
+
+    [Fact]
     public void Validate_ValidProductionConfig_ReturnsSuccess()
     {
         // Arrange

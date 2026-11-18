@@ -12,6 +12,19 @@ namespace FuelTrack.Tests.Integration;
 public class AuthApiTests : IntegrationTestBase
 {
     [Fact]
+    public async Task Register_IsDisabledByDefault()
+    {
+        var response = await Factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest
+        {
+            UserName = "uninvited",
+            FullName = "Uninvited User",
+            Email = "uninvited@example.com",
+            Password = TestPassword
+        });
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Login_ValidCredentials_ReturnsOkWithToken()
     {
         // Test user is seeded in IntegrationTestBase.InitializeAsync

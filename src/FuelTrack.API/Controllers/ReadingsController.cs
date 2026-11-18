@@ -3,6 +3,8 @@ using FuelTrack.Application.DTOs.Readings;
 using FuelTrack.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace FuelTrack.API.Controllers;
 
@@ -14,12 +16,14 @@ public class ReadingsController : BaseApiController
     private readonly IReadingService _readingService;
     private readonly IRealtimeNotifier _notifier;
     private readonly IWorkflowNotificationService _workflowNotifications;
+    private readonly IConfiguration _configuration;
 
-    public ReadingsController(IReadingService readingService, IRealtimeNotifier notifier, IWorkflowNotificationService workflowNotifications)
+    public ReadingsController(IReadingService readingService, IRealtimeNotifier notifier, IWorkflowNotificationService workflowNotifications, IConfiguration configuration)
     {
         _readingService = readingService;
         _notifier = notifier;
         _workflowNotifications = workflowNotifications;
+        _configuration = configuration;
     }
 
     [HttpPost]
@@ -139,6 +143,17 @@ public class ReadingsController : BaseApiController
     [AllowAnonymous]
     public async Task<IActionResult> ReceiveModbusReading([FromBody] ModbusReadingDto dto)
     {
+        var configuredKey = _configuration["ModbusGateway:ApiKey"];
+        var providedKeys = Request.Headers["X-Modbus-Key"];
+        if (string.IsNullOrWhiteSpace(configuredKey) || configuredKey.Length < 32 || providedKeys.Count != 1 ||
+            !CryptographicOperations.FixedTimeEquals(
+                SHA256.HashData(Encoding.UTF8.GetBytes(configuredKey)),
+                SHA256.HashData(Encoding.UTF8.GetBytes(providedKeys[0] ?? ""))))
+            return Unauthorized();
+
+        if (dto.GeneratorId <= 0 || !float.IsFinite(dto.FuelLevelLiters) || dto.FuelLevelLiters < 0 || dto.ReadingTimestamp == default)
+            return BadRequest();
+
         var result = await _readingService.SaveModbusReadingAsync(dto.GeneratorId, dto.FuelLevelLiters, dto.ReadingTimestamp);
         return Ok(result);
     }

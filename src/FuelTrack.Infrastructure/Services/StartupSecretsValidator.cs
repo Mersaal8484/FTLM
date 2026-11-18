@@ -57,7 +57,8 @@ public class StartupSecretsValidator : ISecretsValidator
         }
 
         if (key.Contains("Replace", StringComparison.OrdinalIgnoreCase) ||
-            key.Contains("Secret", StringComparison.OrdinalIgnoreCase))
+            key.Contains("Secret", StringComparison.OrdinalIgnoreCase) ||
+            key == "FuelTrack2026!SecureJwtKey12345678901234567890")
         {
             result.Errors.Add("JwtSettings:Key contains placeholder text (Replace/Secret). Set a unique production key.");
         }
@@ -115,7 +116,8 @@ public class StartupSecretsValidator : ISecretsValidator
         }
 
         if (password.Contains("DevAdmin", StringComparison.OrdinalIgnoreCase) ||
-            password.Contains("Admin@123", StringComparison.OrdinalIgnoreCase))
+            password.Contains("Admin@123", StringComparison.OrdinalIgnoreCase) ||
+            password == "FuelTrack!2026Secure#Pass")
         {
             result.Errors.Add("SECURITY: AdminSettings:DefaultPassword is using a development default. Set a strong password.");
         }

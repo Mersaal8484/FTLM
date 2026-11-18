@@ -383,6 +383,13 @@ if (!string.IsNullOrEmpty(otelEndpoint))
 
 var app = builder.Build();
 
+if (app.Environment.IsProduction() && !builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
+{
+    var validationResult = app.Services.GetRequiredService<ISecretsValidator>().Validate();
+    if (!validationResult.IsValid)
+        throw new InvalidOperationException($"Startup secrets validation failed: {string.Join("; ", validationResult.Errors)}");
+}
+
 if (localDemoMode)
 {
     app.Use(async (context, next) =>
@@ -409,6 +416,7 @@ app.UseMiddleware<TokenCookieToHeaderMiddleware>();
 
 app.UseCors("AllowFrontend");
 app.UseRateLimiter();
+app.UseAuthentication();
 
 var enableSwagger = builder.Configuration.GetValue<bool>("EnableSwagger");
 if (app.Environment.IsDevelopment() || enableSwagger)
@@ -417,7 +425,7 @@ if (app.Environment.IsDevelopment() || enableSwagger)
     {
         app.Use(async (context, next) =>
         {
-            if (!context.User.Identity?.IsAuthenticated ?? true)
+            if (context.Request.Path.StartsWithSegments("/swagger") && !(context.User.Identity?.IsAuthenticated ?? false))
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 await context.Response.WriteAsJsonAsync(new { error = "Unauthorized" });
@@ -435,7 +443,6 @@ if (app.Environment.IsDevelopment() || enableSwagger)
     });
 }
 
-app.UseAuthentication();
 if (builder.Configuration.GetValue<bool>("MultiTenancy:Enabled"))
     app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseAuthorization();
@@ -583,19 +590,6 @@ using (var scope = app.Services.CreateScope())
     var roleService = new FuelTrack.Infrastructure.Services.RoleService(roleManager, userManager, dbContext, scope.ServiceProvider.GetRequiredService<ICacheService>());
     await RetryAsync("RoleService.Init", () => roleService.InitAsync());
 
-    // Validate secrets in production before proceeding
-    if (app.Environment.IsProduction())
-    {
-        var secretsValidator = app.Services.GetRequiredService<ISecretsValidator>();
-        var validationResult = secretsValidator.Validate();
-        if (!validationResult.IsValid)
-        {
-            var errorMessages = string.Join("; ", validationResult.Errors);
-            startupLogger.LogCritical("Startup secrets validation failed: {Errors}", errorMessages);
-            throw new InvalidOperationException($"Startup secrets validation failed: {errorMessages}");
-        }
-    }
-
     // Ensure admin@ft.com exists with SystemOwner (and Admin) role and full scope
     const string adminEmail = "admin@ft.com";
     var adminPassword = builder.Configuration["AdminSettings:DefaultPassword"]
@@ -710,10 +704,16 @@ using (var scope = app.Services.CreateScope())
             job => job.ExecuteAsync(CancellationToken.None),
             Cron.Monthly);
 
-    recurringJobManager.AddOrUpdate<DatabaseBackupJob>(
-        "database-backup",
-        job => job.ExecuteAsync(CancellationToken.None),
-        "0 2 * * *");
+    if (!string.IsNullOrWhiteSpace(builder.Configuration["DatabaseBackup:Directory"]))
+        recurringJobManager.AddOrUpdate<DatabaseBackupJob>(
+            "database-backup",
+            job => job.ExecuteAsync(CancellationToken.None),
+            "0 2 * * *");
+    else
+    {
+        recurringJobManager.RemoveIfExists("database-backup");
+        startupLogger.LogWarning("Database backup is not scheduled: DatabaseBackup:Directory is not configured. Configure external backups or a SQL Server backup directory.");
+    }
 
     recurringJobManager.AddOrUpdate<FuelStockAlertJob>(
         "fuel-stock-alerts",
