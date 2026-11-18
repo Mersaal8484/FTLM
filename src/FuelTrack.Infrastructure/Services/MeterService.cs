@@ -1,4 +1,5 @@
 using FuelTrack.Application.DTOs.Meters;
+using FuelTrack.Application.DTOs.Operations;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
 using Microsoft.EntityFrameworkCore;
@@ -52,6 +53,7 @@ public class MeterService : IMeterService
 
     public async Task<MeterDetailDto> CreateAsync(CreateMeterDto dto)
     {
+        var commercialScope = await GetCommercialScopeAsync();
         var meterTypeLookupId = dto.MeterTypeLookupId;
         if (!meterTypeLookupId.HasValue && !string.IsNullOrWhiteSpace(dto.MeterType))
         {
@@ -61,10 +63,10 @@ public class MeterService : IMeterService
         var meter = new Meter
         {
             Name = dto.MeterName ?? string.Empty,
-            SubStationId = dto.SubStationId,
+            SubStationId = commercialScope?.SubStationId ?? dto.SubStationId,
             MeterTypeLookupId = meterTypeLookupId,
             SerialNumber = dto.SerialNumber,
-            GeneratorId = dto.GeneratorId,
+            GeneratorId = commercialScope is null ? dto.GeneratorId : null,
             HoursReading = dto.HoursReading,
             EnergyReading = dto.EnergyReading,
             IsActive = dto.IsActive ?? true,
@@ -75,7 +77,7 @@ public class MeterService : IMeterService
         _db.Meters.Add(meter);
         await _db.SaveChangesAsync();
 
-        if (await _commercialMode.IsCommercialModeAsync())
+        if (commercialScope is not null)
         {
             var isSolarProduction = false;
             if (meter.MeterTypeLookupId.HasValue)
@@ -89,8 +91,7 @@ public class MeterService : IMeterService
 
             if (!isSolarProduction)
             {
-                var scope = await _commercialMode.GetScopeAsync();
-                var subStationId = meter.SubStationId ?? scope?.SubStationId;
+                var subStationId = meter.SubStationId;
                 if (subStationId.HasValue)
                 {
                     var feeder = new Feeder
@@ -117,6 +118,10 @@ public class MeterService : IMeterService
         var meter = await _db.Meters.FindAsync(id)
             ?? throw new KeyNotFoundException($"Meter {id} not found.");
 
+        var commercialScope = await GetCommercialScopeAsync();
+        if (commercialScope is not null && meter.SubStationId != commercialScope.SubStationId)
+            throw new KeyNotFoundException($"Meter {id} not found.");
+
         var meterTypeLookupId = dto.MeterTypeLookupId;
         if (!meterTypeLookupId.HasValue && !string.IsNullOrWhiteSpace(dto.MeterType))
         {
@@ -124,10 +129,10 @@ public class MeterService : IMeterService
         }
 
         meter.Name = dto.MeterName ?? meter.Name;
-        meter.SubStationId = dto.SubStationId;
+        meter.SubStationId = commercialScope?.SubStationId ?? dto.SubStationId;
         if (meterTypeLookupId.HasValue) meter.MeterTypeLookupId = meterTypeLookupId.Value;
         meter.SerialNumber = dto.SerialNumber;
-        meter.GeneratorId = dto.GeneratorId;
+        meter.GeneratorId = commercialScope is null ? dto.GeneratorId : null;
         meter.HoursReading = dto.HoursReading;
         meter.EnergyReading = dto.EnergyReading;
         if (dto.IsActive.HasValue) meter.IsActive = dto.IsActive.Value;
@@ -135,7 +140,7 @@ public class MeterService : IMeterService
 
         await _db.SaveChangesAsync();
 
-        if (await _commercialMode.IsCommercialModeAsync())
+        if (commercialScope is not null)
         {
             var feeder = await _db.Feeders.FirstOrDefaultAsync(f => f.MeterId == meter.Id && f.DeletedAt == null);
             if (feeder is not null)
@@ -152,6 +157,10 @@ public class MeterService : IMeterService
 
     public async Task<MeterDetailDto?> GetByIdAsync(int id)
     {
+        var commercialScope = await GetCommercialScopeAsync();
+        if (commercialScope is not null)
+            return await MapToDetailAsync(id, commercialScope.SubStationId);
+
         if (!_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
@@ -193,6 +202,29 @@ public class MeterService : IMeterService
 
     public async Task<List<MeterListDto>> GetAllAsync()
     {
+        var commercialScope = await GetCommercialScopeAsync();
+        if (commercialScope is not null)
+        {
+            return await _db.Meters
+                .AsNoTracking()
+                .Include(m => m.SubStation).ThenInclude(ss => ss.Station).ThenInclude(s => s.Branch)
+                .Include(m => m.Generator)
+                .Include(m => m.MeterTypeLookup)
+                .Where(m => m.SubStationId == commercialScope.SubStationId)
+                .OrderBy(m => m.Name)
+                .Select(m => new MeterListDto(
+                    m.Id, m.Name, m.SubStationId,
+                    m.SubStation == null ? null : m.SubStation.Name,
+                    m.SubStation != null ? m.SubStation.StationId : null,
+                    m.SubStation != null ? m.SubStation.Station.Name : null,
+                    m.SubStation != null && m.SubStation.Station != null ? m.SubStation.Station.BranchId : null,
+                    m.SubStation != null && m.SubStation.Station != null && m.SubStation.Station.Branch != null ? m.SubStation.Station.Branch.Name : null,
+                    m.MeterTypeLookupId, m.MeterTypeLookup != null ? m.MeterTypeLookup.Name : null,
+                    m.SerialNumber, m.GeneratorId, m.Generator == null ? null : m.Generator.Name,
+                    m.HoursReading, m.EnergyReading, m.IsActive))
+                .ToListAsync();
+        }
+
         if (!_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
@@ -257,7 +289,11 @@ public class MeterService : IMeterService
 
     public async Task<List<MeterListDto>> GetBySubStationAsync(int subStationId)
     {
-        if (!_currentUser.HasAnyAdminRole)
+        var commercialScope = await GetCommercialScopeAsync();
+        if (commercialScope is not null)
+            subStationId = commercialScope.SubStationId;
+
+        if (commercialScope is null && !_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
             if (currentUserId.HasValue)
@@ -300,7 +336,11 @@ public class MeterService : IMeterService
         var meter = await _db.Meters.FindAsync(id)
             ?? throw new KeyNotFoundException($"Meter {id} not found.");
 
-        if (await _commercialMode.IsCommercialModeAsync())
+        var commercialScope = await GetCommercialScopeAsync();
+        if (commercialScope is not null && meter.SubStationId != commercialScope.SubStationId)
+            throw new KeyNotFoundException($"Meter {id} not found.");
+
+        if (commercialScope is not null)
         {
             var feeder = await _db.Feeders.FirstOrDefaultAsync(f => f.MeterId == id && f.DeletedAt == null);
             if (feeder is not null)
@@ -314,14 +354,23 @@ public class MeterService : IMeterService
         await _db.SaveChangesAsync();
     }
 
-    private async Task<MeterDetailDto?> MapToDetailAsync(int id)
+    private async Task<CommercialStationScope?> GetCommercialScopeAsync()
+    {
+        if (!await _commercialMode.IsCommercialModeAsync())
+            return null;
+
+        return await _commercialMode.GetScopeAsync()
+            ?? throw new InvalidOperationException("Commercial mode has no active technical station scope.");
+    }
+
+    private async Task<MeterDetailDto?> MapToDetailAsync(int id, int? requiredSubStationId = null)
     {
         return await _db.Meters
             .AsNoTracking()
             .Include(m => m.SubStation).ThenInclude(ss => ss.Station).ThenInclude(s => s.Branch)
             .Include(m => m.Generator)
             .Include(m => m.MeterTypeLookup)
-            .Where(m => m.Id == id)
+            .Where(m => m.Id == id && (!requiredSubStationId.HasValue || m.SubStationId == requiredSubStationId.Value))
             .Select(m => new MeterDetailDto(
                 m.Id,
                 m.Name,
