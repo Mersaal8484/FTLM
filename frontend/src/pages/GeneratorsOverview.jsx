@@ -169,10 +169,6 @@ function GeneratorsOverview({ lang }) {
       return matchSearch && matchStatus && (isCommercial || matchOwner);
     });
   }, [generators, search, statusFilter, ownerFilter, isCommercial]);
-      const matchOwner  = ownerFilter === 'all' || g.ownershipTypeLookupName === ownerFilter;
-      return matchSearch && matchStatus && matchOwner;
-    });
-  }, [generators, search, statusFilter, ownerFilter]);
 
   const grouped = useMemo(() => {
     const tree = {};
