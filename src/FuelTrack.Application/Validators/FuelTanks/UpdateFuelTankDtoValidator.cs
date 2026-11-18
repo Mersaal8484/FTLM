@@ -15,13 +15,11 @@ public class UpdateFuelTankDtoValidator : AbstractValidator<UpdateFuelTankDto>
         When(x => x.DeadStockLiters.HasValue, () => RuleFor(x => x.DeadStockLiters!.Value).GreaterThanOrEqualTo(0));
         When(x => x.ActualStockLiters.HasValue, () => RuleFor(x => x.ActualStockLiters!.Value).GreaterThanOrEqualTo(0));
         When(x => x.Notes is not null, () => RuleFor(x => x.Notes).MaximumLength(1000));
-#pragma warning disable CS0618 // Type or member is obsolete
         When(x => x.Shape.HasValue, () =>
         {
             RuleFor(x => x.Shape)
-                .Must(s => s != TankShape.HorizontalCylinderWithConicalEnds)
-                .WithMessage("Horizontal cylinder with conical ends (Shape = 1) is not supported. Tanks must use vertical cylinder with conical bottom (Shape = 0).");
+                .Must(s => !s.HasValue || Enum.IsDefined(typeof(TankShape), s.Value))
+                .WithMessage("Unsupported tank shape. Only vertical cylinder with conical bottom (Shape = 0) is supported.");
         });
-#pragma warning restore CS0618
     }
 }

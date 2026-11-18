@@ -1,11 +1,17 @@
 -- ==============================================================================
--- Audit Query: List Horizontal Conical Fuel Tanks (Shape = 1)
+-- PRE-DEPLOYMENT CHECK: Fuel Tanks with Shape = 1 (formerly HorizontalCylinderWithConicalEnds)
 -- ==============================================================================
 -- Purpose:
---   Inspect existing FuelTanks rows configured with Shape = 1
---   (HorizontalCylinderWithConicalEnds) following owner confirmation that all
---   commercial station tanks (main and daily) are vertical cylinders with conical
---   bottoms (TankShape.VerticalCylinderWithConicalBottom = 0).
+--   Run this script BEFORE deploying to production to confirm that no FuelTanks
+--   rows with Shape = 1 exist. The HorizontalCylinderWithConicalEnds geometry has
+--   been removed from the application entirely (Job 2, branch development).
+--   Shape = 1 is now an undefined enum value rejected at the API boundary.
+--
+-- If this query returns rows:
+--   The owner must decide how to handle them manually. Horizontal dimensions
+--   (diameter, cylinder length, end-cone depth) have different physical meanings
+--   from vertical dimensions and MUST NOT be automatically converted.
+--   Contact the station administrator before deploying.
 --
 -- Safety:
 --   READ-ONLY. This script DOES NOT modify, update, or convert any records.

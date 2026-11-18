@@ -74,10 +74,8 @@ public sealed class TankCalibrationService(
 
     private static bool IsValid(UpdateTankCalibrationDto dto)
     {
-#pragma warning disable CS0618
-        if (dto.Shape == TankShape.HorizontalCylinderWithConicalEnds)
+        if (dto.Shape.HasValue && !Enum.IsDefined(typeof(TankShape), dto.Shape.Value))
             return false;
-#pragma warning restore CS0618
         var maxLevel = dto.CylinderHeightCm + dto.ConeHeightCm;
 
         return dto.DiameterCm > 0 && dto.CylinderHeightCm >= 0 && dto.ConeHeightCm > 0 && dto.MultiplicationFactor > 0 &&

@@ -43,12 +43,8 @@ public class FuelTankService : IFuelTankService
             throw new ArgumentException("Daily tank must be associated with a generator.");
         }
 
-#pragma warning disable CS0618
-        if (dto.Shape == TankShape.HorizontalCylinderWithConicalEnds)
-        {
-            throw new ArgumentException("Horizontal tanks with conical ends (Shape = 1) are not supported. Commercial and enterprise tanks must use vertical cylinder with conical bottom.");
-        }
-#pragma warning restore CS0618
+        if (dto.Shape.HasValue && !Enum.IsDefined(typeof(TankShape), dto.Shape.Value))
+            throw new ArgumentException("Unsupported tank shape. Only vertical cylinder with conical bottom (Shape = 0) is supported.");
 
         var shape = dto.Shape ?? (isCommercial ? TankShape.VerticalCylinderWithConicalBottom : null);
 
@@ -124,12 +120,9 @@ public class FuelTankService : IFuelTankService
         if (dto.TankRole.HasValue) tank.TankRole = dto.TankRole.Value;
         if (dto.GeneratorId.HasValue) tank.GeneratorId = dto.GeneratorId.Value;
         if (dto.ParentTankId.HasValue) tank.ParentTankId = dto.ParentTankId.Value;
-#pragma warning disable CS0618
-        if (dto.Shape == TankShape.HorizontalCylinderWithConicalEnds)
-        {
-            throw new ArgumentException("Horizontal tanks with conical ends (Shape = 1) are not supported. Commercial and enterprise tanks must use vertical cylinder with conical bottom.");
-        }
-#pragma warning restore CS0618
+        if (dto.Shape.HasValue && !Enum.IsDefined(typeof(TankShape), dto.Shape.Value))
+            throw new ArgumentException("Unsupported tank shape. Only vertical cylinder with conical bottom (Shape = 0) is supported.");
+
         if (dto.Shape.HasValue) tank.Shape = dto.Shape.Value;
         if (dto.DiameterCm.HasValue) tank.DiameterCm = dto.DiameterCm.Value;
         if (dto.CylinderHeightCm.HasValue) tank.CylinderHeightCm = dto.CylinderHeightCm.Value;

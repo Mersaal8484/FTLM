@@ -1,5 +1,3 @@
-#pragma warning disable CS0618 // Type or member is obsolete
-
 using FuelTrack.Application.DTOs.FuelTanks;
 using FuelTrack.Application.DTOs.Operations;
 using FuelTrack.Application.Validators.FuelTanks;
@@ -128,7 +126,7 @@ public sealed class CommercialTankVerticalGeometryTests : IDisposable
             MeterReading: null,
             MeterReadingActual: null,
             Notes: null,
-            Shape: TankShape.HorizontalCylinderWithConicalEnds // Shape = 1
+            Shape: (TankShape)1 // Shape = 1
         );
 
         var result = validator.Validate(dto);
@@ -155,7 +153,7 @@ public sealed class CommercialTankVerticalGeometryTests : IDisposable
             MeterReadingActual: null,
             Notes: null,
             IsActive: null,
-            Shape: TankShape.HorizontalCylinderWithConicalEnds // Shape = 1
+            Shape: (TankShape)1 // Shape = 1
         );
 
         var result = validator.Validate(dto);
@@ -182,11 +180,11 @@ public sealed class CommercialTankVerticalGeometryTests : IDisposable
             MeterReading: null,
             MeterReadingActual: null,
             Notes: null,
-            Shape: TankShape.HorizontalCylinderWithConicalEnds
+            Shape: (TankShape)1
         );
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => _tankService.CreateAsync(dto, 1));
-        Assert.Contains("Shape = 1", ex.Message);
+        Assert.Contains("Unsupported tank shape", ex.Message);
     }
 
     [Fact]
@@ -247,11 +245,11 @@ public sealed class CommercialTankVerticalGeometryTests : IDisposable
             MeterReadingActual: null,
             Notes: null,
             IsActive: null,
-            Shape: TankShape.HorizontalCylinderWithConicalEnds
+            Shape: (TankShape)1
         );
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => _tankService.UpdateAsync(10, updateDto, 1));
-        Assert.Contains("Shape = 1", ex.Message);
+        Assert.Contains("Unsupported tank shape", ex.Message);
     }
 
     [Fact]
@@ -277,7 +275,7 @@ public sealed class CommercialTankVerticalGeometryTests : IDisposable
             CylinderHeightCm: 150m,
             ConeHeightCm: 50m,
             MultiplicationFactor: 1m,
-            Shape: TankShape.HorizontalCylinderWithConicalEnds
+            Shape: (TankShape)1
         );
 
         var result = await _calibrationService.UpsertAsync(11, calDto, 1);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -889,7 +889,7 @@ public sealed class FuelLoadSafetyServiceTests
             DeadStockLiters = 100,
             GeneratorId = generatorId,
             TankRole = TankRole.Daily,
-            Shape = TankShape.HorizontalCylinderWithConicalEnds,
+            Shape = TankShape.VerticalCylinderWithConicalBottom,
             DiameterCm = 150m,
             CylinderHeightCm = 100m,
             ConeHeightCm = 30m,
@@ -1019,7 +1019,7 @@ public sealed class FuelLoadSafetyServiceTests
             DeadStockLiters = 150, // Dead stock is 150 L
             GeneratorId = generatorId,
             TankRole = TankRole.Daily,
-            Shape = TankShape.HorizontalCylinderWithConicalEnds,
+            Shape = TankShape.VerticalCylinderWithConicalBottom,
             DiameterCm = 100m,
             CylinderHeightCm = 80m,
             ConeHeightCm = 20m,

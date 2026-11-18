@@ -194,4 +194,27 @@ Phase C3 had erroneously implemented `TankShape.HorizontalCylinderWithConicalEnd
   ALTER TABLE "FuelTanks" DROP COLUMN IF EXISTS "TankRole";
   ```
 
+---
+
+## 7. Job 2: Horizontal Geometry Removed Entirely (Owner Decision: No Horizontal Tanks)
+
+### Owner Decision
+The owner confirmed **there are no horizontal tanks** in the system. The horizontal geometry is therefore removed entirely from the codebase (not just marked obsolete).
+
+### Changes Made
+1. **Deleted:** `HorizontalConicalTankGeometryStrategy.cs` and `HorizontalConicalTankGeometryTests.cs`.
+2. **`TankShape.cs`:** `HorizontalCylinderWithConicalEnds = 1` removed. Only `VerticalCylinderWithConicalBottom = 0` remains. DB column and migration `20261116120000` are **not touched**.
+3. **`TankGeometry.cs`:** Removed horizontal strategy field, switch arm, and all `HorizontalCylinderWithConicalEnds` ternary branches. `fullLevel` is always `coneHeightCm + cylinderHeightCm`.
+4. **`FuelTankService.cs`:** Guards replaced with `Enum.IsDefined` check. Message: `"Unsupported tank shape. Only vertical cylinder with conical bottom (Shape = 0) is supported."`
+5. **`TankCalibrationService.cs`:** `IsValid()` returns false for undefined enum values via `Enum.IsDefined`.
+6. **`CreateFuelTankDtoValidator.cs` / `UpdateFuelTankDtoValidator.cs`:** Obsolete-member guards replaced with `Enum.IsDefined`-based `Must(...)` rule.
+7. **`CommercialTankVerticalGeometryTests.cs`:** 5 `TankShape.HorizontalCylinderWithConicalEnds` → `(TankShape)1`; message assertions updated; stale `#pragma` removed.
+8. **`FuelLoadSafetyServiceTests.cs`:** Seed tanks at lines ~892 and ~1022 switched to `TankShape.VerticalCylinderWithConicalBottom`. No expected values change — tests assert on stored `ComputedLitres`, not geometry math.
+9. **`docs/commercial/sql/list-horizontal-tanks.sql`:** Retained as a **pre-deployment check**. Run before deploying; if any `Shape = 1` rows exist, the owner must handle them manually.
+
+### Verification Command
+```bash
+git grep -i "HorizontalCylinder\|HorizontalConical"
+# Returns ONLY: migration 20261116120000 and docs/
+```
 
