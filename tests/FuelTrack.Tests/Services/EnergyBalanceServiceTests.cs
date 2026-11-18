@@ -80,7 +80,7 @@ public sealed class EnergyBalanceServiceTests
         Assert.Equal(10m, result.UnexplainedDiffKwh);
         Assert.False(result.IsInternalMeasured);
         Assert.False(result.ThresholdExceeded);    // threshold suppressed when internal unknown
-        Assert.Equal("غير مفسَّر (يشمل الاستهلاك الداخلي)", result.UnexplainedLabel);
+        Assert.Equal("الفاقد والاستهلاك المساعد للمحطة (يشمل الاستهلاك الداخلي)", result.UnexplainedLabel);
     }
 
     [Fact]

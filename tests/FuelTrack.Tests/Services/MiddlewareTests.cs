@@ -151,7 +151,7 @@ public class ExceptionHandlingMiddlewareTests
     public async Task CatchesGenericException_Returns500()
     {
         var sut = new ExceptionHandlingMiddleware(
-            _ => throw new ArgumentException("bad arg"),
+            _ => throw new Exception("boom"),
             NullLogger<ExceptionHandlingMiddleware>.Instance);
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
@@ -159,5 +159,19 @@ public class ExceptionHandlingMiddlewareTests
         await sut.InvokeAsync(context);
 
         Assert.Equal(500, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CatchesArgumentException_Returns400()
+    {
+        var sut = new ExceptionHandlingMiddleware(
+            _ => throw new ArgumentException("bad arg"),
+            NullLogger<ExceptionHandlingMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await sut.InvokeAsync(context);
+
+        Assert.Equal(400, context.Response.StatusCode);
     }
 }

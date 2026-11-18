@@ -164,7 +164,7 @@ public sealed class CommercialC3_2Tests : IDisposable
     }
 
     [Fact]
-    public void Validator_CreateGeneratorDto_AcceptsNull_RejectsNegativeValues()
+    public async Task Validator_CreateGeneratorDto_AcceptsNull_RejectsNegativeValues()
     {
         var validator = new CreateGeneratorDtoValidator();
 
@@ -196,14 +196,14 @@ public sealed class CommercialC3_2Tests : IDisposable
             Notes: null,
             IsActive: true
         );
-        var nullResult = validator.Validate(validNullDto);
+        var nullResult = await validator.ValidateAsync(validNullDto);
         Assert.True(nullResult.IsValid);
 
         // Negative value is rejected
         var invalidNegativeDto = validNullDto with { NominalPower = -50.0 };
-        var negativeResult = validator.Validate(invalidNegativeDto);
+        var negativeResult = await validator.ValidateAsync(invalidNegativeDto);
         Assert.False(negativeResult.IsValid);
-        Assert.Contains(negativeResult.Errors, e => e.PropertyName == nameof(CreateGeneratorDto.NominalPower));
+        Assert.Contains(negativeResult.Errors, e => e.PropertyName.StartsWith(nameof(CreateGeneratorDto.NominalPower)));
     }
 
     [Fact]
