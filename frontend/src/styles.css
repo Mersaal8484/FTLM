@@ -2126,7 +2126,7 @@ body {
 .app-root .sidebar-user { padding: 11px; background: var(--surface-2); border-color: var(--border); }
 .app-root .sidebar-footer { padding: 10px 12px 14px; border-top-color: var(--border); }
 
-/* A restrained navigation palette keeps the current location prominent. */
+/* Sidebar identity and navigation spacing. */
 .app-root .sidebar-logo-icon {
   color: #fff;
   background: linear-gradient(145deg, #2d85bb, #17486f);
@@ -2137,15 +2137,9 @@ body {
 .app-root .sidebar-nav { padding: 14px 12px; gap: 4px; scrollbar-width: thin; }
 .app-root .nav-item { min-height: 46px; border-radius: 11px; }
 .app-root .nav-icon-tile {
-  color: var(--text-muted);
-  background: transparent;
-  box-shadow: none;
   border-radius: 9px;
   text-decoration: none;
 }
-.app-root .nav-item:hover .nav-icon-tile,
-.app-root .nav-item.active .nav-icon-tile,
-.app-root .nav-group-header.child-active > .nav-group-link .nav-icon-tile { color: var(--primary); }
 .app-root .nav-item.active,
 .app-root .nav-group-header.child-active > .nav-group-link { color: var(--primary); font-weight: 700; }
 .app-root .nav-group-children .nav-item {

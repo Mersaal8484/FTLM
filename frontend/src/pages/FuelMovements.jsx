@@ -10,6 +10,7 @@ import Pagination from '../components/Pagination';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 import useToastStore from '../store/toastStore';
 import GeneralMovementLog from './movements/GeneralMovementLog';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 // typeLabels and statusConfig are now built lazily from i18n inside the component.
 // Static fallback icons map (icons don't change with language).
@@ -100,6 +101,7 @@ const renderMovementDetails = (m) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function FuelMovements({ lang, currentUser }) {
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const ar = lang === 'ar';
   const { t, i18n } = useTranslation();
 
@@ -172,8 +174,8 @@ function FuelMovements({ lang, currentUser }) {
         client.get('/api/fuel-movements'),
         client.get('/api/fuel-tanks'),
         client.get('/api/oils'),
-        client.get('/api/stations'),
-        client.get('/api/sub-stations'),
+        isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/stations'),
+        isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/sub-stations'),
         client.get('/api/fuel-movements/transfer-destinations'),
       ]);
 
@@ -181,7 +183,13 @@ function FuelMovements({ lang, currentUser }) {
       if (tankRes.status === 'fulfilled') setTanks(tankRes.value.data || []);
       if (oilRes.status  === 'fulfilled') setOils(oilRes.value.data  || []);
       if (statRes.status === 'fulfilled') setStations(statRes.value.data || []);
-      if (subStatRes.status === 'fulfilled') setSubStations((subStatRes.value.data || []).filter(s => s.isActive !== false));
+      if (isCommercialMode) {
+        const assets = [
+          ...(tankRes.status === 'fulfilled' && Array.isArray(tankRes.value.data) ? tankRes.value.data : []),
+          ...(oilRes.status === 'fulfilled' && Array.isArray(oilRes.value.data) ? oilRes.value.data : []),
+        ];
+        setSubStations([...new Map(assets.filter(a => a.subStationId).map(a => [a.subStationId, { id: a.subStationId, name: a.subStationName || (lang === 'ar' ? 'المحطة التجارية' : 'Commercial station') }])).values()]);
+      } else if (subStatRes.status === 'fulfilled') setSubStations((subStatRes.value.data || []).filter(s => s.isActive !== false));
       if (destRes.status === 'fulfilled') {
         // Backend returns List<SubStationListDto> directly
         const dest = destRes.value.data;
@@ -190,7 +198,7 @@ function FuelMovements({ lang, currentUser }) {
     } catch { /* silently fail — each Promise.allSettled handles its own */ }
   };
 
-  useEffect(() => { fetchAll(); }, [lang]);
+  useEffect(() => { if (modeResolved) fetchAll(); }, [lang, isCommercialMode, modeResolved]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const type = TAB_API_TYPES[activeTab];
     if (!type) return;

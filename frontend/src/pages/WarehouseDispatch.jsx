@@ -4,6 +4,8 @@ import client from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
+import { dispatchStatus } from './warehouseStatus';
 
 const statusCfg = {
   pending:   { cls: 'badge-warning', label: { ar: 'قيد الانتظار', en: 'Pending' } },
@@ -25,6 +27,7 @@ const initialForm = {
 
 function WarehouseDispatch({ lang, currentUser }) {
   const ar = lang === 'ar';
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const [dispatches, setDispatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -53,7 +56,7 @@ function WarehouseDispatch({ lang, currentUser }) {
     try {
       const [disRes, subRes, partRes, wpRes] = await Promise.allSettled([
         client.get('/api/warehouse/dispatch', { params: { _t: Date.now() } }),
-        client.get('/api/sub-stations', { params: { _t: Date.now() } }),
+        isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/sub-stations', { params: { _t: Date.now() } }),
         client.get('/api/spare-parts', { params: { _t: Date.now() } }),
         client.get('/api/work-permits', { params: { _t: Date.now() } }),
       ]);
@@ -65,7 +68,7 @@ function WarehouseDispatch({ lang, currentUser }) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (modeResolved) load(); }, [modeResolved, isCommercialMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedSubStation = useMemo(
     () => subStations.find(s => s.id === Number(form.subStationId)),
@@ -129,7 +132,7 @@ function WarehouseDispatch({ lang, currentUser }) {
           })),
       };
       if (editId) await client.put(`/api/warehouse/dispatch/${editId}`, payload);
-      else await client.post('/api/warehouse/dispatch', payload);
+      else await client.post(isCommercialMode ? '/api/warehouse/dispatch/commercial' : '/api/warehouse/dispatch', payload);
       setShowModal(false);
       load();
     } catch (err) { setError(err.response?.data?.error || err.response?.data?.msg || (ar ? 'فشل الحفظ' : 'Save failed')); }
@@ -237,7 +240,8 @@ function WarehouseDispatch({ lang, currentUser }) {
                   <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, opacity: 0.7 }}>{ar ? 'لا توجد بيانات' : 'No data'}</td></tr>
                 )}
                 {paginated.map(d => {
-                  const cfg = statusCfg[d.status] || statusCfg.pending;
+                  const status = dispatchStatus(d.statusName || d.status);
+                  const cfg = statusCfg[status] || { cls: 'badge-secondary', label: { ar: d.statusName, en: d.statusName } };
                   return (
                     <tr key={d.id}>
                       <td style={{ fontWeight: 700 }}>{d.subStationName || d.stationName}</td>
@@ -245,16 +249,16 @@ function WarehouseDispatch({ lang, currentUser }) {
                       <td>{d.createdAt}</td>
                       <td><span className={`badge ${cfg.cls}`}>{cfg.label[lang] || d.status}</span></td>
                       <td style={{ textAlign: 'center' }}>
-                        {activeTab === 'incoming' && canApprove && d.status === 'pending' && (
+                        {activeTab === 'incoming' && canApprove && status === 'pending' && (
                           <Button variant="primary" size="sm" icon={Check} onClick={() => openApproval(d)}>{ar ? 'اعتماد' : 'Approve'}</Button>
                         )}
-                        {d.status === 'approved' && canExecute && (
+                        {status === 'approved' && canExecute && (
                           <Button variant="success" size="sm" icon={PackageCheck} onClick={() => executeDispatch(d.id)}>{ar ? 'تنفيذ' : 'Execute'}</Button>
                         )}
-                        {canAdd && (d.status === 'pending' || d.status === 'rejected') && (
+                        {canAdd && (status === 'pending' || status === 'rejected') && (
                           <Button variant="ghost" size="sm" icon={Edit2} onClick={() => openEdit(d)} />
                         )}
-                        {canDelete && (d.status === 'pending' || d.status === 'rejected') && (
+                        {canDelete && (status === 'pending' || status === 'rejected') && (
                           <Button variant="ghost" size="sm" icon={Trash2} onClick={() => setConfirmDelete({ open: true, id: d.id })} />
                         )}
                       </td>
@@ -282,12 +286,12 @@ function WarehouseDispatch({ lang, currentUser }) {
         >
           {error && <div className="form-error" role="alert" style={{ marginBottom: 16 }}>{error}</div>}
           <form onSubmit={handleSave}>
-            <FormField label={ar ? 'الموقع الفرعي' : 'Sub Station'} required>
+            {!isCommercialMode && <FormField label={ar ? 'الموقع الفرعي' : 'Sub Station'} required>
               <select className="form-control" required value={form.subStationId} onChange={e => setForm({ ...form, subStationId: e.target.value })}>
                 <option value="">{ar ? 'اختر الموقع' : 'Select station'}</option>
                 {subStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
-            </FormField>
+            </FormField>}
             <FormField label={ar ? 'الغرض' : 'Purpose'}>
               <Input value={form.purpose} onChange={e => setForm({ ...form, purpose: e.target.value })} placeholder={ar ? 'مثال: صيانة دورية' : 'e.g. routine maintenance'} />
             </FormField>

@@ -73,6 +73,19 @@ public class ReadingServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateAsync_UsesStatusCodeWithArabicDisplayName()
+    {
+        var draft = await _db.Lookups.FindAsync(_draftLookupId);
+        draft!.Code = "Draft";
+        draft.Name = "مسودة";
+        await _db.SaveChangesAsync();
+
+        var dto = new CreateReadingDto(_genId, DateTime.UtcNow, 100, 150, 50, 55, 10, 10m, 11, null, null);
+        var result = await _service.CreateAsync(dto, _userId);
+        Assert.Equal(_draftLookupId, result.ReadingStatusLookupId);
+    }
+
+    [Fact]
     public async Task CreateAsync_ValidInput_CreatesDraftReading()
     {
         var dto = new CreateReadingDto(

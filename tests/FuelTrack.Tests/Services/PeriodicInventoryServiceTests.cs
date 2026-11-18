@@ -30,6 +30,29 @@ public class PeriodicInventoryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task InventoryLists_ReturnActualFuelAndOilTotals()
+    {
+        var category = new LookupCategory { Id = 2, Name = "PeriodType", DisplayName = "Period Type" };
+        _db.LookupCategories.Add(category);
+        _db.Lookups.Add(new Lookup { Id = 2, Name = "Monthly", CategoryId = 2 });
+        var inventory = new PeriodicInventory
+        {
+            SubStationId = _subStationId, InventoryDate = DateTime.UtcNow, Year = 2026, Month = 11, PeriodTypeLookupId = 2,
+            FuelReadings = new List<PeriodicInventoryFuel> { new() { FuelLookupId = 10, ActualStockLiters = 15000 }, new() { FuelLookupId = 11, ActualStockLiters = 500 } },
+            OilReadings = new List<PeriodicInventoryOil> { new() { OilLookupId = 12, ActualStockLiters = 400 } }
+        };
+        _db.PeriodicInventories.Add(inventory);
+        await _db.SaveChangesAsync();
+
+        var all = Assert.Single(await _service.GetAllAsync());
+        var site = Assert.Single(await _service.GetBySubStationAsync(_subStationId));
+        Assert.Equal(15500, all.TotalFuelActualQty);
+        Assert.Equal(400, all.TotalOilActualQty);
+        Assert.Equal(all.TotalFuelActualQty, site.TotalFuelActualQty);
+        Assert.Equal(all.TotalOilActualQty, site.TotalOilActualQty);
+    }
+
+    [Fact]
     public async Task CalculateEfficiency_ReturnsResult()
     {
         var lookupCategory = new LookupCategory { Id = 1, Name = "PeriodType", DisplayName = "Period Type" };

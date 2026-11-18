@@ -7,6 +7,7 @@ import {
 import ConfirmModal from '../components/ConfirmModal';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 import useTenantBranding from '../hooks/useTenantBranding';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 export function canReviewInventory(currentUser, inventory) {
   const role = currentUser?.role;
@@ -21,8 +22,15 @@ export function canSubmitInventory(currentUser, inventory) {
 
 export function getInventoryPrintDate(inventory) {
   if (!inventory?.inventoryDate) return '';
+  const businessDate = String(inventory.inventoryDate).match(/^\d{4}-\d{2}-\d{2}/);
+  if (businessDate) return businessDate[0];
   const d = new Date(inventory.inventoryDate);
+  if (Number.isNaN(d.getTime())) return '';
   return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+}
+
+export function localInventoryDate(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 export function getMissingFuelReason(inventory) {
@@ -50,8 +58,24 @@ export function buildInventoryStatusPayload(inventory, status) {
   };
 }
 
+export function buildInventoryReadings(fuelReadings, oilReadings) {
+  const fuel = new Map();
+  for (const item of fuelReadings) {
+    const qty = Number(item.actualQty);
+    if (!item.fuelLookupId || item.actualQty === '' || !Number.isFinite(qty) || qty < 0) throw new Error('Invalid fuel reading');
+    fuel.set(item.fuelLookupId, (fuel.get(item.fuelLookupId) || 0) + qty);
+  }
+  const oils = oilReadings.map(item => {
+    const qty = Number(item.actualQty);
+    if (!item.oilLookupId || !item.oil || item.actualQty === '' || !Number.isFinite(qty) || qty < 0) throw new Error('Invalid oil reading');
+    return { oilId: Number(item.oil), oilLookupId: Number(item.oilLookupId), actualQtyLiters: qty };
+  });
+  return { fuelReadings: [...fuel].map(([fuelLookupId, actualQtyLiters]) => ({ fuelLookupId: Number(fuelLookupId), actualQtyLiters })), oilReadings: oils };
+}
+
 function PeriodicInventoryPage({ lang, currentUser }) {
   const branding = useTenantBranding();
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const ar = lang === 'ar';
   
   // Permission helpers
@@ -77,7 +101,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
     return {
       station: '',
       subStation: '',
-      inventoryDate: new Date().toISOString().slice(0, 10),
+      inventoryDate: localInventoryDate(),
       year: new Date().getFullYear(),
       month: new Date().getMonth() + 1,
       periodType: '', // default set after fetch from PeriodType lookup
@@ -93,8 +117,8 @@ function PeriodicInventoryPage({ lang, currentUser }) {
     try {
       const [invRes, statRes, subRes, tankRes, oilRes, ptRes] = await Promise.all([
         client.get('/api/inventory'),
-        client.get('/api/stations'),
-        client.get('/api/sub-stations'),
+        isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/stations'),
+        isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/sub-stations'),
         client.get('/api/fuel-tanks'),
         client.get('/api/oils'),
         client.get('/api/lookups/by-category/PeriodType'),
@@ -109,37 +133,43 @@ function PeriodicInventoryPage({ lang, currentUser }) {
       if (ptRes.data?.length > 0) {
         setNewForm(prev => prev.periodType ? prev : { ...prev, periodType: ptRes.data[0].id });
       }
-    } catch {}
+    } catch {
+      setStatus({ type: 'error', msg: ar ? 'فشل تحميل بيانات الجرد.' : 'Failed to load inventory data.' });
+    }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { if (modeResolved) fetchAll(); }, [modeResolved, isCommercialMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getRefId = (value) => value?.id || value?._id || value || '';
-  const getLocationLabel = (inv) => inv?.subStation?.name || inv?.station?.name || inv?.station || '—';
+  const getLocationLabel = (inv) => inv?.subStationName || inv?.subStation?.name || inv?.station?.name || inv?.station || '—';
   const assignedSubStationIds = useMemo(
     () => new Set((currentUser?.assignedSubStations || []).map(String)),
     [currentUser?.assignedSubStations]
   );
   const canSeeAllSites = currentUser?.role === 'admin' || assignedSubStationIds.size === 0;
-  const siteOptions = useMemo(() => subStations.filter(site => {
+  const siteOptions = useMemo(() => {
+    if (isCommercialMode) {
+      const ids = [...new Set([...tanks, ...oils].map(item => item.subStationId).filter(Boolean))];
+      return ids.map(id => ({ id, stationId: 'commercial', label: ar ? 'المحطة التجارية' : 'Commercial station' }));
+    }
+    return subStations.filter(site => {
     const siteId = site.id || site._id;
     return canSeeAllSites || assignedSubStationIds.has(String(siteId));
   }).map(site => {
     const station = stations.find(s =>
-      s.id === site.station_id ||
-      s._id === site.station_id ||
-      String(s.stationId) === String(site.station_id)
+      String(s.id || s._id) === String(site.stationId ?? site.station_id)
     );
     return {
       id: site.id || site._id,
-      stationId: station?.id || station?._id || site.station_id,
+      stationId: station?.id || station?._id || site.stationId || site.station_id,
       label: station?.name ? `${station.name} — ${site.name}` : site.name,
     };
-  }), [stations, subStations, canSeeAllSites, assignedSubStationIds]);
+    });
+  }, [stations, subStations, canSeeAllSites, assignedSubStationIds, isCommercialMode, tanks, oils, ar]);
 
   const handleLocationChange = (siteId) => {
-    const site = siteOptions.find(s => s.id === siteId);
+    const site = siteOptions.find(s => String(s.id) === String(siteId));
     setNewForm(f => ({
       ...f,
       station: site?.stationId || '',
@@ -153,25 +183,28 @@ function PeriodicInventoryPage({ lang, currentUser }) {
   useEffect(() => {
     if (newForm.station) {
       const stationTanks = tanks.filter(t => {
-        const tankStation = getRefId(t.station);
-        const tankSubStation = getRefId(t.subStation);
-        return newForm.subStation ? tankSubStation === newForm.subStation : tankStation === newForm.station;
+        const tankStation = getRefId(t.stationId ?? t.station);
+        const tankSubStation = getRefId(t.subStationId ?? t.subStation);
+        return newForm.subStation ? String(tankSubStation) === String(newForm.subStation) : String(tankStation) === String(newForm.station);
       });
       const stationOils = oils.filter(o => {
-        const oilStation = getRefId(o.station);
-        const oilSubStation = getRefId(o.subStation);
-        return newForm.subStation ? oilSubStation === newForm.subStation : oilStation === newForm.station;
+        const oilStation = getRefId(o.stationId ?? o.station);
+        const oilSubStation = getRefId(o.subStationId ?? o.subStation);
+        return newForm.subStation ? String(oilSubStation) === String(newForm.subStation) : String(oilStation) === String(newForm.station);
       });
       setNewForm(f => ({
         ...f,
-        fuelReadings: stationTanks.map(t => ({ tank: t.id || t._id, tankName: t.name, actualQty: '' })),
-        oilReadings: stationOils.map(o => ({ oil: o.id || o._id, oilName: o.name, actualQty: '' }))
+        fuelReadings: stationTanks.map(t => ({ tank: t.id || t._id, tankName: t.name, fuelLookupId: t.fuelLookupId, actualQty: '' })),
+        oilReadings: stationOils.map(o => ({ oil: o.id || o._id, oilName: o.name, oilLookupId: o.oilLookupId, actualQty: '' }))
       }));
     }
   }, [newForm.station, newForm.subStation, tanks, oils]);
 
   const createInventory = async () => {
     if (!newForm.station || !newForm.subStation) { setStatus({ type: 'error', msg: ar ? 'يرجى اختيار الموقع' : 'Please select a location' }); return; }
+    let readings;
+    try { readings = buildInventoryReadings(newForm.fuelReadings, newForm.oilReadings); }
+    catch { setStatus({ type: 'error', msg: ar ? 'يرجى إدخال كميات صحيحة لجميع الخزانات والزيوت.' : 'Enter valid quantities for all tanks and oils.' }); return; }
     setSaving(true);
     try {
       await client.post('/api/inventory', {
@@ -181,18 +214,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
         periodTypeLookupId: parseInt(newForm.periodType, 10),
         inventoryDate: newForm.inventoryDate,
         notes:         newForm.notes,
-        fuelReadings:  newForm.fuelReadings.map(fr => ({
-          fuelTankId: parseInt(fr.tank, 10) || null,
-          fuelLookupId: 0,
-          expectedQtyLiters: parseFloat(fr.expectedQty) || 0,
-          actualQtyLiters: parseFloat(fr.actualQty) || 0,
-        })),
-        oilReadings:   newForm.oilReadings.map(or => ({
-          oilTankId: parseInt(or.oil, 10) || null,
-          oilLookupId: 0,
-          expectedQtyLiters: parseFloat(or.expectedQty) || 0,
-          actualQtyLiters: parseFloat(or.actualQty) || 0,
-        })),
+        ...readings,
       });
       setShowNew(false);
       setNewForm(initialForm());
@@ -272,9 +294,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
 
   // Helper to format Date
   const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    return `${d.getFullYear()}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')}`;
+    return getInventoryPrintDate({ inventoryDate: dateStr }).replaceAll('-', '/');
   };
 
   const printableDates = useMemo(() => {
@@ -376,8 +396,8 @@ function PeriodicInventoryPage({ lang, currentUser }) {
                 <FormField label={ar ? 'تاريخ الجرد' : 'Inventory Date'}>
                   <Input type="date" value={newForm.inventoryDate} onChange={e => {
                     const newDate = e.target.value;
-                    const yr = new Date(newDate).getFullYear();
-                    setNewForm({...newForm, inventoryDate: newDate, year: yr});
+                    const [year, month] = newDate.split('-').map(Number);
+                    setNewForm({...newForm, inventoryDate: newDate, year, month});
                   }} />
                 </FormField>
                 <FormField label={ar ? 'فريق الجرد' : 'Inventory Team'}>
@@ -531,7 +551,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
                         ) : fuelStr}
                       </td>
                       <td>
-                        {oilItems.length === 0 ? '—' : (
+                        {oilItems.length === 0 ? (inv.totalOilActualQty != null ? `${formatLiters(inv.totalOilActualQty)} ${ar ? 'لتر' : 'L'}` : '—') : (
                           <div className="oil-inventory-list">
                             {oilItems.map(item => (
                               <div key={item.key}>

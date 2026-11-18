@@ -4,6 +4,8 @@ import client from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
+import { supplyStatus } from './warehouseStatus';
 
 const statusCfg = {
   draft:     { cls: 'badge-secondary', label: { ar: 'مسودة', en: 'Draft' } },
@@ -26,6 +28,7 @@ const initialForm = {
 
 function WarehouseSupply({ lang, currentUser }) {
   const ar = lang === 'ar';
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const [supplies, setSupplies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -51,7 +54,7 @@ function WarehouseSupply({ lang, currentUser }) {
     try {
       const [supRes, stRes, partRes] = await Promise.allSettled([
         client.get('/api/warehouse/supply', { params: { _t: Date.now() } }),
-        client.get('/api/stations', { params: { _t: Date.now() } }),
+        isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/stations', { params: { _t: Date.now() } }),
         client.get('/api/spare-parts', { params: { _t: Date.now() } }),
       ]);
       if (supRes.status === 'fulfilled') setSupplies(supRes.value.data?.items || supRes.value.data || []);
@@ -61,7 +64,7 @@ function WarehouseSupply({ lang, currentUser }) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (modeResolved) load(); }, [modeResolved, isCommercialMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const paginated = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
@@ -115,7 +118,7 @@ function WarehouseSupply({ lang, currentUser }) {
          try {
            const payload = { ...form, totalAmount: totalAmount || 0 };
            if (editId) await client.put(`/api/warehouse/supply/${editId}`, payload);
-           else await client.post('/api/warehouse/supply', payload);
+           else await client.post(isCommercialMode ? '/api/warehouse/supply/commercial' : '/api/warehouse/supply', payload);
            setShowModal(false); load();
     } catch (err) { setError(err.response?.data?.error || err.response?.data?.msg || (ar ? 'فشل الحفظ' : 'Save failed')); }
     finally { setSaving(false); }
@@ -181,7 +184,8 @@ function WarehouseSupply({ lang, currentUser }) {
                   <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, opacity: 0.7 }}>{ar ? 'لا توجد بيانات' : 'No data'}</td></tr>
                 )}
                   {paginated.map(s => {
-                  const cfg = statusCfg[(s.statusName || '').toLowerCase()] || statusCfg.draft;
+                  const status = supplyStatus(s.statusName);
+                  const cfg = statusCfg[status] || { cls: 'badge-secondary', label: { ar: s.statusName, en: s.statusName } };
                   return (
                     <tr key={s.id}>
                       <td style={{ fontWeight: 700 }}>{s.supplyNumber || s.invoiceNumber}</td>
@@ -192,9 +196,9 @@ function WarehouseSupply({ lang, currentUser }) {
                       <td><span className={`badge ${cfg.cls}`}>{cfg.label[lang] || s.statusName}</span></td>
                       <td style={{ textAlign: 'center' }}>
                         <Button variant="ghost" size="sm" icon={Search} onClick={() => viewDetail(s)} title={ar ? 'عرض' : 'View'} />
-                        {canEdit && s.statusName === 'draft' && <Button variant="ghost" size="sm" icon={Edit2} onClick={() => openEdit(s)} />}
-                        {canConfirm && s.statusName === 'draft' && <Button variant="success" size="sm" icon={Check} onClick={() => confirmVoucher(s.id)}>{ar ? 'تأكيد' : 'Confirm'}</Button>}
-                        {canDelete && s.statusName === 'draft' && <Button variant="ghost" size="sm" icon={Trash2} onClick={() => setConfirmDelete({ open: true, id: s.id })} />}
+                        {canEdit && status === 'draft' && <Button variant="ghost" size="sm" icon={Edit2} onClick={() => openEdit(s)} />}
+                        {canConfirm && status === 'draft' && <Button variant="success" size="sm" icon={Check} onClick={() => confirmVoucher(s.id)}>{ar ? 'تأكيد' : 'Confirm'}</Button>}
+                        {canDelete && status === 'draft' && <Button variant="ghost" size="sm" icon={Trash2} onClick={() => setConfirmDelete({ open: true, id: s.id })} />}
                       </td>
                     </tr>
                   );
@@ -222,12 +226,12 @@ function WarehouseSupply({ lang, currentUser }) {
           {error && <div className="form-error" role="alert" style={{ marginBottom: 16 }}>{error}</div>}
           <form onSubmit={handleSave}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <FormField label={ar ? 'الموقع' : 'Station'} required>
+              {!isCommercialMode && <FormField label={ar ? 'الموقع' : 'Station'} required>
                 <select className="form-select" required value={form.stationId} onChange={e => setForm({ ...form, stationId: e.target.value })}>
                   <option value="">{ar ? 'اختر الموقع' : 'Select station'}</option>
                   {stations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
-              </FormField>
+              </FormField>}
               <FormField label={ar ? 'تاريخ التوريد' : 'Supply Date'} required>
                 <Input type="date" required value={form.supplyDate} onChange={e => setForm({ ...form, supplyDate: e.target.value })} />
               </FormField>

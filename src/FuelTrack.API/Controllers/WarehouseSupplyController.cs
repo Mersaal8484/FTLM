@@ -2,6 +2,7 @@ using FuelTrack.Application.DTOs.Warehouse;
 using FuelTrack.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using FuelTrack.Application.Validators.Warehouse;
 
 namespace FuelTrack.API.Controllers;
 
@@ -45,6 +46,31 @@ public class WarehouseSupplyController : BaseApiController
             return NotFound();
         return Ok(result);
     }
+
+    [Authorize(Roles = "Admin,Manager")]
+    [HttpPost("commercial")]
+    public async Task<IActionResult> CreateCommercial([FromBody] CommercialSupplyRequest request,
+        [FromServices] ICommercialStationModeService commercial,
+        [FromServices] IUserScopeFilterService scopeFilter,
+        CancellationToken ct)
+    {
+        var scope = await commercial.GetScopeAsync(ct);
+        if (scope is null) return NotFound();
+        var userId = GetUserId();
+        if (!User.IsInRole("Admin") && !User.IsInRole("SystemOwner") && !await scopeFilter.HasFullAccessToStationAsync(userId, scope.StationId))
+            return Forbid();
+        var dto = new CreateWarehouseSupplyDto(scope.StationId, request.SupplyDate, request.SupplierName,
+            request.InvoiceNumber, request.InvoiceDate, request.TotalAmount, request.Notes, request.Items);
+        var validation = new CreateWarehouseSupplyDtoValidator().Validate(dto);
+        if (!validation.IsValid) return BadRequest(new { error = string.Join("; ", validation.Errors.Select(x => x.ErrorMessage)) });
+        var result = await _warehouseSupplyService.CreateAsync(dto, userId, ct);
+        if (!result.IsSuccess) return StatusCode(result.StatusCode, new { error = result.Error });
+        await _workflowNotifications.NotifySupplyRequestedAsync(result.Value!.Id, result.Value.StationId, result.Value.SupplyNumber, userId);
+        return Ok(result.Value);
+    }
+
+    public sealed record CommercialSupplyRequest(DateTime SupplyDate, string? SupplierName, string? InvoiceNumber,
+        DateTime? InvoiceDate, decimal? TotalAmount, string? Notes, List<CreateSupplyItemDto> Items);
 
     [Authorize(Roles = "Admin,Manager")]
     [HttpPost]
