@@ -24,7 +24,7 @@ const initialDailyTankForm = {
 
 export default function DailyTanks({ lang, currentUser }) {
   const ar = lang === 'ar';
-  const { isCommercialMode } = useCommercialMode();
+  const { isCommercialMode, modeResolved } = useCommercialMode();
 
   const [tanks, setTanks] = useState([]);
   const [generators, setGenerators] = useState([]);
@@ -76,8 +76,8 @@ export default function DailyTanks({ lang, currentUser }) {
   }, [ar, isCommercialMode]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (modeResolved) fetchData();
+  }, [fetchData, modeResolved]);
 
   const resetForm = () => {
     setForm(initialDailyTankForm);

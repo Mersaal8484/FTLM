@@ -26,7 +26,7 @@ function MeterTypeBadge({ type, code }) {
 
 function MetersManagement({ lang }) {
   const ar = lang === 'ar';
-  const { isCommercialMode } = useCommercialMode();
+  const { isCommercialMode, modeResolved } = useCommercialMode();
 
   const [meters, setMeters] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -58,32 +58,26 @@ function MetersManagement({ lang }) {
   const fetchAll = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const [m, g, t, mt] = await Promise.all([
-        client.get('/api/meters'),
-        client.get('/api/generators'),
-        client.get('/api/fuel-tanks'),
+      const empty = Promise.resolve({ data: [] });
+      const [m, b, s, ss, g, t, mt] = await Promise.all([
+        client.get('/api/meters'), isCommercialMode ? empty : client.get('/api/branches'),
+        isCommercialMode ? empty : client.get('/api/stations'), isCommercialMode ? empty : client.get('/api/sub-stations'),
+        client.get('/api/generators'), client.get('/api/fuel-tanks'),
         client.get('/api/lookups/by-category/MeterType'),
       ]);
       setMeters(Array.isArray(m.data) ? m.data : []);
-      setGenerators(Array.isArray(g.data) ? g.data : []);
-      setTanks(Array.isArray(t.data) ? t.data : []);
-      setMeterTypes(Array.isArray(mt.data) ? mt.data : []);
-
-      const safeGet = url => client.get(url).catch(() => ({ data: [] }));
-      const [b, s, ss] = await Promise.all([
-        safeGet('/api/branches'),
-        safeGet('/api/stations'),
-        safeGet('/api/sub-stations'),
-      ]);
       setBranches(Array.isArray(b.data) ? b.data : []);
       setStations(Array.isArray(s.data) ? s.data : []);
       setSubStations(Array.isArray(ss.data) ? ss.data.filter(s => s.isActive !== false) : []);
+      setGenerators(Array.isArray(g.data) ? g.data : (Array.isArray(g.data?.data) ? g.data.data : []));
+      setTanks(Array.isArray(t.data) ? t.data : []);
+      setMeterTypes(Array.isArray(mt.data) ? mt.data : []);
     } catch {
       setError(ar ? 'فشل تحميل البيانات. تأكد من تشغيل الخادم.' : 'Failed to load data. Check server.');
     } finally { setLoading(false); }
-  }, [ar]);
+  }, [ar, isCommercialMode]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { if (modeResolved) fetchAll(); }, [fetchAll, modeResolved]);
 
   const resetForm = () => {
     setForm({ branchId: '', stationId: '', subStationId: '', generatorId: '', meterName: '', serialNumber: '', hoursReading: '', energyReading: '', isActive: true });

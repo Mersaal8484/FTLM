@@ -35,7 +35,7 @@ function TankTabs({ activeTab, onChange, ar }) {
 
 function TanksManagement({ lang, currentUser }) {
   const ar = lang === 'ar';
-  const { isCommercialMode } = useCommercialMode();
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') === 'calibration' ? 'calibration' : 'basic';
   const setActiveTab = (tab) => setSearchParams(tab === 'calibration' ? { tab } : {});
@@ -86,7 +86,7 @@ function TanksManagement({ lang, currentUser }) {
     }
   }, [ar, isCommercialMode]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { if (modeResolved) fetchAll(); }, [fetchAll, modeResolved]);
 
   const resetForm = () => { setForm(emptyForm); setEditItem(null); setShowForm(false); setFormError(''); };
 

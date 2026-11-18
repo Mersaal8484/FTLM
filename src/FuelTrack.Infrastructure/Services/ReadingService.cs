@@ -87,7 +87,7 @@ public class ReadingService : IReadingService
     private async Task<int> GetLookupIdAsync(string category, string name)
     {
         return await _db.Lookups
-            .Where(l => l.Category.Name == category && l.Name == name)
+            .Where(l => l.Category.Name == category && (l.Code == name || l.Name == name))
             .Select(l => l.Id)
             .FirstAsync();
     }

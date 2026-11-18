@@ -7,7 +7,7 @@ import useCommercialMode from '../hooks/useCommercialMode';
 
 function SetupOils({ lang }) {
   const ar = lang === 'ar';
-  const { isCommercialMode } = useCommercialMode();
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const [oilLookups, setOilLookups] = useState([]);
   const [oils, setOils] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -48,7 +48,7 @@ function SetupOils({ lang }) {
     }
   };
 
-  useEffect(() => { fetchOils(); }, [isCommercialMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (modeResolved) fetchOils(); }, [isCommercialMode, modeResolved]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const flash = (msg) => {
     setSuccessMsg(msg);

@@ -2,6 +2,7 @@ using FuelTrack.Application.DTOs.Warehouse;
 using FuelTrack.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using FuelTrack.Application.Validators.Warehouse;
 
 namespace FuelTrack.API.Controllers;
 
@@ -53,6 +54,33 @@ public class DispatchRequestController : BaseApiController
             return NotFound();
         return Ok(result);
     }
+
+    [Authorize]
+    [HttpPost("commercial")]
+    public async Task<IActionResult> CreateCommercial([FromBody] CommercialDispatchRequest request,
+        [FromServices] ICommercialStationModeService commercial,
+        [FromServices] IUserScopeFilterService scopeFilter,
+        [FromServices] IWorkPermitService workPermits,
+        CancellationToken ct)
+    {
+        var scope = await commercial.GetScopeAsync(ct);
+        if (scope is null) return NotFound();
+        var userId = GetUserId();
+        if (!User.IsInRole("Admin") && !User.IsInRole("SystemOwner") && !await scopeFilter.HasAccessToSubStationAsync(userId, scope.SubStationId))
+            return Forbid();
+        if (request.WorkPermitId.HasValue)
+        {
+            var permit = await workPermits.GetByIdAsync(request.WorkPermitId.Value, ct);
+            if (permit is null || permit.SubStationId != scope.SubStationId) return BadRequest(new { error = "Work permit is not available in this station." });
+        }
+        var dto = new CreateDispatchRequestDto(scope.SubStationId, scope.StationId, request.WorkPermitId, request.Purpose, request.Notes, request.Items);
+        var validation = new CreateDispatchRequestDtoValidator().Validate(dto);
+        if (!validation.IsValid) return BadRequest(new { error = string.Join("; ", validation.Errors.Select(x => x.ErrorMessage)) });
+        var result = await _dispatchRequestService.CreateAsync(dto, userId, ct);
+        return result.IsSuccess ? Ok(result.Value) : StatusCode(result.StatusCode, new { error = result.Error });
+    }
+
+    public sealed record CommercialDispatchRequest(int? WorkPermitId, string? Purpose, string? Notes, List<CreateDispatchItemDto> Items);
 
     [Authorize]
     [HttpPost]
