@@ -1,7 +1,6 @@
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Net.Sockets;
-using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -13,49 +12,11 @@ public class ModbusPollingService : BackgroundService
 {
     private readonly ILogger<ModbusPollingService> _logger;
     private readonly IConfiguration _configuration;
-    private HubConnection? _hubConnection;
 
     public ModbusPollingService(ILogger<ModbusPollingService> logger, IConfiguration configuration)
     {
         _logger = logger;
         _configuration = configuration;
-    }
-
-    public override async Task StartAsync(CancellationToken cancellationToken)
-    {
-        _logger.LogInformation("ModbusGateway starting up...");
-
-        var hubUrl = _configuration["ApiUrl"] ?? "http://localhost:5248/hubs/fuel-track";
-        _hubConnection = new HubConnectionBuilder()
-            .WithUrl(hubUrl)
-            .WithAutomaticReconnect()
-            .Build();
-
-        _hubConnection.Closed += async (error) =>
-        {
-            _logger.LogWarning(error, "SignalR connection closed. Retrying...");
-            await Task.Delay(new Random().Next(0, 5) * 1000, CancellationToken.None);
-            try
-            {
-                await _hubConnection.StartAsync(CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to reconnect SignalR hub.");
-            }
-        };
-
-        try
-        {
-            await _hubConnection.StartAsync(cancellationToken);
-            _logger.LogInformation("Connected to FuelTrack SignalR Hub at {Url}", hubUrl);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to connect to SignalR Hub. Gateway will run without real-time push.");
-        }
-
-        await base.StartAsync(cancellationToken);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -106,17 +67,6 @@ public class ModbusPollingService : BackgroundService
 
                 _logger.LogInformation("Device {Ip}:{Port} Unit {Id} => Register {Reg} Value: {Val}", 
                     ip, port, deviceId, registerAddress, value);
-
-                if (_hubConnection?.State == HubConnectionState.Connected)
-                {
-                    await _hubConnection.SendAsync("SendModbusReading", new
-                    {
-                        DeviceId = deviceId,
-                        IpAddress = ip,
-                        Value = value,
-                        Timestamp = DateTime.UtcNow
-                    }, cancellationToken);
-                }
 
                 if (generatorId.HasValue)
                 {

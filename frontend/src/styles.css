@@ -2126,6 +2126,38 @@ body {
 .app-root .sidebar-user { padding: 11px; background: var(--surface-2); border-color: var(--border); }
 .app-root .sidebar-footer { padding: 10px 12px 14px; border-top-color: var(--border); }
 
+/* A restrained navigation palette keeps the current location prominent. */
+.app-root .sidebar-logo-icon {
+  color: #fff;
+  background: linear-gradient(145deg, #2d85bb, #17486f);
+  padding: 10px;
+}
+.app-root .sidebar-logo-name { letter-spacing: -.02em; }
+.app-root .sidebar-logo-sub { margin-top: 3px; line-height: 1.4; }
+.app-root .sidebar-nav { padding: 14px 12px; gap: 4px; scrollbar-width: thin; }
+.app-root .nav-item { min-height: 46px; border-radius: 11px; }
+.app-root .nav-icon-tile {
+  color: var(--text-muted);
+  background: transparent;
+  box-shadow: none;
+  border-radius: 9px;
+  text-decoration: none;
+}
+.app-root .nav-item:hover .nav-icon-tile,
+.app-root .nav-item.active .nav-icon-tile,
+.app-root .nav-group-header.child-active > .nav-group-link .nav-icon-tile { color: var(--primary); }
+.app-root .nav-item.active,
+.app-root .nav-group-header.child-active > .nav-group-link { color: var(--primary); font-weight: 700; }
+.app-root .nav-group-children .nav-item {
+  border-inline-start: 3px solid transparent;
+  border-radius: 6px 10px 10px 6px;
+}
+.app-root .nav-group-children .nav-item.active {
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+  border-inline-start-color: var(--primary);
+}
+.app-root .sidebar :is(button, a):focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
 .app-root .card,
 .app-root .kpi-card,
 .app-root .section-card,
@@ -2282,7 +2314,12 @@ body {
   .app-root .sidebar.collapsed .nav-item-label,
   .app-root .sidebar.collapsed .nav-group-toggle,
   .app-root .sidebar.collapsed .sidebar-footer span { display: none; }
-  .app-root .sidebar.collapsed .sidebar-collapse-toggle { position: absolute; top: 62px; right: 22px; z-index: 4; }
+  .app-root .sidebar.collapsed .sidebar-logo { min-height: 112px; align-items: flex-start; }
+  .app-root .sidebar.collapsed .sidebar-collapse-toggle { position: absolute; top: 67px; right: 23px; z-index: 4; width: 34px; height: 34px; }
+  .app-root .sidebar.collapsed .sidebar-notifications .notification-preview-toggle { display: none !important; }
+  .app-root .sidebar.collapsed .sidebar-notifications .nav-item { position: relative; }
+  .app-root .sidebar.collapsed .sidebar-notifications .badge { position: absolute; inset-block-start: 2px; inset-inline-end: 2px; font-size: 10px; }
+  .app-root .sidebar.collapsed .nav-group-link > svg { display: none; }
   .app-root .sidebar.collapsed .nav-item { justify-content: center; padding-inline: 8px; }
   .app-root .sidebar.collapsed .nav-group-children { margin: 0; padding: 0; border: 0; }
   .app-root .sidebar.collapsed .sidebar-footer { display: grid; justify-items: center; }

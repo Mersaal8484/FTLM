@@ -165,9 +165,9 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
       <div className={`mobile-sidebar-overlay${mobileOpen ? ' open' : ''}`} onClick={closeMobile} />
       <aside className={`sidebar${mobileOpen ? ' open' : ''}${sidebarCollapsed ? ' collapsed' : ''}`}>
         <div className="sidebar-logo" onClick={() => { navigate('/'); closeMobile(); }} style={{ cursor: 'pointer' }}>
-          {branding.logoUrl && <div className="sidebar-logo-icon">
-             <img src={branding.logoUrl} alt={branding.name} onError={e => e.target.style.display = 'none'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-          </div>}
+          <div className="sidebar-logo-icon">
+            {branding.logoUrl ? <img src={branding.logoUrl} alt="" onError={e => e.currentTarget.style.display = 'none'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <Zap size={23} strokeWidth={2.2} aria-hidden="true" />}
+          </div>
           <div className="sidebar-logo-text" style={{ flex: 1 }}>
             <div className="sidebar-logo-name">{branding.name}</div>
             <div className="sidebar-logo-sub">{ar ? 'نظام تتبع الوقود والطاقة' : 'Energy Tracking'}</div>
@@ -233,14 +233,14 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
 
         <nav className="sidebar-nav">
           {notificationItem && (
-            <div style={{ position: 'relative' }} data-nav-top={notificationItem.label}>
+            <div className="sidebar-notifications" style={{ position: 'relative' }} data-nav-top={notificationItem.label}>
               <div className="nav-item" title={sidebarCollapsed ? notificationItem.label : undefined}>
-                <span className="nav-icon-tile nav-icon-tile-red"><Bell size={19} strokeWidth={2.25} /></span>
+                {sidebarCollapsed ? <NavLink className="nav-icon-tile nav-icon-tile-red" to="/notifications" onClick={closeMobile} aria-label={notificationItem.label}><Bell size={19} strokeWidth={2.25} /></NavLink> : <span className="nav-icon-tile nav-icon-tile-red"><Bell size={19} strokeWidth={2.25} /></span>}
                 <NavLink className="nav-item-label" to="/notifications" onClick={closeMobile} style={{ flex: 1, color: 'inherit', textDecoration: 'none' }}>
                   {notificationItem.label}
                 </NavLink>
                 {unreadCount > 0 && <span className="badge badge-danger" style={{ padding: '2px 6px' }}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
-                <button onClick={openNotifications} aria-label={ar ? 'فتح الإشعارات السريعة' : 'Open notification preview'} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', display: 'flex', padding: 2 }}>
+                <button className="notification-preview-toggle" onClick={openNotifications} aria-label={ar ? 'فتح الإشعارات السريعة' : 'Open notification preview'} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', display: 'flex', padding: 2 }}>
                   <ChevronDown size={14} style={{ transform: notificationMenuOpen ? 'rotate(180deg)' : 'none', transition: 'var(--transition)' }} />
                 </button>
               </div>
@@ -277,11 +277,12 @@ function Sidebar({ lang, theme, onToggleTheme, currentUser, unreadCount = 0, onL
         </nav>
 
         <div className="sidebar-footer">
-          <button className="theme-toggle-btn" onClick={onToggleTheme}>
+          <button className="theme-toggle-btn" onClick={onToggleTheme} aria-label={ar ? (theme === 'dark' ? 'الوضع الفاتح' : 'الوضع الداكن') : (theme === 'dark' ? 'Light Mode' : 'Dark Mode')}>
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             <span style={{ flex: 1, textAlign: 'start' }}>{ar ? (theme === 'dark' ? 'الوضع الفاتح' : 'الوضع الداكن') : (theme === 'dark' ? 'Light Mode' : 'Dark Mode')}</span>
           </button>
           <button className="lang-toggle-btn" onClick={() => setLang(ar ? 'en' : 'ar')}
+            aria-label={ar ? 'Switch to English' : 'التبديل إلى العربية'}
             title={ar ? 'Switch to English' : 'التبديل إلى العربية'}
             style={{ marginTop: 2 }}
           >

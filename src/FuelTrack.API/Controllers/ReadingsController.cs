@@ -17,13 +17,15 @@ public class ReadingsController : BaseApiController
     private readonly IRealtimeNotifier _notifier;
     private readonly IWorkflowNotificationService _workflowNotifications;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<ReadingsController> _logger;
 
-    public ReadingsController(IReadingService readingService, IRealtimeNotifier notifier, IWorkflowNotificationService workflowNotifications, IConfiguration configuration)
+    public ReadingsController(IReadingService readingService, IRealtimeNotifier notifier, IWorkflowNotificationService workflowNotifications, IConfiguration configuration, ILogger<ReadingsController> logger)
     {
         _readingService = readingService;
         _notifier = notifier;
         _workflowNotifications = workflowNotifications;
         _configuration = configuration;
+        _logger = logger;
     }
 
     [HttpPost]
@@ -155,6 +157,16 @@ public class ReadingsController : BaseApiController
             return BadRequest();
 
         var result = await _readingService.SaveModbusReadingAsync(dto.GeneratorId, dto.FuelLevelLiters, dto.ReadingTimestamp);
+        try
+        {
+            // A cache invalidation carries no device or reading data to other users.
+            await _notifier.NotifyAllAsync("ReadingCreated", new { });
+        }
+        catch (Exception ex)
+        {
+            // The reading is already committed; returning an error would invite duplicates.
+            _logger.LogWarning(ex, "Failed to broadcast Modbus reading update");
+        }
         return Ok(result);
     }
 

@@ -6,14 +6,6 @@ using FuelTrack.API.Services;
 
 namespace FuelTrack.API.Hubs;
 
-// ORPHAN: This hub is mapped in Program.cs but no frontend code connects to it.
-// ModbusPollingService calls Clients.Group("station_X").SendAsync(...) but the
-// SignalR JS client never calls JoinStationGroup/LeaveStationGroup.
-// Consider: (a) wiring frontend to connect, or (b) removing if not needed.
-//
-// TODO: C-03 — ModbusPollingService calls SendAsync("SendModbusReading", ...) but
-// this Hub has NO handler for "SendModbusReading". Data from Modbus is LOST.
-// See ENTERPRISE_WORK_PLAN.md#C-03
 [Authorize(AuthenticationSchemes = "SignalR")]
 public class FuelTrackHub(IConfiguration configuration, IServiceProvider services) : Hub
 {

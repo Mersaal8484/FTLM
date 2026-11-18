@@ -1,13 +1,13 @@
-import * as XLSX from 'xlsx-js-style';
-
-export const exportToExcel = (data, columns, filename = 'report') => {
+export const exportToExcel = async (data, columns, filename = 'report') => {
   if (!data || data.length === 0) return;
+  const module = await import('xlsx-js-style');
+  const XLSX = module.default ?? module;
 
   const headers = columns.map(col => col.header);
   const rows = data.map(row => {
     return columns.map(col => {
       // Basic rendering, skip complex render functions
-      return row[col.accessor] || '';
+      return row[col.accessor] ?? '';
     });
   });
 
