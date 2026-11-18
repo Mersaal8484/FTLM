@@ -7,6 +7,7 @@ import {
 import ConfirmModal from '../components/ConfirmModal';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 import useTenantBranding from '../hooks/useTenantBranding';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 export function canReviewInventory(currentUser, inventory) {
   const role = currentUser?.role;
@@ -52,6 +53,7 @@ export function buildInventoryStatusPayload(inventory, status) {
 
 function PeriodicInventoryPage({ lang, currentUser }) {
   const branding = useTenantBranding();
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const ar = lang === 'ar';
   
   // Permission helpers
@@ -93,8 +95,8 @@ function PeriodicInventoryPage({ lang, currentUser }) {
     try {
       const [invRes, statRes, subRes, tankRes, oilRes, ptRes] = await Promise.all([
         client.get('/api/inventory'),
-        client.get('/api/stations'),
-        client.get('/api/sub-stations'),
+        isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/stations'),
+        isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/sub-stations'),
         client.get('/api/fuel-tanks'),
         client.get('/api/oils'),
         client.get('/api/lookups/by-category/PeriodType'),
@@ -109,11 +111,13 @@ function PeriodicInventoryPage({ lang, currentUser }) {
       if (ptRes.data?.length > 0) {
         setNewForm(prev => prev.periodType ? prev : { ...prev, periodType: ptRes.data[0].id });
       }
-    } catch {}
+    } catch {
+      setStatus({ type: 'error', msg: ar ? 'فشل تحميل بيانات الجرد.' : 'Failed to load inventory data.' });
+    }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { if (modeResolved) fetchAll(); }, [modeResolved, isCommercialMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getRefId = (value) => value?.id || value?._id || value || '';
   const getLocationLabel = (inv) => inv?.subStation?.name || inv?.station?.name || inv?.station || '—';

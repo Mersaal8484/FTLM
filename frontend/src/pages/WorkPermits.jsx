@@ -110,7 +110,7 @@ function WorkPermits({ lang, currentUser }) {
         client.get('/api/generators', { params: { _t: Date.now() } }),
       ]);
       if (wpRes.status === 'fulfilled') setPermits(wpRes.value.data?.items || wpRes.value.data || []);
-      if (genRes.status === 'fulfilled') setGenerators(genRes.value.data || []);
+      if (genRes.status === 'fulfilled') setGenerators(Array.isArray(genRes.value.data?.data) ? genRes.value.data.data : (Array.isArray(genRes.value.data) ? genRes.value.data : []));
     } catch { setError(ar ? 'فشل تحميل البيانات' : 'Failed to load data'); }
     finally { setLoading(false); }
   };
