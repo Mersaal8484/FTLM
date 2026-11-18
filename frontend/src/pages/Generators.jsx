@@ -66,7 +66,7 @@ function StatusBadge({ status, lang }) {
 
 function Generators({ t, lang, currentUser }) {
   const ar = lang === 'ar';
-  const { isCommercialMode } = useCommercialMode();
+  const { isCommercialMode, modeResolved } = useCommercialMode();
 
   const perms = currentUser?.permissions?.generators || {};
   const canAdd = currentUser?.role === 'admin' || perms.add || perms.create;
@@ -101,14 +101,14 @@ function Generators({ t, lang, currentUser }) {
     try {
       const requests = [
         client.get('/api/generators', { params: { _t: Date.now() } }),
-        client.get('/api/stations', { params: { _t: Date.now() } }),
-        client.get('/api/sub-stations', { params: { _t: Date.now() } }),
+        isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/stations', { params: { _t: Date.now() } }),
+        isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/sub-stations', { params: { _t: Date.now() } }),
         client.get('/api/lookups/by-category/GeneratorType', { params: { _t: Date.now() } }),
         client.get('/api/lookups/by-category/Voltage', { params: { _t: Date.now() } }),
         client.get('/api/lookups/by-category/Frequency', { params: { _t: Date.now() } }),
         client.get('/api/lookups/by-category/OwnershipType', { params: { _t: Date.now() } }),
         client.get('/api/lookups/by-category/GeneratorStatus', { params: { _t: Date.now() } }),
-        client.get('/api/branches', { params: { _t: Date.now() } }),
+        isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/branches', { params: { _t: Date.now() } }),
       ];
 
       if (canAdd || canEdit) {
@@ -144,7 +144,7 @@ function Generators({ t, lang, currentUser }) {
     return subStations.filter(ss => ss.stationId === Number(form.station) || ss.station_id === form.station);
   }, [subStations, form.station]);
 
-  useEffect(() => { load(); }, [isCommercialMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (modeResolved) load(); }, [isCommercialMode, modeResolved]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openAdd = () => {
     const initial = { ...initialForm };
