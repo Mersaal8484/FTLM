@@ -484,8 +484,6 @@ function MetersManagement({ lang }) {
               <Input type="number" value={form.energyReading} onChange={e => fld('energyReading', e.target.value)} placeholder="0" />
             </FormField>
           )}
-            </FormField>
-          )}
 
           <div className="form-group" style={{ marginTop: 12 }}>
             <label className="checkbox-label">
