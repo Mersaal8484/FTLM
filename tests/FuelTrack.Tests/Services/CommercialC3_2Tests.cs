@@ -143,6 +143,28 @@ public sealed class CommercialC3_2Tests : IDisposable
     }
 
     [Fact]
+    public async Task Commercial_GeneratorCreate_ResolvesTheTechnicalSiteAndIgnoresClientSiteId()
+    {
+        var commercialMode = new CommercialStationModeService(_db);
+        var activation = await commercialMode.ActivateAsync(new("Commercial Station", "CS-01"), 1);
+        Assert.True(activation.IsSuccess);
+
+        var service = new GeneratorService(_db, _scopeFilter, _currentUser, commercialMode);
+        var result = await service.CreateAsync(new CreateGeneratorDto(
+            SubStationId: 999,
+            Name: "Scoped generator",
+            SerialNumber: "SCOPED-001",
+            Model: "Model",
+            Manufacturer: "Manufacturer",
+            ActualPowerKW: 100), 1);
+
+        Assert.True(result.IsSuccess);
+        var technicalSite = Assert.Single(await _db.SubStations.ToListAsync());
+        var saved = Assert.Single(await _db.Generators.Where(generator => generator.SerialNumber == "SCOPED-001").ToListAsync());
+        Assert.Equal(technicalSite.Id, saved.SubStationId);
+    }
+
+    [Fact]
     public void Validator_CreateGeneratorDto_AcceptsNull_RejectsNegativeValues()
     {
         var validator = new CreateGeneratorDtoValidator();

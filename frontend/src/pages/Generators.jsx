@@ -144,7 +144,7 @@ function Generators({ t, lang, currentUser }) {
     return subStations.filter(ss => ss.stationId === Number(form.station) || ss.station_id === form.station);
   }, [subStations, form.station]);
 
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [isCommercialMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openAdd = () => {
     const initial = { ...initialForm };
@@ -200,7 +200,7 @@ function Generators({ t, lang, currentUser }) {
 
   const handleSubmit = async () => {
     const err = isCommercialMode
-      ? fieldError('name') || (!form.subStation && subStations.length === 0 ? (ar ? 'الموقع مطلوب' : 'SubStation is required') : null)
+      ? fieldError('name')
       : fieldError('name') || fieldError('subStation') || fieldError('ratedCapacityKw') || fieldError('fuelConsumptionRatePerHour');
     if (err) { setError(err); return; }
 
@@ -215,7 +215,7 @@ function Generators({ t, lang, currentUser }) {
     setSaving(true); setError(null);
     try {
       let generatorId;
-      const targetSubStationId = Number(form.subStation) || (isCommercialMode && subStations[0]?.id ? Number(subStations[0].id) : 0);
+      const targetSubStationId = isCommercialMode ? 0 : Number(form.subStation);
       if (editId) {
         const payload = {
           SubStationId: targetSubStationId,
@@ -439,7 +439,7 @@ function Generators({ t, lang, currentUser }) {
    };
 
   return (
-    <div>
+    <div className={isCommercialMode ? 'commercial-generator-page' : undefined}>
       <PageHeader
         title={t.generators}
         subtitle={t.manageGenerators}
@@ -467,12 +467,12 @@ function Generators({ t, lang, currentUser }) {
       ) : (<>
         <div className="grouped-container">
           {generatorTree.map(({ stationId, stationName, sites }) => {
-            const stationExpanded = expandedStations.has(stationId);
+            const stationExpanded = isCommercialMode || expandedStations.has(stationId);
             const stationGenCount = sites.reduce((sum, s) => sum + s.gens.length, 0);
             return (
               <div key={stationId} className="station-group" style={{ marginBottom: 28 }}>
                 {/* Station Header */}
-                <div className="station-group-header" style={{ marginBottom: 4, cursor: 'pointer' }}
+                {!isCommercialMode && <div className="station-group-header" style={{ marginBottom: 4, cursor: 'pointer' }}
                   onClick={() => toggleStation(stationId)}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, background: 'var(--primary-light)', color: 'var(--primary)', flexShrink: 0 }}>
                     {stationExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
@@ -481,14 +481,14 @@ function Generators({ t, lang, currentUser }) {
                     <h3 style={{ margin: 0, fontSize: 16, fontWeight: 'bold', color: 'var(--text-main)' }}>{stationName || (ar ? 'محطة غير محددة' : 'Unnamed Station')}</h3>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{stationGenCount} {ar ? 'مولد' : 'generators'}</div>
                   </div>
-                </div>
+                </div>}
 
                 {/* Sites */}
                 {stationExpanded && sites.map(({ siteKey, siteName, gens }) => {
-                  const siteExpanded = expandedSites.has(siteKey);
+                  const siteExpanded = isCommercialMode || expandedSites.has(siteKey);
                   return (
-                    <div key={siteKey} style={{ paddingLeft: 24, marginBottom: 8 }}>
-                      <div className="site-group-header" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--card-2)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: 6 }}
+                    <div key={siteKey} style={{ paddingLeft: isCommercialMode ? 0 : 24, marginBottom: 8 }}>
+                      {!isCommercialMode && <div className="site-group-header" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--card-2)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: 6 }}
                         onClick={() => toggleSite(siteKey)}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 'var(--radius-xs)', background: 'var(--surface-2)', color: 'var(--text-muted)', flexShrink: 0 }}>
                           {siteExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -496,7 +496,7 @@ function Generators({ t, lang, currentUser }) {
                         <MapPin size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-main)', flex: 1 }}>{siteName}</span>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--surface-2)', padding: '2px 8px', borderRadius: 'var(--radius-sm)' }}>{gens.length} {ar ? 'مولد' : 'gen'}</span>
-                      </div>
+                      </div>}
 
                       {/* Generators */}
                       {siteExpanded && (

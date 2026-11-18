@@ -1,6 +1,7 @@
 using FuelTrack.Application.Common;
 using FuelTrack.Application.DTOs.Generators;
 using FuelTrack.Application.DTOs.Generators.My;
+using FuelTrack.Application.DTOs.Operations;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
@@ -14,27 +15,34 @@ public class GeneratorService : IGeneratorService
     private readonly FuelTrackDbContext _db;
     private readonly IUserScopeFilterService _scopeFilter;
     private readonly ICurrentUserService _currentUser;
+    private readonly ICommercialStationModeService _commercialMode;
 
-    public GeneratorService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser)
+    public GeneratorService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser, ICommercialStationModeService? commercialMode = null)
     {
         _db = db;
         _scopeFilter = scopeFilter;
         _currentUser = currentUser;
+        _commercialMode = commercialMode ?? new CommercialStationModeService(db);
     }
 
     public async Task<Result<GeneratorListDto>> CreateAsync(CreateGeneratorDto dto, int userId, CancellationToken ct = default)
     {
-        var subStationExists = await _db.SubStations.AnyAsync(s => s.Id == dto.SubStationId, ct);
-        if (!subStationExists)
-            return Result<GeneratorListDto>.NotFound($"SubStation {dto.SubStationId} not found.");
+        var commercialScope = await GetCommercialScopeAsync(ct);
+        if (await _commercialMode.IsCommercialModeAsync(ct) && commercialScope is null)
+            return Result<GeneratorListDto>.Failure("Commercial mode has no active technical station scope.");
 
-        var duplicate = await _db.Generators.AnyAsync(g => g.SubStationId == dto.SubStationId && g.SerialNumber == dto.SerialNumber, ct);
+        var subStationId = commercialScope?.SubStationId ?? dto.SubStationId;
+        var subStationExists = await _db.SubStations.AnyAsync(s => s.Id == subStationId, ct);
+        if (!subStationExists)
+            return Result<GeneratorListDto>.NotFound($"SubStation {subStationId} not found.");
+
+        var duplicate = await _db.Generators.AnyAsync(g => g.SubStationId == subStationId && g.SerialNumber == dto.SerialNumber, ct);
         if (duplicate)
             return Result<GeneratorListDto>.Failure("Generator with this serial number already exists in this substation.");
 
         var generator = new Generator
         {
-            SubStationId = dto.SubStationId,
+            SubStationId = subStationId,
             Name = dto.Name,
             SerialNumber = dto.SerialNumber,
             Model = dto.Model,
@@ -93,7 +101,13 @@ public class GeneratorService : IGeneratorService
         if (generator is null)
             return Result<GeneratorDetailDto>.NotFound($"Generator {id} not found.");
 
-        if (dto.SubStationId.HasValue) generator.SubStationId = dto.SubStationId.Value;
+        var commercialScope = await GetCommercialScopeAsync(ct);
+        if (await _commercialMode.IsCommercialModeAsync(ct) && commercialScope is null)
+            return Result<GeneratorDetailDto>.Failure("Commercial mode has no active technical station scope.");
+        if (commercialScope is not null && generator.SubStationId != commercialScope.SubStationId)
+            return Result<GeneratorDetailDto>.NotFound($"Generator {id} not found.");
+
+        if (commercialScope is null && dto.SubStationId.HasValue) generator.SubStationId = dto.SubStationId.Value;
         if (dto.Name is not null) generator.Name = dto.Name;
         if (dto.SerialNumber is not null) generator.SerialNumber = dto.SerialNumber;
         if (dto.Model is not null) generator.Model = dto.Model;
@@ -149,6 +163,11 @@ public class GeneratorService : IGeneratorService
         var generator = await _db.Generators.FindAsync(new object[] { id }, ct);
         if (generator is null)
             return Result.NotFound($"Generator {id} not found.");
+        var commercialScope = await GetCommercialScopeAsync(ct);
+        if (await _commercialMode.IsCommercialModeAsync(ct) && commercialScope is null)
+            return Result.Failure("Commercial mode has no active technical station scope.");
+        if (commercialScope is not null && generator.SubStationId != commercialScope.SubStationId)
+            return Result.NotFound($"Generator {id} not found.");
 
         generator.IsActive = false;
         generator.DeletedAt = DateTime.UtcNow;
@@ -160,6 +179,12 @@ public class GeneratorService : IGeneratorService
 
     public async Task<GeneratorDetailDto?> GetByIdAsync(int id, int userId, CancellationToken ct = default)
     {
+        var commercialScope = await GetCommercialScopeAsync(ct);
+        if (await _commercialMode.IsCommercialModeAsync(ct))
+        {
+            if (commercialScope is null) return null;
+            return await MapToDetailAsync(id, ct, commercialScope.SubStationId);
+        }
         if (!_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
@@ -219,6 +244,24 @@ public class GeneratorService : IGeneratorService
 
     public async Task<List<GeneratorListDto>> GetAllAsync(int userId, CancellationToken ct = default)
     {
+        var commercialScope = await GetCommercialScopeAsync(ct);
+        if (await _commercialMode.IsCommercialModeAsync(ct))
+        {
+            if (commercialScope is null) return [];
+            return await _db.Generators
+                .AsNoTracking()
+                .Include(g => g.SubStation)
+                .Include(g => g.GeneratorTypeLookup)
+                .Include(g => g.VoltageLookup)
+                .Include(g => g.FrequencyLookup)
+                .Include(g => g.OwnershipTypeLookup)
+                .Include(g => g.StatusLookup)
+                .Include(g => g.Controller)
+                .Where(g => g.DeletedAt == null && g.SubStationId == commercialScope.SubStationId)
+                .OrderBy(g => g.Name)
+                .Select(g => MapToList(g))
+                .ToListAsync(ct);
+        }
         if (!_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
@@ -689,7 +732,7 @@ public class GeneratorService : IGeneratorService
         return existing?.Id;
     }
 
-    private async Task<GeneratorDetailDto?> MapToDetailAsync(int id, CancellationToken ct)
+    private async Task<GeneratorDetailDto?> MapToDetailAsync(int id, CancellationToken ct, int? requiredSubStationId = null)
     {
         return await _db.Generators
             .AsNoTracking()
@@ -700,7 +743,7 @@ public class GeneratorService : IGeneratorService
             .Include(g => g.FrequencyLookup)
             .Include(g => g.StatusLookup)
             .Include(g => g.Controller)
-            .Where(g => g.Id == id && g.DeletedAt == null)
+            .Where(g => g.Id == id && g.DeletedAt == null && (!requiredSubStationId.HasValue || g.SubStationId == requiredSubStationId.Value))
             .Select(g => new GeneratorDetailDto(
                 g.Id,
                 g.SubStationId,
@@ -735,6 +778,11 @@ public class GeneratorService : IGeneratorService
                 g.UpdatedAt))
             .FirstOrDefaultAsync(ct);
     }
+
+    private async Task<CommercialStationScope?> GetCommercialScopeAsync(CancellationToken ct) =>
+        await _commercialMode.IsCommercialModeAsync(ct)
+            ? await _commercialMode.GetScopeAsync(ct)
+            : null;
 
     private static GeneratorListDto MapToList(Generator g)
     {
