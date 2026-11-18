@@ -50,12 +50,13 @@ export default function DailyTanks({ lang, currentUser }) {
     setError('');
     try {
       const ts = Date.now();
-      const [tRes, gRes, ftRes, ssRes] = await Promise.all([
+      const responses = await Promise.all([
         client.get('/api/fuel-tanks', { params: { _t: ts } }),
         client.get('/api/generators', { params: { _t: ts } }),
         client.get('/api/lookups/by-category/FuelType', { params: { _t: ts } }).catch(() => ({ data: [] })),
-        client.get('/api/sub-stations', { params: { _t: ts } }).catch(() => ({ data: [] })),
+        ...(isCommercialMode ? [] : [client.get('/api/sub-stations', { params: { _t: ts } }).catch(() => ({ data: [] }))]),
       ]);
+      const [tRes, gRes, ftRes, ssRes = { data: [] }] = responses;
 
       const allTanks = Array.isArray(tRes.data?.items) ? tRes.data.items : Array.isArray(tRes.data) ? tRes.data : [];
       // Filter daily tanks: TankRole == 2 (Daily) or GeneratorId != null
@@ -72,7 +73,7 @@ export default function DailyTanks({ lang, currentUser }) {
     } finally {
       setLoading(false);
     }
-  }, [ar]);
+  }, [ar, isCommercialMode]);
 
   useEffect(() => {
     fetchData();
@@ -139,7 +140,7 @@ export default function DailyTanks({ lang, currentUser }) {
     setSaving(true);
     setFormError('');
     try {
-      const subStationId = subStations[0]?.id || 1;
+      const subStationId = isCommercialMode ? 0 : (subStations[0]?.id || 1);
       const fuelId = form.fuelLookupId ? Number(form.fuelLookupId) : (fuelTypes[0]?.id || 1);
 
       const dCm = form.diameterCm ? parseFloat(form.diameterCm) : null;

@@ -190,6 +190,32 @@ public sealed class CommercialTankVerticalGeometryTests : IDisposable
     }
 
     [Fact]
+    public async Task CommercialTank_ReadsIgnoreTheClientSubStationId()
+    {
+        _db.FuelTanks.Add(new FuelTank
+        {
+            Id = 44,
+            SubStationId = 1,
+            FuelLookupId = 1,
+            Name = "Technical-scope tank",
+            Code = "TK-SCOPE-44",
+            CapacityLiters = 1000,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+        await EnableCommercialModeAsync();
+
+        var tanks = await _tankService.GetBySubStationAsync(999);
+        var tank = await _tankService.GetByIdAsync(44);
+
+        Assert.Single(tanks);
+        Assert.Equal(44, tanks[0].Id);
+        Assert.NotNull(tank);
+        Assert.Equal(1, tank.SubStationId);
+    }
+
+    [Fact]
     public async Task FuelTankService_UpdateAsync_Rejects_Shape1()
     {
         var existing = new FuelTank

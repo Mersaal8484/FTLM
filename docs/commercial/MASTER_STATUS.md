@@ -12,7 +12,7 @@ This is the single implementation-status checklist for Commercial Station Mode.
 | C2.5 A — automatic/manual activation | In progress | Startup configuration and admin settings card are being added; owner verification pending |
 | C2.5 B1 — locations route/navigation | Done in C2 | `EnterpriseOnly` route and commercial controller guards |
 | C2.5 B2 — generator commercial residual audit | In progress | Server-side scope resolution and UI hierarchy hiding changed; active-mode verification remains required |
-| C2.5 B3 — tank commercial residual audit | Pending audit | Do not mark complete without active-mode screen and API evidence |
+| C2.5 B3 — tank commercial residual audit | In progress | Server-side technical-scope resolution now covers tank create, read, update and delete; tank screens omit hierarchy requests in commercial mode. Owner verification remains required. |
 | C2.5 B4 — feeder-meter-only screen | Pending audit | Do not mark complete without active-mode screen and API evidence |
 | C2.5 B5 — controller commercial residual audit | Pending audit | Do not mark complete without active-mode screen and API evidence |
 | C2.5 B6 — oil setup commercial residual audit | Pending audit | Do not mark complete without active-mode screen and API evidence |

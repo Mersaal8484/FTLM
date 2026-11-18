@@ -64,13 +64,16 @@ function TanksManagement({ lang, currentUser }) {
   const fetchAll = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const [t, ss, s, ft, br] = await Promise.all([
+      const responses = await Promise.all([
         client.get('/api/fuel-tanks', { params: { _t: Date.now() } }),
-        client.get('/api/sub-stations', { params: { _t: Date.now() } }),
-        client.get('/api/stations', { params: { _t: Date.now() } }),
         client.get('/api/lookups/by-category/FuelType', { params: { _t: Date.now() } }).catch(() => ({ data: [] })),
-        client.get('/api/branches', { params: { _t: Date.now() } }).catch(() => ({ data: [] })),
+        ...(isCommercialMode ? [] : [
+          client.get('/api/sub-stations', { params: { _t: Date.now() } }),
+          client.get('/api/stations', { params: { _t: Date.now() } }),
+          client.get('/api/branches', { params: { _t: Date.now() } }).catch(() => ({ data: [] })),
+        ]),
       ]);
+      const [t, ft, ss = { data: [] }, s = { data: [] }, br = { data: [] }] = responses;
       setTanks(t.data?.map?.(tk => ({ ...tk, isActive: tk.isActive !== false })) ?? t.data);
       setSubStations(ss.data?.filter(s => s.isActive !== false));
       setStations(s.data);
@@ -81,7 +84,7 @@ function TanksManagement({ lang, currentUser }) {
     } finally {
       setLoading(false);
     }
-  }, [ar]);
+  }, [ar, isCommercialMode]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -144,9 +147,7 @@ function TanksManagement({ lang, currentUser }) {
     setSaving(true);
     setFormError('');
     try {
-      const effectiveSubStationId = isCommercialMode
-        ? (Number(form.subStation) || subStations[0]?.id || 0)
-        : (Number(form.subStation) || 0);
+      const effectiveSubStationId = isCommercialMode ? 0 : (Number(form.subStation) || 0);
 
       const payload = {
         name: form.name,
@@ -235,7 +236,9 @@ function TanksManagement({ lang, currentUser }) {
     <div>
       <PageHeader
         title={ar ? 'إعداد خزانات الوقود' : 'Tanks Management'}
-        subtitle={ar ? 'إضافة وتعديل خزانات الوقود وربطها بالمواقع والمولدات' : 'Add and manage fuel tanks, link them to locations and generators'}
+        subtitle={isCommercialMode
+          ? (ar ? 'إضافة وتعديل خزانات الوقود للمحطة التجارية' : 'Add and manage fuel tanks for the commercial station')
+          : (ar ? 'إضافة وتعديل خزانات الوقود وربطها بالمواقع والمولدات' : 'Add and manage fuel tanks, link them to locations and generators')}
         actions={
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="ghost" size="sm" icon={RefreshCw} onClick={fetchAll} title={ar ? 'تحديث' : 'Refresh'} />
