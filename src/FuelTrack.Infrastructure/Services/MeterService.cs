@@ -24,28 +24,38 @@ public class MeterService : IMeterService
         _commercialMode = commercialMode;
     }
 
+    private async Task<int?> ResolveMeterTypeLookupIdAsync(string meterType)
+    {
+        var category = await _db.LookupCategories.FirstOrDefaultAsync(c => c.Name == "MeterType");
+        if (category == null) return null;
+
+        var lookup = await _db.Lookups.FirstOrDefaultAsync(l =>
+            l.CategoryId == category.Id && (l.Code == meterType || l.Name == meterType));
+
+        if (lookup == null && (meterType == "SolarProductionMeter" || meterType == "SolarMeter" || meterType == "عداد إنتاج الطاقة الشمسية"))
+        {
+            lookup = new Lookup
+            {
+                CategoryId = category.Id,
+                Code = "SolarProductionMeter",
+                Name = "عداد إنتاج الطاقة الشمسية",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            _db.Lookups.Add(lookup);
+            await _db.SaveChangesAsync();
+        }
+
+        return lookup?.Id;
+    }
+
     public async Task<MeterDetailDto> CreateAsync(CreateMeterDto dto)
     {
         var meterTypeLookupId = dto.MeterTypeLookupId;
         if (!meterTypeLookupId.HasValue && !string.IsNullOrWhiteSpace(dto.MeterType))
         {
-            var lookup = await _db.Lookups.FirstOrDefaultAsync(l => l.Category == "MeterType" && (l.Code == dto.MeterType || l.Name == dto.MeterType));
-            if (lookup == null && (dto.MeterType == "SolarProductionMeter" || dto.MeterType == "SolarMeter" || dto.MeterType == "عداد إنتاج الطاقة الشمسية"))
-            {
-                lookup = new Lookup
-                {
-                    Category = "MeterType",
-                    Code = "SolarProductionMeter",
-                    Name = "عداد إنتاج الطاقة الشمسية",
-                    Description = "Solar Production Meter",
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                _db.Lookups.Add(lookup);
-                await _db.SaveChangesAsync();
-            }
-            meterTypeLookupId = lookup?.Id;
+            meterTypeLookupId = await ResolveMeterTypeLookupIdAsync(dto.MeterType!);
         }
 
         var meter = new Meter
@@ -110,23 +120,7 @@ public class MeterService : IMeterService
         var meterTypeLookupId = dto.MeterTypeLookupId;
         if (!meterTypeLookupId.HasValue && !string.IsNullOrWhiteSpace(dto.MeterType))
         {
-            var lookup = await _db.Lookups.FirstOrDefaultAsync(l => l.Category == "MeterType" && (l.Code == dto.MeterType || l.Name == dto.MeterType));
-            if (lookup == null && (dto.MeterType == "SolarProductionMeter" || dto.MeterType == "SolarMeter" || dto.MeterType == "عداد إنتاج الطاقة الشمسية"))
-            {
-                lookup = new Lookup
-                {
-                    Category = "MeterType",
-                    Code = "SolarProductionMeter",
-                    Name = "عداد إنتاج الطاقة الشمسية",
-                    Description = "Solar Production Meter",
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                _db.Lookups.Add(lookup);
-                await _db.SaveChangesAsync();
-            }
-            meterTypeLookupId = lookup?.Id;
+            meterTypeLookupId = await ResolveMeterTypeLookupIdAsync(dto.MeterType!);
         }
 
         meter.Name = dto.MeterName ?? meter.Name;
