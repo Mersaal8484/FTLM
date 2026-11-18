@@ -128,7 +128,9 @@ public class PeriodicInventoryService : IPeriodicInventoryService
                 pi.Id, pi.SubStationId, pi.SubStation.Name,
                 pi.Year, pi.Month, pi.PeriodTypeLookup.Name,
                 pi.InventoryDate,
-                pi.Notes, pi.CreatedAt))
+                pi.Notes, pi.CreatedAt,
+                pi.FuelReadings.Sum(r => (double?)r.ActualStockLiters) ?? 0,
+                pi.OilReadings.Sum(r => (double?)r.ActualStockLiters) ?? 0))
             .ToListAsync();
     }
 
@@ -285,7 +287,9 @@ public class PeriodicInventoryService : IPeriodicInventoryService
                 pi.Id, pi.SubStationId, pi.SubStation.Name,
                 pi.Year, pi.Month, pi.PeriodTypeLookup.Name,
                 pi.InventoryDate,
-                pi.Notes, pi.CreatedAt))
+                pi.Notes, pi.CreatedAt,
+                pi.FuelReadings.Sum(r => (double?)r.ActualStockLiters) ?? 0,
+                pi.OilReadings.Sum(r => (double?)r.ActualStockLiters) ?? 0))
             .ToListAsync();
     }
 

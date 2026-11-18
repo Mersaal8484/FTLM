@@ -6,9 +6,18 @@ import {
   formatInventoryEfficiency,
   getInventoryPrintDate,
   getMissingFuelReason,
+  buildInventoryReadings,
+  localInventoryDate,
 } from './PeriodicInventoryPage';
 
 describe('PeriodicInventoryPage inventory actions', () => {
+  test('combines tanks by fuel and preserves oil identifiers', () => {
+    expect(buildInventoryReadings(
+      [{ fuelLookupId: 19, actualQty: '15000' }, { fuelLookupId: 19, actualQty: '500' }],
+      [{ oil: 1, oilLookupId: 22, actualQty: '400' }],
+    )).toEqual({ fuelReadings: [{ fuelLookupId: 19, actualQtyLiters: 15500 }], oilReadings: [{ oilId: 1, oilLookupId: 22, actualQtyLiters: 400 }] });
+    expect(() => buildInventoryReadings([{ fuelLookupId: 19, actualQty: '' }], [])).toThrow();
+  });
   test('admin can review draft and submitted inventories', () => {
     const admin = { role: 'admin' };
 
@@ -27,6 +36,12 @@ describe('PeriodicInventoryPage inventory actions', () => {
 
   test('normalizes inventory print dates for filtering', () => {
     expect(getInventoryPrintDate({ inventoryDate: '2026-06-03T12:00:00.000Z' })).toBe('2026-06-03');
+    expect(getInventoryPrintDate({ inventoryDate: '2026-11-19T00:00:00Z' })).toBe('2026-11-19');
+  });
+
+  test('uses the browser local calendar date around midnight', () => {
+    expect(localInventoryDate(new Date(2026, 10, 19, 0, 30))).toBe('2026-11-19');
+    expect(localInventoryDate(new Date(2026, 11, 31, 23, 30))).toBe('2026-12-31');
   });
 
   test('uses missing fuel reason and falls back to notes for older records', () => {

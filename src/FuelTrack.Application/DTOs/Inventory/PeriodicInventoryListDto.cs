@@ -9,4 +9,6 @@ public record PeriodicInventoryListDto(
     string PeriodType,
     DateTime InventoryDate,
     string? Notes,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    double TotalFuelActualQty,
+    double TotalOilActualQty);
