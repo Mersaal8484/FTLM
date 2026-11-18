@@ -18,7 +18,7 @@ This is the single implementation-status checklist for Commercial Station Mode.
 | C2.5 B6 — oil setup commercial residual audit | Pending audit | Do not mark complete without active-mode screen and API evidence |
 | C2.5 B7 — daily fuel tanks | Done in C3, pending active-mode verification | `DailyTanks` and C3 report |
 | C2.5 B8 — users shift/scope hiding | Done in C2, pending active-mode verification | `Users.jsx`, `UserService` |
-| C2.5 B10 — feeders hidden/redirected | Pending audit | Hidden mapping must remain owned by `MeterService` |
+| C2.5 B10 — feeders hidden/redirected | In progress | Registry remains enterprise-only and the direct `/feeders` route now redirects in commercial mode. The hidden mapping remains owned by `MeterService`. Owner verification remains required. |
 | C2.5 B11 — hierarchy filters audit | Pending audit | Search all frontend hierarchy selectors under active commercial mode |
 | C3 — equipment settings and daily tanks | Done | `03-equipment-settings-report.md` |
 | C4 / C4.1 — operational workflow and solar metering | Done | `04-operator-approval-workflows-report.md`, `04b-solar-metering-proposal.md` |

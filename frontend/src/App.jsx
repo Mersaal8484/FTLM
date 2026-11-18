@@ -346,7 +346,7 @@ function App() {
               <Route path="/setup-oils" element={<OilSetupProtected><SetupOils t={t} lang={lang} /></OilSetupProtected>} />
               <Route path="/tanks" element={<Protected module="tanks"><TanksManagement t={t} lang={lang} currentUser={user} /></Protected>} />
               <Route path="/commercial/daily-tanks" element={<CommercialOnly><Protected module="tanks"><DailyTanks lang={lang} currentUser={user} /></Protected></CommercialOnly>} />
-              <Route path="/feeders" element={<Protected module="settings" action="manage"><FeedersManagement lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/feeders" element={<EnterpriseOnly><Protected module="settings" action="manage"><FeedersManagement lang={lang} currentUser={user} /></Protected></EnterpriseOnly>} />
               <Route path="/oils" element={<ExplicitProtected module="oil"><OilInventory t={t} lang={lang} currentUser={user} /></ExplicitProtected>} />
               <Route path="/users" element={<Protected module="users" action="view"><Users lang={lang} t={t} currentUser={user} /></Protected>} />
               <Route path="/roles" element={<Protected module="settings" action="manage"><RolesManagement lang={lang} onRolesChanged={refreshSessionUser} /></Protected>} />
