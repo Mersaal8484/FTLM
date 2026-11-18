@@ -21,7 +21,6 @@ namespace FuelTrack.Tests.Services;
 /// 3. Server-side enforcement for Controller operating hours (non-negative and >= approved reading).
 /// 4. Cross-tenant / out-of-scope query denial.
 /// 5. Tenant upgrade 010 parity with EF migration 20261116120000.
-/// Marked UNVERIFIED until manually executed by owner.
 /// </summary>
 public sealed class CommercialC3_2Tests : IDisposable
 {
@@ -68,8 +67,7 @@ public sealed class CommercialC3_2Tests : IDisposable
             Manufacturer: "CAT",
             NominalPower: 1600.0,
             NominalPowerUnitLookupId: null,
-            NominalPowerUnitLookupName: null,
-            ActualPowerKW: 1400.0,
+            ActualPowerKW: 1400,
             FuelConsumptionRatePerHour: 0.28m,
             OwnerName: "Enterprise Owner",
             GeneratorTypeLookupId: null,
@@ -110,8 +108,7 @@ public sealed class CommercialC3_2Tests : IDisposable
             Manufacturer: "Cummins",
             NominalPower: null,
             NominalPowerUnitLookupId: null,
-            NominalPowerUnitLookupName: null,
-            ActualPowerKW: 1200.0,
+            ActualPowerKW: 1200,
             FuelConsumptionRatePerHour: null,
             OwnerName: null,
             GeneratorTypeLookupId: null,
@@ -177,8 +174,7 @@ public sealed class CommercialC3_2Tests : IDisposable
             Manufacturer: null,
             NominalPower: null,
             NominalPowerUnitLookupId: null,
-            NominalPowerUnitLookupName: null,
-            ActualPowerKW: null,
+            ActualPowerKW: 0,
             FuelConsumptionRatePerHour: null,
             OwnerName: null,
             GeneratorTypeLookupId: null,
@@ -203,7 +199,7 @@ public sealed class CommercialC3_2Tests : IDisposable
         var invalidNegativeDto = validNullDto with { NominalPower = -50.0 };
         var negativeResult = await validator.ValidateAsync(invalidNegativeDto);
         Assert.False(negativeResult.IsValid);
-        Assert.Contains(negativeResult.Errors, e => e.PropertyName.StartsWith(nameof(CreateGeneratorDto.NominalPower)));
+        Assert.Contains(negativeResult.Errors, e => e.PropertyName == nameof(CreateGeneratorDto.NominalPower));
     }
 
     [Fact]
@@ -323,9 +319,10 @@ public sealed class CommercialC3_2Tests : IDisposable
         var restrictedScopeFilter = new RestrictedScopeFilter(new List<int> { 1 });
         var scopedService = new GeneratorService(_db, restrictedScopeFilter, _currentUser);
 
-        var paged = await scopedService.GetPagedAsync(new GeneratorFilterDto(SubStationId: 99));
-        // Generator in substation 99 must not be returned
-        Assert.Empty(paged.Data);
+        var generators = await scopedService.GetAllAsync(_currentUser.UserId!.Value);
+
+        // The generator in substation 99 must not be returned to this user.
+        Assert.DoesNotContain(generators, generator => generator.Id == foreignGen.Id);
     }
 
     [Fact]

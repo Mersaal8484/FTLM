@@ -15,8 +15,12 @@ public class CreateGeneratorDtoValidator : AbstractValidator<CreateGeneratorDto>
             .WithMessage("SubStationId is required outside commercial mode.");
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.SerialNumber).NotEmpty().MaximumLength(50);
-        When(x => x.NominalPower.HasValue, () => RuleFor(x => x.NominalPower!.Value).GreaterThanOrEqualTo(0));
-        When(x => x.FuelConsumptionRatePerHour.HasValue, () => RuleFor(x => x.FuelConsumptionRatePerHour!.Value).GreaterThanOrEqualTo(0));
+        When(x => x.NominalPower.HasValue, () => RuleFor(x => x.NominalPower!.Value)
+            .GreaterThanOrEqualTo(0)
+            .OverridePropertyName(nameof(CreateGeneratorDto.NominalPower)));
+        When(x => x.FuelConsumptionRatePerHour.HasValue, () => RuleFor(x => x.FuelConsumptionRatePerHour!.Value)
+            .GreaterThanOrEqualTo(0)
+            .OverridePropertyName(nameof(CreateGeneratorDto.FuelConsumptionRatePerHour)));
     }
 
     private async Task<bool> HasTechnicalSiteOrCommercialModeAsync(CreateGeneratorDto _, int subStationId, CancellationToken cancellationToken)

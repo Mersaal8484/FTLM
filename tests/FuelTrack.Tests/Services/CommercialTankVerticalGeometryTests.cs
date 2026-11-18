@@ -44,11 +44,21 @@ public sealed class CommercialTankVerticalGeometryTests : IDisposable
         var branch = new Branch { Id = 1, Code = "BR-01", Name = "Commercial Branch", IsActive = true };
         var station = new Station { Id = 1, BranchId = 1, Code = "ST-01", Name = "Commercial Station", IsActive = true };
         var subStation = new SubStation { Id = 1, StationId = 1, Code = "SITE-01", Name = "Commercial Site", IsActive = true };
-        var fuelLookup = new Lookup { Id = 1, Category = "FuelType", Code = "DIESEL", Name = "Diesel", IsActive = true };
+        var fuelCategory = new LookupCategory { Id = 1, Name = "FuelType", DisplayName = "Fuel types", IsActive = true };
+        var fuelLookup = new Lookup
+        {
+            Id = 1,
+            CategoryId = fuelCategory.Id,
+            Category = fuelCategory,
+            Code = "DIESEL",
+            Name = "Diesel",
+            IsActive = true
+        };
 
         _db.Branches.Add(branch);
         _db.Stations.Add(station);
         _db.SubStations.Add(subStation);
+        _db.LookupCategories.Add(fuelCategory);
         _db.Lookups.Add(fuelLookup);
         _db.SaveChanges();
     }
@@ -326,8 +336,7 @@ public sealed class CommercialTankVerticalGeometryTests : IDisposable
         };
 
         var resolvedLitresFromCm = TankVolumeService.DeadStockLitres(tankWithCmDeadStock);
-        Assert.NotNull(resolvedLitresFromCm);
-        Assert.Equal(65.45m, resolvedLitresFromCm.Value, 2);
+        Assert.Equal(65.45m, resolvedLitresFromCm, 2);
 
         // When reading is at 100 cm (2094.40 L)
         var totalFuelAt100 = TankGeometry.CalculateLitres(
@@ -335,7 +344,7 @@ public sealed class CommercialTankVerticalGeometryTests : IDisposable
             Diameter, CylinderHeight, ConeHeight, 1m, 100m);
         Assert.Equal(2094.40m, totalFuelAt100, 2);
 
-        var usableFuel = totalFuelAt100 - resolvedLitresFromCm.Value;
+        var usableFuel = totalFuelAt100 - resolvedLitresFromCm;
         Assert.Equal(2028.95m, usableFuel, 2);
 
         // When dead stock is provided directly in litres (65.45 L)
@@ -352,7 +361,6 @@ public sealed class CommercialTankVerticalGeometryTests : IDisposable
         };
 
         var resolvedLitresFromLitre = TankVolumeService.DeadStockLitres(tankWithLitreDeadStock);
-        Assert.NotNull(resolvedLitresFromLitre);
-        Assert.Equal(65.45m, resolvedLitresFromLitre.Value, 2);
+        Assert.Equal(65.45m, resolvedLitresFromLitre, 2);
     }
 }

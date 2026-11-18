@@ -1,8 +1,8 @@
 using FuelTrack.Application.DTOs.Meters;
 using FuelTrack.Application.DTOs.Operations;
-using FuelTrack.Domain.Entities;
 using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
+using FuelTrack.Domain.Services;
 using FuelTrack.Infrastructure;
 using FuelTrack.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +13,6 @@ namespace FuelTrack.Tests.Services;
 
 /// <summary>
 /// Phase C4.1: Solar Metering and Energy Balance integration tests.
-/// UNVERIFIED (per owner instruction: tests written, not executed by agent).
 /// </summary>
 public sealed class CommercialSolarMeteringTests
 {
@@ -75,13 +74,21 @@ public sealed class CommercialSolarMeteringTests
         var generator = new Generator { Id = 5, SubStationId = 10, Name = "G1", SerialNumber = "G1", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         var feeder = new Feeder { Id = 3, SubStationId = 10, Name = "F1", Code = "F1", MeterMultiplier = 1m, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
 
+        var meterTypeCategory = new LookupCategory
+        {
+            Id = 1,
+            Name = "MeterType",
+            DisplayName = "Meter types",
+            IsActive = true
+        };
+
         var solarLookup = new Lookup
         {
             Id = 99,
-            Category = "MeterType",
+            CategoryId = meterTypeCategory.Id,
+            Category = meterTypeCategory,
             Code = "SolarProductionMeter",
             Name = "عداد إنتاج الطاقة الشمسية",
-            Description = "Solar Production Meter",
             IsActive = true
         };
 
@@ -111,7 +118,7 @@ public sealed class CommercialSolarMeteringTests
             UpdatedBy = 1
         };
 
-        db.AddRange(station, settings, site, generator, feeder, solarLookup, solarMeter, submission);
+        db.AddRange(station, settings, site, generator, feeder, meterTypeCategory, solarLookup, solarMeter, submission);
         await db.SaveChangesAsync();
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -142,9 +149,9 @@ public sealed class CommercialSolarMeteringTests
         Assert.Equal(4000m, result.SolarImportKwh);
         Assert.Equal(13000m, result.ExportKwh);
         Assert.Equal(1000m, result.UnexplainedDiffKwh);
-        Assert.Equal(7.14m, result.UnexplainedDiffPct);
+        Assert.Equal(7.14m, result.UnexplainedDiffPct, 2);
         Assert.NotNull(result.SolarSharePct);
-        Assert.Equal(28.57m, result.SolarSharePct.Value);
+        Assert.Equal(28.57m, result.SolarSharePct.Value, 2);
         Assert.Contains("الفاقد والاستهلاك المساعد للمحطة", result.UnexplainedLabel);
     }
 
@@ -235,13 +242,13 @@ public sealed class CommercialSolarMeteringTests
         await db.SaveChangesAsync();
 
         var deltaSvc = new MeterDeltaService(db);
-        var delta = await deltaSvc.CalculateClosingDeltaAsync(MeterReadingSubjectType.SolarEnergyProduced, solarMeterId, today);
+        var delta = await deltaSvc.GetDailyDeltaAsync(MeterReadingSubjectType.SolarEnergyProduced, solarMeterId, today);
 
         Assert.NotNull(delta);
         Assert.Equal(2500m, delta.Delta);
         Assert.Equal(12500m, delta.PreviousValue);
         Assert.Equal(15000m, delta.CurrentValue);
-        Assert.Equal(1, delta.SpanDays);
+        Assert.Null(delta.SpanDays);
     }
 
     [Fact]

@@ -21,11 +21,28 @@ public sealed class CommercialMeterScopeTests : IDisposable
         _db = new FuelTrackDbContext(new DbContextOptionsBuilder<FuelTrackDbContext>()
             .UseInMemoryDatabase($"CommercialMeterScope_{Guid.NewGuid()}").Options);
 
+        var meterTypeCategory = new LookupCategory
+        {
+            Id = 1,
+            Name = "MeterType",
+            DisplayName = "Meter types",
+            IsActive = true
+        };
+
         _db.AddRange(
             new Branch { Id = 1, Name = "Technical Branch", Code = "TECH-PS01", IsActive = true },
             new Station { Id = 1, BranchId = 1, Name = "Commercial Station", Code = "PS01", IsActive = true },
             new SubStation { Id = 1, StationId = 1, Name = "Commercial Station", Code = "PS01", IsActive = true },
-            new Lookup { Id = 1, Category = "MeterType", Code = "ExportEnergy", Name = "Feeder Meter", IsActive = true },
+            meterTypeCategory,
+            new Lookup
+            {
+                Id = 1,
+                CategoryId = meterTypeCategory.Id,
+                Category = meterTypeCategory,
+                Code = "ExportEnergy",
+                Name = "Feeder Meter",
+                IsActive = true
+            },
             new CustomerFeatureSetting
             {
                 Key = CommercialStationModeService.FeatureKey,
