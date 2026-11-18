@@ -43,7 +43,14 @@ export const appTranslations = {
         generatorsReport: 'Generators Report', efficiencyReport: 'Efficiency Report', periodicInventoryReport: 'Periodic Inventory Report',
         notifications: 'Notifications', locations: 'Locations & Stations', setupGenerators: 'Setup Generators', meters: 'Meters',
         setupOils: 'Setup Oils', setupTanks: 'Setup Tanks', controllers: 'Setup Controllers', users: 'Manage Users',
-        roles: 'Roles & Permissions', audits: 'Audit Log', rollback: 'Approval Rollback',
+        roles: 'Roles & Permissions', audits: 'Audit Log', rollback: 'Approval Rollback', commercialMode: 'Commercial Station Mode',
+      },
+      commercialMode: {
+        title: 'Commercial Station Mode',
+        description: 'Activate the single-station commercial workflow. This preserves the technical hierarchy while hiding it from daily work.',
+        stationName: 'Station name', stationCode: 'Station code', activate: 'Activate commercial mode', activating: 'Activating...',
+        activeTitle: 'Commercial mode is active', activeDescription: 'This tenant is now operating as one commercial station.',
+        loadFailed: 'Unable to load the commercial-mode status.', activateFailed: 'Unable to activate commercial mode.',
       },
       operational: {
         eyebrow: 'Operations workspace',
@@ -740,6 +747,17 @@ Object.assign(appTranslations.en.translation, {
   },
 });
 Object.assign(appTranslations.ar.translation, {
+  sidebar: {
+    ...appTranslations.ar.translation.sidebar,
+    commercialMode: '\u0648\u0636\u0639 \u0627\u0644\u0645\u062d\u0637\u0629 \u0627\u0644\u062a\u062c\u0627\u0631\u064a\u0629',
+  },
+  commercialMode: {
+    title: '\u0648\u0636\u0639 \u0627\u0644\u0645\u062d\u0637\u0629 \u0627\u0644\u062a\u062c\u0627\u0631\u064a\u0629',
+    description: '\u0641\u0639\u0651\u0644 \u0645\u0633\u0627\u0631 \u0627\u0644\u0645\u062d\u0637\u0629 \u0627\u0644\u062a\u062c\u0627\u0631\u064a\u0629 \u0627\u0644\u0648\u0627\u062d\u062f\u0629. \u064a\u062d\u062a\u0641\u0638 \u0627\u0644\u0646\u0638\u0627\u0645 \u0628\u0627\u0644\u0647\u064a\u0643\u0644 \u0627\u0644\u062a\u0642\u0646\u064a \u0648\u064a\u062e\u0641\u064a\u0647 \u0645\u0646 \u0627\u0644\u0639\u0645\u0644 \u0627\u0644\u064a\u0648\u0645\u064a.',
+    stationName: '\u0627\u0633\u0645 \u0627\u0644\u0645\u062d\u0637\u0629', stationCode: '\u0631\u0645\u0632 \u0627\u0644\u0645\u062d\u0637\u0629', activate: '\u062a\u0641\u0639\u064a\u0644 \u0648\u0636\u0639 \u0627\u0644\u0645\u062d\u0637\u0629 \u0627\u0644\u062a\u062c\u0627\u0631\u064a\u0629', activating: '\u062c\u0627\u0631\u064d \u0627\u0644\u062a\u0641\u0639\u064a\u0644...',
+    activeTitle: '\u0648\u0636\u0639 \u0627\u0644\u0645\u062d\u0637\u0629 \u0627\u0644\u062a\u062c\u0627\u0631\u064a\u0629 \u0645\u0641\u0639\u0651\u0644', activeDescription: '\u064a\u0639\u0645\u0644 \u0647\u0630\u0627 \u0627\u0644\u0645\u0633\u062a\u0623\u062c\u0631 \u0627\u0644\u0622\u0646 \u0643\u0645\u062d\u0637\u0629 \u062a\u062c\u0627\u0631\u064a\u0629 \u0648\u0627\u062d\u062f\u0629.',
+    loadFailed: '\u062a\u0639\u0630\u0631 \u062a\u062d\u0645\u064a\u0644 \u062d\u0627\u0644\u0629 \u0648\u0636\u0639 \u0627\u0644\u0645\u062d\u0637\u0629 \u0627\u0644\u062a\u062c\u0627\u0631\u064a\u0629.', activateFailed: '\u062a\u0639\u0630\u0631 \u062a\u0641\u0639\u064a\u0644 \u0648\u0636\u0639 \u0627\u0644\u0645\u062d\u0637\u0629 \u0627\u0644\u062a\u062c\u0627\u0631\u064a\u0629.',
+  },
   feeders: {
     title: '\u0627\u0644\u0641\u064a\u062f\u0631\u0627\u062a', subtitle: '\u0625\u062f\u0627\u0631\u0629 \u0641\u064a\u062f\u0631\u0627\u062a \u0627\u0644\u0645\u0648\u0642\u0639 \u0648\u0639\u062f\u0627\u062f\u0627\u062a\u0647\u0627 \u0627\u0644\u0645\u0631\u062a\u0628\u0637\u0629.',
     site: '\u0627\u0644\u0645\u0648\u0642\u0639', selectSite: '\u0627\u062e\u062a\u0631 \u0645\u0648\u0642\u0639\u0627\u064b', add: '\u0625\u0636\u0627\u0641\u0629 \u0641\u064a\u062f\u0631', edit: '\u062a\u0639\u062f\u064a\u0644', deactivate: '\u0625\u064a\u0642\u0627\u0641',

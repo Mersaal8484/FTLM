@@ -61,6 +61,7 @@ const EnergyBalanceBoard = lazy(() => import('./pages/EnergyBalanceBoard'));
 const TankRefillTransfer = lazy(() => import('./pages/TankRefillTransfer'));
 const TankSetup = lazy(() => import('./pages/TankSetup'));
 const OperationalDailyLog = lazy(() => import('./pages/OperationalDailyLog'));
+const CommercialStationModeSettings = lazy(() => import('./pages/CommercialStationModeSettings'));
 
 
 
@@ -320,6 +321,7 @@ function App() {
               <Route path="/notifications" element={<Protected module="alerts"><Notifications lang={lang} onRead={() => setUnreadCount(Math.max(0, unreadCount - 1))} /></Protected>} />
 
               {/* Admin Setup */}
+              <Route path="/settings/commercial-mode" element={<EnterpriseOnly><Protected module="settings" action="manage"><CommercialStationModeSettings /></Protected></EnterpriseOnly>} />
               <Route path="/locations" element={<EnterpriseOnly><Protected module="settings" action="manage"><LocationsManagement lang={lang} /></Protected></EnterpriseOnly>} />
               <Route path="/meters" element={<Protected module="settings" action="manage"><MetersManagement lang={lang} /></Protected>} />
               <Route path="/generators" element={<ExplicitProtected module="generators" action="view"><Generators lang={lang} t={t} currentUser={user} /></ExplicitProtected>} />

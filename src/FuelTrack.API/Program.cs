@@ -651,6 +651,47 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
+    // Commercial mode is normally an explicit tenant decision.  Local development
+    // can opt into a fresh, single-station experience without requiring an API
+    // call before the first login.  Activation itself remains idempotent and
+    // performs the same hierarchy preflight used by the admin endpoint.
+    if (builder.Configuration.GetValue<bool>("CommercialStation:AutoActivate"))
+    {
+        var stationName = builder.Configuration["CommercialStation:StationName"];
+        var stationCode = builder.Configuration["CommercialStation:StationCode"];
+        if (string.IsNullOrWhiteSpace(stationName) || string.IsNullOrWhiteSpace(stationCode))
+        {
+            startupLogger.LogError("CommercialStation:AutoActivate is enabled but StationName or StationCode is missing; commercial mode was not activated.");
+        }
+        else if (adminUser.Id <= 0)
+        {
+            startupLogger.LogError("CommercialStation:AutoActivate is enabled but the startup administrator was not created; commercial mode was not activated.");
+        }
+        else
+        {
+            try
+            {
+                var commercialMode = scope.ServiceProvider.GetRequiredService<ICommercialStationModeService>();
+                if (!await commercialMode.IsCommercialModeAsync())
+                {
+                    var activation = await commercialMode.ActivateAsync(
+                        new FuelTrack.Application.DTOs.Operations.ActivateCommercialStationModeDto(stationName, stationCode),
+                        adminUser.Id);
+                    if (activation.IsSuccess)
+                        startupLogger.LogInformation("Commercial station mode was automatically activated for station {StationCode}.", stationCode);
+                    else
+                        startupLogger.LogError("Commercial station auto-activation was rejected: {Error}", activation.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                // A configuration convenience must never prevent the API from
+                // starting.  The administrator can inspect and activate it later.
+                startupLogger.LogError(ex, "Commercial station auto-activation failed; continuing in enterprise mode.");
+            }
+        }
+    }
+
     var recurringJobManager = scope.ServiceProvider.GetService<IRecurringJobManager>();
     if (recurringJobManager != null)
     {

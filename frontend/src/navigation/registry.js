@@ -1,6 +1,7 @@
 import {
   BarChart2,
   Bell,
+  Building2,
   Boxes,
   ClipboardCheck,
   Clock,
@@ -75,6 +76,7 @@ export const navigationRegistry = [
   { id: 'reports', route: '/reports', labelKey: 'sidebar.reports', icon: BarChart2, permissionRule: anyRule(moduleRule('reports'), moduleRule('warehouse')), group: 'main', order: 50, legacyDuplicate: false, modeVisibility: 'all' },
 
   { id: 'locations', route: '/locations', labelKey: 'sidebar.locations', icon: MapPin, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 91, legacyDuplicate: false, modeVisibility: 'enterprise' },
+  { id: 'commercial-mode', route: '/settings/commercial-mode', labelKey: 'sidebar.commercialMode', icon: Building2, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 91.5, legacyDuplicate: false, modeVisibility: 'enterprise' },
   { id: 'setup-generators', route: '/generators', labelKey: 'sidebar.setupGenerators', icon: Zap, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 92, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'meters', route: '/meters', labelKey: 'sidebar.meters', icon: Gauge, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 93, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'setup-oils', route: '/setup-oils', labelKey: 'sidebar.setupOils', icon: Droplet, permissionRule: moduleRule('settings', 'manage'), group: 'settings', order: 94, legacyDuplicate: false, modeVisibility: 'all' },

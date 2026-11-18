@@ -224,7 +224,7 @@ C3: Equipment Settings
     ├── Generators: hide nominal capacity, power factor, consumption rate; add cumulative hours
     ├── Generator screens: free-text manufacturer/model, hide connection settings
     ├── Tanks: main tank unlinked from generator; new Daily Fuel Tanks page (linked to generator)
-    ├── Tank Geometry: implement Horizontal Cylinder with Conical Ends strategy
+    ├── Tank Geometry: vertical cylinder with a conical bottom (shape 0)
     ├── Meters: rename sent energy to feeder meter; hide fuel/generator meters; hidden 1:1 Feeder row
     └── Oil stock: unlinked from site
 
@@ -258,7 +258,7 @@ C7: Roles, Navigation & Hardening
 ## Decisions & Confirmations Status
 
 ### Confirmed by Owner (Resolved)
-- [x] **Tank Shape:** Horizontal cylinder with conical ends (*أسطوانية أفقية بنهايات قمعية*) for main and daily tanks.
+- [x] **Tank Shape:** Vertical cylinder with a conical bottom (*أسطوانية عمودية بقاع قمعي*) for main and daily tanks.
 - [x] **Main Tank Dead Stock:** Unusable; used solely to compute usable stock (`Usable = Max(0, Actual − DeadStock)`), not dispensable stock.
 - [x] **Theoretical Consumption:** Completely removed from operational calculations.
 - [x] **Daily Consumption Formula:** $\text{Opening} + \text{Refills/Inbound} - \text{Closing}$.
