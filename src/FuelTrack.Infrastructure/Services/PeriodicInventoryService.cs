@@ -34,6 +34,17 @@ public class PeriodicInventoryService : IPeriodicInventoryService
     {
     }
 
+    private async Task<bool> CanAccessSubStationAsync(int subStationId)
+    {
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var scope = await _commercialMode.GetScopeAsync();
+            return scope is not null && scope.SubStationId == subStationId;
+        }
+        if (_currentUser.HasAnyAdminRole) return true;
+        return _currentUser.UserId is int userId && await _scopeFilter.HasAccessToSubStationAsync(userId, subStationId);
+    }
+
     public async Task<PeriodicInventoryDto> CreateAsync(CreatePeriodicInventoryDto dto, int userId)
     {
         int targetSubStationId;
@@ -119,8 +130,15 @@ public class PeriodicInventoryService : IPeriodicInventoryService
         if (await _commercialMode.IsCommercialModeAsync())
         {
             var scope = await _commercialMode.GetScopeAsync();
-            if (scope is not null)
-                query = query.Where(pi => pi.SubStationId == scope.SubStationId);
+            if (scope is null) return null;
+            query = query.Where(pi => pi.SubStationId == scope.SubStationId);
+        }
+
+        else if (!_currentUser.HasAnyAdminRole)
+        {
+            if (_currentUser.UserId is not int userId) return null;
+            var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId);
+            query = query.Where(pi => accessibleIds.Contains(pi.SubStationId));
         }
 
         return await query
@@ -148,16 +166,7 @@ public class PeriodicInventoryService : IPeriodicInventoryService
 
     public async Task<List<PeriodicInventoryListDto>> GetBySubStationAsync(int subStationId)
     {
-        if (!_currentUser.HasAnyAdminRole)
-        {
-            var currentUserId = _currentUser.UserId;
-            if (currentUserId.HasValue)
-            {
-                var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
-                if (!accessibleIds.Contains(subStationId))
-                    return new List<PeriodicInventoryListDto>();
-            }
-        }
+        if (!await CanAccessSubStationAsync(subStationId)) return new List<PeriodicInventoryListDto>();
 
         return await _db.PeriodicInventories
             .Include(pi => pi.SubStation)
@@ -198,21 +207,13 @@ public class PeriodicInventoryService : IPeriodicInventoryService
             .FirstOrDefaultAsync(pi => pi.Id == id && pi.DeletedAt == null)
             ?? throw new KeyNotFoundException($"PeriodicInventory {id} not found");
 
-        if (inventory.IsApproved && dto.IsApproved != false)
-            throw new InvalidOperationException("Cannot update an approved periodic inventory.");
+        if (!await CanAccessSubStationAsync(inventory.SubStationId))
+            throw new KeyNotFoundException($"PeriodicInventory {id} not found");
 
-        if (dto.IsApproved == true && !inventory.IsApproved)
-        {
-            inventory.IsApproved = true;
-            inventory.ApprovedById = userId;
-            inventory.ApprovedAt = DateTime.UtcNow;
-        }
-        else if (dto.IsApproved == false)
-        {
-            inventory.IsApproved = false;
-            inventory.ApprovedById = null;
-            inventory.ApprovedAt = null;
-        }
+        if (dto.IsApproved.HasValue && dto.IsApproved.Value != inventory.IsApproved)
+            throw new InvalidOperationException("Inventory approval cannot be changed through update.");
+        if (inventory.IsApproved)
+            throw new InvalidOperationException("Cannot update an approved periodic inventory.");
 
         await ValidateFuelCapacityAsync(targetSubStationId, dto.FuelReadings);
 
@@ -260,6 +261,8 @@ public class PeriodicInventoryService : IPeriodicInventoryService
     {
         var inventory = await _db.PeriodicInventories.FindAsync(id)
             ?? throw new KeyNotFoundException($"PeriodicInventory {id} not found");
+        if (!await CanAccessSubStationAsync(inventory.SubStationId))
+            throw new KeyNotFoundException($"PeriodicInventory {id} not found");
 
         if (inventory.IsApproved)
             throw new InvalidOperationException("PeriodicInventory is already approved.");
@@ -277,6 +280,8 @@ public class PeriodicInventoryService : IPeriodicInventoryService
     {
         var inventory = await _db.PeriodicInventories.FindAsync(id)
             ?? throw new KeyNotFoundException($"PeriodicInventory {id} not found");
+        if (!await CanAccessSubStationAsync(inventory.SubStationId))
+            throw new KeyNotFoundException($"PeriodicInventory {id} not found");
 
         inventory.DeletedAt = DateTime.UtcNow;
         inventory.UpdatedAt = DateTime.UtcNow;
@@ -288,6 +293,8 @@ public class PeriodicInventoryService : IPeriodicInventoryService
         var inventory = await _db.PeriodicInventories
             .FirstOrDefaultAsync(p => p.Id == id && p.DeletedAt == null)
             ?? throw new KeyNotFoundException($"PeriodicInventory {id} not found");
+        if (!await CanAccessSubStationAsync(inventory.SubStationId))
+            throw new KeyNotFoundException($"PeriodicInventory {id} not found");
 
         var startDate = new DateTime(inventory.Year, inventory.Month, 1);
         var endDate = startDate.AddMonths(1).AddDays(-1);
@@ -327,12 +334,13 @@ public class PeriodicInventoryService : IPeriodicInventoryService
         if (await _commercialMode.IsCommercialModeAsync())
         {
             var scope = await _commercialMode.GetScopeAsync();
-            if (scope is not null)
-                query = query.Where(pi => pi.SubStationId == scope.SubStationId);
+            if (scope is null) return new List<PeriodicInventoryListDto>();
+            query = query.Where(pi => pi.SubStationId == scope.SubStationId);
         }
         else if (!_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
+            if (!currentUserId.HasValue) return new List<PeriodicInventoryListDto>();
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);

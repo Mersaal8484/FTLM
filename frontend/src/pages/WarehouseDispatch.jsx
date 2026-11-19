@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit2, Trash2, X, Search, Check, PackageCheck } from 'lucide-react';
 import client from '../api/client';
+import { loadAllWorkPermits } from '../api/workPermitLists';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
@@ -58,7 +59,7 @@ function WarehouseDispatch({ lang, currentUser }) {
         client.get('/api/warehouse/dispatch', { params: { _t: Date.now() } }),
         isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/sub-stations', { params: { _t: Date.now() } }),
         client.get('/api/spare-parts', { params: { _t: Date.now() } }),
-        client.get('/api/work-permits', { params: { _t: Date.now() } }),
+        loadAllWorkPermits().then(data => ({ data })),
       ]);
       if (disRes.status === 'fulfilled') setDispatches(disRes.value.data?.items || disRes.value.data || []);
       if (subRes.status === 'fulfilled') setSubStations(subRes.value.data?.items || subRes.value.data || []);

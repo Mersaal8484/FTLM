@@ -42,7 +42,6 @@ public static class PermissionMapping
         ["Audits"] = "audit_logs",
         ["Notifications"] = "notifications",
         ["Dashboard"] = "dashboard",
-        ["Screens"] = "controllers",
         ["ControllersDevice"] = "controllers",
         ["Efficiency"] = "generators",
         ["Rollback"] = "rollback_approval",

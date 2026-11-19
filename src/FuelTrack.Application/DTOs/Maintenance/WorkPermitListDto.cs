@@ -17,7 +17,9 @@ public record WorkPermitListDto(
     DateTime? PlannedStartDate,
     DateTime? ActualStartDate,
     int TasksTotal,
-    int TasksCompleted);
+    int TasksCompleted,
+    string? Status,
+    string? Priority);
 
 public record WorkPermitDetailDto(
     int Id,

@@ -337,6 +337,15 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
+if (builder.Environment.IsDevelopment() &&
+    !builder.Configuration.GetValue<bool>("MultiTenancy:Enabled") &&
+    builder.Configuration.GetValue<bool>("DatabaseBackup:DevelopmentScheduler") &&
+    !string.IsNullOrWhiteSpace(builder.Configuration["DatabaseBackup:Directory"]))
+{
+    builder.Services.AddScoped<DatabaseBackupJob>();
+    builder.Services.AddHostedService<DevelopmentBackupScheduler>();
+}
+
 if (!builder.Configuration.GetValue<bool>("MultiTenancy:Enabled") &&
     !builder.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase) && !builder.Environment.IsDevelopment())
 {

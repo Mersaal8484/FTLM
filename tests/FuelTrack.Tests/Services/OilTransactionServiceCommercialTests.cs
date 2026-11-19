@@ -112,7 +112,7 @@ public sealed class OilTransactionServiceCommercialTests : IDisposable
             QuantityLiters: 100), 1);
 
         // Now add a second SubStation (outside the commercial scope) and a transaction for it
-        _db.SubStations.Add(new SubStation { Id = 2, StationId = 1, Name = "Other Site", Code = "OTH", IsActive = true });
+        _db.SubStations.Add(new SubStation { Id = 2, StationId = 1, Name = "Other Site", Code = "OTH", IsActive = false });
         _db.SaveChanges();
 
         // Add transaction for other site (site 2)

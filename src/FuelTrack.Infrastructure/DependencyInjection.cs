@@ -105,7 +105,6 @@ public static class DependencyInjection
         services.AddScoped<IEfficiencyService, EfficiencyService>();
         services.AddScoped<IControllerService, ControllerService>();
         services.AddScoped<IMeterService, MeterService>();
-        services.AddScoped<IScreenService, ScreenService>();
         services.AddScoped<IRollbackService, RollbackService>();
         services.AddScoped<IUserScopeFilterService, UserScopeFilterService>();
         services.AddDistributedMemoryCache();

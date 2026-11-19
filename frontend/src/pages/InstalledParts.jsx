@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, X, Wrench } from 'lucide-react';
 import client from '../api/client';
+import { loadAllWorkPermits } from '../api/workPermitLists';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
@@ -62,7 +63,7 @@ function InstalledParts({ lang, currentUser }) {
         client.get('/api/installed-parts', { params }),
         client.get('/api/generators', { params: { _t: Date.now() } }),
         client.get('/api/spare-parts', { params: { _t: Date.now() } }),
-        client.get('/api/work-permits', { params: { _t: Date.now() } }),
+        loadAllWorkPermits().then(data => ({ data })),
         client.get('/api/warehouse/dispatch', { params: { _t: Date.now() } }),
       ]);
       if (partRes.status === 'fulfilled') setParts(responseList(partRes.value.data));

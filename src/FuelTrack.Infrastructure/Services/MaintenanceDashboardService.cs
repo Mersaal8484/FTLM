@@ -85,7 +85,8 @@ public class MaintenanceDashboardService : IMaintenanceDashboardService
                 wp.PlannedStartDate,
                 wp.ActualStartDate,
                 wp.Tasks.Count,
-                wp.Tasks.Count(t => t.IsCompleted)))
+                wp.Tasks.Count(t => t.IsCompleted),
+                wp.StatusLookup.Code, wp.PriorityLookup.Code))
             .ToListAsync(ct);
 
         var installedPartsQuery = _db.InstalledParts

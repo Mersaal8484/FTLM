@@ -67,7 +67,7 @@ public class WorkPermitsController : BaseApiController
         var userId = GetUserId();
         var result = await _workPermitService.CreateAsync(dto, userId);
         if (!result.IsSuccess)
-            return BadRequest(new { error = result.Error });
+            return StatusCode(result.StatusCode, new { error = result.Error });
         await _workflowNotifications.NotifyWorkPermitAssignedAsync(result.Value!.Id, result.Value.SubStationId, result.Value.PermitNumber, result.Value.AssignedToId, userId);
         return Ok(result.Value);
     }
@@ -79,7 +79,7 @@ public class WorkPermitsController : BaseApiController
         var userId = GetUserId();
         var result = await _workPermitService.UpdateAsync(id, dto, userId);
         if (!result.IsSuccess)
-            return BadRequest(new { error = result.Error });
+            return StatusCode(result.StatusCode, new { error = result.Error });
         await _workflowNotifications.NotifyWorkPermitAssignedAsync(result.Value!.Id, result.Value.SubStationId, result.Value.PermitNumber, result.Value.AssignedToId, userId);
         return Ok(result.Value);
     }
@@ -91,7 +91,7 @@ public class WorkPermitsController : BaseApiController
         var userId = GetUserId();
         var result = await _workPermitService.UpdateStatusAsync(id, dto, userId);
         if (!result.IsSuccess)
-            return BadRequest(new { error = result.Error });
+            return StatusCode(result.StatusCode, new { error = result.Error });
         return Ok(result.Value);
     }
 
@@ -119,7 +119,7 @@ public class WorkPermitsController : BaseApiController
     {
         var result = await _workPermitService.DeleteAsync(id);
         if (!result.IsSuccess)
-            return BadRequest(new { error = result.Error });
+            return StatusCode(result.StatusCode, new { error = result.Error });
         return NoContent();
     }
 }

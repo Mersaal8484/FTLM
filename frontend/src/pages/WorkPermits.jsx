@@ -18,7 +18,7 @@ const statusCfg = {
   draft:     { cls: 'badge-secondary', label: { ar: 'مسودة', en: 'Draft' } },
   submitted: { cls: 'badge-warning',  label: { ar: 'مقدم', en: 'Submitted' } },
   approved:  { cls: 'badge-success',  label: { ar: 'معتمد', en: 'Approved' } },
-  in_progress:{ cls: 'badge-primary', label: { ar: 'قيد التنفيذ', en: 'In Progress' } },
+  active:    { cls: 'badge-primary', label: { ar: 'نشط', en: 'Active' } },
   completed: { cls: 'badge-success',  label: { ar: 'مكتمل', en: 'Completed' } },
   rejected:  { cls: 'badge-danger',   label: { ar: 'مرفوض', en: 'Rejected' } },
   cancelled: { cls: 'badge-secondary', label: { ar: 'ملغى', en: 'Cancelled' } },
@@ -66,6 +66,8 @@ function WorkPermits({ lang, currentUser }) {
   const [maintenanceTypes, setMaintenanceTypes] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [priorities, setPriorities] = useState([]);
+  const [statuses, setStatuses] = useState([]);
+  const [total, setTotal] = useState(0);
   const [lookupsLoading, setLookupsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
@@ -74,7 +76,8 @@ function WorkPermits({ lang, currentUser }) {
 
   const perms = currentUser?.permissions?.maintenance || {};
   const canAdd = currentUser?.role === 'admin' || perms.add || perms.create;
-  const canEdit = currentUser?.role === 'admin' || perms.edit;
+  const canEdit = currentUser?.role === 'admin' || perms.edit || perms.update;
+  const canApprove = currentUser?.role === 'admin' || perms.approve;
   const canDelete = currentUser?.role === 'admin' || perms.delete;
 
   const kpis = useMemo(() => {
@@ -85,26 +88,24 @@ function WorkPermits({ lang, currentUser }) {
     return { open, critical, completed, approved };
   }, [permits]);
 
-  const filtered = permits;
-  const paginated = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, page]);
+  const paginated = permits;
 
   const loadLookups = async () => {
     setLookupsLoading(true);
     try {
-      const [subRes, mtRes, depRes, priRes] = await Promise.allSettled([
+      const [subRes, mtRes, depRes, priRes, statusRes] = await Promise.allSettled([
         isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/sub-stations', { params: { _t: Date.now() } }),
         client.get('/api/lookups/by-category/MaintenanceType'),
         client.get('/api/lookups/by-category/MaintenanceDepartment'),
         client.get('/api/lookups/by-category/MaintenancePriority'),
+        client.get('/api/lookups/by-category/MaintenanceStatus'),
       ]);
       if (!isCommercialMode && subRes.status === 'fulfilled') setSubStations(responseList(subRes.value.data));
       if (mtRes.status === 'fulfilled') setMaintenanceTypes(responseList(mtRes.value.data));
       if (depRes.status === 'fulfilled') setDepartments(responseList(depRes.value.data));
       if (priRes.status === 'fulfilled') setPriorities(responseList(priRes.value.data));
-      if ([subRes, mtRes, depRes, priRes].some(result => result.status === 'rejected'))
+      if (statusRes.status === 'fulfilled') setStatuses(responseList(statusRes.value.data));
+      if ([subRes, mtRes, depRes, priRes, statusRes].some(result => result.status === 'rejected'))
         setError(ar ? 'تعذر تحميل بعض بيانات النموذج. حاول مجدداً.' : 'Some form data could not be loaded. Please try again.');
     } catch { setError(ar ? 'تعذر تحميل بيانات النموذج' : 'Failed to load form data'); }
     finally { setLookupsLoading(false); }
@@ -113,14 +114,19 @@ function WorkPermits({ lang, currentUser }) {
   const load = async () => {
     setLoading(true); setError(null);
     try {
-      const params = { _t: Date.now() };
+      const params = { _t: Date.now(), page, pageSize: PAGE_SIZE };
       if (statusFilter) params.status = statusFilter;
       if (priorityFilter) params.priority = priorityFilter;
       const [wpRes, genRes] = await Promise.allSettled([
         client.get('/api/work-permits', { params }),
         client.get('/api/generators', { params: { _t: Date.now() } }),
       ]);
-      if (wpRes.status === 'fulfilled') setPermits(responseList(wpRes.value.data));
+      if (wpRes.status === 'fulfilled') {
+        const data = wpRes.value.data;
+        const items = responseList(data).map(p => ({ ...p, status: p.status?.toLowerCase(), priority: p.priority?.toLowerCase() }));
+        setPermits(items);
+        setTotal(data?.totalCount ?? items.length);
+      }
       if (genRes.status === 'fulfilled') {
         const items = responseList(genRes.value.data);
         setGenerators(items);
@@ -131,8 +137,13 @@ function WorkPermits({ lang, currentUser }) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { if (modeResolved) load(); }, [statusFilter, priorityFilter, isCommercialMode, modeResolved]); // eslint-disable-line
+  useEffect(() => { if (modeResolved) load(); }, [statusFilter, priorityFilter, page, isCommercialMode, modeResolved]); // eslint-disable-line
   useEffect(() => { if (modeResolved) loadLookups(); }, [isCommercialMode, modeResolved]); // eslint-disable-line
+
+  const openDetail = async (p) => {
+    try { const res = await client.get(`/api/work-permits/${p.id}`); setDetailItem(res.data); }
+    catch { setError(ar ? 'فشل تحميل التصريح' : 'Failed to load permit'); }
+  };
 
   const openAdd = () => { setForm(initialForm); setEditId(null); setShowModal(true); setError(null); };
   const openEdit = async (p) => {
@@ -205,7 +216,7 @@ function WorkPermits({ lang, currentUser }) {
       if (editId) await client.put(`/api/work-permits/${editId}`, payload);
       else await client.post('/api/work-permits', payload);
       setShowModal(false); load();
-    } catch (err) { setError(err.response?.data?.msg || (ar ? 'فشل الحفظ' : 'Save failed')); }
+    } catch (err) { setError(err.response?.data?.error || err.response?.data?.msg || (ar ? 'فشل الحفظ' : 'Save failed')); }
     finally { setSaving(false); }
   };
 
@@ -218,7 +229,9 @@ function WorkPermits({ lang, currentUser }) {
 
   const updateStatus = async (id, status) => {
     try {
-      await client.post(`/api/work-permits/${id}/status`, { status });
+      const lookup = statuses.find(s => s.code?.toLowerCase() === status);
+      if (!lookup) throw new Error('Status not found');
+      await client.post(`/api/work-permits/${id}/status`, { statusLookupId: lookup.id });
       load();
     } catch { setError(ar ? 'فشل تحديث الحالة' : 'Status update failed'); }
   };
@@ -237,7 +250,7 @@ function WorkPermits({ lang, currentUser }) {
             {ar ? 'تصاريح العمل' : 'Work Permits'}
           </span>
         }
-        subtitle={ar ? 'إدارة تصاريح عمل الصيانة' : 'Manage maintenance work permits'}
+        subtitle={ar ? 'إدارة تصاريح عمل الصيانة — مؤشرات الصفحة الحالية' : 'Manage maintenance work permits — current page indicators'}
         actions={
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="ghost" size="sm" icon={RefreshCw} onClick={load} />
@@ -266,15 +279,15 @@ function WorkPermits({ lang, currentUser }) {
       {/* Filters */}
       <div className="section-card" style={{ marginBottom: 20, padding: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <FormField label={ar ? 'الحالة' : 'Status'} style={{ minWidth: 160 }}>
-          <select className="form-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+          <select className="form-select" value={statusFilter} onChange={e => { setPage(1); setStatusFilter(e.target.value); }}>
             <option value="">{ar ? 'كل الحالات' : 'All Statuses'}</option>
-            {Object.entries(statusCfg).map(([k, v]) => <option key={k} value={k}>{v.label[lang] || k}</option>)}
+            {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </FormField>
         <FormField label={ar ? 'الأولوية' : 'Priority'} style={{ minWidth: 160 }}>
-          <select className="form-select" value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)}>
+          <select className="form-select" value={priorityFilter} onChange={e => { setPage(1); setPriorityFilter(e.target.value); }}>
             <option value="">{ar ? 'كل الأولويات' : 'All Priorities'}</option>
-            {Object.entries(priorityCfg).map(([k, v]) => <option key={k} value={k}>{v.label[lang] || k}</option>)}
+            {priorities.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </FormField>
         <Button variant="ghost" size="sm" icon={RefreshCw} onClick={load} />
@@ -314,10 +327,10 @@ function WorkPermits({ lang, currentUser }) {
                       <td><span className={`badge ${sCfg.cls}`}>{p.statusName}</span></td>
                       <td>{p.plannedStartDate}</td>
                       <td style={{ textAlign: 'center' }}>
-                        <Button variant="ghost" size="sm" icon={Search} onClick={() => setDetailItem(p)} title={ar ? 'تفاصيل' : 'Details'} />
+                        <Button variant="ghost" size="sm" icon={Search} onClick={() => openDetail(p)} title={ar ? 'تفاصيل' : 'Details'} />
                         {canEdit && p.status === 'draft' && <Button variant="ghost" size="sm" icon={Edit2} onClick={() => openEdit(p)} />}
                         {canDelete && p.status === 'draft' && <Button variant="ghost" size="sm" icon={Trash2} onClick={() => setConfirmDelete({ open: true, id: p.id })} />}
-                        {p.status === 'submitted' && canAdd && <Button variant="success" size="sm" onClick={() => updateStatus(p.id, 'approved')}>{ar ? 'اعتماد' : 'Approve'}</Button>}
+                        {p.status === 'submitted' && canApprove && <Button variant="success" size="sm" onClick={() => updateStatus(p.id, 'approved')}>{ar ? 'اعتماد' : 'Approve'}</Button>}
                       </td>
                     </tr>
                   );
@@ -325,7 +338,7 @@ function WorkPermits({ lang, currentUser }) {
               </tbody>
             </table>
           </div>
-          <Pagination page={page} setPage={page => setPage(page)} total={filtered.length} pageSize={PAGE_SIZE} />
+          <Pagination page={page} onPageChange={setPage} totalPages={Math.ceil(total / PAGE_SIZE)} total={total} pageSize={PAGE_SIZE} lang={lang} />
         </>
       )}
 
@@ -359,7 +372,7 @@ function WorkPermits({ lang, currentUser }) {
               <FormField label={ar ? 'المولد' : 'Generator'}>
                 <select className="form-select" value={form.generatorId} onChange={e => fld('generatorId', e.target.value)} disabled={form.isGeneral || !!editId}>
                   <option value="">{ar ? 'اختر المولد' : 'Select generator'}</option>
-                  {generators.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  {generators.filter(g => !form.subStationId || String(g.subStationId) === form.subStationId).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                 </select>
               </FormField>
             </div>

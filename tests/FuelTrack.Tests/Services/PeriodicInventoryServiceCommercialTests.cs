@@ -77,7 +77,7 @@ public sealed class PeriodicInventoryServiceCommercialTests : IDisposable
             PeriodTypeLookupId: 100,
             InventoryDate: DateTime.UtcNow,
             Notes: "Commercial stocktake draft",
-            FuelReadings: new List<FuelReadingDto> { new(1001, 200, 15000) },
+            FuelReadings: new List<FuelReadingDto> { new(200, 15000) },
             OilReadings: new List<OilReadingDto>()
         );
 
@@ -128,7 +128,7 @@ public sealed class PeriodicInventoryServiceCommercialTests : IDisposable
         ), 1);
 
         // Add second SubStation and an inventory for it directly to DB
-        _db.SubStations.Add(new SubStation { Id = 2, StationId = 1, Name = "Other Site", Code = "OTH", IsActive = true });
+        _db.SubStations.Add(new SubStation { Id = 2, StationId = 1, Name = "Other Site", Code = "OTH", IsActive = false });
         _db.PeriodicInventories.Add(new PeriodicInventory
         {
             SubStationId = 2,
@@ -146,6 +146,36 @@ public sealed class PeriodicInventoryServiceCommercialTests : IDisposable
 
         Assert.Single(list);
         Assert.Equal(1, list[0].SubStationId);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_CommercialMode_UnresolvableScope_DoesNotExposeInventories()
+    {
+        EnableCommercialMode();
+        _db.SubStations.Add(new SubStation { Id = 2, StationId = 1, Name = "Other", Code = "OTH", IsActive = true });
+        _db.PeriodicInventories.Add(new PeriodicInventory { Id = 123, SubStationId = 1, PeriodTypeLookupId = 100, Year = 2026, Month = 11, InventoryDate = DateTime.UtcNow });
+        await _db.SaveChangesAsync();
+        var service = new PeriodicInventoryService(_db, new StubUserScopeFilterService(), new StubCurrentUserService(), new CommercialStationModeService(_db));
+        Assert.Empty(await service.GetAllAsync());
+        Assert.Null(await service.GetByIdAsync(123));
+        Assert.Empty(await service.GetBySubStationAsync(1));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.ApproveAsync(123, 1));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.DeleteAsync(123));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.CalculateEfficiencyAsync(123));
+        var inventory = await _db.PeriodicInventories.FindAsync(123);
+        Assert.False(inventory!.IsApproved);
+        Assert.Null(inventory.DeletedAt);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CannotChangeApprovalStatus()
+    {
+        _db.PeriodicInventories.Add(new PeriodicInventory { Id = 456, SubStationId = 1, PeriodTypeLookupId = 100, Year = 2026, Month = 11, InventoryDate = DateTime.UtcNow });
+        await _db.SaveChangesAsync();
+        var service = new PeriodicInventoryService(_db, new StubUserScopeFilterService(), new StubCurrentUserService(), new CommercialStationModeService(_db));
+        var dto = new CreatePeriodicInventoryDto(1, 2026, 11, 100, DateTime.UtcNow, null, null, null, true);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.UpdateAsync(456, dto, 1));
+        Assert.False((await _db.PeriodicInventories.FindAsync(456))!.IsApproved);
     }
 
     [Fact]

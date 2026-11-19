@@ -28,6 +28,17 @@ public class WorkPermitService : IWorkPermitService
         _commercialMode = commercialMode;
     }
 
+    private async Task<bool> CanAccessAsync(int subStationId)
+    {
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var scope = await _commercialMode.GetScopeAsync();
+            return scope is not null && scope.SubStationId == subStationId;
+        }
+        if (_currentUser.HasAnyAdminRole) return true;
+        return _currentUser.UserId is int userId && await _scopeFilter.HasAccessToSubStationAsync(userId, subStationId);
+    }
+
     public async Task<WorkPermitDetailDto?> GetByIdAsync(int id, CancellationToken ct = default)
     {
         if (await _commercialMode.IsCommercialModeAsync(ct))
@@ -61,6 +72,7 @@ public class WorkPermitService : IWorkPermitService
         if (!_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
+            if (!currentUserId.HasValue) return null;
             if (currentUserId.HasValue)
             {
                 var accessibleSubStationIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -117,6 +129,8 @@ public class WorkPermitService : IWorkPermitService
         if (!_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
+            if (!currentUserId.HasValue)
+                return new PagedResult<WorkPermitListDto> { Items = Array.Empty<WorkPermitListDto>(), TotalCount = 0, Page = page, PageSize = pageSize };
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -146,6 +160,8 @@ public class WorkPermitService : IWorkPermitService
         if (!_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
+            if (!currentUserId.HasValue)
+                return new PagedResult<WorkPermitListDto> { Items = Array.Empty<WorkPermitListDto>(), TotalCount = 0, Page = page, PageSize = pageSize };
             if (currentUserId.HasValue)
             {
                 var accessibleSubStationIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -175,7 +191,8 @@ public class WorkPermitService : IWorkPermitService
                 wp.PlannedStartDate,
                 wp.ActualStartDate,
                 wp.Tasks.Count,
-                wp.Tasks.Count(t => t.IsCompleted)))
+                wp.Tasks.Count(t => t.IsCompleted),
+                wp.StatusLookup.Code, wp.PriorityLookup.Code))
             .ToListAsync(ct);
 
         return new PagedResult<WorkPermitListDto>
@@ -215,6 +232,8 @@ public class WorkPermitService : IWorkPermitService
             if (!_currentUser.HasAnyAdminRole)
             {
                 var currentUserId = _currentUser.UserId;
+                if (!currentUserId.HasValue)
+                    return new PagedResult<WorkPermitListDto> { Items = Array.Empty<WorkPermitListDto>(), TotalCount = 0, Page = page, PageSize = pageSize };
                 if (currentUserId.HasValue)
                 {
                     var accessibleSubStationIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -254,7 +273,8 @@ public class WorkPermitService : IWorkPermitService
                 wp.PlannedStartDate,
                 wp.ActualStartDate,
                 wp.Tasks.Count,
-                wp.Tasks.Count(t => t.IsCompleted)))
+                wp.Tasks.Count(t => t.IsCompleted),
+                wp.StatusLookup.Code, wp.PriorityLookup.Code))
             .ToListAsync(ct);
 
         return new PagedResult<WorkPermitListDto>
@@ -287,19 +307,11 @@ public class WorkPermitService : IWorkPermitService
             if (subStation is null)
                 return Result<WorkPermitDetailDto>.NotFound("SubStation not found.");
 
-            if (!_currentUser.HasAnyAdminRole)
-            {
-                var currentUserId = _currentUser.UserId;
-                if (currentUserId.HasValue)
-                {
-                    var accessibleSubStationIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
-                    if (!accessibleSubStationIds.Contains(dto.SubStationId))
-                        return Result<WorkPermitDetailDto>.Failure("You do not have access to this substation.");
-                }
-            }
-
             targetSubStationId = dto.SubStationId;
         }
+
+        if (!await CanAccessAsync(targetSubStationId))
+            return Result<WorkPermitDetailDto>.Forbidden();
 
         if (dto.GeneratorId.HasValue)
         {
@@ -327,6 +339,9 @@ public class WorkPermitService : IWorkPermitService
         var draftStatus = await _db.Lookups
             .FirstOrDefaultAsync(l => l.Category.Name == "MaintenanceStatus" && l.Code == "Draft", ct);
 
+        if (draftStatus is null)
+            return Result<WorkPermitDetailDto>.Failure("Draft status is not configured.");
+
         var permit = new WorkPermit
         {
             PermitNumber = permitNumber,
@@ -335,7 +350,7 @@ public class WorkPermitService : IWorkPermitService
             MaintenanceTypeLookupId = dto.MaintenanceTypeLookupId,
             DepartmentLookupId = dto.DepartmentLookupId,
             PriorityLookupId = dto.PriorityLookupId,
-            StatusLookupId = draftStatus != null ? draftStatus.Id : 0,
+            StatusLookupId = draftStatus.Id,
             PermitDate = dto.PermitDate,
             ProblemDescription = dto.ProblemDescription,
             ProblemCause = dto.ProblemCause,
@@ -394,6 +409,9 @@ public class WorkPermitService : IWorkPermitService
             if (scope is null || permit.SubStationId != scope.SubStationId)
                 return Result<WorkPermitDetailDto>.NotFound($"Work permit {id} not found.");
         }
+
+        if (!await CanAccessAsync(permit.SubStationId))
+            return Result<WorkPermitDetailDto>.Forbidden();
 
         if (permit.StatusLookup != null && (permit.StatusLookup.Code == "Completed" || permit.StatusLookup.Code == "Cancelled"))
             return Result<WorkPermitDetailDto>.Failure("Cannot update a completed or cancelled work permit.");
@@ -499,7 +517,10 @@ public class WorkPermitService : IWorkPermitService
                 return Result<WorkPermitDetailDto>.NotFound($"Work permit {id} not found.");
         }
 
-        var newStatus = await _db.Lookups.FirstOrDefaultAsync(l => l.Id == dto.StatusLookupId && l.DeletedAt == null, ct);
+        if (!await CanAccessAsync(permit.SubStationId))
+            return Result<WorkPermitDetailDto>.Forbidden();
+
+        var newStatus = await _db.Lookups.FirstOrDefaultAsync(l => l.Id == dto.StatusLookupId && l.Category.Name == "MaintenanceStatus" && l.DeletedAt == null, ct);
         if (newStatus == null)
             return Result<WorkPermitDetailDto>.NotFound("Status not found.");
 
@@ -529,6 +550,7 @@ public class WorkPermitService : IWorkPermitService
             if (scope is null || permit.SubStationId != scope.SubStationId)
                 return Result.NotFound($"Work permit {id} not found.");
         }
+        if (!await CanAccessAsync(permit.SubStationId)) return Result.Failure("Forbidden", 403);
 
         permit.IsActive = false;
         permit.DeletedAt = DateTime.UtcNow;
@@ -541,6 +563,9 @@ public class WorkPermitService : IWorkPermitService
 
     public async Task<WorkTaskDto> CompleteTaskAsync(int permitId, int taskId, int userId, CancellationToken ct = default)
     {
+        var taskPermit = await _db.WorkPermits.AsNoTracking().FirstOrDefaultAsync(wp => wp.Id == permitId && wp.DeletedAt == null, ct);
+        if (taskPermit is null || !await CanAccessAsync(taskPermit.SubStationId)) throw new KeyNotFoundException("Work permit not found.");
+
         var task = await _db.WorkTasks
             .FirstOrDefaultAsync(t => t.Id == taskId && t.WorkPermitId == permitId && t.DeletedAt == null, ct);
 
@@ -568,7 +593,7 @@ public class WorkPermitService : IWorkPermitService
     public async Task<MaintenanceLogDto> AddLogAsync(int permitId, string action, string? notes, int userId, CancellationToken ct = default)
     {
         var permit = await _db.WorkPermits.FirstOrDefaultAsync(wp => wp.Id == permitId && wp.DeletedAt == null, ct);
-        if (permit is null)
+        if (permit is null || !await CanAccessAsync(permit.SubStationId))
             throw new KeyNotFoundException($"Work permit {permitId} not found.");
 
         var generatorId = permit.GeneratorId;
@@ -668,7 +693,8 @@ public class WorkPermitService : IWorkPermitService
                 wp.PlannedStartDate,
                 wp.ActualStartDate,
                 wp.Tasks.Count,
-                wp.Tasks.Count(t => t.IsCompleted)))
+                wp.Tasks.Count(t => t.IsCompleted),
+                wp.StatusLookup.Code, wp.PriorityLookup.Code))
             .ToListAsync(ct);
 
         return new PagedResult<WorkPermitListDto>

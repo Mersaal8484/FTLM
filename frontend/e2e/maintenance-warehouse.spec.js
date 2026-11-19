@@ -39,6 +39,25 @@ test.describe('Maintenance & Warehouse Pages', () => {
     await expect(page.getByRole('heading', { name: /Work Permits|تصاريح العمل/ })).toBeVisible();
   });
 
+  test('Work Permits uses server pages, lookup IDs and full details', async ({ page }) => {
+    const requests = [];
+    await page.route('**/api/lookups/by-category/MaintenanceStatus', route => route.fulfill({ json: [{ id: 89, code: 'Submitted', name: 'مقدم' }, { id: 92, code: 'Approved', name: 'معتمد' }] }));
+    await page.route('**/api/work-permits?*', route => {
+      const url = new URL(route.request().url());
+      requests.push(url.searchParams.toString());
+      const number = url.searchParams.get('page') === '2' ? 'WP-SECOND' : 'WP-FIRST';
+      return route.fulfill({ json: { items: [{ id: 42, permitNumber: number, status: 'Submitted', priority: 'Normal' }], totalCount: 21 } });
+    });
+    await page.route('**/api/work-permits/42', route => route.fulfill({ json: { id: 42, permitNumber: 'WP-SECOND', problemDescription: 'تفاصيل اختبار', tasks: [] } }));
+    await page.goto('/maintenance/permits');
+    await expect(page.getByText('WP-FIRST')).toBeVisible();
+    await page.getByRole('button', { name: /الصفحة التالية|Next page/ }).click();
+    await expect(page.getByText('WP-SECOND')).toBeVisible();
+    await page.getByTitle(/تفاصيل|Details/).click();
+    await expect(page.getByText('تفاصيل اختبار')).toBeVisible();
+    expect(requests.some(query => new URLSearchParams(query).get('page') === '2')).toBe(true);
+  });
+
   test('Maintenance Dashboard page loads', async ({ page }) => {
     const errors = [];
     page.on('pageerror', (err) => errors.push(err.message));
