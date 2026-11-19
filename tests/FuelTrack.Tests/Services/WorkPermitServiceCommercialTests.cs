@@ -29,8 +29,11 @@ public sealed class WorkPermitServiceCommercialTests : IDisposable
             new Lookup { Id = 40, CategoryId = 4, Category = statusCat, Code = "Draft", Name = "مسودة", IsActive = true },
             new Branch { Id = 1, Name = "Technical Branch", Code = "TECH-PS01", IsActive = true },
             new Station { Id = 1, BranchId = 1, Name = "Commercial Station", Code = "PS01", IsActive = true },
+            // Id=1: the single commercial scope (resolver requires exactly 1 active SubStation via DeletedAt==null && IsActive)
             new SubStation { Id = 1, StationId = 1, Name = "Commercial Station", Code = "PS01", IsActive = true },
-            new SubStation { Id = 2, StationId = 1, Name = "Other Site", Code = "OTH", IsActive = true },
+            // Id=2: seeded INACTIVE so the resolver sees Count==1 in commercial-mode tests.
+            // Enterprise tests that need SubStation 2 must activate it locally before the act.
+            new SubStation { Id = 2, StationId = 1, Name = "Other Site", Code = "OTH", IsActive = false },
             new Generator { Id = 101, SubStationId = 1, Name = "Gen 1", SerialNumber = "GEN01", IsActive = true },
             new Generator { Id = 102, SubStationId = 2, Name = "Gen Other Site", SerialNumber = "GEN02", IsActive = true },
             new User { Id = 1, UserName = "admin@ft.com", Email = "admin@ft.com", FullName = "Admin User", IsActive = true }
@@ -115,9 +118,10 @@ public sealed class WorkPermitServiceCommercialTests : IDisposable
     public async Task CreateAsync_CommercialMode_UnresolvableScope_ReturnsCleanFailure()
     {
         EnableCommercialMode();
-        // Remove technical substations to simulate unresolvable scope
+        // Make all SubStations inactive/deleted so the resolver returns null (Count != 1)
+        // Using soft-delete instead of RemoveRange to avoid FK violations from Generator references
         var subs = _db.SubStations.ToList();
-        _db.SubStations.RemoveRange(subs);
+        foreach (var s in subs) { s.IsActive = false; s.DeletedAt = DateTime.UtcNow; }
         _db.SaveChanges();
 
         var service = new WorkPermitService(_db, new StubCurrentUserService { UserId = 1, IsAdmin = true }, new StubUserScopeFilterService(), new CommercialStationModeService(_db));

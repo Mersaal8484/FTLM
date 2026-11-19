@@ -114,7 +114,7 @@ export const appTranslations = {
           },
         },
         tanks: {
-          refillTitle: 'Tank Refill & Transfers (Screen C)',
+          refillTitle: 'Tank Refill & Transfers',
           refillSubtitle: 'Record tank receipts, top-ups, and transfers between tanks.',
           setupTitle: 'Tank Calibration & Geometry Setup',
           setupSubtitle: 'Configure conical-bottom cylindrical dimensions, multiplier, and dead stock with live volume preview.',
@@ -473,7 +473,7 @@ export const appTranslations = {
           comingNext: 'قريباً',
         },
         tanks: {
-          refillTitle: 'توريد وتحويلات الخزانات (الشاشة C)',
+          refillTitle: 'توريد وتحويلات الخزانات',
           refillSubtitle: 'تسجيل التوريد وتعبئة الخزانات والتحويل بين الخزانات.',
           setupTitle: 'معايرة وإعداد هندسة الخزانات',
           setupSubtitle: 'تهيئة أبعاد الخزان الأسطواني ذو القاعدة المخروطية والمضاعف والوقود الميت مع معاينة حية للحجم.',

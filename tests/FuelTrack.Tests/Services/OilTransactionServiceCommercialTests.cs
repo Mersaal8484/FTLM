@@ -25,12 +25,11 @@ public sealed class OilTransactionServiceCommercialTests : IDisposable
             new Lookup { Id = 300, CategoryId = 101, Category = oilCat, Code = "15W40", Name = "زيت 15W-40", IsActive = true },
             new Branch { Id = 1, Name = "Technical Branch", Code = "TECH-PS01", IsActive = true },
             new Station { Id = 1, BranchId = 1, Name = "Commercial Station", Code = "PS01", IsActive = true },
+            // Seed exactly ONE active SubStation so CommercialStationModeService.GetScopeAsync returns a scope (requires Count==1)
             new SubStation { Id = 1, StationId = 1, Name = "Commercial Station", Code = "PS01", IsActive = true },
-            new SubStation { Id = 2, StationId = 1, Name = "Other Site", Code = "OTH", IsActive = true },
             new User { Id = 1, UserName = "admin@ft.com", Email = "admin@ft.com", FullName = "Admin User", IsActive = true }
         );
-        _db.SaveChanges();
-    }
+        _db.SaveChanges();    }
 
     public void Dispose()
     {
@@ -105,12 +104,16 @@ public sealed class OilTransactionServiceCommercialTests : IDisposable
         var commercialMode = new CommercialStationModeService(_db);
         var service = new OilTransactionService(_db, new StubUserScopeFilterService(), new StubCurrentUserService(), commercialMode);
 
-        // Add commercial transaction (site 1)
+        // Add commercial transaction (site 1) — scope resolver sees exactly 1 active SubStation
         await service.CreateAsync(new CreateOilTransactionDto(
             SubStationId: 0,
             OilLookupId: 300,
             TransactionTypeLookupId: 200,
             QuantityLiters: 100), 1);
+
+        // Now add a second SubStation (outside the commercial scope) and a transaction for it
+        _db.SubStations.Add(new SubStation { Id = 2, StationId = 1, Name = "Other Site", Code = "OTH", IsActive = true });
+        _db.SaveChanges();
 
         // Add transaction for other site (site 2)
         _db.OilTransactions.Add(new OilTransaction
