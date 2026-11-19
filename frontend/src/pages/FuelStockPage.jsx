@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Database, AlertTriangle, RefreshCw, ChevronDown, ChevronRight, MapPin, Package, Droplet } from 'lucide-react';
 import { useFuelStockSummary, stockSummaryKeys } from '../api/stockSummaryApi';
 import connection from '../socket';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 const fmt = (v, d = 0) =>
   v != null ? Number(v).toLocaleString('en-US', { maximumFractionDigits: d }) : '—';
@@ -24,6 +25,7 @@ function AlertBadge({ level, ar }) {
 
 function FuelStockPage({ lang }) {
   const ar = lang === 'ar';
+  const { isCommercialMode } = useCommercialMode();
   const queryClient = useQueryClient();
 
   const [monthStr, setMonthStr] = useState(() => new Date().toISOString().slice(0, 7));
@@ -145,10 +147,12 @@ function FuelStockPage({ lang }) {
 
       {/* KPI Cards */}
       <div className="kpi-grid" style={{ marginBottom: 28 }}>
+        {!isCommercialMode && (
         <div className="kpi-card" style={{ '--kpi-color': 'var(--primary)', '--kpi-bg': 'var(--primary-glow)' }}>
           <div className="kpi-icon"><MapPin size={22} /></div>
           <div><div className="kpi-value">{kpi.sites}</div><div className="kpi-label">{ar ? 'المواقع' : 'Locations'}</div></div>
         </div>
+        )}
         <div className="kpi-card" style={{ '--kpi-color': 'var(--secondary)', '--kpi-bg': 'var(--secondary-subtle)' }}>
           <div className="kpi-icon" style={{ color: 'var(--secondary)' }}><Package size={22} /></div>
           <div><div className="kpi-value">{fmt(kpi.totalCap, 0)}</div><div className="kpi-label">{ar ? 'إجمالي السعة (L)' : 'Total Capacity (L)'}</div></div>
@@ -179,6 +183,15 @@ function FuelStockPage({ lang }) {
           <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
             <Database size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
             <p>{ar ? 'لا توجد بيانات للفترة المحددة' : 'No data for selected period'}</p>
+          </div>
+        ) : isCommercialMode ? (
+          <div style={{ overflowX: 'auto', padding: 8 }}>
+            <table className="data-table" style={{ borderTop: 'none', fontSize: 12, minWidth: 960 }}>
+              <thead><tr style={{ background: 'var(--card-2)' }}>
+                {[ar ? 'نوع الوقود' : 'Fuel Type', ar ? 'السعة (L)' : 'Capacity (L)', ar ? 'الحد الأدنى (L)' : 'Min Alert (L)', ar ? 'النقطة الميتة (L)' : 'Dead Stock (L)', ar ? 'الرصيد الافتتاحي' : 'Base Stock', ar ? 'وارد' : 'Inbound', ar ? 'نقل مرسل' : 'Sent', ar ? 'نقل مستلم' : 'Received', ar ? 'فاقد' : 'Loss', ar ? 'مستهلك' : 'Consumed', ar ? 'المخزون الفعلي (L)' : 'Actual Stock (L)', ar ? 'المتاح (L)' : 'Available (L)', ar ? 'التنبيه' : 'Alert'].map(label => <th key={label} style={{ textAlign: 'center' }}>{label}</th>)}
+              </tr></thead>
+              <tbody>{summaryData.map((row, index) => renderRow(row, index))}</tbody>
+            </table>
           </div>
         ) : grouped.map(branch => (
           <div key={branch.id} style={{ marginBottom: 10 }}>

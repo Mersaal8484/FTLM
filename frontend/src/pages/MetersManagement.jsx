@@ -284,7 +284,7 @@ function MetersManagement({ lang }) {
       <div style={{ marginBottom: 20 }}>
         <div className="search-bar" style={{ maxWidth: 400 }}>
           <Search size={16} />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={ar ? 'بحث بالاسم، الرقم التسلسلي، أو الموقع...' : 'Search name, serial, or site...'} />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={isCommercialMode ? (ar ? 'بحث بالاسم أو الرقم التسلسلي...' : 'Search name or serial...') : (ar ? 'بحث بالاسم، الرقم التسلسلي، أو الموقع...' : 'Search name, serial, or site...')} />
         </div>
       </div>
 

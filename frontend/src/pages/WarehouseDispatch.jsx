@@ -230,7 +230,7 @@ function WarehouseDispatch({ lang, currentUser }) {
               <thead>
                 <tr>
                   <th>{ar ? 'رقم الطلب' : 'Request #'}</th>
-                  <th>{ar ? 'الموقع' : 'Station'}</th>
+                  {!isCommercialMode && <th>{ar ? 'الموقع' : 'Station'}</th>}
                   <th>{ar ? 'تصريح العمل' : 'Work Permit'}</th>
                   <th>{ar ? 'التاريخ' : 'Date'}</th>
                   <th>{ar ? 'الحالة' : 'Status'}</th>
@@ -239,7 +239,7 @@ function WarehouseDispatch({ lang, currentUser }) {
               </thead>
               <tbody>
                 {paginated.length === 0 && (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, opacity: 0.7 }}>{ar ? 'لا توجد بيانات' : 'No data'}</td></tr>
+                  <tr><td colSpan={isCommercialMode ? 5 : 6} style={{ textAlign: 'center', padding: 40, opacity: 0.7 }}>{ar ? 'لا توجد بيانات' : 'No data'}</td></tr>
                 )}
                 {paginated.map(d => {
                   const status = dispatchStatus(d.statusName || d.status);
@@ -247,7 +247,7 @@ function WarehouseDispatch({ lang, currentUser }) {
                   return (
                     <tr key={d.id}>
                       <td style={{ fontWeight: 700 }}>{d.requestNumber || '—'}</td>
-                      <td style={{ fontWeight: 700 }}>{d.subStationName || d.stationName}</td>
+                      {!isCommercialMode && <td style={{ fontWeight: 700 }}>{d.subStationName || d.stationName}</td>}
                       <td>{d.workPermitNumber || '—'}</td>
                       <td>{d.createdAt}</td>
                       <td><span className={`badge ${cfg.cls}`}>{cfg.label[lang] || d.status}</span></td>

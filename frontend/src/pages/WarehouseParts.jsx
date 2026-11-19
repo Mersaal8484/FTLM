@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit2, Trash2, Search, Download, PackageSearch, AlertTriangle } from 'lucide-react';
 import client from '../api/client';
+import useCommercialMode from '../hooks/useCommercialMode';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
@@ -24,6 +25,7 @@ const initialForm = {
 };
 
 function WarehouseParts({ lang, currentUser }) {
+  const { isCommercialMode } = useCommercialMode();
   const ar = lang === 'ar';
   const [parts, setParts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -361,15 +363,15 @@ function WarehouseParts({ lang, currentUser }) {
             <div><strong>{ar ? 'الوحدة' : 'Unit'}:</strong> {detailItem.unitName || detailItem.unit || '—'}</div>
             <div><strong>{ar ? 'الحد الأدنى' : 'Min Stock'}:</strong> {detailItem.minStockQuantity != null ? detailItem.minStockQuantity : detailItem.minStock}</div>
           </div>
-          <h4 style={{ marginBottom: 10 }}>{ar ? 'المخزون الحالي حسب الموقع' : 'Current stock by location'}</h4>
+          <h4 style={{ marginBottom: 10 }}>{isCommercialMode ? (ar ? 'المخزون الحالي' : 'Current stock') : (ar ? 'المخزون الحالي حسب الموقع' : 'Current stock by location')}</h4>
           {detailItem.stock?.length === 0 ? (
             <div className="empty-state">{ar ? 'لا يوجد مخزون' : 'No stock'}</div>
           ) : (
             <table className="data-table">
-              <thead><tr><th>{ar ? 'الموقع' : 'Station'}</th><th>{ar ? 'الكمية' : 'Qty'}</th></tr></thead>
+              <thead><tr>{!isCommercialMode && <th>{ar ? 'الموقع' : 'Station'}</th>}<th>{ar ? 'الكمية' : 'Qty'}</th></tr></thead>
               <tbody>
                 {detailItem.stock?.map((s, i) => (
-                  <tr key={i}><td>{s.stationName || s.subStationName || '—'}</td><td>{s.currentQuantity != null ? s.currentQuantity : s.quantity}</td></tr>
+                  <tr key={i}>{!isCommercialMode && <td>{s.stationName || s.subStationName || '—'}</td>}<td>{s.currentQuantity != null ? s.currentQuantity : s.quantity}</td></tr>
                 ))}
               </tbody>
             </table>

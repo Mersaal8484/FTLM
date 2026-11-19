@@ -127,7 +127,7 @@ function OilStockPage({ lang }) {
               {ar ? 'مخزون الزيوت' : 'Oil Stock Inventory'}
             </h1>
             <p style={{ opacity: 0.8, fontSize: '0.9rem' }}>
-              {ar ? 'عرض مخزون الزيوت الحالي لجميع المواقع' : 'Current oil stock across all locations'}
+              {isCommercialMode ? (ar ? 'عرض مخزون الزيوت الحالي' : 'Current oil stock') : (ar ? 'عرض مخزون الزيوت الحالي لجميع المواقع' : 'Current oil stock across all locations')}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

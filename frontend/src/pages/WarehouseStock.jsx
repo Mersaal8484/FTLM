@@ -75,10 +75,10 @@ function WarehouseStock({ lang, currentUser }) {
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <select className="form-control" value={stationFilter} onChange={e => setStationFilter(e.target.value)} style={{ width: 220 }}>
+            {!isCommercialMode && <select className="form-control" value={stationFilter} onChange={e => setStationFilter(e.target.value)} style={{ width: 220 }}>
               <option value="">{ar ? 'كل المواقع' : 'All Stations'}</option>
               {stations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            </select>}
             <button className="btn btn-ghost" onClick={load}><RefreshCw size={16} /></button>
           </div>
         </div>

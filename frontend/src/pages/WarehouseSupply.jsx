@@ -174,14 +174,14 @@ function WarehouseSupply({ lang, currentUser }) {
                   <th>{ar ? 'التاريخ' : 'Date'}</th>
                   <th>{ar ? 'المورد' : 'Supplier'}</th>
                   <th>{ar ? 'المبلغ' : 'Amount'}</th>
-                  <th>{ar ? 'الموقع' : 'Station'}</th>
+                  {!isCommercialMode && <th>{ar ? 'الموقع' : 'Station'}</th>}
                   <th>{ar ? 'الحالة' : 'Status'}</th>
                   <th style={{ textAlign: 'center' }}>{ar ? 'إجراءات' : 'Actions'}</th>
                 </tr>
               </thead>
               <tbody>
                 {paginated.length === 0 && (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, opacity: 0.7 }}>{ar ? 'لا توجد بيانات' : 'No data'}</td></tr>
+                  <tr><td colSpan={isCommercialMode ? 6 : 7} style={{ textAlign: 'center', padding: 40, opacity: 0.7 }}>{ar ? 'لا توجد بيانات' : 'No data'}</td></tr>
                 )}
                   {paginated.map(s => {
                   const status = supplyStatus(s.statusName);
@@ -192,7 +192,7 @@ function WarehouseSupply({ lang, currentUser }) {
                       <td>{s.supplyDate}</td>
                       <td>{s.supplierName}</td>
                       <td>{s.totalAmount != null ? fmt(s.totalAmount, 2) : '—'}</td>
-                      <td>{s.stationName}</td>
+                      {!isCommercialMode && <td>{s.stationName}</td>}
                       <td><span className={`badge ${cfg.cls}`}>{cfg.label[lang] || s.statusName}</span></td>
                       <td style={{ textAlign: 'center' }}>
                         <Button variant="ghost" size="sm" icon={Search} onClick={() => viewDetail(s)} title={ar ? 'عرض' : 'View'} />
@@ -302,7 +302,7 @@ function WarehouseSupply({ lang, currentUser }) {
             <div><strong>{ar ? 'التاريخ' : 'Date'}:</strong> {detailItem.supplyDate}</div>
             <div><strong>{ar ? 'المورد' : 'Supplier'}:</strong> {detailItem.supplierName}</div>
             <div><strong>{ar ? 'المبلغ' : 'Amount'}:</strong> {detailItem.totalAmount != null ? fmt(detailItem.totalAmount, 2) : '—'}</div>
-            <div><strong>{ar ? 'الموقع' : 'Station'}:</strong> {detailItem.stationName}</div>
+            {!isCommercialMode && <div><strong>{ar ? 'الموقع' : 'Station'}:</strong> {detailItem.stationName}</div>}
           </div>
           <h4 style={{ marginBottom: 10 }}>{ar ? 'القطع' : 'Parts'}</h4>
           {detailItem.items?.length === 0 ? (

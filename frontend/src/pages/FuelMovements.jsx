@@ -374,10 +374,10 @@ function FuelMovements({ lang, currentUser }) {
 
   // ── Tanks for selected supply sub-station ─────────────────────────────────
   const tanksForSupplySite = useMemo(
-    () => (selectedSupplySubStation
+    () => (isCommercialMode ? tanks : selectedSupplySubStation
       ? tanks.filter(t => String(t.subStationId) === String(selectedSupplySubStation))
       : tanks),
-    [tanks, selectedSupplySubStation]
+    [tanks, selectedSupplySubStation, isCommercialMode]
   );
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -389,7 +389,7 @@ function FuelMovements({ lang, currentUser }) {
       <PageHeader
         title={t('movements.pageTitle')}
         subtitle={t('movements.pageSubtitle')}
-        actions={activeTab !== 'log' && canAdd ? (
+        actions={activeTab !== 'log' && !(isCommercialMode && activeTab === 'transfer') && canAdd ? (
           <Button icon={Plus} onClick={() => { setShowForm(true); setEditId(null); setForm(initialForm()); setSelectedSupplySubStation(''); }}>
             {ar ? 'حركة جديدة' : 'New Movement'}
           </Button>
@@ -403,6 +403,7 @@ function FuelMovements({ lang, currentUser }) {
             <button key={k} className={`ft-tab ${activeTab === k ? 'active' : ''}`}
               onClick={() => {
                 setActiveTab(k);
+                if (isCommercialMode && k === 'transfer') setShowForm(false);
                 setTabPage(p => ({ ...p, [k]: 1 }));
                 if (!showForm) fld('type', k);
                 fld('itemType', 'fuel');
@@ -414,6 +415,8 @@ function FuelMovements({ lang, currentUser }) {
           ))}
         </div>
       </div>
+
+      {isCommercialMode && activeTab === 'transfer' && <div className="alert-inline" style={{ marginBottom: 16 }}>{ar ? 'عرض حركات النقل السابقة؛ إنشاء حركة نقل غير متاح في وضع المحطة الواحدة.' : 'Previous transfers are shown; creating a transfer is unavailable in single-station mode.'}</div>}
 
       {/* ── Alert ── */}
       {status && (
@@ -591,7 +594,7 @@ function FuelMovements({ lang, currentUser }) {
               <thead>
                 <tr>
                   <th style={{ textAlign: 'center', minWidth: 110 }}>{ar ? 'تاريخ الحركة' : 'Date'}</th>
-                  <th style={{ textAlign: 'center', minWidth: 110 }}>{ar ? 'الموقع' : 'Site'}</th>
+                  {!isCommercialMode && <th style={{ textAlign: 'center', minWidth: 110 }}>{ar ? 'الموقع' : 'Site'}</th>}
                   <th style={{ textAlign: 'center', minWidth: 110 }}>{ar ? 'نوع الحركة' : 'Type'}</th>
                   <th style={{ textAlign: 'center', minWidth: 110 }}>{ar ? 'نوع الوقود' : 'Fuel'}</th>
                   <th style={{ textAlign: 'center', minWidth: 110 }}>{ar ? 'الكمية' : 'Qty (L)'}</th>
@@ -606,7 +609,7 @@ function FuelMovements({ lang, currentUser }) {
               <tbody>
                 {paginatedTabMovements.length === 0 ? (
                   <tr>
-                    <td colSpan={11} style={{ textAlign: 'center', padding: 40, color: 'var(--text-faint)' }}>
+                    <td colSpan={isCommercialMode ? 10 : 11} style={{ textAlign: 'center', padding: 40, color: 'var(--text-faint)' }}>
                       {ar ? 'لا توجد حركات بعد' : 'No records yet'}
                     </td>
                   </tr>
@@ -619,9 +622,9 @@ function FuelMovements({ lang, currentUser }) {
                       <td style={{ textAlign: 'center', whiteSpace: 'nowrap', fontSize: 12 }}>
                         <div style={{ fontWeight: 700 }}>{fmtDate(m.transactionDate)}</div>
                       </td>
-                      <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                      {!isCommercialMode && <td style={{ textAlign: 'center', fontWeight: 600 }}>
                         {m.subStationName || '—'}
-                      </td>
+                      </td>}
                       <td style={{ textAlign: 'center' }}>
                         <span className="badge" style={{ background: 'var(--warning)15', color: 'var(--warning)' }}>
                           {m.transactionTypeLookupName || (ar ? 'وقود' : 'Fuel')}
@@ -726,7 +729,7 @@ function FuelMovements({ lang, currentUser }) {
                     <>
                       <div className="form-section-header">{ar ? 'بيانات التوريد الأساسية' : 'Primary Supply Data'}</div>
                       <div className="form-row">
-                        <FormField label={ar ? 'الموقع / الفرع *' : 'Site / Branch *'} required>
+                        {!isCommercialMode && <FormField label={ar ? 'الموقع / الفرع *' : 'Site / Branch *'} required>
                           <select className="form-select" value={selectedSupplySubStation}
                             onChange={e => handleSupplySiteSelect(e.target.value)} required>
                             <option value="">— {ar ? 'اختر الموقع' : 'Select Site'} —</option>
@@ -736,7 +739,7 @@ function FuelMovements({ lang, currentUser }) {
                               </option>
                             ))}
                           </select>
-                        </FormField>
+                        </FormField>}
                         <FormField label={ar ? 'الخزان المستلم *' : 'Receiving Tank *'} required>
                           <select className="form-select" value={form.tank}
                             onChange={e => handleTankSelect(e.target.value)} required>
@@ -937,7 +940,7 @@ function FuelMovements({ lang, currentUser }) {
                          <option value="">— {ar ? 'اختر الخزان' : 'Select Tank'} —</option>
                          {tanks.map(t => (
                            <option key={t.id} value={t.id}>
-                             {t.name} — {t.subStationName || '—'}
+                             {t.name}{!isCommercialMode && ` — ${t.subStationName || '—'}`}
                            </option>
                          ))}
                        </select>

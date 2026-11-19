@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wrench, Clock, AlertTriangle, CheckCircle, Plus, History, Settings, ListPlus, X } from 'lucide-react';
 import client from '../api/client';
+import useCommercialMode from '../hooks/useCommercialMode';
 import { Button, Modal, FormField, Input } from '../components/ui';
 
 export default function GeneratorMaintenanceTable({ lang }) {
   const ar = lang === 'ar';
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const navigate = useNavigate();
 
   const [tables, setTables] = useState([]);
@@ -55,6 +57,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
   };
 
   useEffect(() => {
+    if (!modeResolved || isCommercialMode) return;
     const fetchSubStations = async () => {
       try {
         const res = await client.get('/api/sub-stations');
@@ -64,7 +67,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
       }
     };
     fetchSubStations();
-  }, []);
+  }, [isCommercialMode, modeResolved]);
 
   useEffect(() => {
     loadData();
@@ -231,7 +234,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
 
       {/* Filter Bar */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ minWidth: 220 }}>
+        {!isCommercialMode && <div style={{ minWidth: 220 }}>
           <select
             className="ft-input"
             value={selectedSubStation}
@@ -243,7 +246,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
-        </div>
+        </div>}
         <div style={{ flex: 1, minWidth: 240 }}>
           <input
             type="text"

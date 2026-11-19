@@ -318,7 +318,7 @@ function Dashboard({ lang }) {
       <div className="dashboard-stations-bar">
         <div className="dashboard-chart-card">
           <div className="chart-header">
-            <h3>{ar ? 'توزيع القدرة المتاحة حسب الموقع/الفرع' : 'Available Capacity Distribution by Site'}</h3>
+            <h3>{ar ? 'توزيع القدرة المتاحة' : 'Available Capacity Distribution'}</h3>
           </div>
           <div className="stations-scroll">
             {comps.map((c, i) => {

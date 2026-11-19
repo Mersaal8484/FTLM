@@ -241,7 +241,7 @@ function GeneratorsOverview({ lang }) {
           <Search size={16} />
           <input
             className="form-control"
-            placeholder={ar ? 'بحث باسم المولد أو الموقع أو الشاشة...' : 'Search by name, location or controller...'}
+            placeholder={isCommercial ? (ar ? 'بحث باسم المولد أو الشركة المصنعة...' : 'Search by generator or manufacturer...') : (ar ? 'بحث باسم المولد أو الموقع أو الشاشة...' : 'Search by name, location or controller...')}
             value={search}
             onChange={handleSearchChange}
           />

@@ -56,4 +56,22 @@ public class CommercialWarehouseTests
         Assert.IsType<ForbidResult>(await controller.CreateCommercial(request, mode.Object, filter.Object, Mock.Of<IWorkPermitService>(), CancellationToken.None));
         service.Verify(x => x.CreateAsync(It.IsAny<CreateDispatchRequestDto>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task Reports_UsesServerScopeAndRejectsOutOfScopeUser()
+    {
+        var service = new Mock<IWarehouseReportService>();
+        service.Setup(x => x.GetStockReportAsync(2, It.IsAny<CancellationToken>())).ReturnsAsync(new List<WarehouseStockDto>());
+        var mode = new Mock<ICommercialStationModeService>();
+        mode.Setup(x => x.GetScopeAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new CommercialStationScope(1, 2, 3));
+        var filter = new Mock<IUserScopeFilterService>();
+        var controller = new WarehouseReportsController(service.Object) { ControllerContext = Context() };
+        var denied = await controller.GetCommercialReport("stock", mode.Object, filter.Object, null, null, null, null, CancellationToken.None);
+        Assert.IsType<ForbidResult>(denied);
+        service.Verify(x => x.GetStockReportAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Never);
+        filter.Setup(x => x.HasAccessToSubStationAsync(12, 3)).ReturnsAsync(true);
+        var allowed = await controller.GetCommercialReport("stock", mode.Object, filter.Object, null, null, null, null, CancellationToken.None);
+        Assert.IsType<OkObjectResult>(allowed);
+        service.Verify(x => x.GetStockReportAsync(2, It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

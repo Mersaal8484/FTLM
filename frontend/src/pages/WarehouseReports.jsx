@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BarChart2, Download, Printer } from 'lucide-react';
 import client from '../api/client';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 function WarehouseReports({ lang, embedded = false }) {
   const ar = lang === 'ar';
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const [activeTab, setActiveTab] = useState('stock');
   const [filters, setFilters] = useState({ from: '', to: '', stationId: '', generatorId: '', subStationId: '', category: '' });
   const [reportData, setReportData] = useState([]);
@@ -21,7 +23,12 @@ function WarehouseReports({ lang, embedded = false }) {
       if (filters.subStationId) params.subStationId = filters.subStationId;
       if (filters.category) params.type = filters.category;
 
-      if (activeTab === 'stock') {
+      if (isCommercialMode && activeTab !== 'generator') {
+        if (['movements', 'supply'].includes(activeTab) && (!params.startDate || !params.endDate)) { setReportData([]); return; }
+        if (activeTab === 'inventory' && !params.type) { setReportData([]); return; }
+        params.year = params.startDate ? new Date(params.startDate).getFullYear() : new Date().getFullYear();
+        res = await client.get(`/api/warehouse/reports/commercial/${activeTab}`, { params });
+      } else if (activeTab === 'stock') {
         res = await client.get('/api/warehouse/reports/stock', { params });
       } else if (activeTab === 'movements') {
         if (!params.stationId || !params.startDate || !params.endDate) {
@@ -69,7 +76,7 @@ function WarehouseReports({ lang, embedded = false }) {
         res = await client.get('/api/warehouse/reports/periodic', { params });
       }
 
-      const data = res?.data?.items || res?.data || res?.data?.transactions || res?.data?.lowStockItems || [];
+      const data = Array.isArray(res?.data) ? res.data : (res?.data?.items || res?.data?.transactions || res?.data?.lowStockItems || []);
       setReportData(Array.isArray(data) ? data : []);
     } catch {
       setReportData([]);
@@ -78,7 +85,7 @@ function WarehouseReports({ lang, embedded = false }) {
     }
   };
 
-  useEffect(() => { loadReport(); }, [activeTab, filters]); // eslint-disable-line
+  useEffect(() => { if (modeResolved) loadReport(); }, [activeTab, filters, modeResolved, isCommercialMode]); // eslint-disable-line
 
   const exportExcel = async () => {
     try {
@@ -96,22 +103,22 @@ function WarehouseReports({ lang, embedded = false }) {
   const printReport = () => window.print();
 
   const columns = useMemo(() => {
-    if (activeTab === 'stock') return [ar ? 'القطعة' : 'Part', ar ? 'الصنف' : 'Category', ar ? 'الوحدة' : 'Unit', ar ? 'الموقع' : 'Station', ar ? 'الكمية الحالية' : 'Current', ar ? 'المحجوز' : 'Reserved', ar ? 'المتاح' : 'Available', ar ? 'الحد الأدنى' : 'Min Stock'];
+    if (activeTab === 'stock') return [ar ? 'القطعة' : 'Part', ar ? 'الصنف' : 'Category', ar ? 'الوحدة' : 'Unit', ...(!isCommercialMode ? [ar ? 'المحطة' : 'Station'] : []), ar ? 'الكمية الحالية' : 'Current', ar ? 'المحجوز' : 'Reserved', ar ? 'المتاح' : 'Available', ar ? 'الحد الأدنى' : 'Min Stock'];
     if (activeTab === 'movements' || activeTab === 'generator' || activeTab === 'dispatch') return [ar ? '#' : '#', ar ? 'البيان' : 'Description', ar ? 'النوع' : 'Type', ar ? 'الكمية' : 'Qty', ar ? 'الرصيد قبل' : 'Before', ar ? 'الرصيد بعد' : 'After', ar ? 'التاريخ' : 'Date'];
-    if (activeTab === 'lowstock') return [ar ? 'القطعة' : 'Part', ar ? 'الصنف' : 'Category', ar ? 'الوحدة' : 'Unit', ar ? 'الموقع' : 'Station', ar ? 'الحد الأدنى' : 'Min Stock'];
-    if (activeTab === 'supply') return [ar ? 'رقم التوريد' : 'Supply #', ar ? 'الموقع' : 'Station', ar ? 'التاريخ' : 'Date', ar ? 'المورد' : 'Supplier', ar ? 'الفاتورة' : 'Invoice', ar ? 'الحالة' : 'Status', ar ? 'عدد المواد' : 'Items'];
+    if (activeTab === 'lowstock') return [ar ? 'القطعة' : 'Part', ar ? 'الصنف' : 'Category', ar ? 'الوحدة' : 'Unit', ...(!isCommercialMode ? [ar ? 'المحطة' : 'Station'] : []), ar ? 'الحد الأدنى' : 'Min Stock'];
+    if (activeTab === 'supply') return [ar ? 'رقم التوريد' : 'Supply #', ...(!isCommercialMode ? [ar ? 'المحطة' : 'Station'] : []), ar ? 'التاريخ' : 'Date', ar ? 'المورد' : 'Supplier', ar ? 'الفاتورة' : 'Invoice', ar ? 'الحالة' : 'Status', ar ? 'عدد المواد' : 'Items'];
     if (activeTab === 'inventory') return [ar ? '# ' : '#', ar ? 'البيان' : 'Description', ar ? 'الكمية' : 'Qty', ar ? 'المبلغ' : 'Amount', ar ? 'التاريخ' : 'Date'];
     return [ar ? '# ' : '#', ar ? 'البيان' : 'Description', ar ? 'الكمية' : 'Qty', ar ? 'المبلغ' : 'Amount', ar ? 'التاريخ' : 'Date'];
-  }, [activeTab, ar]);
+  }, [activeTab, ar, isCommercialMode]);
 
   const renderCell = (row, i) => {
     if (activeTab === 'stock') {
       return (
         <>
-          <td>{row.partName || row.SparePartName || '—'}</td>
+          <td>{row.sparePartName || row.partName || row.SparePartName || '—'}</td>
           <td>{row.category || row.PartCategoryLookupName || '—'}</td>
           <td>{row.unitName || row.UnitLookupName || '—'}</td>
-          <td>{row.stationName || '—'}</td>
+          {!isCommercialMode && <td>{row.stationName || '—'}</td>}
           <td>{row.currentQuantity ?? '—'}</td>
           <td>{row.reservedQuantity ?? '—'}</td>
           <td>{row.availableQuantity ?? '—'}</td>
@@ -122,10 +129,10 @@ function WarehouseReports({ lang, embedded = false }) {
     if (activeTab === 'lowstock') {
       return (
         <>
-          <td>{row.partName || row.SparePartName || '—'}</td>
+          <td>{row.sparePartName || row.partName || row.SparePartName || '—'}</td>
           <td>{row.category || row.PartCategoryLookupName || '—'}</td>
           <td>{row.unitName || row.UnitLookupName || '—'}</td>
-          <td>{row.stationName || '—'}</td>
+          {!isCommercialMode && <td>{row.stationName || '—'}</td>}
           <td>{row.minStockQuantity ?? '—'}</td>
         </>
       );
@@ -134,7 +141,7 @@ function WarehouseReports({ lang, embedded = false }) {
       return (
         <>
           <td>{row.supplyNumber || '—'}</td>
-          <td>{row.stationName || '—'}</td>
+          {!isCommercialMode && <td>{row.stationName || '—'}</td>}
           <td>{row.supplyDate || row.createdAt || '—'}</td>
           <td>{row.supplierName || '—'}</td>
           <td>{row.invoiceNumber || '—'}</td>
@@ -172,7 +179,7 @@ function WarehouseReports({ lang, embedded = false }) {
     { key: 'movements', label: ar ? 'الحركات' : 'Movements' },
     { key: 'lowstock', label: ar ? 'نقص المخزون' : 'Low Stock' },
     { key: 'supply', label: ar ? 'التوريد حسب الفترة' : 'Supply by Period' },
-    { key: 'dispatch', label: ar ? 'الصرف حسب الموقع' : 'Dispatch by Site' },
+    { key: 'dispatch', label: isCommercialMode ? (ar ? 'تقرير الصرف' : 'Dispatch Report') : (ar ? 'الصرف حسب الموقع' : 'Dispatch by Site') },
     { key: 'generator', label: ar ? 'الصرف حسب المولد' : 'Dispatch by Generator' },
     { key: 'inventory', label: ar ? 'الجرد الدوري' : 'Periodic Inventory' },
   ];
@@ -231,13 +238,13 @@ function WarehouseReports({ lang, embedded = false }) {
             <input type="date" className="form-control" value={filters.to} onChange={e => setFilters({ ...filters, to: e.target.value })} style={{ width: 160 }} />
           </>
         )}
-        {showStation && (
+        {showStation && !isCommercialMode && (
           <input className="form-control" value={filters.stationId} onChange={e => setFilters({ ...filters, stationId: e.target.value })} placeholder={ar ? 'رقم الموقع' : 'Station ID'} style={{ width: 160 }} />
         )}
         {showGenerator && (
           <input className="form-control" value={filters.generatorId} onChange={e => setFilters({ ...filters, generatorId: e.target.value })} placeholder={ar ? 'رقم المولد' : 'Generator ID'} style={{ width: 160 }} />
         )}
-        {showSubStation && (
+        {showSubStation && !isCommercialMode && (
           <input className="form-control" value={filters.subStationId} onChange={e => setFilters({ ...filters, subStationId: e.target.value })} placeholder={ar ? 'رقم الموقع الفرعي' : 'SubStation ID'} style={{ width: 160 }} />
         )}
         {showCategory && (
