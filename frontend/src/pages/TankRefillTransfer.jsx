@@ -208,12 +208,13 @@ export default function TankRefillTransfer() {
           style={{
             padding: '10px 18px',
             border: 'none',
-            borderBottom: activeTab === 'entry' ? '2px solid var(--primary)' : '2px solid transparent',
+            borderBottom: activeTab === 'entry' ? '2px solid var(--operational-amber)' : '2px solid transparent',
             background: 'transparent',
             fontWeight: activeTab === 'entry' ? 700 : 500,
-            color: activeTab === 'entry' ? 'var(--primary)' : 'var(--text-muted)',
+            color: activeTab === 'entry' ? 'var(--operational-amber)' : 'var(--text-muted)',
             cursor: 'pointer',
             fontSize: '1rem',
+            fontFamily: 'inherit',
           }}
         >
           {t('operational.tanks.tabEntry', 'تسجيل التوريد / التحويل')}
@@ -224,12 +225,13 @@ export default function TankRefillTransfer() {
           style={{
             padding: '10px 18px',
             border: 'none',
-            borderBottom: activeTab === 'log' ? '2px solid var(--primary)' : '2px solid transparent',
+            borderBottom: activeTab === 'log' ? '2px solid var(--operational-amber)' : '2px solid transparent',
             background: 'transparent',
             fontWeight: activeTab === 'log' ? 700 : 500,
-            color: activeTab === 'log' ? 'var(--primary)' : 'var(--text-muted)',
+            color: activeTab === 'log' ? 'var(--operational-amber)' : 'var(--text-muted)',
             cursor: 'pointer',
             fontSize: '1rem',
+            fontFamily: 'inherit',
           }}
         >
           {t('operational.tanks.tabLog', 'سجل الحركات والتوريدات العام')}
