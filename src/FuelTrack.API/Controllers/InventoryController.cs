@@ -67,6 +67,15 @@ public class InventoryController : BaseApiController
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
+    [HttpPost("station")]
+    public async Task<IActionResult> CreateStation([FromBody] CreateStationInventoryDto dto)
+    {
+        var userId = GetUserId();
+        var ids = await _service.CreateStationAsync(dto, userId);
+        await _notifier.NotifyAllAsync("InventoryCreated", new { Ids = ids });
+        return Ok(new { ids });
+    }
+
     [HttpPost("{id:int}/approve")]
     public async Task<IActionResult> Approve(int id)
     {

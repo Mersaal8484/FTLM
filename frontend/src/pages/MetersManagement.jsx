@@ -145,21 +145,12 @@ function MetersManagement({ lang }) {
     return stations.filter(s => s.branchId === Number(form.branchId));
   }, [stations, form.branchId]);
 
-  const filteredSubStations = useMemo(() => {
-    if (!form.stationId) return [];
-    return subStations.filter(ss => ss.stationId === Number(form.stationId));
-  }, [subStations, form.stationId]);
-
   const filteredGenerators = useMemo(() => {
-    if (!form.subStationId) return [];
-    return generators.filter(g => g.subStationId === Number(form.subStationId));
-  }, [generators, form.subStationId]);
+    const allowed = new Set(subStations.filter(site => String(site.stationId) === String(form.stationId)).map(site => String(site.id)));
+    return generators.filter(generator => allowed.has(String(generator.subStationId)));
+  }, [generators, subStations, form.stationId]);
 
-  const locationName = (meter) => {
-    const stationName = meter.stationName || '—';
-    const siteName = meter.subStationName;
-    return siteName ? `${stationName} - ${siteName}` : stationName;
-  };
+  const locationName = (meter) => meter.stationName || '—';
 
   const handleSave = async () => {
     if (!form.meterName || !form.serialNumber) {
@@ -167,10 +158,10 @@ function MetersManagement({ lang }) {
     }
     const resolvedSubStationId = form.subStationId || (isCommercialMode && subStations[0]?.id ? String(subStations[0].id) : '');
     if (!isCommercialMode && activeTab !== 'energy' && activeTab !== 'solar' && !resolvedSubStationId) {
-      setError(ar ? 'الرجاء اختيار المحطة والموقع' : 'Please select station and sub-station'); return;
+      setError(ar ? 'الرجاء اختيار محطة متاحة' : 'Please select an available station'); return;
     }
     if (!isCommercialMode && (activeTab === 'energy' || activeTab === 'solar') && !resolvedSubStationId) {
-      setError(ar ? 'عداد الطاقة يجب ربطه بموقع/فرع محدد' : 'Energy meter must be linked to a specific site'); return;
+      setError(ar ? 'يجب ربط عداد الطاقة بمحطة متاحة' : 'Energy meter must be linked to an available station'); return;
     }
     if (!isCommercialMode && activeTab === 'generator' && !form.generatorId) {
       setError(ar ? 'الرجاء اختيار المولد المرتبط' : 'Please select the linked generator'); return;
@@ -261,7 +252,7 @@ function MetersManagement({ lang }) {
     <div>
       <PageHeader
         title={isCommercialMode ? (ar ? 'عدادات المحطة' : 'Station Meters') : (ar ? 'العدادات' : 'Meters')}
-        subtitle={isCommercialMode ? (ar ? 'إدارة ومتابعة عدادات الفيدر وإنتاج الطاقة الشمسية بالمحطة التجارية' : 'Manage commercial station feeder and solar production meters') : (ar ? 'إدارة العدادات المرتبطة بالمواقع والمولدات' : 'Manage meters linked to sites and generators')}
+        subtitle={isCommercialMode ? (ar ? 'إدارة ومتابعة عدادات الفيدر وإنتاج الطاقة الشمسية بالمحطة التجارية' : 'Manage commercial station feeder and solar production meters') : (ar ? 'إدارة العدادات المرتبطة بالمحطات والمولدات' : 'Manage meters linked to stations and generators')}
         actions={
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="ghost" size="sm" icon={RefreshCw} onClick={fetchAll} />
@@ -284,7 +275,7 @@ function MetersManagement({ lang }) {
       <div style={{ marginBottom: 20 }}>
         <div className="search-bar" style={{ maxWidth: 400 }}>
           <Search size={16} />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={isCommercialMode ? (ar ? 'بحث بالاسم أو الرقم التسلسلي...' : 'Search name or serial...') : (ar ? 'بحث بالاسم، الرقم التسلسلي، أو الموقع...' : 'Search name, serial, or site...')} />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={isCommercialMode ? (ar ? 'بحث بالاسم أو الرقم التسلسلي...' : 'Search name or serial...') : (ar ? 'بحث بالاسم، الرقم التسلسلي، أو المحطة...' : 'Search name, serial, or station...')} />
         </div>
       </div>
 
@@ -426,27 +417,23 @@ function MetersManagement({ lang }) {
           {/* Location */}
           {!isCommercialMode && (
             <>
-              <div className="form-section-header">{ar ? 'الموقع' : 'Location'}</div>
+              <div className="form-section-header">{ar ? 'المحطة' : 'Station'}</div>
 
-              <FormField label={ar ? 'المحافظة *' : 'Governorate *'} required error={!form.subStationId && form.meterName ? (ar ? 'الرجاء اختيار المحطة والموقع' : 'Please select station and sub-station') : null}>
-                <select className="form-select" value={form.branchId} onChange={e => fld('branchId', e.target.value)}>
+              <FormField label={ar ? 'المحافظة *' : 'Governorate *'} required error={!form.subStationId && form.meterName ? (ar ? 'الرجاء اختيار محطة متاحة' : 'Please select an available station') : null}>
+                <select className="form-select" value={form.branchId} disabled={!!editItem} onChange={e => setForm(f => ({ ...f, branchId: e.target.value, stationId: '', subStationId: '', generatorId: '' }))}>
                   <option value="">— {ar ? 'اختر' : 'Select'} —</option>
                   {branchOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
                 </select>
               </FormField>
               {form.branchId && (
                 <FormField label={ar ? 'المحطة *' : 'Station *'}>
-                  <select className="form-select" value={form.stationId} onChange={e => fld('stationId', e.target.value)}>
+                  <select className="form-select" value={form.stationId} disabled={!!editItem} onChange={e => {
+                      const stationId = e.target.value;
+                      const site = subStations.filter(item => String(item.stationId) === stationId && item.isActive !== false).sort((a, b) => Number(a.id) - Number(b.id))[0];
+                      setForm(f => ({ ...f, stationId, subStationId: site ? String(site.id) : '', generatorId: '' }));
+                    }}>
                     <option value="">— {ar ? 'اختر' : 'Select'} —</option>
                     {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </FormField>
-              )}
-              {form.stationId && (
-                <FormField label={ar ? 'الموقع/الفرع *' : 'Site / Branch *'}>
-                  <select className="form-select" value={form.subStationId} onChange={e => fld('subStationId', e.target.value)}>
-                    <option value="">— {ar ? 'اختر' : 'Select'} —</option>
-                    {filteredSubStations.map(ss => <option key={ss.id} value={ss.id}>{ss.name}</option>)}
                   </select>
                 </FormField>
               )}
@@ -454,7 +441,10 @@ function MetersManagement({ lang }) {
           )}
           {!isCommercialMode && activeTab === 'generator' && form.subStationId && (
             <FormField label={ar ? 'المولد *' : 'Generator *'}>
-              <select className="form-select" value={form.generatorId} onChange={e => fld('generatorId', e.target.value)}>
+              <select className="form-select" value={form.generatorId} onChange={e => {
+                const generator = generators.find(item => String(item.id) === e.target.value);
+                setForm(f => ({ ...f, generatorId: e.target.value, subStationId: generator?.subStationId ? String(generator.subStationId) : f.subStationId }));
+              }}>
                 <option value="">— {ar ? 'اختر' : 'Select'} —</option>
                 {filteredGenerators.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>

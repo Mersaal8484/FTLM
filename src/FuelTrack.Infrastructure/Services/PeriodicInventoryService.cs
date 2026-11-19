@@ -45,6 +45,56 @@ public class PeriodicInventoryService : IPeriodicInventoryService
         return _currentUser.UserId is int userId && await _scopeFilter.HasAccessToSubStationAsync(userId, subStationId);
     }
 
+    public async Task<List<int>> CreateStationAsync(CreateStationInventoryDto dto, int userId)
+    {
+        var fuel = dto.FuelReadings ?? new();
+        var oils = dto.OilReadings ?? new();
+        var stationId = dto.StationId;
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var scope = await _commercialMode.GetScopeAsync() ?? throw new InvalidOperationException("Commercial station is not configured.");
+            if (stationId != 0 && stationId != scope.StationId) throw new UnauthorizedAccessException("Station is outside the commercial scope.");
+            stationId = scope.StationId;
+        }
+        if (stationId <= 0 || dto.Year < 1 || dto.Month is < 1 or > 12 || dto.PeriodTypeLookupId <= 0 || fuel.Count + oils.Count == 0)
+            throw new ArgumentException("Station, period and at least one reading are required.");
+        if (fuel.Select(r => r.TankId).Distinct().Count() != fuel.Count || oils.Select(r => r.OilId).Distinct().Count() != oils.Count ||
+            fuel.Any(r => !double.IsFinite(r.ActualQtyLiters) || r.ActualQtyLiters < 0) || oils.Any(r => !double.IsFinite(r.ActualQtyLiters) || r.ActualQtyLiters < 0))
+            throw new ArgumentException("Duplicate assets or invalid quantities.");
+        var tankIds = fuel.Select(r => r.TankId).ToList();
+        var oilIds = oils.Select(r => r.OilId).ToList();
+        var tanks = await _db.FuelTanks.Include(t => t.SubStation).Where(t => tankIds.Contains(t.Id)).ToListAsync();
+        var oilAssets = await _db.Oils.Include(o => o.SubStation).Where(o => oilIds.Contains(o.Id)).ToListAsync();
+        if (tanks.Count != fuel.Count || oilAssets.Count != oils.Count ||
+            tanks.Any(t => t.SubStation.StationId != stationId) ||
+            oilAssets.Any(o => o.SubStationId == null || o.SubStation == null || o.SubStation.StationId != stationId))
+            throw new ArgumentException("All assets must belong to the selected station and have a valid internal association.");
+        foreach (var tank in tanks)
+            if (fuel.Single(r => r.TankId == tank.Id).ActualQtyLiters > tank.CapacityLiters)
+                throw new InvalidOperationException("A fuel reading exceeds tank capacity.");
+        var siteIds = tanks.Select(t => t.SubStationId).Concat(oilAssets.Select(o => o.SubStationId!.Value)).Distinct().ToList();
+        foreach (var siteId in siteIds)
+            if (!await CanAccessSubStationAsync(siteId)) throw new UnauthorizedAccessException("Asset is outside the user's scope.");
+
+        var now = DateTime.UtcNow;
+        var inventories = siteIds.Select(siteId => new PeriodicInventory
+        {
+            SubStationId = siteId, Year = dto.Year, Month = dto.Month, PeriodTypeLookupId = dto.PeriodTypeLookupId,
+            InventoryDate = dto.InventoryDate, Notes = dto.Notes, CreatedBy = userId, UpdatedBy = userId,
+            CreatedAt = now, UpdatedAt = now,
+            FuelReadings = tanks.Where(t => t.SubStationId == siteId).GroupBy(t => t.FuelLookupId)
+                .Select(group => new PeriodicInventoryFuel { FuelLookupId = group.Key,
+                    ActualStockLiters = group.Sum(t => fuel.Single(r => r.TankId == t.Id).ActualQtyLiters) }).ToList(),
+            OilReadings = oilAssets.Where(o => o.SubStationId == siteId)
+                .Select(o => new PeriodicInventoryOil { OilId = o.Id, OilLookupId = o.OilLookupId,
+                    ActualStockLiters = oils.Single(r => r.OilId == o.Id).ActualQtyLiters }).ToList()
+        }).ToList();
+        _db.PeriodicInventories.AddRange(inventories);
+        // EF writes this graph in one SaveChanges transaction, so a failure cannot save only part of the station.
+        await _db.SaveChangesAsync();
+        return inventories.Select(i => i.Id).ToList();
+    }
+
     public async Task<PeriodicInventoryDto> CreateAsync(CreatePeriodicInventoryDto dto, int userId)
     {
         int targetSubStationId;

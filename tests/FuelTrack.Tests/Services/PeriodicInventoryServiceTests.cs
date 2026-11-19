@@ -30,6 +30,28 @@ public class PeriodicInventoryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task StationInventory_SavesSeparateSiteReadingsAndRejectsInvalidBatch()
+    {
+        var first = await _db.SubStations.FindAsync(1);
+        first!.StationId = 10;
+        _db.SubStations.Add(new SubStation { Id = 2, StationId = 10, Name = "SS2", Code = "SS2" });
+        _db.FuelTanks.AddRange(
+            new FuelTank { Id = 1, SubStationId = 1, FuelLookupId = 3, CapacityLiters = 100 },
+            new FuelTank { Id = 2, SubStationId = 2, FuelLookupId = 3, CapacityLiters = 200 });
+        await _db.SaveChangesAsync();
+        var request = new CreateStationInventoryDto(10, 2026, 11, 2, DateTime.UtcNow, "test",
+            new() { new(1, 30), new(2, 40) }, new());
+        var ids = await _service.CreateStationAsync(request, 1);
+        Assert.Equal(2, ids.Count);
+        var saved = await _db.PeriodicInventories.Include(i => i.FuelReadings).Where(i => ids.Contains(i.Id)).ToListAsync();
+        Assert.Equal(30, saved.Single(i => i.SubStationId == 1).FuelReadings.Single().ActualStockLiters);
+        Assert.Equal(40, saved.Single(i => i.SubStationId == 2).FuelReadings.Single().ActualStockLiters);
+        var invalid = request with { FuelReadings = new() { new(1, 30), new(2, 201) } };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.CreateStationAsync(invalid, 1));
+        Assert.Equal(2, await _db.PeriodicInventories.CountAsync());
+    }
+
+    [Fact]
     public async Task InventoryLists_ReturnActualFuelAndOilTotals()
     {
         var category = new LookupCategory { Id = 2, Name = "PeriodType", DisplayName = "Period Type" };

@@ -87,7 +87,7 @@ describe('PeriodicInventoryPage Commercial Mode (Task A)', () => {
     expect(screen.getByText('Oil 15W40')).toBeInTheDocument();
   });
 
-  test('enterprise mode renders site select and location column in table', async () => {
+  test('enterprise mode groups site assets under station and sends their identifiers', async () => {
     useCommercialMode.mockReturnValue({ isCommercialMode: false, isCommercial: false, modeResolved: true });
 
     client.get.mockImplementation(async (url) => {
@@ -98,10 +98,10 @@ describe('PeriodicInventoryPage Commercial Mode (Task A)', () => {
         return { data: [{ id: 10, name: 'المحطة 1' }] };
       }
       if (url === '/api/sub-stations') {
-        return { data: [{ id: 100, stationId: 10, name: 'الموقع 1', isActive: true }] };
+        return { data: [{ id: 100, stationId: 10, name: 'الموقع 1', isActive: true }, { id: 101, stationId: 10, name: 'الموقع 2', isActive: true }] };
       }
       if (url === '/api/fuel-tanks') {
-        return { data: mockTanks };
+        return { data: [...mockTanks, { id: 2, name: 'Tank 2', fuelLookupId: 10, subStationId: 101 }] };
       }
       if (url === '/api/oils') {
         return { data: mockOils };
@@ -112,11 +112,12 @@ describe('PeriodicInventoryPage Commercial Mode (Task A)', () => {
       return { data: [] };
     });
 
+    client.post.mockResolvedValue({ data: { ids: [1, 2] } });
     render(<PeriodicInventoryPage lang="ar" currentUser={mockCurrentUser} />);
 
     // Table SHOULD have location column in enterprise mode
     expect(await screen.findByText('مخزون الوقود الفعلي')).toBeInTheDocument();
-    expect(screen.getAllByText('اسم الموقع').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('اسم الموقع')).not.toBeInTheDocument();
 
     // Click 'جديد' to open new field inventory modal
     const newBtn = screen.getByRole('button', { name: /جديد/ });
@@ -125,7 +126,15 @@ describe('PeriodicInventoryPage Commercial Mode (Task A)', () => {
     expect(await screen.findByText('بيانات الجرد الميداني الجديد')).toBeInTheDocument();
 
     // 'اسم الموقع *' select MUST exist in enterprise mode
-    expect(screen.getByText(/اسم الموقع \*/)).toBeInTheDocument();
-    expect(screen.getByText('يرجى اختيار الموقع أولاً لإظهار الخزانات')).toBeInTheDocument();
+    const station = screen.getByRole('option', { name: 'المحطة 1' });
+    fireEvent.change(station.parentElement, { target: { value: '10' } });
+    expect(await screen.findByText('Tank 2')).toBeInTheDocument();
+    const fuel = screen.getAllByPlaceholderText('الكمية الفعلية باللتر...');
+    fireEvent.change(fuel[0], { target: { value: '10' } });
+    fireEvent.change(fuel[1], { target: { value: '20' } });
+    fireEvent.change(screen.getByPlaceholderText('L'), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'إنشاء مسودة الجرد' }));
+    await waitFor(() => expect(client.post).toHaveBeenCalledWith('/api/inventory/station', expect.objectContaining({ stationId: 10, fuelReadings: [{ tankId: 1, actualQtyLiters: 10 }, { tankId: 2, actualQtyLiters: 20 }] })));
+
   });
 });

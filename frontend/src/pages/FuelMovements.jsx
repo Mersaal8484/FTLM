@@ -11,6 +11,7 @@ import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 import useToastStore from '../store/toastStore';
 import GeneralMovementLog from './movements/GeneralMovementLog';
 import useCommercialMode from '../hooks/useCommercialMode';
+import { groupSitesByStation } from '../utils/stationSites';
 
 // typeLabels and statusConfig are now built lazily from i18n inside the component.
 // Static fallback icons map (icons don't change with language).
@@ -58,23 +59,8 @@ const getStatus = (m) => {
 export const getMovementId = (movement) => movement?.id;
 
 /** بناء خيار label لـ Select الزيت */
-const oilOptionLabel = (o) => {
-  const name  = o.oilLookupName || o.name || '';
-  const sub   = o.subStationName || '';
-  const stat  = o.stationName    || '';
-  if (sub && stat && sub !== stat) return `${name} — ${sub} — ${stat}`;
-  if (sub)  return `${name} — ${sub}`;
-  if (stat) return `${name} — ${stat}`;
-  return name;
-};
+const oilOptionLabel = (oil) => [oil.oilLookupName || oil.name || '', oil.stationName || ''].filter(Boolean).join(' — ');
 
-/** بناء label لـ SubStation في القائمة */
-const subStationOptionLabel = (site, stations) => {
-  const stationName = site.stationName
-    || (stations || []).find(s => s.id === site.stationId)?.name
-    || '';
-  return stationName ? `${stationName} ← ${site.name}` : site.name;
-};
 
 export const getApiErrorMessage = (err) => (
   err?.response?.data?.msg
@@ -135,6 +121,7 @@ function FuelMovements({ lang, currentUser }) {
   const [oils,         setOils]         = useState([]);
   const [stations,     setStations]     = useState([]);
   const [subStations,  setSubStations]  = useState([]);
+  const [transactionTypes, setTransactionTypes] = useState([]);
   const [transferDests, setTransferDests] = useState([]);   // SubStation list for transfer target
   const [activeTab,    setActiveTab]    = useState('log');
   const summaryData = [];
@@ -147,7 +134,7 @@ function FuelMovements({ lang, currentUser }) {
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
-  const [selectedSupplySubStation, setSelectedSupplySubStation] = useState('');
+  const [selectedSupplyStation, setSelectedSupplyStation] = useState('');
 
   const TAB_PAGE_SIZE = 20;
   const [tabPage, setTabPage] = useState({});
@@ -170,15 +157,17 @@ function FuelMovements({ lang, currentUser }) {
   // ── Fetch all required data ──────────────────────────────────────────────
   const fetchAll = async () => {
     try {
-      const [movRes, tankRes, oilRes, statRes, subStatRes, destRes] = await Promise.allSettled([
+      const [movRes, tankRes, oilRes, statRes, subStatRes, destRes, typeRes] = await Promise.allSettled([
         client.get('/api/fuel-movements'),
         client.get('/api/fuel-tanks'),
         client.get('/api/oils'),
         isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/stations'),
         isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/sub-stations'),
         client.get('/api/fuel-movements/transfer-destinations'),
+        client.get('/api/lookups/by-category/TransactionType'),
       ]);
 
+      if (typeRes.status === 'fulfilled') setTransactionTypes(Array.isArray(typeRes.value.data) ? typeRes.value.data : []);
       if (movRes.status  === 'fulfilled') setMovements(movRes.value.data?.items || []);
       if (tankRes.status === 'fulfilled') setTanks(tankRes.value.data || []);
       if (oilRes.status  === 'fulfilled') setOils(oilRes.value.data  || []);
@@ -224,13 +213,14 @@ function FuelMovements({ lang, currentUser }) {
   // ── Oil selection ─────────────────────────────────────────────────────────
   const handleOilSelect = (oilId) => {
     const o = oils.find(x => String(x.id) === String(oilId));
-    setForm(f => ({ ...f, oil: oilId, subStation: o ? String(o.subStationId || o.stationId || '') : f.subStation }));
+    setForm(f => ({ ...f, oil: oilId, subStation: o ? String(o.subStationId || '') : f.subStation }));
   };
 
   // ── SubStation selection for supply form ─────────────────────────────────
-  const handleSupplySiteSelect = (siteId) => {
-    setSelectedSupplySubStation(siteId);
-    setForm(f => ({ ...f, subStation: siteId, tank: '' }));
+  const supplyStations = useMemo(() => groupSitesByStation(subStations), [subStations]);
+  const handleSupplyStationSelect = (stationId) => {
+    setSelectedSupplyStation(stationId);
+    setForm(f => ({ ...f, subStation: '', tank: '' }));
   };
 
   // ── Build payload matching CreateFuelMovementDto ──────────────────────────
@@ -255,8 +245,8 @@ function FuelMovements({ lang, currentUser }) {
 
     return {
       subStationId:          subStationId,
-      fuelLookupId:          fuelLookupId || 1,    // fallback — user must select tank with fuel type
-      transactionTypeLookupId: null,
+      fuelLookupId,
+      transactionTypeLookupId: transactionTypes.find(type => type.code === TAB_API_TYPES[activeTab])?.id || null,
       transactionDate:       txDate ? new Date(txDate).toISOString() : new Date().toISOString(),
       quantityLiters:        num(formData.quantityLiters),
       reference:             str(formData.supplyNumber || formData.issueOrderNumber),
@@ -310,7 +300,17 @@ function FuelMovements({ lang, currentUser }) {
 
     try {
       const payload = buildPayload(form);
-      if (editId) {
+      if (!payload.transactionTypeLookupId) throw new Error(ar ? 'نوع الحركة غير متاح' : 'Transaction type is unavailable');
+      if (!payload.subStationId) throw new Error(ar ? 'اختر أصلاً مرتبطاً بالمحطة' : 'Select an asset linked to the station');
+      if (form.itemType === 'oil') {
+        const oil = oils.find(item => String(item.id) === String(form.oil));
+        if (!oil?.oilLookupId) throw new Error(ar ? 'اختر زيتاً صالحاً' : 'Select a valid oil');
+        await client.post('/api/oil-transactions', { subStationId: payload.subStationId, oilLookupId: oil.oilLookupId,
+          transactionTypeLookupId: payload.transactionTypeLookupId, transactionDate: payload.transactionDate,
+          quantityLiters: payload.quantityLiters, reference: payload.reference, supplierCompany: payload.supplierCompany, notes: payload.notes });
+      } else if (!payload.fuelLookupId) {
+        throw new Error(ar ? 'اختر خزاناً مرتبطاً بنوع وقود' : 'Select a tank with a fuel type');
+      } else if (editId) {
         await client.put(`/api/fuel-movements/${editId}`, payload);
       } else {
         await client.post('/api/fuel-movements', payload);
@@ -318,10 +318,10 @@ function FuelMovements({ lang, currentUser }) {
       setStatus({ type: 'success', msg: ar ? 'تم الحفظ بانتظار موافقة المشرف ✓' : 'Saved! Awaiting supervisor approval ✓' });
       setShowForm(false); setEditId(null);
       setForm(initialForm());
-      setSelectedSupplySubStation('');
+      setSelectedSupplyStation('');
       fetchAll();
     } catch (err) {
-      setStatus({ type: 'error', msg: getApiErrorMessage(err) });
+      setStatus({ type: 'error', msg: err.response ? getApiErrorMessage(err) : (err.message || getApiErrorMessage(err)) });
     } finally { setSaving(false); }
   };
 
@@ -374,10 +374,10 @@ function FuelMovements({ lang, currentUser }) {
 
   // ── Tanks for selected supply sub-station ─────────────────────────────────
   const tanksForSupplySite = useMemo(
-    () => (isCommercialMode ? tanks : selectedSupplySubStation
-      ? tanks.filter(t => String(t.subStationId) === String(selectedSupplySubStation))
+    () => (isCommercialMode ? tanks : selectedSupplyStation
+      ? tanks.filter(t => supplyStations.some(station => String(station.id) === String(selectedSupplyStation) && station.sites.some(site => String(site.id) === String(t.subStationId))))
       : tanks),
-    [tanks, selectedSupplySubStation, isCommercialMode]
+    [tanks, selectedSupplyStation, isCommercialMode, supplyStations]
   );
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -390,7 +390,7 @@ function FuelMovements({ lang, currentUser }) {
         title={t('movements.pageTitle')}
         subtitle={t('movements.pageSubtitle')}
         actions={activeTab !== 'log' && !(isCommercialMode && activeTab === 'transfer') && canAdd ? (
-          <Button icon={Plus} onClick={() => { setShowForm(true); setEditId(null); setForm(initialForm()); setSelectedSupplySubStation(''); }}>
+          <Button icon={Plus} onClick={() => { setShowForm(true); setEditId(null); setForm(initialForm()); setSelectedSupplyStation(''); }}>
             {ar ? 'حركة جديدة' : 'New Movement'}
           </Button>
         ) : null}
@@ -408,7 +408,7 @@ function FuelMovements({ lang, currentUser }) {
                 if (!showForm) fld('type', k);
                 fld('itemType', 'fuel');
                 fld('oil', ''); fld('tank', '');
-                setSelectedSupplySubStation('');
+                setSelectedSupplyStation('');
               }}>
               <cfg.icon size={16} /> {cfg.label}
             </button>
@@ -594,7 +594,7 @@ function FuelMovements({ lang, currentUser }) {
               <thead>
                 <tr>
                   <th style={{ textAlign: 'center', minWidth: 110 }}>{ar ? 'تاريخ الحركة' : 'Date'}</th>
-                  {!isCommercialMode && <th style={{ textAlign: 'center', minWidth: 110 }}>{ar ? 'الموقع' : 'Site'}</th>}
+                  {!isCommercialMode && <th style={{ textAlign: 'center', minWidth: 110 }}>{ar ? 'المحطة' : 'Station'}</th>}
                   <th style={{ textAlign: 'center', minWidth: 110 }}>{ar ? 'نوع الحركة' : 'Type'}</th>
                   <th style={{ textAlign: 'center', minWidth: 110 }}>{ar ? 'نوع الوقود' : 'Fuel'}</th>
                   <th style={{ textAlign: 'center', minWidth: 110 }}>{ar ? 'الكمية' : 'Qty (L)'}</th>
@@ -623,7 +623,7 @@ function FuelMovements({ lang, currentUser }) {
                         <div style={{ fontWeight: 700 }}>{fmtDate(m.transactionDate)}</div>
                       </td>
                       {!isCommercialMode && <td style={{ textAlign: 'center', fontWeight: 600 }}>
-                        {m.subStationName || '—'}
+                        {subStations.find(site => String(site.id) === String(m.subStationId))?.stationName || '—'}
                       </td>}
                       <td style={{ textAlign: 'center' }}>
                         <span className="badge" style={{ background: 'var(--warning)15', color: 'var(--warning)' }}>
@@ -717,7 +717,7 @@ function FuelMovements({ lang, currentUser }) {
                         </button>
                         <button type="button"
                           className={`btn btn-sm ${form.itemType === 'oil' ? 'btn-primary' : 'btn-ghost'}`}
-                          onClick={() => { fld('itemType', 'oil'); fld('tank', ''); setSelectedSupplySubStation(''); }}>
+                          onClick={() => { fld('itemType', 'oil'); fld('tank', ''); setSelectedSupplyStation(''); }}>
                           {ar ? 'زيوت' : 'Oils'}
                         </button>
                       </div>
@@ -729,15 +729,11 @@ function FuelMovements({ lang, currentUser }) {
                     <>
                       <div className="form-section-header">{ar ? 'بيانات التوريد الأساسية' : 'Primary Supply Data'}</div>
                       <div className="form-row">
-                        {!isCommercialMode && <FormField label={ar ? 'الموقع / الفرع *' : 'Site / Branch *'} required>
-                          <select className="form-select" value={selectedSupplySubStation}
-                            onChange={e => handleSupplySiteSelect(e.target.value)} required>
-                            <option value="">— {ar ? 'اختر الموقع' : 'Select Site'} —</option>
-                            {subStations.map(site => (
-                              <option key={site.id} value={site.id}>
-                                {subStationOptionLabel(site, stations)}
-                              </option>
-                            ))}
+                        {!isCommercialMode && <FormField label={ar ? 'المحطة *' : 'Station *'} required>
+                          <select className="form-select" value={selectedSupplyStation}
+                            onChange={e => handleSupplyStationSelect(e.target.value)} required>
+                            <option value="">— {ar ? 'اختر المحطة' : 'Select Station'} —</option>
+                            {supplyStations.map(station => <option key={station.id} value={station.id}>{station.name}</option>)}
                           </select>
                         </FormField>}
                         <FormField label={ar ? 'الخزان المستلم *' : 'Receiving Tank *'} required>
@@ -907,7 +903,7 @@ function FuelMovements({ lang, currentUser }) {
                            .filter(s => String(s.id) !== String(form.subStation))
                            .map(s => (
                              <option key={s.id} value={s.id}>
-                               {subStationOptionLabel(s, stations)}
+                               {s.stationName || stations.find(station => station.id === s.stationId)?.name || '—'} — {s.name}
                              </option>
                            ))}
                        </select>

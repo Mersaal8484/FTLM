@@ -112,7 +112,7 @@ function TanksManagement({ lang, currentUser }) {
       return false;
     }
     if (!isCommercialMode && !form.subStation) {
-      setFormError(ar ? 'يجب ربط الخزان بمنطقة.' : 'Tank must be linked to an area.');
+      setFormError(ar ? 'اختر محطة متاحة لحفظ الخزان.' : 'Choose an available station for the tank.');
       return false;
     }
     setFormError('');
@@ -153,9 +153,9 @@ function TanksManagement({ lang, currentUser }) {
         name: form.name,
         code: form.code,
         capacityLiters: Number(form.capacityLiters),
-        minAlertLiters: Number(form.minAlertLiters) || null,
-        deadStockLiters: Number(form.deadStockLiters) || null,
-        actualStockLiters: Number(form.actualStockLiters) || null,
+        minAlertLiters: form.minAlertLiters === '' ? null : Number(form.minAlertLiters),
+        deadStockLiters: form.deadStockLiters === '' ? null : Number(form.deadStockLiters),
+        actualStockLiters: form.actualStockLiters === '' ? null : Number(form.actualStockLiters),
         fuelLookupId: Number(form.fuelLookupId) || 0,
         subStationId: effectiveSubStationId,
         isActive: form.isActive,
@@ -196,7 +196,6 @@ function TanksManagement({ lang, currentUser }) {
     t.name?.includes(search) || t.code?.includes(search)
   );
 
-  const getSubName = (id) => subStations.find(s => s.id === id || s.subStationId === id)?.name || '—';
   const getStaName = (subId) => {
     const sub = subStations.find(s => s.id === subId || s.subStationId === subId);
     if (!sub) return ar ? 'غير محدد (بدون محطة)' : 'Unassigned';
@@ -208,15 +207,13 @@ function TanksManagement({ lang, currentUser }) {
     form.branchId ? stations.filter(s => s.branchId === Number(form.branchId) || s.branch_id === Number(form.branchId)) : (form.branchId === '' ? stations : [])
   , [form.branchId, stations]);
 
-  const filteredSubStations = useMemo(() =>
-    form.stationId ? subStations.filter(s => (s.stationId ?? s.station_id) === Number(form.stationId)) : (form.stationId === '' ? subStations : [])
-  , [form.stationId, subStations]);
-
   const groupedTanks = {};
   filtered.forEach(tank => {
     const stationName = isCommercialMode ? (ar ? 'خزانات الوقود' : 'Fuel Tanks') : getStaName(tank.subStationId);
-    if (!groupedTanks[stationName]) groupedTanks[stationName] = [];
-    groupedTanks[stationName].push(tank);
+    const site = subStations.find(item => String(item.id) === String(tank.subStationId));
+    const key = isCommercialMode ? 'commercial' : String(site?.stationId ?? site?.station_id ?? `site-${tank.subStationId}`);
+    if (!groupedTanks[key]) groupedTanks[key] = { stationName, tanks: [] };
+    groupedTanks[key].tanks.push(tank);
   });
 
   if (activeTab === 'calibration') {
@@ -295,8 +292,8 @@ function TanksManagement({ lang, currentUser }) {
         </div>
       ) : (
         <div className="grouped-container">
-          {Object.entries(groupedTanks).map(([stationName, stationTanks]) => (
-            <div key={stationName} className="station-group" style={{ marginBottom: 40 }}>
+          {Object.entries(groupedTanks).map(([stationKey, { stationName, tanks: stationTanks }]) => (
+            <div key={stationKey} className="station-group" style={{ marginBottom: 40 }}>
               <div className="station-group-header" style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, borderRadius: 10, background: 'var(--primary-light)', color: 'var(--primary)' }}>
                   <MapPin size={22} />
@@ -304,7 +301,7 @@ function TanksManagement({ lang, currentUser }) {
                 <div>
                   <h3 style={{ margin: 0, fontSize: 18, fontWeight: 'bold', color: 'var(--text-main)' }}>{stationName}</h3>
                   {!isCommercialMode && (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{ar ? 'الخزانات التابعة لهذا الموقع' : 'Tanks in this location'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{ar ? 'الخزانات التابعة لهذه المحطة' : 'Tanks at this station'}</div>
                   )}
                 </div>
                 <span style={{ marginRight: ar ? 'auto' : 0, marginLeft: ar ? 0 : 'auto', padding: '6px 14px', background: 'var(--primary)', color: 'var(--on-accent)', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 'bold' }}>
@@ -358,8 +355,7 @@ function TanksManagement({ lang, currentUser }) {
                           { label: ar?'السعة الكلية':'Capacity', value: `${Number(tank.capacityLiters || 0).toLocaleString('en-US')} L` },
                           { label: ar?'الحد الأدنى للمخزون':'Min Stock', value: tank.minAlertLiters ? `${Number(tank.minAlertLiters).toLocaleString('en-US')} L` : '—' },
                           { label: ar?'النقطة الميتة':'Dead Stock', value: tank.deadStockLiters ? `${Number(tank.deadStockLiters).toLocaleString('en-US')} L` : '—' },
-                          { label: ar?'المخزون الفعلي':'Actual Stock', value: tank.actualStockLiters ? `${Number(tank.actualStockLiters).toLocaleString('en-US')} L` : '—' },
-                          ...(!isCommercialMode ? [{ label: ar?'المنطقة':'Area', value: getSubName(tank.subStationId), accent: true }] : []),
+                          { label: ar?'المخزون الفعلي':'Actual Stock', value: tank.actualStockLiters != null ? `${Number(tank.actualStockLiters).toLocaleString('en-US')} L` : '—' },
                         ].map((row, i) => (
                           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
                             <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>{row.label}</span>
@@ -456,10 +452,10 @@ function TanksManagement({ lang, currentUser }) {
 
           {!isCommercialMode && (
             <>
-              <div className="form-section-header">{ar ? 'الموقع' : 'Location'}</div>
+              <div className="form-section-header">{ar ? 'المحطة' : 'Station'}</div>
               <div className="form-row">
                 <FormField label={ar ? 'الفرع' : 'Branch'}>
-                  <select className="form-select" value={form.branchId}
+                  <select className="form-select" value={form.branchId} disabled={!!editItem}
                     onChange={e => setForm(f => ({ ...f, branchId: e.target.value, stationId: '', subStation: '' }))}>
                     <option value="">— {ar ? 'كل الفروع' : 'All Branches'} —</option>
                     {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -467,33 +463,18 @@ function TanksManagement({ lang, currentUser }) {
                 </FormField>
                 <FormField label={ar ? 'المحطة' : 'Station'}>
                   <select className="form-select" value={form.stationId}
-                    onChange={e => setForm(f => ({ ...f, stationId: e.target.value, subStation: '' }))}
-                    disabled={!form.branchId && form.branchId !== ''}>
+                    onChange={e => {
+                      const stationId = e.target.value;
+                      const site = subStations.filter(item => String(item.stationId ?? item.station_id) === stationId && item.isActive !== false)
+                        .sort((a, b) => Number(a.id) - Number(b.id))[0];
+                      setForm(f => ({ ...f, stationId, subStation: site ? String(site.id) : '' }));
+                    }}
+                    disabled={!!editItem}>
                     <option value="">— {ar ? 'اختر المحطة' : 'Select Station'} —</option>
                     {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </FormField>
               </div>
-              <FormField label={ar ? 'ربط الخزان بالمنطقة (الموقع)' : 'Link Tank to Area (Location)'} required error={!form.subStation && formError ? (ar ? 'يجب ربط الخزان بمنطقة.' : 'Tank must be linked to an area.') : null}>
-                <select className="form-select" value={form.subStation}
-                  onChange={e => setForm(f => ({ ...f, subStation: e.target.value }))}
-                  disabled={!form.stationId && form.stationId !== ''}>
-                  <option value="">— {ar ? 'اختر المنطقة' : 'Select Area'} —</option>
-                  {filteredSubStations.map(ss => {
-                    const sta = stations.find(s => s.id === (ss.station_id ?? ss.stationId));
-                    return (
-                      <option key={ss.id} value={ss.id}>
-                        {sta ? `${sta.name} ← ` : ''}{ss.name}
-                      </option>
-                    );
-                  })}
-                </select>
-              </FormField>
-              {subStations.length === 0 && (
-                <p style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4, marginBottom: 12 }}>
-                  {ar ? '⚠️ أضف مواقع من صفحة "إدارة المواقع" أولاً' : '⚠️ Add locations from "Locations Management" first'}
-                </p>
-              )}
             </>
           )}
 

@@ -84,7 +84,6 @@ function Generators({ t, lang, currentUser }) {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
   const [expandedStations, setExpandedStations] = useState(new Set());
-  const [expandedSites, setExpandedSites] = useState(new Set());
 
   const [stations, setStations] = useState([]);
   const [subStations, setSubStations] = useState([]);
@@ -139,10 +138,6 @@ function Generators({ t, lang, currentUser }) {
     return stations.filter(s => s.branchId === Number(form.branchId));
   }, [stations, form.branchId]);
 
-  const filteredSubStations = useMemo(() => {
-    if (!form.station) return [];
-    return subStations.filter(ss => ss.stationId === Number(form.station) || ss.station_id === form.station);
-  }, [subStations, form.station]);
 
   useEffect(() => { if (modeResolved) load(); }, [isCommercialMode, modeResolved]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -192,7 +187,7 @@ function Generators({ t, lang, currentUser }) {
 
   const fieldError = (key) => {
     if (key === 'name' && !form.name) return ar ? 'اسم المولد مطلوب' : 'Generator name is required';
-    if (!isCommercialMode && key === 'subStation' && !form.subStation) return ar ? 'المنطقة (وحدة فرعية) مطلوبة' : 'SubStation is required';
+    if (!isCommercialMode && key === 'subStation' && !form.subStation) return ar ? 'اختر محطة متاحة لحفظ المولد' : 'Choose an available station';
     if (!isCommercialMode && key === 'ratedCapacityKw' && (!form.ratedCapacityKw || Number(form.ratedCapacityKw) <= 0)) return ar ? 'القدرة الاسمية مطلوبة ويجب أن تكون أكبر من صفر' : 'Nominal power is required and must be greater than zero';
     if (!isCommercialMode && key === 'fuelConsumptionRatePerHour' && (!form.fuelConsumptionRatePerHour || Number(form.fuelConsumptionRatePerHour) <= 0)) return ar ? 'معدل استهلاك الوقود مطلوب ويجب أن يكون أكبر من صفر' : 'Fuel consumption rate is required and must be greater than zero';
     return null;
@@ -347,24 +342,8 @@ function Generators({ t, lang, currentUser }) {
     return subStationById.get(String(siteId)) || subStations.find(s => String(s.id) === String(siteId)) || null;
   };
 
-  const subStationNameFor = (gen) => {
-    const site = subStationFor(gen);
-    return displayName(site?.name) ||
-      displayName(site?.subStationName) ||
-      displayName(gen.subStation?.name) ||
-      displayName(gen.subStationName);
-  };
-  const generatorSitePath = (gen) => {
-    const stationName = stationNameFor(gen);
-    const siteName = subStationNameFor(gen);
-    if (stationName && siteName && stationName !== siteName) {
-      return `${stationName} ← ${siteName}`;
-    }
-    return siteName || stationName || (ar ? 'غير محدد (بدون موقع)' : 'Unassigned');
-  };
-  const generatorSiteName = (gen) => {
-    return subStationNameFor(gen) || stationNameFor(gen) || (ar ? 'غير محدد' : 'Unassigned');
-  };
+  const generatorSitePath = (gen) => stationNameFor(gen) || (ar ? 'محطة غير محددة' : 'Unassigned station');
+  const generatorSiteName = generatorSitePath;
 
   const filtered = generators.filter(g => {
     const q = search.toLowerCase();
@@ -385,8 +364,6 @@ function Generators({ t, lang, currentUser }) {
     const tree = {};
     paginatedFiltered.forEach(gen => {
       const site = subStationFor(gen);
-      const siteId = gen.subStationId || getId(site) || getId(gen.subStation) || 'unassigned-site';
-      const siteName = subStationNameFor(gen);
 
       const stationId = (site?.stationId || site?.station_id || gen.stationId || getId(gen.station)) || 'unknown-station';
       const station = stations.find(s => String(s.id) === String(stationId)) ||
@@ -394,15 +371,14 @@ function Generators({ t, lang, currentUser }) {
       const resolvedStationId = getId(station) || stationId || 'unknown-station';
       const stationName = displayName(station?.name) || stationNameFor(gen) || (ar ? 'محطة غير محددة' : 'Unnamed Station');
 
-      const siteNameFinal = (siteName && siteName !== stationName) ? siteName : (siteName || (ar ? 'موقع غير محدد' : 'Unassigned Site'));
 
       if (!tree[resolvedStationId]) {
         tree[resolvedStationId] = { stationName, sites: {} };
       }
       const stationObj = tree[resolvedStationId];
-      const siteKey = `${resolvedStationId}-${siteId}`;
+      const siteKey = `${resolvedStationId}-generators`;
       if (!stationObj.sites[siteKey]) {
-        stationObj.sites[siteKey] = { siteId, siteName: siteNameFinal, gens: [] };
+        stationObj.sites[siteKey] = { gens: [] };
        }
        stationObj.sites[siteKey].gens.push(gen);
      });
@@ -429,14 +405,6 @@ function Generators({ t, lang, currentUser }) {
      });
    };
 
-   const toggleSite = (siteKey) => {
-     setExpandedSites(prev => {
-       const next = new Set(prev);
-       if (next.has(siteKey)) next.delete(siteKey);
-       else next.add(siteKey);
-       return next;
-     });
-   };
 
   return (
     <div className={isCommercialMode ? 'commercial-generator-page' : undefined}>
@@ -453,7 +421,7 @@ function Generators({ t, lang, currentUser }) {
         <div className="search-bar" style={{ maxWidth: 340 }}>
           <Search size={16} />
           <input className="form-control"
-            placeholder={ar ? 'بحث بالاسم أو الشركة أو الموقع...' : 'Search by name, manufacturer or location...'}
+            placeholder={ar ? 'بحث بالاسم أو الشركة أو المحطة...' : 'Search by name, manufacturer or station...'}
             value={search} onChange={handleSearchChange} />
         </div>
       </div>
@@ -485,19 +453,9 @@ function Generators({ t, lang, currentUser }) {
 
                 {/* Sites */}
                 {stationExpanded && sites.map(({ siteKey, siteName, gens }) => {
-                  const siteExpanded = isCommercialMode || expandedSites.has(siteKey);
+                  const siteExpanded = true;
                   return (
                     <div key={siteKey} style={{ paddingLeft: isCommercialMode ? 0 : 24, marginBottom: 8 }}>
-                      {!isCommercialMode && <div className="site-group-header" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--card-2)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: 6 }}
-                        onClick={() => toggleSite(siteKey)}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 'var(--radius-xs)', background: 'var(--surface-2)', color: 'var(--text-muted)', flexShrink: 0 }}>
-                          {siteExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        </div>
-                        <MapPin size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-main)', flex: 1 }}>{siteName}</span>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--surface-2)', padding: '2px 8px', borderRadius: 'var(--radius-sm)' }}>{gens.length} {ar ? 'مولد' : 'gen'}</span>
-                      </div>}
-
                       {/* Generators */}
                       {siteExpanded && (
                         <div className="grid-auto" style={{ paddingLeft: 8 }}>
@@ -587,7 +545,7 @@ function Generators({ t, lang, currentUser }) {
           {!isCommercialMode && (
             <div className="form-row">
               <FormField label={ar ? 'المحافظة *' : 'Governorate *'} required error={fieldError('branchId')}>
-                <select className="form-select" value={form.branchId} onChange={e => {
+                <select className="form-select" value={form.branchId} disabled={!!editId} onChange={e => {
                   fld('branchId', e.target.value);
                   fld('station', '');
                   fld('subStation', '');
@@ -598,25 +556,17 @@ function Generators({ t, lang, currentUser }) {
               </FormField>
               {form.branchId && (
                 <FormField label={ar ? 'المحطة *' : 'Station *'} required error={fieldError('station')}>
-                  <select className="form-select" value={form.station} onChange={e => {
-                    fld('station', e.target.value);
-                    fld('subStation', '');
+                  <select className="form-select" value={form.station} disabled={!!editId} onChange={e => {
+                    const stationId = e.target.value;
+                    const site = subStations.filter(item => String(item.stationId ?? item.station_id) === stationId)
+                      .sort((a, b) => Number(a.id) - Number(b.id))[0];
+                    setForm(f => ({ ...f, station: stationId, subStation: site ? String(site.id) : '' }));
                   }}>
                     <option value="">— {ar ? 'اختر المحطة' : 'Select Station'} —</option>
                     {filteredStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </FormField>
               )}
-              {form.station && (
-                <FormField label={ar ? 'الموقع/الفرع *' : 'Site / Branch *'} required error={fieldError('subStation')}>
-                  <select className="form-select" value={form.subStation} onChange={e => fld('subStation', e.target.value)}>
-                    <option value="">— {ar ? 'اختر الموقع' : 'Select Site'} —</option>
-                    {filteredSubStations.map(ss => (
-                      <option key={ss.id} value={ss.id}>{ss.name}</option>
-                    ))}
-                  </select>
-                </FormField>
-               )}
              </div>
           )}
           <div className="form-row">
