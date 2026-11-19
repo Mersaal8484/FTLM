@@ -23,6 +23,17 @@ test('commercial pages hide technical sites and preserve tank selection', async 
   await expect(page.getByRole('columnheader', { name: 'الموقع', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'تقرير الصرف' }).click();
   await expect(page.getByPlaceholder('رقم الموقع الفرعي')).toHaveCount(0);
+  await page.goto('/reports');
+  const efficiencyResponse = page.waitForResponse(response => response.url().includes('/api/reports/efficiency') && response.url().includes('groupByStation=true'));
+  await page.getByRole('button', { name: 'تقرير الكفاءة' }).click();
+  const response = await efficiencyResponse;
+  expect(response.ok()).toBeTruthy();
+  const report = await response.json();
+  expect(Array.isArray(report.items)).toBeTruthy();
+  await expect(page.getByRole('columnheader', { name: 'الموقع', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('columnheader', { name: 'المحطة', exact: true })).toBeVisible();
+  await page.goto('/maintenance/service');
+  await expect(page.getByText('جميع المحطات الفرعية')).toHaveCount(0);
   await page.goto('/fuel-movements');
   await page.getByRole('button', { name: /الوارد وقود/ }).click();
   await page.getByRole('button', { name: 'حركة جديدة' }).click();

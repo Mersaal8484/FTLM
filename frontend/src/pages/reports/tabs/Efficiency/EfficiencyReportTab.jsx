@@ -14,22 +14,17 @@ export default function EfficiencyReportTab({ filters, lang }) {
     
     return [
       { title: isAr ? 'متوسط كفاءة النظام' : 'System Avg Efficiency', value: data.summary.averageEfficiencyPercent?.toFixed(2) || '0', icon: Activity, color: 'primary' },
-      { title: isAr ? 'مواقع تحت المعدل' : 'Underperforming Sites', value: data.items.filter(i => i.efficiencyPercent < (data.summary.averageEfficiencyPercent || 0)).length || '0', icon: AlertTriangle, color: 'danger' },
-      { title: isAr ? 'مواقع ممتازة' : 'Top Performing Sites', value: data.items.filter(i => i.efficiencyPercent > (data.summary.averageEfficiencyPercent || 0)).length || '0', icon: BarChart3, color: 'success' },
+      { title: isAr ? 'محطات تحت المعدل' : 'Underperforming Stations', value: data.items.filter(i => i.efficiencyPercent < (data.summary.averageEfficiencyPercent || 0)).length || '0', icon: AlertTriangle, color: 'danger' },
+      { title: isAr ? 'محطات ممتازة' : 'Top Performing Stations', value: data.items.filter(i => i.efficiencyPercent > (data.summary.averageEfficiencyPercent || 0)).length || '0', icon: BarChart3, color: 'success' },
     ];
   }, [data, isAr]);
 
   const columns = useMemo(() => {
     return [
       { header: isAr ? 'المحطة' : 'Station', accessor: 'stationName' },
-      { header: isAr ? 'الموقع' : 'SubStation', accessor: 'subStationName' },
-      { header: isAr ? 'الكفاءة المستهدفة' : 'Target Efficiency', accessor: 'efficiencyPercent', align: 'center' },
+      { header: isAr ? 'الطاقة المنتجة' : 'Energy produced', accessor: 'totalEnergyProducedKWh', align: 'center' },
+      { header: isAr ? 'الوقود المستهلك' : 'Fuel consumed', accessor: 'totalFuelConsumedLiters', align: 'center' },
       { header: isAr ? 'الكفاءة الفعلية' : 'Actual Efficiency', accessor: 'efficiencyPercent', align: 'center' },
-      { header: isAr ? 'التباين' : 'Variance', accessor: 'variance', align: 'center', render: (row) => {
-        const val = row.variance || 0;
-        const color = val < 0 ? '#ef4444' : '#10b981';
-        return <span style={{ color }}>{val > 0 ? '+' : ''}{val.toFixed(2)}</span>;
-      }},
     ];
   }, [isAr]);
 
@@ -37,7 +32,7 @@ export default function EfficiencyReportTab({ filters, lang }) {
     if (!data?.items?.length) return null;
     
     return {
-      labels: data.items.map(i => i.subStationName).slice(0, 15),
+      labels: data.items.map(i => i.stationName).slice(0, 15),
       datasets: [
         {
           label: isAr ? 'الكفاءة الفعلية' : 'Actual Efficiency',

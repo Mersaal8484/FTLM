@@ -174,7 +174,7 @@ function WarehouseSupply({ lang, currentUser }) {
                   <th>{ar ? 'التاريخ' : 'Date'}</th>
                   <th>{ar ? 'المورد' : 'Supplier'}</th>
                   <th>{ar ? 'المبلغ' : 'Amount'}</th>
-                  {!isCommercialMode && <th>{ar ? 'الموقع' : 'Station'}</th>}
+                  {!isCommercialMode && <th>{ar ? 'المحطة' : 'Station'}</th>}
                   <th>{ar ? 'الحالة' : 'Status'}</th>
                   <th style={{ textAlign: 'center' }}>{ar ? 'إجراءات' : 'Actions'}</th>
                 </tr>
@@ -226,9 +226,9 @@ function WarehouseSupply({ lang, currentUser }) {
           {error && <div className="form-error" role="alert" style={{ marginBottom: 16 }}>{error}</div>}
           <form onSubmit={handleSave}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {!isCommercialMode && <FormField label={ar ? 'الموقع' : 'Station'} required>
+              {!isCommercialMode && <FormField label={ar ? 'المحطة' : 'Station'} required>
                 <select className="form-select" required value={form.stationId} onChange={e => setForm({ ...form, stationId: e.target.value })}>
-                  <option value="">{ar ? 'اختر الموقع' : 'Select station'}</option>
+                  <option value="">{ar ? 'اختر المحطة' : 'Select station'}</option>
                   {stations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </FormField>}
@@ -302,7 +302,7 @@ function WarehouseSupply({ lang, currentUser }) {
             <div><strong>{ar ? 'التاريخ' : 'Date'}:</strong> {detailItem.supplyDate}</div>
             <div><strong>{ar ? 'المورد' : 'Supplier'}:</strong> {detailItem.supplierName}</div>
             <div><strong>{ar ? 'المبلغ' : 'Amount'}:</strong> {detailItem.totalAmount != null ? fmt(detailItem.totalAmount, 2) : '—'}</div>
-            {!isCommercialMode && <div><strong>{ar ? 'الموقع' : 'Station'}:</strong> {detailItem.stationName}</div>}
+            {!isCommercialMode && <div><strong>{ar ? 'المحطة' : 'Station'}:</strong> {detailItem.stationName}</div>}
           </div>
           <h4 style={{ marginBottom: 10 }}>{ar ? 'القطع' : 'Parts'}</h4>
           {detailItem.items?.length === 0 ? (

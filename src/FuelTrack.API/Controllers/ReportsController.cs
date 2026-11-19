@@ -145,9 +145,10 @@ public class ReportsController : BaseApiController
         [FromQuery] DateTime? dateTo,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
-        [FromQuery] string timeZoneId = "Asia/Riyadh")
+        [FromQuery] string timeZoneId = "Asia/Riyadh",
+        [FromQuery] bool groupByStation = false)
     {
-        var result = await _service.GetEfficiencyReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId);
+        var result = await _service.GetEfficiencyReportAsync(branchId, stationId, subStationId, dateFrom, dateTo, page, pageSize, timeZoneId, groupByStation);
         return Ok(result);
     }
 

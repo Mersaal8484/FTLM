@@ -10,11 +10,9 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
 
   const [branches, setBranches] = useState([]);
   const [stations, setStations] = useState([]);
-  const [subStations, setSubStations] = useState([]);
 
   const [selectedBranch, setSelectedBranch] = useState('');
   const [selectedStation, setSelectedStation] = useState('');
-  const [selectedSubStation, setSelectedSubStation] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
@@ -40,14 +38,12 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
 
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [loadingStations, setLoadingStations] = useState(false);
-  const [loadingSubStations, setLoadingSubStations] = useState(false);
 
   // Load branches
   useEffect(() => {
     if (!modeResolved || isCommercialMode) {
       setBranches([]);
       setStations([]);
-      setSubStations([]);
       return;
     }
     setLoadingBranches(true);
@@ -61,9 +57,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
   useEffect(() => {
     if (!selectedBranch) {
       setStations([]);
-      setSubStations([]);
       setSelectedStation('');
-      setSelectedSubStation('');
       return;
     }
     setLoadingStations(true);
@@ -72,24 +66,7 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
       .catch(() => {})
       .finally(() => setLoadingStations(false));
     setSelectedStation('');
-    setSelectedSubStation('');
-    setSubStations([]);
   }, [selectedBranch]);
-
-  // Load sub-stations when station changes
-  useEffect(() => {
-    if (!selectedStation) {
-      setSubStations([]);
-      setSelectedSubStation('');
-      return;
-    }
-    setLoadingSubStations(true);
-    client.get(`/api/sub-stations/by-station/${selectedStation}`)
-      .then(res => setSubStations((res.data || []).filter(s => s.isActive !== false)))
-      .catch(() => {})
-      .finally(() => setLoadingSubStations(false));
-    setSelectedSubStation('');
-  }, [selectedStation]);
 
   // Compute date range from month/year when month picker is active
   useEffect(() => {
@@ -111,23 +88,22 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
     onFilterChange({
       branchId: selectedBranch ? Number(selectedBranch) : null,
       stationId: selectedStation ? Number(selectedStation) : null,
-      subStationId: selectedSubStation ? Number(selectedSubStation) : null,
+      subStationId: null,
       dateFrom: dateFrom || null,
       dateTo: dateTo || null,
     });
-  }, [selectedBranch, selectedStation, selectedSubStation, dateFrom, dateTo, selectedMonth, selectedYear, onFilterChange]);
+  }, [selectedBranch, selectedStation, dateFrom, dateTo, selectedMonth, selectedYear, onFilterChange]);
 
   const handleClear = useCallback(() => {
     setSelectedBranch('');
     setSelectedStation('');
-    setSelectedSubStation('');
     setDateFrom('');
     setDateTo('');
     setSelectedMonth('');
     setSelectedYear('');
   }, []);
 
-  const hasActiveFilters = selectedBranch || selectedStation || selectedSubStation || dateFrom || dateTo || selectedMonth || selectedYear;
+  const hasActiveFilters = selectedBranch || selectedStation || dateFrom || dateTo || selectedMonth || selectedYear;
 
   return (
     <div className="filter-bar" dir={dir} style={{ marginBottom: '1rem' }}>
@@ -170,28 +146,6 @@ const HierarchicalFilter = ({ onFilterChange, lang = 'ar', showDateRange = true,
               <option value="">{loadingStations ? (isAr ? 'جاري التحميل...' : 'Loading...') : (isAr ? 'الكل' : 'All')}</option>
               {stations.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-            <ChevronDown size={16} style={{ position: 'absolute', insetInlineEnd: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
-          </div>
-        </div>
-
-        {/* Sub Station */}
-        <div style={{ position: 'relative', minWidth: '180px' }}>
-          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
-            {isAr ? 'المحطة الفرعية' : 'Sub Station'}
-          </label>
-          <div style={{ position: 'relative' }}>
-            <select
-              className="modern-select"
-              value={selectedSubStation}
-              onChange={e => setSelectedSubStation(e.target.value)}
-              disabled={!selectedStation || loadingSubStations}
-              style={{ width: '100%', paddingInlineEnd: '2rem' }}
-            >
-              <option value="">{loadingSubStations ? (isAr ? 'جاري التحميل...' : 'Loading...') : (isAr ? 'الكل' : 'All')}</option>
-              {subStations.map(ss => (
-                <option key={ss.id} value={ss.id}>{ss.name}</option>
               ))}
             </select>
             <ChevronDown size={16} style={{ position: 'absolute', insetInlineEnd: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />

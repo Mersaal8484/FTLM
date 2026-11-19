@@ -157,7 +157,7 @@ export default function BulkBaseline({ lang }) {
               <option value="">{ar ? '-- اختر المولد --' : '-- Select Generator --'}</option>
               {generators.map(g => (
                 <option key={g.id} value={g.id}>
-                  {g.name} {g.model ? `(${g.model})` : ''} - {g.subStationName || g.subStation?.name}
+                  {g.name} {g.model ? `(${g.model})` : ''}
                 </option>
               ))}
             </select>

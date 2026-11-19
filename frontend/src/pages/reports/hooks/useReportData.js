@@ -13,6 +13,7 @@ export default function useReportData(filters, endpoint) {
     setError(null);
     try {
       const params = { page: filters.page, pageSize: 20, timeZoneId: 'Asia/Riyadh' };
+      if (endpoint === 'efficiency') params.groupByStation = true;
       if (filters.branchId) params.branchId = filters.branchId;
       if (filters.stationId) params.stationId = filters.stationId;
       if (filters.subStationId) params.subStationId = filters.subStationId;

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit2, Trash2, X, Search, Check, PackageCheck } from 'lucide-react';
 import client from '../api/client';
 import { loadAllWorkPermits } from '../api/workPermitLists';
+import { groupSitesByStation } from '../utils/stationSites';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
@@ -71,6 +72,8 @@ function WarehouseDispatch({ lang, currentUser }) {
 
   useEffect(() => { if (modeResolved) load(); }, [modeResolved, isCommercialMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const stationGroups = useMemo(() => groupSitesByStation(subStations), [subStations]);
+  const selectedStation = stationGroups.find(group => group.sites.some(site => String(site.id) === form.subStationId));
   const selectedSubStation = useMemo(
     () => subStations.find(s => s.id === Number(form.subStationId)),
     [subStations, form.subStationId]
@@ -99,18 +102,23 @@ function WarehouseDispatch({ lang, currentUser }) {
     setError(null);
   };
 
-  const openEdit = (d) => {
-    setForm({
-      subStationId: String(d.subStationId),
-      stationId: String(d.stationId),
-      workPermitId: d.workPermitId ? String(d.workPermitId) : '',
-      purpose: d.purpose || '',
-      notes: d.notes || '',
-      items: [{ sparePartId: '', requestedQuantity: '', notes: '' }],
-    });
-    setEditId(d.id);
-    setShowModal(true);
-    setError(null);
+  const openEdit = async (entry) => {
+    try {
+      const { data: d } = await client.get(`/api/warehouse/dispatch/${entry.id}`);
+      setForm({
+        subStationId: String(d.subStationId),
+        stationId: String(d.stationId),
+        workPermitId: d.workPermitId ? String(d.workPermitId) : '',
+        purpose: d.purpose || '',
+        notes: d.notes || '',
+        items: (d.items || []).map(item => ({ sparePartId: String(item.sparePartId), requestedQuantity: String(item.requestedQuantity), notes: item.notes || '' })),
+      });
+      setEditId(d.id);
+      setShowModal(true);
+      setError(null);
+    } catch {
+      setError(ar ? 'فشل تحميل تفاصيل الطلب' : 'Failed to load request details');
+    }
   };
 
   const handleSave = async (e) => {
@@ -132,11 +140,19 @@ function WarehouseDispatch({ lang, currentUser }) {
             notes: it.notes || null,
           })),
       };
+      if (!isCommercialMode && form.workPermitId) {
+        const { data: permit } = await client.get(`/api/work-permits/${form.workPermitId}`);
+        if (!selectedStation?.sites.some(site => String(site.id) === String(permit.subStationId)))
+          throw new Error(ar ? 'التصريح لا يتبع المحطة المحددة' : 'The permit does not belong to the selected station');
+        if (editId && String(permit.subStationId) !== form.subStationId)
+          throw new Error(ar ? 'لا يمكن ربط هذا التصريح بالطلب الحالي' : 'This permit cannot be linked to the current request');
+        if (!editId) payload.subStationId = permit.subStationId;
+      }
       if (editId) await client.put(`/api/warehouse/dispatch/${editId}`, payload);
       else await client.post(isCommercialMode ? '/api/warehouse/dispatch/commercial' : '/api/warehouse/dispatch', payload);
       setShowModal(false);
       load();
-    } catch (err) { setError(err.response?.data?.error || err.response?.data?.msg || (ar ? 'فشل الحفظ' : 'Save failed')); }
+    } catch (err) { setError(err.response?.data?.error || err.response?.data?.msg || err.message || (ar ? 'فشل الحفظ' : 'Save failed')); }
     finally { setSaving(false); }
   };
 
@@ -230,7 +246,7 @@ function WarehouseDispatch({ lang, currentUser }) {
               <thead>
                 <tr>
                   <th>{ar ? 'رقم الطلب' : 'Request #'}</th>
-                  {!isCommercialMode && <th>{ar ? 'الموقع' : 'Station'}</th>}
+                  {!isCommercialMode && <th>{ar ? 'المحطة' : 'Station'}</th>}
                   <th>{ar ? 'تصريح العمل' : 'Work Permit'}</th>
                   <th>{ar ? 'التاريخ' : 'Date'}</th>
                   <th>{ar ? 'الحالة' : 'Status'}</th>
@@ -247,7 +263,7 @@ function WarehouseDispatch({ lang, currentUser }) {
                   return (
                     <tr key={d.id}>
                       <td style={{ fontWeight: 700 }}>{d.requestNumber || '—'}</td>
-                      {!isCommercialMode && <td style={{ fontWeight: 700 }}>{d.subStationName || d.stationName}</td>}
+                      {!isCommercialMode && <td style={{ fontWeight: 700 }}>{d.stationName || '—'}</td>}
                       <td>{d.workPermitNumber || '—'}</td>
                       <td>{d.createdAt}</td>
                       <td><span className={`badge ${cfg.cls}`}>{cfg.label[lang] || d.status}</span></td>
@@ -289,10 +305,13 @@ function WarehouseDispatch({ lang, currentUser }) {
         >
           {error && <div className="form-error" role="alert" style={{ marginBottom: 16 }}>{error}</div>}
           <form onSubmit={handleSave}>
-            {!isCommercialMode && <FormField label={ar ? 'الموقع الفرعي' : 'Sub Station'} required>
-              <select className="form-control" required value={form.subStationId} onChange={e => setForm({ ...form, subStationId: e.target.value })}>
-                <option value="">{ar ? 'اختر الموقع' : 'Select station'}</option>
-                {subStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {!isCommercialMode && <FormField label={ar ? 'المحطة' : 'Station'} required>
+              <select className="form-control" required disabled={!!editId} value={selectedStation?.id || ''} onChange={e => {
+                const group = stationGroups.find(item => String(item.id) === e.target.value);
+                setForm({ ...form, stationId: group ? String(group.id) : '', subStationId: group ? String(group.sites[0].id) : '', workPermitId: '' });
+              }}>
+                <option value="">{ar ? 'اختر المحطة' : 'Select station'}</option>
+                {stationGroups.map(group => <option key={group.id} value={group.id}>{group.name || (ar ? 'محطة' : 'Station')}</option>)}
               </select>
             </FormField>}
             <FormField label={ar ? 'الغرض' : 'Purpose'}>
@@ -301,7 +320,7 @@ function WarehouseDispatch({ lang, currentUser }) {
             <FormField label={ar ? 'تصريح العمل (اختياري)' : 'Work Permit (optional)'}>
               <select className="form-control" value={form.workPermitId} onChange={e => setForm({ ...form, workPermitId: e.target.value })}>
                 <option value="">{ar ? 'بدون' : 'None'}</option>
-                {workPermits.map(w => <option key={w.id} value={w.id}>{w.permitNumber} — {w.problemDescription}</option>)}
+                {workPermits.map(w => <option key={w.id} value={w.id}>{w.permitNumber}{w.problemDescription ? ` — ${w.problemDescription}` : ''}</option>)}
               </select>
             </FormField>
             <div style={{ marginTop: 12 }}>

@@ -9,7 +9,7 @@ const DAILY_TABS = [
   { key: 'generators', ar: 'المولدات', en: 'Generators', icon: Settings, endpoint: 'generators' },
   { key: 'fuel', ar: 'الوقود', en: 'Fuel', icon: Zap, endpoint: 'fuel-transactions' },
   { key: 'oil', ar: 'الزيوت', en: 'Oils', icon: Droplet, endpoint: 'oil-transactions' },
-  { key: 'station', ar: 'قراءات الموقع', en: 'Site Readings', icon: Layout, endpoint: 'station-readings' },
+  { key: 'station', ar: 'القراءات', en: 'Readings', icon: Layout, endpoint: 'station-readings' },
   { key: 'incoming', ar: 'الوارد', en: 'Incoming', icon: Truck, endpoint: 'fuel-incoming' },
   { key: 'transfer', ar: 'النقل', en: 'Transfer', icon: ArrowRightLeft, endpoint: 'fuel-transfer' },
   { key: 'loss', ar: 'الفاقد', en: 'Loss', icon: AlertCircle, endpoint: 'fuel-loss' },
@@ -44,7 +44,6 @@ export default function DailyReportsTab({ filters, lang }) {
     if (activeSubTab === 'generators') {
       return [
         { header: isAr ? 'التاريخ' : 'Date', accessor: 'dateStr' },
-        { header: isAr ? 'الموقع' : 'Location', accessor: 'subStationName' },
         { header: isAr ? 'المولد' : 'Generator', accessor: 'generatorName' },
         { header: isAr ? 'الطاقة المنتجة (KWh)' : 'Energy (KWh)', accessor: 'totalEnergyProducedKwh', align: 'center' },
         { header: isAr ? 'الوقود المستهلك (L)' : 'Fuel (L)', accessor: 'totalFuelConsumedLiters', align: 'center' },
@@ -54,8 +53,7 @@ export default function DailyReportsTab({ filters, lang }) {
      if (activeSubTab === 'station') {
         return [
          { header: isAr ? 'التاريخ' : 'Date', accessor: 'dateStr' },
-         { header: isAr ? 'الموقع' : 'Location', accessor: 'subStationName' },
-         { header: isAr ? 'الطاقة الصادرة السابقة (KWh)' : 'Prev Exported (KWh)', accessor: 'previousExportedKwh', align: 'center' },
+          { header: isAr ? 'الطاقة الصادرة السابقة (KWh)' : 'Prev Exported (KWh)', accessor: 'previousExportedKwh', align: 'center' },
          { header: isAr ? 'الطاقة الصادرة الحالية (KWh)' : 'Current Exported (KWh)', accessor: 'currentExportedKwh', align: 'center' },
          { header: isAr ? 'صافي الطاقة (KWh)' : 'Net Exported (KWh)', accessor: 'deltaExportedKwh', align: 'center' },
         ];

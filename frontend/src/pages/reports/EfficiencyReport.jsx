@@ -29,7 +29,7 @@ const EfficiencyReport = ({ lang = 'ar' }) => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const params = { page, pageSize };
+      const params = { page, pageSize, groupByStation: true };
       if (filters.branchId) params.branchId = filters.branchId;
       if (filters.stationId) params.stationId = filters.stationId;
       if (filters.subStationId) params.subStationId = filters.subStationId;
@@ -75,7 +75,7 @@ const EfficiencyReport = ({ lang = 'ar' }) => {
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: '1rem', marginBottom: '1.5rem' }}>
           {[
-            ...(!isCommercialMode ? [{ label: isAr ? 'إجمالي المحطات الفرعية' : 'Total Sub Stations', value: summary.totalSubStations }] : []),
+            ...(!isCommercialMode ? [{ label: isAr ? 'إجمالي المحطات' : 'Total Stations', value: summary.totalSubStations }] : []),
             { label: isAr ? 'متوسط الكفاءة' : 'Avg Efficiency', value: `${fmt(summary.averageEfficiencyPercent)}%`, color: '#10b981' },
             ...(!isCommercialMode ? [
               { label: isAr ? 'الأكثر كفاءة' : 'Most Efficient', value: summary.mostEfficientSubStation || '-', color: '#3b82f6' },
@@ -95,7 +95,7 @@ const EfficiencyReport = ({ lang = 'ar' }) => {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
               <tr style={{ background: 'var(--color-bg-secondary, #f9fafb)' }}>
-                {[...(!isCommercialMode ? [isAr ? 'المحطة الفرعية' : 'Sub Station'] : []), isAr ? 'المحطة' : 'Station', isAr ? 'الطاقة المنتجة (كيلوواط ساعة)' : 'Produced (kWh)', isAr ? 'الوقود المستهلك (لتر)' : 'Fuel (L)', isAr ? 'الكفاءة %' : 'Eff %', isAr ? 'الوقود/كيلوواط ساعة' : 'Fuel/kWh', isAr ? 'عامل الحمل' : 'Load Factor'].map((h, i) => (
+                {[isAr ? 'المحطة' : 'Station', isAr ? 'الطاقة المنتجة (كيلوواط ساعة)' : 'Produced (kWh)', isAr ? 'الوقود المستهلك (لتر)' : 'Fuel (L)', isAr ? 'الكفاءة %' : 'Eff %', isAr ? 'الوقود/كيلوواط ساعة' : 'Fuel/kWh', isAr ? 'عامل الحمل' : 'Load Factor'].map((h, i) => (
                   <th key={i} style={{ padding: '0.75rem', textAlign: i <= 1 ? 'start' : 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h}</th>
                 ))}
               </tr>
@@ -103,7 +103,6 @@ const EfficiencyReport = ({ lang = 'ar' }) => {
             <tbody>
               {items.length > 0 ? items.map((e, idx) => (
                 <tr key={idx} style={{ borderBottom: '1px solid var(--color-border, #f3f4f6)' }}>
-                  {!isCommercialMode && <td style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--color-text-primary, #111827)' }}>{e.subStationName}</td>}
                   <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{e.stationName}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#10b981' }}>{fmt(e.totalEnergyProducedKWh)}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--warning)' }}>{fmt(e.totalFuelConsumedLiters)}</td>
@@ -118,7 +117,7 @@ const EfficiencyReport = ({ lang = 'ar' }) => {
                   <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-primary, #111827)' }}>{fmt(e.loadFactor)}</td>
                 </tr>
               )) : (
-                <tr><td colSpan={isCommercialMode ? 6 : 7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary, #6b7280)' }}>{isAr ? 'لا توجد بيانات' : 'No data'}</td></tr>
+                <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary, #6b7280)' }}>{isAr ? 'لا توجد بيانات' : 'No data'}</td></tr>
               )}
             </tbody>
           </table>

@@ -618,7 +618,7 @@ public class ReportService : IReportService
     public async Task<EfficiencyReportDto> GetEfficiencyReportAsync(
         int? branchId, int? stationId, int? subStationId,
         DateTime? dateFrom, DateTime? dateTo,
-        int page, int pageSize, string timeZoneId = "Asia/Riyadh")
+        int page, int pageSize, string timeZoneId = "Asia/Riyadh", bool groupByStation = false)
     {
         (dateFrom, dateTo) = ConvertToUtcRange(dateFrom, dateTo, timeZoneId);
 
@@ -635,11 +635,8 @@ public class ReportService : IReportService
             .AsNoTracking();
 
         var totalCount = await subsQuery.CountAsync();
-        var subs = await subsQuery
-            .OrderBy(ss => ss.Name)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
+        var orderedSubs = subsQuery.OrderBy(ss => ss.Name);
+        var subs = await (groupByStation ? orderedSubs : orderedSubs.Skip((page - 1) * pageSize).Take(pageSize)).ToListAsync();
 
         var subIds = subs.Select(ss => ss.Id).ToList();
         var readings = await _db.DailyReadings
@@ -657,6 +654,35 @@ public class ReportService : IReportService
                 && r.ReadingStatusLookup.Code == "Approved"
                 && r.ReadingDate >= dateFrom.Value && r.ReadingDate <= dateTo.Value)
             .AsNoTracking().ToListAsync();
+
+        if (groupByStation)
+        {
+            var grouped = subs.GroupBy(ss => ss.StationId).Select(group =>
+            {
+                var ids = group.Select(ss => ss.Id).ToHashSet();
+                var stationDailyReadings = readings.Where(r => ids.Contains(r.Generator.SubStationId)).ToList();
+                var energy = stationDailyReadings.Sum(r => r.CurrentEnergyKWh - r.PrevEnergyKWh);
+                var fuel = stationDailyReadings.Sum(r => (double)r.StandardFuelRate * (r.CurrentEnergyKWh - r.PrevEnergyKWh));
+                var exported = stationReadings.Where(r => ids.Contains(r.SubStationId))
+                    .Sum(r => r.CurrentExportedEnergyKWh - r.PrevExportedEnergyKWh);
+                var capacityHours = group.Sum(ss => (ss.CapacityKW ?? 0) * stationDailyReadings
+                    .Where(r => r.Generator.SubStationId == ss.Id)
+                    .Sum(r => r.CurrentRunningHours - r.PrevRunningHours));
+                var station = group.First().Station;
+                return new EfficiencyReportItemDto(group.Key, "", station?.Name ?? "?", station?.Branch?.Name ?? "?",
+                    energy, exported, fuel,
+                    Math.Round(fuel > 0 ? energy / (fuel / 0.3) * 100 : 0, 1),
+                    Math.Round(energy > 0 ? fuel / energy : 0, 3),
+                    Math.Round(capacityHours > 0 ? energy / capacityHours * 100 : 0, 1));
+            }).OrderBy(item => item.StationName).ThenBy(item => item.SubStationId).ToList();
+            var stationTotalEnergy = grouped.Sum(item => item.TotalEnergyProducedKWh);
+            var stationTotalFuel = grouped.Sum(item => item.TotalFuelConsumedLiters);
+            var stationSummary = new EfficiencyReportSummaryDto(grouped.Count, stationTotalEnergy, stationTotalFuel,
+                Math.Round(stationTotalFuel > 0 ? stationTotalEnergy / (stationTotalFuel / 0.3) * 100 : 0, 1),
+                grouped.OrderByDescending(item => item.EfficiencyPercent).FirstOrDefault()?.StationName ?? "-",
+                grouped.OrderBy(item => item.EfficiencyPercent).FirstOrDefault()?.StationName ?? "-");
+            return new EfficiencyReportDto(grouped.Skip((page - 1) * pageSize).Take(pageSize).ToList(), stationSummary);
+        }
 
         var items = subs.Select(ss =>
         {

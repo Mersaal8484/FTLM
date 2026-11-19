@@ -397,6 +397,22 @@ public class ReportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task EfficiencyReport_GroupsAllAccessibleSitesBeforePagination()
+    {
+        _db.DailyReadings.Add(new DailyReading { Id = 3, GeneratorId = 2, ReadingDate = DateTime.UtcNow.AddDays(-1), PrevEnergyKWh = 0, CurrentEnergyKWh = 100, PrevRunningHours = 0, CurrentRunningHours = 5, FuelLookupId = _fuelLookupId, StandardFuelRate = 0.5m, OilLookupId = _oilLookupId, ReadingStatusLookupId = 20 });
+        await _db.SaveChangesAsync();
+        var result = await _service.GetEfficiencyReportAsync(null, null, null, null, null, 1, 1, "UTC", true);
+        var item = Assert.Single(result.Items);
+        Assert.Equal("Station 1", item.StationName);
+        Assert.Equal(350, item.TotalEnergyProducedKWh);
+        Assert.Equal(112.5, item.TotalFuelConsumedLiters);
+        Assert.Equal(320, item.TotalEnergyExportedKWh);
+        Assert.Equal(93.3, item.EfficiencyPercent);
+        Assert.Equal(1, result.Summary.TotalSubStations);
+        Assert.Equal(350, result.Summary.TotalEnergyProducedKWh);
+    }
+
+    [Fact]
     public async Task GetEfficiencyReportAsync_PaginationWorks()
     {
         var page1 = await _service.GetEfficiencyReportAsync(null, null, null, null, null, 1, 1);

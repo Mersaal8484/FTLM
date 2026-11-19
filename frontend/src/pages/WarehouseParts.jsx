@@ -363,15 +363,15 @@ function WarehouseParts({ lang, currentUser }) {
             <div><strong>{ar ? 'الوحدة' : 'Unit'}:</strong> {detailItem.unitName || detailItem.unit || '—'}</div>
             <div><strong>{ar ? 'الحد الأدنى' : 'Min Stock'}:</strong> {detailItem.minStockQuantity != null ? detailItem.minStockQuantity : detailItem.minStock}</div>
           </div>
-          <h4 style={{ marginBottom: 10 }}>{isCommercialMode ? (ar ? 'المخزون الحالي' : 'Current stock') : (ar ? 'المخزون الحالي حسب الموقع' : 'Current stock by location')}</h4>
+          <h4 style={{ marginBottom: 10 }}>{isCommercialMode ? (ar ? 'المخزون الحالي' : 'Current stock') : (ar ? 'المخزون الحالي حسب المحطة' : 'Current stock by station')}</h4>
           {detailItem.stock?.length === 0 ? (
             <div className="empty-state">{ar ? 'لا يوجد مخزون' : 'No stock'}</div>
           ) : (
             <table className="data-table">
-              <thead><tr>{!isCommercialMode && <th>{ar ? 'الموقع' : 'Station'}</th>}<th>{ar ? 'الكمية' : 'Qty'}</th></tr></thead>
+              <thead><tr>{!isCommercialMode && <th>{ar ? 'المحطة' : 'Station'}</th>}<th>{ar ? 'الكمية' : 'Qty'}</th></tr></thead>
               <tbody>
                 {detailItem.stock?.map((s, i) => (
-                  <tr key={i}>{!isCommercialMode && <td>{s.stationName || s.subStationName || '—'}</td>}<td>{s.currentQuantity != null ? s.currentQuantity : s.quantity}</td></tr>
+                  <tr key={i}>{!isCommercialMode && <td>{s.stationName || '—'}</td>}<td>{s.currentQuantity != null ? s.currentQuantity : s.quantity}</td></tr>
                 ))}
               </tbody>
             </table>

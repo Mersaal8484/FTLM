@@ -164,7 +164,7 @@ export default function OperationalDailyLog() {
             style={{ width: '100%', padding: '9px 12px', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }}
           >
             {generators.map(g => (
-              <option key={g.id} value={g.id}>{g.name} ({g.subStationName || `Station ${g.subStationId}`})</option>
+              <option key={g.id} value={g.id}>{g.name}</option>
             ))}
           </select>
         </div>

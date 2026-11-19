@@ -44,7 +44,7 @@ public interface IReportService
     Task<EfficiencyReportDto> GetEfficiencyReportAsync(
         int? branchId, int? stationId, int? subStationId,
         DateTime? dateFrom, DateTime? dateTo,
-        int page, int pageSize, string timeZoneId = "Asia/Riyadh");
+        int page, int pageSize, string timeZoneId = "Asia/Riyadh", bool groupByStation = false);
 
     Task<FuelTransactionsReportDto> GetFuelIncomingReportAsync(
         int? branchId, int? stationId, int? subStationId,

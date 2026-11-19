@@ -1,13 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Zap, ChevronLeft, ChevronRight } from 'lucide-react';
 import client from '../../api/client';
-import useCommercialMode from '../../hooks/useCommercialMode';
 import HierarchicalFilter from '../../components/common/HierarchicalFilter';
 
 const GeneratorsReport = ({ lang = 'ar' }) => {
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
   const isAr = lang === 'ar';
-  const { isCommercialMode } = useCommercialMode();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -97,7 +95,7 @@ const GeneratorsReport = ({ lang = 'ar' }) => {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
               <tr style={{ background: 'var(--color-bg-secondary, #f9fafb)' }}>
-                {[isAr ? 'المولد' : 'Generator', ...(!isCommercialMode ? [isAr ? 'المحطة الفرعية' : 'Sub Station'] : []), isAr ? 'القدرة (كيلوواط)' : 'Power (kW)', isAr ? 'الطاقة (كيلوواط ساعة)' : 'Energy (kWh)', isAr ? 'الوقود (لتر)' : 'Fuel (L)', isAr ? 'الكفاءة %' : 'Eff %', isAr ? 'الحالة' : 'Status'].map((h, i) => (
+                {[isAr ? 'المولد' : 'Generator', isAr ? 'القدرة (كيلوواط)' : 'Power (kW)', isAr ? 'الطاقة (كيلوواط ساعة)' : 'Energy (kWh)', isAr ? 'الوقود (لتر)' : 'Fuel (L)', isAr ? 'الكفاءة %' : 'Eff %', isAr ? 'الحالة' : 'Status'].map((h, i) => (
                   <th key={i} style={{ padding: '0.75rem', textAlign: i === 0 ? 'start' : 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h}</th>
                 ))}
               </tr>
@@ -106,7 +104,7 @@ const GeneratorsReport = ({ lang = 'ar' }) => {
               {items.length > 0 ? items.map((g, idx) => (
                 <tr key={idx} style={{ borderBottom: '1px solid var(--color-border, #f3f4f6)' }}>
                   <td style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--color-text-primary, #111827)' }}>{g.name}</td>
-                  {!isCommercialMode && <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-primary, #111827)' }}>{g.subStationName}</td>}
+
                   <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#3b82f6' }}>{fmt(g.actualPowerKW)}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#10b981' }}>{fmt(g.totalEnergyProducedKWh)}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--warning)' }}>{fmt(g.totalFuelConsumedLiters)}</td>
@@ -120,7 +118,7 @@ const GeneratorsReport = ({ lang = 'ar' }) => {
                   <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-primary, #111827)' }}>{g.statusName || '-'}</td>
                 </tr>
               )) : (
-                <tr><td colSpan={isCommercialMode ? 6 : 7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary, #6b7280)' }}>{isAr ? 'لا توجد بيانات' : 'No data'}</td></tr>
+                <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary, #6b7280)' }}>{isAr ? 'لا توجد بيانات' : 'No data'}</td></tr>
               )}
             </tbody>
           </table>

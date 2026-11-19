@@ -5,6 +5,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 import useCommercialMode from '../hooks/useCommercialMode';
+import { groupSitesByStation } from '../utils/stationSites';
 
 const priorityCfg = {
   low:      { cls: 'badge-secondary', label: { ar: 'عادي', en: 'Normal' } },
@@ -89,6 +90,8 @@ function WorkPermits({ lang, currentUser }) {
   }, [permits]);
 
   const paginated = permits;
+  const stationGroups = useMemo(() => groupSitesByStation(subStations), [subStations]);
+  const selectedStation = stationGroups.find(group => group.sites.some(site => String(site.id) === form.subStationId));
 
   const loadLookups = async () => {
     setLookupsLoading(true);
@@ -362,17 +365,23 @@ function WorkPermits({ lang, currentUser }) {
           <form onSubmit={handleSave}>
             <div className="form-row">
               {!isCommercialMode && (
-                <FormField label={ar ? 'الموقع' : 'Sub Station'} required>
-                  <select className="form-select" value={form.subStationId} onChange={e => fld('subStationId', e.target.value)} required disabled={!!editId}>
-                    <option value="">{ar ? 'اختر الموقع' : 'Select sub-station'}</option>
-                    {subStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                <FormField label={ar ? 'المحطة' : 'Station'} required>
+                  <select className="form-select" value={selectedStation?.id || ''} onChange={e => {
+                    const group = stationGroups.find(item => String(item.id) === e.target.value);
+                    setForm(f => ({ ...f, subStationId: group ? String(group.sites[0].id) : '', generatorId: '' }));
+                  }} required disabled={!!editId}>
+                    <option value="">{ar ? 'اختر المحطة' : 'Select station'}</option>
+                    {stationGroups.map(group => <option key={group.id} value={group.id}>{group.name || (ar ? 'محطة' : 'Station')}</option>)}
                   </select>
                 </FormField>
               )}
               <FormField label={ar ? 'المولد' : 'Generator'}>
-                <select className="form-select" value={form.generatorId} onChange={e => fld('generatorId', e.target.value)} disabled={form.isGeneral || !!editId}>
+                <select className="form-select" value={form.generatorId} onChange={e => {
+                  const generator = generators.find(item => String(item.id) === e.target.value);
+                  setForm(f => ({ ...f, generatorId: e.target.value, subStationId: !isCommercialMode && generator?.subStationId ? String(generator.subStationId) : f.subStationId }));
+                }} disabled={form.isGeneral || !!editId}>
                   <option value="">{ar ? 'اختر المولد' : 'Select generator'}</option>
-                  {generators.filter(g => !form.subStationId || String(g.subStationId) === form.subStationId).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  {generators.filter(g => !selectedStation || selectedStation.sites.some(site => String(site.id) === String(g.subStationId))).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                 </select>
               </FormField>
             </div>

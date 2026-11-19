@@ -2,18 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wrench, Clock, AlertTriangle, CheckCircle, Plus, History, Settings, ListPlus, X } from 'lucide-react';
 import client from '../api/client';
-import useCommercialMode from '../hooks/useCommercialMode';
 import { Button, Modal, FormField, Input } from '../components/ui';
 
 export default function GeneratorMaintenanceTable({ lang }) {
   const ar = lang === 'ar';
-  const { isCommercialMode, modeResolved } = useCommercialMode();
   const navigate = useNavigate();
 
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [subStations, setSubStations] = useState([]);
-  const [selectedSubStation, setSelectedSubStation] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Client request ID for idempotency (reused on retry, renewed on edit after error or after success)
@@ -44,10 +40,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const url = selectedSubStation
-        ? `/api/service-due/station?subStationId=${selectedSubStation}`
-        : '/api/service-due/station';
-      const res = await client.get(url);
+      const res = await client.get('/api/service-due/station');
       setTables(res.data || []);
     } catch (e) {
       console.error(e);
@@ -57,21 +50,8 @@ export default function GeneratorMaintenanceTable({ lang }) {
   };
 
   useEffect(() => {
-    if (!modeResolved || isCommercialMode) return;
-    const fetchSubStations = async () => {
-      try {
-        const res = await client.get('/api/sub-stations');
-        setSubStations(res.data?.items || res.data || []);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    fetchSubStations();
-  }, [isCommercialMode, modeResolved]);
-
-  useEffect(() => {
     loadData();
-  }, [selectedSubStation]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleInputChange = (setter) => (e) => {
     if (errorMsg) {
@@ -169,8 +149,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     return t.generatorName.toLowerCase().includes(term) ||
-           (t.model && t.model.toLowerCase().includes(term)) ||
-           t.subStationName.toLowerCase().includes(term);
+           (t.model && t.model.toLowerCase().includes(term));
   });
 
   const getStatusBadgeStyle = (status) => {
@@ -234,19 +213,6 @@ export default function GeneratorMaintenanceTable({ lang }) {
 
       {/* Filter Bar */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-        {!isCommercialMode && <div style={{ minWidth: 220 }}>
-          <select
-            className="ft-input"
-            value={selectedSubStation}
-            onChange={(e) => setSelectedSubStation(e.target.value)}
-            style={{ width: '100%', height: 38 }}
-          >
-            <option value="">{ar ? 'جميع المحطات الفرعية' : 'All Sub-Stations'}</option>
-            {subStations.map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        </div>}
         <div style={{ flex: 1, minWidth: 240 }}>
           <input
             type="text"
@@ -275,9 +241,6 @@ export default function GeneratorMaintenanceTable({ lang }) {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600 }}>{gen.generatorName}</h2>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', background: 'var(--surface-2)', padding: '2px 8px', borderRadius: 'var(--radius-sm)' }}>
-                      {gen.subStationName}
-                    </span>
                     {gen.model && (
                       <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: 'var(--radius-sm)' }}>
                         {gen.model}

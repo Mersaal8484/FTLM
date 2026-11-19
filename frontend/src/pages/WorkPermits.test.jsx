@@ -66,18 +66,18 @@ describe('WorkPermits Commercial Mode', () => {
     expect(screen.getAllByText('المولد').length).toBeGreaterThanOrEqual(1);
   });
 
-  test('requests /api/sub-stations and renders site select in enterprise mode', async () => {
+  test('groups legacy sites under one station in enterprise mode', async () => {
     useCommercialMode.mockReturnValue({ isCommercialMode: false, modeResolved: true });
 
     client.get.mockImplementation(async (url) => {
       if (url.includes('/api/sub-stations')) {
-        return { data: [{ id: 1, name: 'الموقع الرئيسي' }] };
+        return { data: [{ id: 1, stationId: 3, stationName: 'محطة صنعاء', name: 'موقع أ' }, { id: 2, stationId: 3, stationName: 'محطة صنعاء', name: 'موقع ب' }] };
       }
       if (url === '/api/work-permits') {
         return { data: { items: [], totalCount: 0 } };
       }
       if (url.includes('/api/generators')) {
-        return { data: [{ id: 101, name: 'مولد 1' }] };
+        return { data: [{ id: 101, name: 'مولد 1', subStationId: 2 }] };
       }
       if (url.includes('/api/lookups/by-category/')) {
         return { data: [{ id: 1, name: 'اختبار' }] };
@@ -85,6 +85,7 @@ describe('WorkPermits Commercial Mode', () => {
       return { data: [] };
     });
 
+    client.post.mockResolvedValue({ data: {} });
     render(<WorkPermits lang="ar" currentUser={mockCurrentUser} />);
 
     expect(await screen.findByText('لا توجد بيانات')).toBeInTheDocument();
@@ -94,8 +95,16 @@ describe('WorkPermits Commercial Mode', () => {
     const addBtn = screen.getByRole('button', { name: /تصريح جديد/ });
     fireEvent.click(addBtn);
 
-    // Site select should be in the document
-    expect(screen.getByText('الموقع')).toBeInTheDocument();
-    expect(screen.getByText('الموقع الرئيسي')).toBeInTheDocument();
+    expect(screen.queryByText('الموقع')).not.toBeInTheDocument();
+    expect(screen.getAllByText('محطة صنعاء')).toHaveLength(1);
+    expect(screen.queryByText('موقع أ')).not.toBeInTheDocument();
+    expect(screen.queryByText('موقع ب')).not.toBeInTheDocument();
+    const stationSelect = screen.getByRole('option', { name: 'محطة صنعاء' }).parentElement;
+    fireEvent.change(stationSelect, { target: { value: '3' } });
+    const generatorOption = await screen.findByRole('option', { name: 'مولد 1' });
+    fireEvent.change(generatorOption.parentElement, { target: { value: '101' } });
+    fireEvent.click(screen.getByRole('button', { name: 'حفظ' }));
+    await waitFor(() => expect(client.post).toHaveBeenCalledWith('/api/work-permits', expect.objectContaining({ generatorId: 101, subStationId: 2 })));
+
   });
 });

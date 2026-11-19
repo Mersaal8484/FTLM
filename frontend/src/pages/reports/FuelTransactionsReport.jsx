@@ -1,13 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Fuel, ChevronLeft, ChevronRight } from 'lucide-react';
 import client from '../../api/client';
-import useCommercialMode from '../../hooks/useCommercialMode';
 import HierarchicalFilter from '../../components/common/HierarchicalFilter';
 
 const FuelTransactionsReport = ({ lang = 'ar' }) => {
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
   const isAr = lang === 'ar';
-  const { isCommercialMode } = useCommercialMode();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -93,7 +91,7 @@ const FuelTransactionsReport = ({ lang = 'ar' }) => {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
               <tr style={{ background: 'var(--color-bg-secondary, #f9fafb)' }}>
-                {[isAr ? 'التاريخ' : 'Date', ...(!isCommercialMode ? [isAr ? 'المحطة الفرعية' : 'Sub Station'] : []), isAr ? 'النوع' : 'Type', isAr ? 'الكمية (لتر)' : 'Qty (L)', isAr ? 'النوع' : 'Txn Type', isAr ? 'الحالة' : 'Status'].map((h, i) => (
+                {[isAr ? 'التاريخ' : 'Date', isAr ? 'النوع' : 'Type', isAr ? 'الكمية (لتر)' : 'Qty (L)', isAr ? 'النوع' : 'Txn Type', isAr ? 'الحالة' : 'Status'].map((h, i) => (
                   <th key={i} style={{ padding: '0.75rem', textAlign: i <= 1 ? 'start' : 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h}</th>
                 ))}
               </tr>
@@ -102,14 +100,14 @@ const FuelTransactionsReport = ({ lang = 'ar' }) => {
               {items.length > 0 ? items.map((t, idx) => (
                 <tr key={idx} style={{ borderBottom: '1px solid var(--color-border, #f3f4f6)' }}>
                   <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{new Date(t.transactionDate).toLocaleDateString(isAr ? 'ar-EG-u-nu-latn' : 'en-US')}</td>
-                  {!isCommercialMode && <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{t.subStationName}</td>}
+
                   <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-primary, #111827)' }}>{t.fuelTypeName || '-'}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#3b82f6' }}>{fmt(t.quantityLiters)}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-primary, #111827)' }}>{t.transactionTypeName || '-'}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-primary, #111827)' }}>{t.statusName || '-'}</td>
                 </tr>
               )) : (
-                <tr><td colSpan={isCommercialMode ? 5 : 6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary, #6b7280)' }}>{isAr ? 'لا توجد بيانات' : 'No data'}</td></tr>
+                <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary, #6b7280)' }}>{isAr ? 'لا توجد بيانات' : 'No data'}</td></tr>
               )}
             </tbody>
           </table>
