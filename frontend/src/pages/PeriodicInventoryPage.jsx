@@ -99,16 +99,16 @@ function PeriodicInventoryPage({ lang, currentUser }) {
 
   function initialForm() {
     return {
-      station: '',
-      subStation: '',
+      station: isCommercialMode ? 'commercial' : '',
+      subStation: isCommercialMode ? 'commercial' : '',
       inventoryDate: localInventoryDate(),
       year: new Date().getFullYear(),
       month: new Date().getMonth() + 1,
       periodType: '', // default set after fetch from PeriodType lookup
       team: '',
       notes: '',           // replaces missingFuelReason
-      fuelReadings: [],    // [{ tank, tankName, actualQty }]
-      oilReadings: [],     // [{ oil, oilName, actualQty }]
+      fuelReadings: isCommercialMode ? tanks.map(t => ({ tank: t.id || t._id, tankName: t.name, fuelLookupId: t.fuelLookupId, actualQty: '' })) : [],
+      oilReadings: isCommercialMode ? oils.map(o => ({ oil: o.id || o._id, oilName: o.name, oilLookupId: o.oilLookupId, actualQty: '' })) : [],
     };
   }
 
@@ -141,6 +141,19 @@ function PeriodicInventoryPage({ lang, currentUser }) {
 
   useEffect(() => { if (modeResolved) fetchAll(); }, [modeResolved, isCommercialMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // In commercial mode, populate fuel & oil readings immediately for the single station
+  useEffect(() => {
+    if (isCommercialMode) {
+      setNewForm(f => ({
+        ...f,
+        station: 'commercial',
+        subStation: 'commercial',
+        fuelReadings: f.fuelReadings.length > 0 ? f.fuelReadings : tanks.map(t => ({ tank: t.id || t._id, tankName: t.name, fuelLookupId: t.fuelLookupId, actualQty: '' })),
+        oilReadings: f.oilReadings.length > 0 ? f.oilReadings : oils.map(o => ({ oil: o.id || o._id, oilName: o.name, oilLookupId: o.oilLookupId, actualQty: '' })),
+      }));
+    }
+  }, [isCommercialMode, tanks, oils]);
+
   const getRefId = (value) => value?.id || value?._id || value || '';
   const getLocationLabel = (inv) => inv?.subStationName || inv?.subStation?.name || inv?.station?.name || inv?.station || '—';
   const assignedSubStationIds = useMemo(
@@ -150,8 +163,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
   const canSeeAllSites = currentUser?.role === 'admin' || assignedSubStationIds.size === 0;
   const siteOptions = useMemo(() => {
     if (isCommercialMode) {
-      const ids = [...new Set([...tanks, ...oils].map(item => item.subStationId).filter(Boolean))];
-      return ids.map(id => ({ id, stationId: 'commercial', label: ar ? 'المحطة التجارية' : 'Commercial station' }));
+      return [];
     }
     return subStations.filter(site => {
     const siteId = site.id || site._id;
@@ -166,7 +178,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
       label: station?.name ? `${station.name} — ${site.name}` : site.name,
     };
     });
-  }, [stations, subStations, canSeeAllSites, assignedSubStationIds, isCommercialMode, tanks, oils, ar]);
+  }, [stations, subStations, canSeeAllSites, assignedSubStationIds, isCommercialMode]);
 
   const handleLocationChange = (siteId) => {
     const site = siteOptions.find(s => String(s.id) === String(siteId));
@@ -179,9 +191,9 @@ function PeriodicInventoryPage({ lang, currentUser }) {
     }));
   };
 
-  // Update actual tank and oil readings structure when station is selected
+  // Update actual tank and oil readings structure when station is selected in enterprise mode
   useEffect(() => {
-    if (newForm.station) {
+    if (!isCommercialMode && newForm.station) {
       const stationTanks = tanks.filter(t => {
         const tankStation = getRefId(t.stationId ?? t.station);
         const tankSubStation = getRefId(t.subStationId ?? t.subStation);
@@ -198,17 +210,20 @@ function PeriodicInventoryPage({ lang, currentUser }) {
         oilReadings: stationOils.map(o => ({ oil: o.id || o._id, oilName: o.name, oilLookupId: o.oilLookupId, actualQty: '' }))
       }));
     }
-  }, [newForm.station, newForm.subStation, tanks, oils]);
+  }, [isCommercialMode, newForm.station, newForm.subStation, tanks, oils]);
 
   const createInventory = async () => {
-    if (!newForm.station || !newForm.subStation) { setStatus({ type: 'error', msg: ar ? 'يرجى اختيار الموقع' : 'Please select a location' }); return; }
+    if (!isCommercialMode && (!newForm.station || !newForm.subStation)) {
+      setStatus({ type: 'error', msg: ar ? 'يرجى اختيار الموقع' : 'Please select a location' });
+      return;
+    }
     let readings;
     try { readings = buildInventoryReadings(newForm.fuelReadings, newForm.oilReadings); }
     catch { setStatus({ type: 'error', msg: ar ? 'يرجى إدخال كميات صحيحة لجميع الخزانات والزيوت.' : 'Enter valid quantities for all tanks and oils.' }); return; }
     setSaving(true);
     try {
       await client.post('/api/inventory', {
-        subStationId:  parseInt(newForm.subStation, 10),
+        subStationId:  isCommercialMode ? 0 : parseInt(newForm.subStation, 10),
         year:          parseInt(newForm.year, 10),
         month:         parseInt(newForm.month, 10),
         periodTypeLookupId: parseInt(newForm.periodType, 10),
@@ -343,7 +358,22 @@ function PeriodicInventoryPage({ lang, currentUser }) {
               <Button
                 variant="primary"
                 icon={Plus}
-                onClick={() => { setShowNew(true); setStatus(null); }}
+                onClick={() => {
+                  setStatus(null);
+                  if (isCommercialMode) {
+                    setNewForm(f => ({
+                      ...initialForm(),
+                      periodType: f.periodType || (periodTypes[0]?.id ?? ''),
+                      station: 'commercial',
+                      subStation: 'commercial',
+                      fuelReadings: tanks.map(t => ({ tank: t.id || t._id, tankName: t.name, fuelLookupId: t.fuelLookupId, actualQty: '' })),
+                      oilReadings: oils.map(o => ({ oil: o.id || o._id, oilName: o.name, oilLookupId: o.oilLookupId, actualQty: '' })),
+                    }));
+                  } else {
+                    setNewForm(initialForm());
+                  }
+                  setShowNew(true);
+                }}
               >
                 {ar ? 'جديد' : 'New'}
               </Button>
@@ -386,12 +416,14 @@ function PeriodicInventoryPage({ lang, currentUser }) {
             {/* ── COL 1: Basic & Field Inventory ── */}
             <div>
               <div className="form-section-header"><Info size={14}/> {ar ? 'المعلومات الأساسية' : 'Basic Information'}</div>
-              <FormField label={ar ? 'اسم الموقع *' : 'Location Name *'} required>
-                <select className="form-select" value={newForm.subStation} onChange={e => handleLocationChange(e.target.value)}>
-                  <option value="">{ar ? '— اختر الموقع —' : '— Select Location —'}</option>
-                  {siteOptions.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                </select>
-              </FormField>
+              {!isCommercialMode && (
+                <FormField label={ar ? 'اسم الموقع *' : 'Location Name *'} required>
+                  <select className="form-select" value={newForm.subStation} onChange={e => handleLocationChange(e.target.value)}>
+                    <option value="">{ar ? '— اختر الموقع —' : '— Select Location —'}</option>
+                    {siteOptions.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  </select>
+                </FormField>
+              )}
               <div className="form-row">
                 <FormField label={ar ? 'تاريخ الجرد' : 'Inventory Date'}>
                   <Input type="date" value={newForm.inventoryDate} onChange={e => {
@@ -421,13 +453,13 @@ function PeriodicInventoryPage({ lang, currentUser }) {
               </div>
 
               <div className="form-section-header"><Droplets size={14}/> {ar ? 'مخزون الوقود الفعلي (ميداني)' : 'Physical Fuel Stock'}</div>
-              {!newForm.station ? (
+              {!isCommercialMode && !newForm.station ? (
                 <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'var(--surface-2)', borderRadius: 8 }}>{ar ? 'يرجى اختيار الموقع أولاً لإظهار الخزانات' : 'Select location first to show tanks'}</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {newForm.fuelReadings.length === 0 ? (
                     <div style={{ padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 12, background: 'var(--surface-2)', borderRadius: 8 }}>
-                      {ar ? 'لا توجد خزانات وقود مرتبطة بهذا الموقع' : 'No fuel tanks linked to this location'}
+                      {ar ? (isCommercialMode ? 'لا توجد خزانات وقود مسجلة' : 'لا توجد خزانات وقود مرتبطة بهذا الموقع') : (isCommercialMode ? 'No registered fuel tanks' : 'No fuel tanks linked to this location')}
                     </div>
                   ) : newForm.fuelReadings.map((r, i) => (
                     <div key={i} className="form-group" style={{ margin: 0 }}>
@@ -440,7 +472,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
               )}
 
               <div className="form-section-header"><TrendingUp size={14}/> {ar ? 'مخزون الزيت الفعلي (ميداني)' : 'Physical Oil Stock'}</div>
-              {!newForm.station ? (
+              {!isCommercialMode && !newForm.station ? (
                 <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, background: 'var(--surface-2)', borderRadius: 8 }}>
                   {ar ? 'يرجى اختيار الموقع أولاً لإظهار الزيوت' : 'Select location first to show oils'}
                 </div>
@@ -448,7 +480,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
                 <div className="form-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   {newForm.oilReadings.length === 0 ? (
                     <div style={{ gridColumn: '1 / -1', padding: 14, textAlign: 'center', color: 'var(--text-faint)', fontSize: 12, background: 'var(--surface-2)', borderRadius: 8 }}>
-                      {ar ? 'لا توجد زيوت مرتبطة بهذا الموقع' : 'No oils linked to this location'}
+                      {ar ? (isCommercialMode ? 'لا توجد زيوت مسجلة' : 'لا توجد زيوت مرتبطة بهذا الموقع') : (isCommercialMode ? 'No registered oils' : 'No oils linked to this location')}
                     </div>
                   ) : newForm.oilReadings.map((r, i) => (
                     <div key={i} className="form-group" style={{ margin: 0 }}>
@@ -515,7 +547,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
           <table className="data-table" style={{ width: '100%', minWidth: '760px', margin: 0, borderBottom: '2px solid var(--border)' }}>
             <thead style={{ background: 'rgba(99,179,237,0.1)' }}>
               <tr>
-                <th>{ar ? 'اسم الموقع' : 'Location'}</th>
+                {!isCommercialMode && <th>{ar ? 'اسم الموقع' : 'Location'}</th>}
                 <th>{ar ? 'مخزون الوقود الفعلي' : 'Actual Fuel Stock'}</th>
                 <th>{ar ? 'مخزون الزيت الفعلي' : 'Actual Oil Stock'}</th>
                 <th>{ar ? 'الفترة' : 'Period'}</th>
@@ -527,9 +559,9 @@ function PeriodicInventoryPage({ lang, currentUser }) {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}><div className="ft-spinner" style={{ margin: 'auto' }}></div></td></tr>
+                <tr><td colSpan={isCommercialMode ? 7 : 8} style={{ textAlign: 'center', padding: '40px' }}><div className="ft-spinner" style={{ margin: 'auto' }}></div></td></tr>
               ) : reportInventories.length === 0 ? (
-                <tr><td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}>{ar ? 'لا يوجد بيانات' : 'No data'}</td></tr>
+                <tr><td colSpan={isCommercialMode ? 7 : 8} style={{ textAlign: 'center', padding: '40px' }}>{ar ? 'لا يوجد بيانات' : 'No data'}</td></tr>
               ) : (
                 reportInventories.map((inv, idx) => {
                   const fuelItems = getFuelInventoryItems(inv);
@@ -537,7 +569,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
                   const oilItems = getOilInventoryItems(inv);
                   return (
                     <tr key={`main-${inv.id || inv._id}`} className={inv.status === 'rejected' ? 'print-excluded' : ''} style={{ background: idx % 2 === 0 ? 'rgba(255,100,50,0.1)' : 'rgba(50,200,100,0.1)', cursor: 'pointer' }} onClick={() => setSelectedInventory(inv)}>
-                      <td style={{ fontWeight: 'bold' }}>{getLocationLabel(inv)}</td>
+                      {!isCommercialMode && <td style={{ fontWeight: 'bold' }}>{getLocationLabel(inv)}</td>}
                       <td>
                         {fuelItems && fuelItems.length > 0 ? (
                           <div className="oil-inventory-list">
@@ -599,7 +631,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
           <table className="data-table inventory-notes-table" style={{ width: '100%', minWidth: '760px', margin: 0 }}>
             <thead style={{ background: 'rgba(99,179,237,0.05)' }}>
               <tr>
-                <th>{ar ? 'اسم الموقع' : 'Location'}</th>
+                {!isCommercialMode && <th>{ar ? 'اسم الموقع' : 'Location'}</th>}
                 <th>{ar ? 'ملاحظات الجرد' : 'Inventory Notes'}</th>
                 <th>{ar ? 'التاريخ' : 'Date'}</th>
               </tr>
@@ -608,7 +640,7 @@ function PeriodicInventoryPage({ lang, currentUser }) {
               {loading ? null : reportInventories.length === 0 ? null : (
                 reportInventories.map((inv) => (
                   <tr key={`notes-${inv.id || inv._id}`} className={inv.status === 'rejected' ? 'print-excluded' : ''}>
-                    <td style={{ fontWeight: 'bold' }}>{getLocationLabel(inv)}</td>
+                    {!isCommercialMode && <td style={{ fontWeight: 'bold' }}>{getLocationLabel(inv)}</td>}
                     <td className="inventory-notes-cell">{getInventoryNotes(inv)}</td>
                     <td style={{ direction: 'ltr' }}>{formatDate(inv.inventoryDate)}</td>
                   </tr>
@@ -659,11 +691,13 @@ function PeriodicInventoryPage({ lang, currentUser }) {
             maxWidth={800}
           >
             {/* Header Info */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 22 }}>
-              <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{ar ? 'الموقع' : 'Location'}</div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)' }}>{getLocationLabel(inv)}</div>
-              </div>
+            <div style={{ display: 'grid', gridTemplateColumns: isCommercialMode ? '1fr 1fr' : '1fr 1fr 1fr', gap: 14, marginBottom: 22 }}>
+              {!isCommercialMode && (
+                <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{ar ? 'الموقع' : 'Location'}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)' }}>{getLocationLabel(inv)}</div>
+                </div>
+              )}
               <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: 14, textAlign: 'center', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{ar ? 'الفترة' : 'Period'}</div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)' }}>{inv.periodType || '—'}</div>

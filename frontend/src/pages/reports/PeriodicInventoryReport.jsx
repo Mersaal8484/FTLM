@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import client from '../../api/client';
 import HierarchicalFilter from '../../components/common/HierarchicalFilter';
+import useCommercialMode from '../../hooks/useCommercialMode';
 
 const PeriodicInventoryReport = ({ lang = 'ar' }) => {
+  const { isCommercialMode } = useCommercialMode();
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
   const isAr = lang === 'ar';
 
@@ -91,8 +93,16 @@ const PeriodicInventoryReport = ({ lang = 'ar' }) => {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
               <tr style={{ background: 'var(--color-bg-secondary, #f9fafb)' }}>
-                {[isAr ? 'الفترة' : 'Period', isAr ? 'المحطة الفرعية' : 'Sub Station', isAr ? 'الوقود المستلم' : 'Fuel Recv', isAr ? 'الوقود المستهلك' : 'Fuel Used', isAr ? 'الزيت المستلم' : 'Oil Recv', isAr ? 'الزيت المستهلك' : 'Oil Used', isAr ? 'الحالة' : 'Status'].map((h, i) => (
-                  <th key={i} style={{ padding: '0.75rem', textAlign: i <= 1 ? 'start' : 'center', fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h}</th>
+                {[
+                  { label: isAr ? 'الفترة' : 'Period', align: 'start' },
+                  ...(!isCommercialMode ? [{ label: isAr ? 'المحطة الفرعية' : 'Sub Station', align: 'start' }] : []),
+                  { label: isAr ? 'الوقود المستلم' : 'Fuel Recv', align: 'center' },
+                  { label: isAr ? 'الوقود المستهلك' : 'Fuel Used', align: 'center' },
+                  { label: isAr ? 'الزيت المستلم' : 'Oil Recv', align: 'center' },
+                  { label: isAr ? 'الزيت المستهلك' : 'Oil Used', align: 'center' },
+                  { label: isAr ? 'الحالة' : 'Status', align: 'center' },
+                ].map((h, i) => (
+                  <th key={i} style={{ padding: '0.75rem', textAlign: h.align, fontWeight: 600, color: 'var(--color-text-secondary, #6b7280)', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>{h.label}</th>
                 ))}
               </tr>
             </thead>
@@ -100,7 +110,7 @@ const PeriodicInventoryReport = ({ lang = 'ar' }) => {
               {items.length > 0 ? items.map((inv, idx) => (
                 <tr key={idx} style={{ borderBottom: '1px solid var(--color-border, #f3f4f6)' }}>
                   <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{inv.periodTypeName} {inv.year}/{inv.month}</td>
-                  <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{inv.subStationName}</td>
+                  {!isCommercialMode && <td style={{ padding: '0.75rem', color: 'var(--color-text-primary, #111827)' }}>{inv.subStationName}</td>}
                   <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#10b981' }}>{fmt(inv.fuelReceivedLiters)}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: 'var(--warning)' }}>{fmt(inv.fuelConsumedLiters)}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#10b981' }}>{fmt(inv.oilReceivedLiters)}</td>
@@ -108,7 +118,7 @@ const PeriodicInventoryReport = ({ lang = 'ar' }) => {
                   <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-primary, #111827)' }}>{inv.statusName || '-'}</td>
                 </tr>
               )) : (
-                <tr><td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary, #6b7280)' }}>{isAr ? 'لا توجد بيانات' : 'No data'}</td></tr>
+                <tr><td colSpan={isCommercialMode ? 6 : 7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary, #6b7280)' }}>{isAr ? 'لا توجد بيانات' : 'No data'}</td></tr>
               )}
             </tbody>
           </table>

@@ -12,27 +12,58 @@ public class PeriodicInventoryService : IPeriodicInventoryService
     private readonly FuelTrackDbContext _db;
     private readonly IUserScopeFilterService _scopeFilter;
     private readonly ICurrentUserService _currentUser;
+    private readonly ICommercialStationModeService _commercialMode;
 
-    public PeriodicInventoryService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser)
+    public PeriodicInventoryService(
+        FuelTrackDbContext db,
+        IUserScopeFilterService scopeFilter,
+        ICurrentUserService currentUser,
+        ICommercialStationModeService commercialMode)
     {
         _db = db;
         _scopeFilter = scopeFilter;
         _currentUser = currentUser;
+        _commercialMode = commercialMode;
+    }
+
+    public PeriodicInventoryService(
+        FuelTrackDbContext db,
+        IUserScopeFilterService scopeFilter,
+        ICurrentUserService currentUser)
+        : this(db, scopeFilter, currentUser, new CommercialStationModeService(db))
+    {
     }
 
     public async Task<PeriodicInventoryDto> CreateAsync(CreatePeriodicInventoryDto dto, int userId)
     {
-        if (!_currentUser.HasAnyAdminRole && !await _scopeFilter.HasAccessToSubStationAsync(userId, dto.SubStationId))
-            throw new UnauthorizedAccessException("You do not have access to this substation.");
+        int targetSubStationId;
 
-        var subStation = await _db.SubStations.FindAsync(dto.SubStationId)
-            ?? throw new KeyNotFoundException($"SubStation {dto.SubStationId} not found.");
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var scope = await _commercialMode.GetScopeAsync();
+            if (scope is null)
+                throw new InvalidOperationException("Commercial mode has no active technical station scope.");
+            targetSubStationId = scope.SubStationId;
+        }
+        else
+        {
+            if (dto.SubStationId <= 0)
+                throw new ArgumentException("SubStationId is required outside commercial mode.");
 
-        await ValidateFuelCapacityAsync(dto.SubStationId, dto.FuelReadings);
+            if (!_currentUser.HasAnyAdminRole && !await _scopeFilter.HasAccessToSubStationAsync(userId, dto.SubStationId))
+                throw new UnauthorizedAccessException("You do not have access to this substation.");
+
+            var subStation = await _db.SubStations.FindAsync(dto.SubStationId)
+                ?? throw new KeyNotFoundException($"SubStation {dto.SubStationId} not found.");
+
+            targetSubStationId = dto.SubStationId;
+        }
+
+        await ValidateFuelCapacityAsync(targetSubStationId, dto.FuelReadings);
 
         var inventory = new PeriodicInventory
         {
-            SubStationId = dto.SubStationId,
+            SubStationId = targetSubStationId,
             Year = dto.Year,
             Month = dto.Month,
             PeriodTypeLookupId = dto.PeriodTypeLookupId,
@@ -55,7 +86,7 @@ public class PeriodicInventoryService : IPeriodicInventoryService
                 try
                 {
                     await _db.SaveChangesAsync();
-                    var fuelResults = await AddFuelReadingsAsync(inventory.Id, dto.SubStationId, dto.Year, dto.Month, dto.FuelReadings);
+                    var fuelResults = await AddFuelReadingsAsync(inventory.Id, targetSubStationId, dto.Year, dto.Month, dto.FuelReadings);
                     var oilResults = await AddOilReadingsAsync(inventory.Id, dto.OilReadings);
                     await transaction.CommitAsync();
                     return BuildDto(inventory, fuelResults, oilResults);
@@ -69,21 +100,30 @@ public class PeriodicInventoryService : IPeriodicInventoryService
         }
 
         await _db.SaveChangesAsync();
-        var fuelResult = await AddFuelReadingsAsync(inventory.Id, dto.SubStationId, dto.Year, dto.Month, dto.FuelReadings);
+        var fuelResult = await AddFuelReadingsAsync(inventory.Id, targetSubStationId, dto.Year, dto.Month, dto.FuelReadings);
         var oilResult = await AddOilReadingsAsync(inventory.Id, dto.OilReadings);
         return BuildDto(inventory, fuelResult, oilResult);
     }
 
     public async Task<PeriodicInventoryDto?> GetByIdAsync(int id)
     {
-        return await _db.PeriodicInventories
+        var query = _db.PeriodicInventories
             .Include(pi => pi.SubStation)
             .Include(pi => pi.PeriodTypeLookup)
             .Include(pi => pi.ApprovedBy)
             .Include(pi => pi.FuelReadings).ThenInclude(fr => fr.FuelLookup)
             .Include(pi => pi.OilReadings).ThenInclude(or => or.OilLookup)
             .Include(pi => pi.OilReadings).ThenInclude(or => or.Oil).ThenInclude(o => o!.OilLookup)
-            .Where(pi => pi.Id == id)
+            .Where(pi => pi.Id == id && pi.DeletedAt == null);
+
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var scope = await _commercialMode.GetScopeAsync();
+            if (scope is not null)
+                query = query.Where(pi => pi.SubStationId == scope.SubStationId);
+        }
+
+        return await query
             .Select(pi => new PeriodicInventoryDto(
                 pi.Id, pi.SubStationId, pi.SubStation.Name,
                 pi.Year, pi.Month, pi.PeriodTypeLookupId,
@@ -136,8 +176,21 @@ public class PeriodicInventoryService : IPeriodicInventoryService
 
     public async Task<PeriodicInventoryDto> UpdateAsync(int id, CreatePeriodicInventoryDto dto, int userId)
     {
-        if (!_currentUser.HasAnyAdminRole && !await _scopeFilter.HasAccessToSubStationAsync(userId, dto.SubStationId))
-            throw new UnauthorizedAccessException("You do not have access to this substation.");
+        int targetSubStationId;
+
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var scope = await _commercialMode.GetScopeAsync();
+            if (scope is null)
+                throw new InvalidOperationException("Commercial mode has no active technical station scope.");
+            targetSubStationId = scope.SubStationId;
+        }
+        else
+        {
+            if (!_currentUser.HasAnyAdminRole && !await _scopeFilter.HasAccessToSubStationAsync(userId, dto.SubStationId))
+                throw new UnauthorizedAccessException("You do not have access to this substation.");
+            targetSubStationId = dto.SubStationId;
+        }
 
         var inventory = await _db.PeriodicInventories
             .Include(pi => pi.FuelReadings)
@@ -161,9 +214,9 @@ public class PeriodicInventoryService : IPeriodicInventoryService
             inventory.ApprovedAt = null;
         }
 
-        await ValidateFuelCapacityAsync(dto.SubStationId, dto.FuelReadings);
+        await ValidateFuelCapacityAsync(targetSubStationId, dto.FuelReadings);
 
-        inventory.SubStationId = dto.SubStationId;
+        inventory.SubStationId = targetSubStationId;
         inventory.Year = dto.Year;
         inventory.Month = dto.Month;
         inventory.PeriodTypeLookupId = dto.PeriodTypeLookupId;
@@ -184,7 +237,7 @@ public class PeriodicInventoryService : IPeriodicInventoryService
                 try
                 {
                     await _db.SaveChangesAsync();
-                    var fuelResults = await AddFuelReadingsAsync(inventory.Id, dto.SubStationId, dto.Year, dto.Month, dto.FuelReadings);
+                    var fuelResults = await AddFuelReadingsAsync(inventory.Id, targetSubStationId, dto.Year, dto.Month, dto.FuelReadings);
                     var oilResults = await AddOilReadingsAsync(inventory.Id, dto.OilReadings);
                     await transaction.CommitAsync();
                     return BuildDto(inventory, fuelResults, oilResults);
@@ -198,7 +251,7 @@ public class PeriodicInventoryService : IPeriodicInventoryService
         }
 
         await _db.SaveChangesAsync();
-        var fuelResult = await AddFuelReadingsAsync(inventory.Id, dto.SubStationId, dto.Year, dto.Month, dto.FuelReadings);
+        var fuelResult = await AddFuelReadingsAsync(inventory.Id, targetSubStationId, dto.Year, dto.Month, dto.FuelReadings);
         var oilResult = await AddOilReadingsAsync(inventory.Id, dto.OilReadings);
         return BuildDto(inventory, fuelResult, oilResult);
     }
@@ -271,7 +324,13 @@ public class PeriodicInventoryService : IPeriodicInventoryService
             query = query.Where(pi => !pi.IsApproved);
         }
 
-        if (!_currentUser.HasAnyAdminRole)
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var scope = await _commercialMode.GetScopeAsync();
+            if (scope is not null)
+                query = query.Where(pi => pi.SubStationId == scope.SubStationId);
+        }
+        else if (!_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
             if (currentUserId.HasValue)
