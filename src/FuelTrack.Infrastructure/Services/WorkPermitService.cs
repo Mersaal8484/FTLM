@@ -14,16 +14,50 @@ public class WorkPermitService : IWorkPermitService
     private readonly FuelTrackDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IUserScopeFilterService _scopeFilter;
+    private readonly ICommercialStationModeService _commercialMode;
 
-    public WorkPermitService(FuelTrackDbContext db, ICurrentUserService currentUser, IUserScopeFilterService scopeFilter)
+    public WorkPermitService(
+        FuelTrackDbContext db,
+        ICurrentUserService currentUser,
+        IUserScopeFilterService scopeFilter,
+        ICommercialStationModeService commercialMode)
     {
         _db = db;
         _currentUser = currentUser;
         _scopeFilter = scopeFilter;
+        _commercialMode = commercialMode;
     }
 
     public async Task<WorkPermitDetailDto?> GetByIdAsync(int id, CancellationToken ct = default)
     {
+        if (await _commercialMode.IsCommercialModeAsync(ct))
+        {
+            var scope = await _commercialMode.GetScopeAsync(ct);
+            if (scope is null)
+                return null;
+
+            return await _db.WorkPermits
+                .AsNoTracking()
+                .Include(wp => wp.SubStation)
+                .Include(wp => wp.Generator)
+                .Include(wp => wp.MaintenanceTypeLookup)
+                .Include(wp => wp.DepartmentLookup)
+                .Include(wp => wp.PriorityLookup)
+                .Include(wp => wp.StatusLookup)
+                .Include(wp => wp.RequestedBy)
+                .Include(wp => wp.AssignedTo)
+                .Include(wp => wp.ApprovedBy)
+                .Include(wp => wp.Tasks)
+                .Include(wp => wp.DispatchRequests)
+                .Include(wp => wp.InstalledParts)
+                    .ThenInclude(ip => ip.SparePart)
+                .Include(wp => wp.Logs)
+                    .ThenInclude(l => l.LoggedBy)
+                .Where(wp => wp.Id == id && wp.DeletedAt == null && wp.SubStationId == scope.SubStationId)
+                .Select(wp => MapToDetail(wp))
+                .FirstOrDefaultAsync(ct);
+        }
+
         if (!_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
@@ -168,16 +202,30 @@ public class WorkPermitService : IWorkPermitService
             .Where(wp => wp.DeletedAt == null)
             .AsQueryable();
 
-        if (!_currentUser.HasAnyAdminRole)
+        if (await _commercialMode.IsCommercialModeAsync(ct))
         {
-            var currentUserId = _currentUser.UserId;
-            if (currentUserId.HasValue)
+            var scope = await _commercialMode.GetScopeAsync(ct);
+            if (scope is null)
+                return new PagedResult<WorkPermitListDto> { Items = Array.Empty<WorkPermitListDto>(), TotalCount = 0, Page = page, PageSize = pageSize };
+
+            query = query.Where(wp => wp.SubStationId == scope.SubStationId);
+        }
+        else
+        {
+            if (!_currentUser.HasAnyAdminRole)
             {
-                var accessibleSubStationIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
-                if (accessibleSubStationIds.Count == 0)
-                    return new PagedResult<WorkPermitListDto> { Items = Array.Empty<WorkPermitListDto>(), TotalCount = 0, Page = page, PageSize = pageSize };
-                query = query.Where(wp => accessibleSubStationIds.Contains(wp.SubStationId));
+                var currentUserId = _currentUser.UserId;
+                if (currentUserId.HasValue)
+                {
+                    var accessibleSubStationIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
+                    if (accessibleSubStationIds.Count == 0)
+                        return new PagedResult<WorkPermitListDto> { Items = Array.Empty<WorkPermitListDto>(), TotalCount = 0, Page = page, PageSize = pageSize };
+                    query = query.Where(wp => accessibleSubStationIds.Contains(wp.SubStationId));
+                }
             }
+
+            if (subStationId.HasValue)
+                query = query.Where(wp => wp.SubStationId == subStationId.Value);
         }
 
         if (status.HasValue)
@@ -185,9 +233,6 @@ public class WorkPermitService : IWorkPermitService
 
         if (priority.HasValue)
             query = query.Where(wp => wp.PriorityLookupId == priority.Value);
-
-        if (subStationId.HasValue)
-            query = query.Where(wp => wp.SubStationId == subStationId.Value);
 
         var total = await query.CountAsync(ct);
         var items = await query
@@ -223,15 +268,47 @@ public class WorkPermitService : IWorkPermitService
 
     public async Task<Result<WorkPermitDetailDto>> CreateAsync(CreateWorkPermitDto dto, int userId, CancellationToken ct = default)
     {
-        var subStation = await _db.SubStations.FirstOrDefaultAsync(ss => ss.Id == dto.SubStationId && ss.DeletedAt == null, ct);
-        if (subStation is null)
-            return Result<WorkPermitDetailDto>.NotFound("SubStation not found.");
+        int targetSubStationId;
+
+        if (await _commercialMode.IsCommercialModeAsync(ct))
+        {
+            var scope = await _commercialMode.GetScopeAsync(ct);
+            if (scope is null)
+                return Result<WorkPermitDetailDto>.Failure("Commercial mode has no active technical station scope.");
+
+            targetSubStationId = scope.SubStationId;
+        }
+        else
+        {
+            if (dto.SubStationId <= 0)
+                return Result<WorkPermitDetailDto>.Failure("SubStationId is required outside commercial mode.");
+
+            var subStation = await _db.SubStations.FirstOrDefaultAsync(ss => ss.Id == dto.SubStationId && ss.DeletedAt == null, ct);
+            if (subStation is null)
+                return Result<WorkPermitDetailDto>.NotFound("SubStation not found.");
+
+            if (!_currentUser.HasAnyAdminRole)
+            {
+                var currentUserId = _currentUser.UserId;
+                if (currentUserId.HasValue)
+                {
+                    var accessibleSubStationIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
+                    if (!accessibleSubStationIds.Contains(dto.SubStationId))
+                        return Result<WorkPermitDetailDto>.Failure("You do not have access to this substation.");
+                }
+            }
+
+            targetSubStationId = dto.SubStationId;
+        }
 
         if (dto.GeneratorId.HasValue)
         {
             var generator = await _db.Generators.FirstOrDefaultAsync(g => g.Id == dto.GeneratorId.Value && g.DeletedAt == null, ct);
             if (generator is null)
                 return Result<WorkPermitDetailDto>.NotFound("Generator not found.");
+
+            if (generator.SubStationId != targetSubStationId)
+                return Result<WorkPermitDetailDto>.Failure("Generator does not belong to the permit sub-station.");
         }
 
         var maintenanceType = await _db.Lookups.FirstOrDefaultAsync(l => l.Id == dto.MaintenanceTypeLookupId && l.DeletedAt == null, ct);
@@ -246,14 +323,14 @@ public class WorkPermitService : IWorkPermitService
         if (priority == null)
             return Result<WorkPermitDetailDto>.NotFound("Priority not found.");
 
-        var permitNumber = await GeneratePermitNumberAsync(dto.SubStationId, ct);
+        var permitNumber = await GeneratePermitNumberAsync(targetSubStationId, ct);
         var draftStatus = await _db.Lookups
             .FirstOrDefaultAsync(l => l.Category.Name == "MaintenanceStatus" && l.Code == "Draft", ct);
 
         var permit = new WorkPermit
         {
             PermitNumber = permitNumber,
-            SubStationId = dto.SubStationId,
+            SubStationId = targetSubStationId,
             GeneratorId = dto.GeneratorId,
             MaintenanceTypeLookupId = dto.MaintenanceTypeLookupId,
             DepartmentLookupId = dto.DepartmentLookupId,
@@ -305,12 +382,20 @@ public class WorkPermitService : IWorkPermitService
     {
         var permit = await _db.WorkPermits
             .Include(wp => wp.Tasks)
+            .Include(wp => wp.StatusLookup)
             .FirstOrDefaultAsync(wp => wp.Id == id && wp.DeletedAt == null, ct);
 
         if (permit is null)
             return Result<WorkPermitDetailDto>.NotFound($"Work permit {id} not found.");
 
-        if (permit.StatusLookup.Code == "Completed" || permit.StatusLookup.Code == "Cancelled")
+        if (await _commercialMode.IsCommercialModeAsync(ct))
+        {
+            var scope = await _commercialMode.GetScopeAsync(ct);
+            if (scope is null || permit.SubStationId != scope.SubStationId)
+                return Result<WorkPermitDetailDto>.NotFound($"Work permit {id} not found.");
+        }
+
+        if (permit.StatusLookup != null && (permit.StatusLookup.Code == "Completed" || permit.StatusLookup.Code == "Cancelled"))
             return Result<WorkPermitDetailDto>.Failure("Cannot update a completed or cancelled work permit.");
 
         if (dto.GeneratorId.HasValue)
@@ -318,6 +403,8 @@ public class WorkPermitService : IWorkPermitService
             var generator = await _db.Generators.FirstOrDefaultAsync(g => g.Id == dto.GeneratorId.Value && g.DeletedAt == null, ct);
             if (generator is null)
                 return Result<WorkPermitDetailDto>.NotFound("Generator not found.");
+            if (generator.SubStationId != permit.SubStationId)
+                return Result<WorkPermitDetailDto>.Failure("Generator does not belong to the permit sub-station.");
             permit.GeneratorId = dto.GeneratorId.Value;
         }
 
@@ -405,6 +492,13 @@ public class WorkPermitService : IWorkPermitService
         if (permit is null)
             return Result<WorkPermitDetailDto>.NotFound($"Work permit {id} not found.");
 
+        if (await _commercialMode.IsCommercialModeAsync(ct))
+        {
+            var scope = await _commercialMode.GetScopeAsync(ct);
+            if (scope is null || permit.SubStationId != scope.SubStationId)
+                return Result<WorkPermitDetailDto>.NotFound($"Work permit {id} not found.");
+        }
+
         var newStatus = await _db.Lookups.FirstOrDefaultAsync(l => l.Id == dto.StatusLookupId && l.DeletedAt == null, ct);
         if (newStatus == null)
             return Result<WorkPermitDetailDto>.NotFound("Status not found.");
@@ -428,6 +522,13 @@ public class WorkPermitService : IWorkPermitService
         var permit = await _db.WorkPermits.FindAsync(new object[] { id }, ct);
         if (permit is null)
             return Result.NotFound($"Work permit {id} not found.");
+
+        if (await _commercialMode.IsCommercialModeAsync(ct))
+        {
+            var scope = await _commercialMode.GetScopeAsync(ct);
+            if (scope is null || permit.SubStationId != scope.SubStationId)
+                return Result.NotFound($"Work permit {id} not found.");
+        }
 
         permit.IsActive = false;
         permit.DeletedAt = DateTime.UtcNow;

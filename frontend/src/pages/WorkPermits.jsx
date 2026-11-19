@@ -124,10 +124,6 @@ function WorkPermits({ lang, currentUser }) {
       if (genRes.status === 'fulfilled') {
         const items = responseList(genRes.value.data);
         setGenerators(items);
-        if (isCommercialMode) {
-          const sites = [...new Map(items.filter(g => g.subStationId).map(g => [g.subStationId, { id: g.subStationId, name: g.subStationName || (ar ? 'المحطة التجارية' : 'Commercial station') }])).values()];
-          setSubStations(sites);
-        }
       }
       if ([wpRes, genRes].some(result => result.status === 'rejected'))
         setError(ar ? 'تعذر تحميل بعض البيانات. حاول مجدداً.' : 'Some data could not be loaded. Please try again.');
@@ -167,20 +163,25 @@ function WorkPermits({ lang, currentUser }) {
     finally { setLoading(false); }
   };
 
-  const mapFormToCreateDto = () => ({
-    subStationId: Number(form.subStationId),
-    generatorId: form.isGeneral ? null : (form.generatorId ? Number(form.generatorId) : null),
-    maintenanceTypeLookupId: Number(form.maintenanceTypeLookupId),
-    departmentLookupId: Number(form.departmentLookupId),
-    priorityLookupId: Number(form.priorityLookupId),
-    permitDate: form.permitDate ? new Date(form.permitDate).toISOString() : new Date().toISOString(),
-    problemDescription: form.problemDescription,
-    problemCause: form.problemCause || null,
-    plannedStartDate: form.plannedStartDate ? new Date(form.plannedStartDate).toISOString() : null,
-    plannedEndDate: form.plannedEndDate ? new Date(form.plannedEndDate).toISOString() : null,
-    notes: form.notes || null,
-    tasks: form.tasks.map((t, i) => ({ taskDescription: t.description, sortOrder: t.sortOrder || (i + 1) })),
-  });
+  const mapFormToCreateDto = () => {
+    const dto = {
+      generatorId: form.isGeneral ? null : (form.generatorId ? Number(form.generatorId) : null),
+      maintenanceTypeLookupId: Number(form.maintenanceTypeLookupId),
+      departmentLookupId: Number(form.departmentLookupId),
+      priorityLookupId: Number(form.priorityLookupId),
+      permitDate: form.permitDate ? new Date(form.permitDate).toISOString() : new Date().toISOString(),
+      problemDescription: form.problemDescription,
+      problemCause: form.problemCause || null,
+      plannedStartDate: form.plannedStartDate ? new Date(form.plannedStartDate).toISOString() : null,
+      plannedEndDate: form.plannedEndDate ? new Date(form.plannedEndDate).toISOString() : null,
+      notes: form.notes || null,
+      tasks: form.tasks.map((t, i) => ({ taskDescription: t.description, sortOrder: t.sortOrder || (i + 1) })),
+    };
+    if (!isCommercialMode && form.subStationId) {
+      dto.subStationId = Number(form.subStationId);
+    }
+    return dto;
+  };
 
   const mapFormToUpdateDto = () => ({
     id: editId,
@@ -347,12 +348,14 @@ function WorkPermits({ lang, currentUser }) {
           {error && <div className="alert-inline alert-inline-danger" style={{ marginBottom: 16 }}>{error}</div>}
           <form onSubmit={handleSave}>
             <div className="form-row">
-              <FormField label={ar ? 'الموقع' : 'Sub Station'} required>
-                <select className="form-select" value={form.subStationId} onChange={e => fld('subStationId', e.target.value)} required disabled={!!editId}>
-                  <option value="">{ar ? 'اختر الموقع' : 'Select sub-station'}</option>
-                  {subStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </FormField>
+              {!isCommercialMode && (
+                <FormField label={ar ? 'الموقع' : 'Sub Station'} required>
+                  <select className="form-select" value={form.subStationId} onChange={e => fld('subStationId', e.target.value)} required disabled={!!editId}>
+                    <option value="">{ar ? 'اختر الموقع' : 'Select sub-station'}</option>
+                    {subStations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </FormField>
+              )}
               <FormField label={ar ? 'المولد' : 'Generator'}>
                 <select className="form-select" value={form.generatorId} onChange={e => fld('generatorId', e.target.value)} disabled={form.isGeneral || !!editId}>
                   <option value="">{ar ? 'اختر المولد' : 'Select generator'}</option>
