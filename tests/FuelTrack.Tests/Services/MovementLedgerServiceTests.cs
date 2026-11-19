@@ -162,7 +162,8 @@ public sealed class MovementLedgerServiceTests : IDisposable
     private MovementLedgerService CreateService(List<int> accessibleSites) => new(
         _db,
         new Scope(accessibleSites),
-        new StubCurrentUserService { IsAdmin = false, UserId = 7 });
+        new StubCurrentUserService { IsAdmin = false, UserId = 7 },
+        new CommercialStationModeService(_db));
 
     private static MovementLedgerFilterDto Filter(int page = 1, int pageSize = 20) =>
         new(null, null, null, null, null, null, null, null, "date", "desc", page, pageSize);

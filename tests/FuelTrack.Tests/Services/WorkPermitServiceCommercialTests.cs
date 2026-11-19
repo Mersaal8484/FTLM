@@ -31,8 +31,8 @@ public sealed class WorkPermitServiceCommercialTests : IDisposable
             new Station { Id = 1, BranchId = 1, Name = "Commercial Station", Code = "PS01", IsActive = true },
             new SubStation { Id = 1, StationId = 1, Name = "Commercial Station", Code = "PS01", IsActive = true },
             new SubStation { Id = 2, StationId = 1, Name = "Other Site", Code = "OTH", IsActive = true },
-            new Generator { Id = 101, SubStationId = 1, Name = "Gen 1", Code = "GEN01", CapacityKVA = 500, IsActive = true },
-            new Generator { Id = 102, SubStationId = 2, Name = "Gen Other Site", Code = "GEN02", CapacityKVA = 500, IsActive = true },
+            new Generator { Id = 101, SubStationId = 1, Name = "Gen 1", SerialNumber = "GEN01", IsActive = true },
+            new Generator { Id = 102, SubStationId = 2, Name = "Gen Other Site", SerialNumber = "GEN02", IsActive = true },
             new User { Id = 1, UserName = "admin@ft.com", Email = "admin@ft.com", FullName = "Admin User", IsActive = true }
         );
         _db.SaveChanges();
@@ -84,9 +84,9 @@ public sealed class WorkPermitServiceCommercialTests : IDisposable
         var result = await service.CreateAsync(dto, 1);
 
         Assert.True(result.IsSuccess);
-        Assert.NotNull(result.Data);
-        Assert.Equal(1, result.Data.SubStationId);
-        Assert.StartsWith("WP-", result.Data.PermitNumber);
+        Assert.NotNull(result.Value);
+        Assert.Equal(1, result.Value.SubStationId);
+        Assert.StartsWith("WP-", result.Value.PermitNumber);
     }
 
     [Fact]
@@ -107,8 +107,8 @@ public sealed class WorkPermitServiceCommercialTests : IDisposable
         var result = await service.CreateAsync(dto, 1);
 
         Assert.True(result.IsSuccess);
-        Assert.NotNull(result.Data);
-        Assert.Equal(1, result.Data.SubStationId);
+        Assert.NotNull(result.Value);
+        Assert.Equal(1, result.Value.SubStationId);
     }
 
     [Fact]
@@ -194,8 +194,8 @@ public sealed class WorkPermitServiceCommercialTests : IDisposable
         var result = await service.CreateAsync(dto, 1);
 
         Assert.True(result.IsSuccess);
-        Assert.NotNull(result.Data);
-        Assert.Equal(2, result.Data.SubStationId);
+        Assert.NotNull(result.Value);
+        Assert.Equal(2, result.Value.SubStationId);
     }
 
     [Fact]
