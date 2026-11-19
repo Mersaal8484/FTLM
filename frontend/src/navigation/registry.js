@@ -67,7 +67,7 @@ export const navigationRegistry = [
   { id: 'dispatch-requests', route: '/warehouse/dispatch', labelKey: 'sidebar.dispatchRequests', icon: PackageCheck, permissionRule: moduleRule('warehouse'), group: 'maintenance', order: 36, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'warehouse-supply', route: '/warehouse/supply', labelKey: 'sidebar.warehouseSupply', icon: Boxes, permissionRule: moduleRule('warehouse'), group: 'maintenance', order: 37, legacyDuplicate: false, modeVisibility: 'all' },
 
-  { id: 'fuel-movements', route: '/fuel-movements', labelKey: 'sidebar.fuelMovements', icon: Truck, permissionRule: moduleRule('fuel_movements'), group: 'main', order: 40, legacyDuplicate: false, modeVisibility: 'all' },
+  { id: 'fuel-movements', route: '/fuel-movements', labelKey: 'sidebar.fuelMovements', icon: Truck, permissionRule: moduleRule('fuel_movements'), group: 'main', order: 40, legacyDuplicate: false, modeVisibility: 'enterprise' },
   { id: 'generators-overview', route: '/generators/overview', labelKey: 'sidebar.generatorsOverview', icon: Zap, permissionRule: moduleRule('generators', 'view', true), group: 'main', order: 41, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'fuel-stock', route: '/stock/fuel', labelKey: 'sidebar.fuelStock', icon: Database, permissionRule: moduleRule('inventory'), group: 'main', order: 42, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'oil-stock', route: '/stock/oil', labelKey: 'sidebar.oilStock', icon: Droplet, permissionRule: moduleRule('oil', 'view', true), group: 'main', order: 43, legacyDuplicate: false, modeVisibility: 'all' },

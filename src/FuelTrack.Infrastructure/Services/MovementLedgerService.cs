@@ -9,7 +9,8 @@ namespace FuelTrack.Infrastructure.Services;
 public sealed class MovementLedgerService(
     FuelTrackDbContext db,
     IUserScopeFilterService scopeFilter,
-    ICurrentUserService currentUser) : IMovementLedgerService
+    ICurrentUserService currentUser,
+    ICommercialStationModeService commercialMode) : IMovementLedgerService
 {
     private sealed class LedgerKeyRow
     {
@@ -39,10 +40,34 @@ public sealed class MovementLedgerService(
         var fuel = db.FuelTransactions.AsNoTracking().Where(x => x.DeletedAt == null);
         var oil = db.OilTransactions.AsNoTracking().Where(x => x.DeletedAt == null);
 
-        if (accessibleIds is not null)
+        if (await commercialMode.IsCommercialModeAsync(cancellationToken))
         {
-            fuel = fuel.Where(x => accessibleIds.Contains(x.SubStationId));
-            oil = oil.Where(x => accessibleIds.Contains(x.SubStationId));
+            var scope = await commercialMode.GetScopeAsync(cancellationToken);
+            if (scope is null)
+                return new PagedResult<MovementLedgerRowDto> { Items = [], TotalCount = 0, Page = page, PageSize = pageSize };
+
+            fuel = fuel.Where(x => x.SubStationId == scope.SubStationId);
+            oil = oil.Where(x => x.SubStationId == scope.SubStationId);
+        }
+        else
+        {
+            if (accessibleIds is not null)
+            {
+                fuel = fuel.Where(x => accessibleIds.Contains(x.SubStationId));
+                oil = oil.Where(x => accessibleIds.Contains(x.SubStationId));
+            }
+
+            if (filter.StationId.HasValue)
+            {
+                fuel = fuel.Where(x => x.SubStation.StationId == filter.StationId.Value);
+                oil = oil.Where(x => x.SubStation.StationId == filter.StationId.Value);
+            }
+
+            if (filter.SubStationId.HasValue)
+            {
+                fuel = fuel.Where(x => x.SubStationId == filter.SubStationId.Value);
+                oil = oil.Where(x => x.SubStationId == filter.SubStationId.Value);
+            }
         }
 
         if (filter.DateFrom.HasValue)
@@ -56,16 +81,7 @@ public sealed class MovementLedgerService(
             fuel = fuel.Where(x => x.TransactionDate < exclusiveEnd);
             oil = oil.Where(x => x.TransactionDate < exclusiveEnd);
         }
-        if (filter.StationId.HasValue)
-        {
-            fuel = fuel.Where(x => x.SubStation.StationId == filter.StationId.Value);
-            oil = oil.Where(x => x.SubStation.StationId == filter.StationId.Value);
-        }
-        if (filter.SubStationId.HasValue)
-        {
-            fuel = fuel.Where(x => x.SubStationId == filter.SubStationId.Value);
-            oil = oil.Where(x => x.SubStationId == filter.SubStationId.Value);
-        }
+
         if (!string.IsNullOrWhiteSpace(filter.MovementType))
         {
             var type = filter.MovementType.Trim();

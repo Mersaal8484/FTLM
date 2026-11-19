@@ -107,14 +107,18 @@ export default function GeneralMovementLog({ lang, canApprove = false }) {
         <input className="form-control" aria-label={t('movements.log.filters.search')} placeholder={t('movements.log.filters.search')} value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))} />
         <input className="form-control" type="date" aria-label={t('movements.log.filters.from')} value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} />
         <input className="form-control" type="date" aria-label={t('movements.log.filters.to')} value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} />
-        <select className="form-control" aria-label={t('movements.log.filters.station')} value={filters.stationId} onChange={e => setFilters(f => ({ ...f, stationId: e.target.value, subStationId: '' }))}>
-          <option value="">{t('movements.log.filters.allStations')}</option>
-          {stations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-        <select className="form-control" aria-label={t('movements.log.filters.site')} value={filters.subStationId} onChange={e => setFilters(f => ({ ...f, subStationId: e.target.value }))}>
-          <option value="">{t('movements.log.filters.allSites')}</option>
-          {sites.filter(item => !filters.stationId || String(item.stationId) === String(filters.stationId)).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
+        {!isCommercialMode && (
+          <>
+            <select className="form-control" aria-label={t('movements.log.filters.station')} value={filters.stationId} onChange={e => setFilters(f => ({ ...f, stationId: e.target.value, subStationId: '' }))}>
+              <option value="">{t('movements.log.filters.allStations')}</option>
+              {stations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+            <select className="form-control" aria-label={t('movements.log.filters.site')} value={filters.subStationId} onChange={e => setFilters(f => ({ ...f, subStationId: e.target.value }))}>
+              <option value="">{t('movements.log.filters.allSites')}</option>
+              {sites.filter(item => !filters.stationId || String(item.stationId) === String(filters.stationId)).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </>
+        )}
         <select className="form-control" aria-label={t('movements.log.filters.kind')} value={filters.kind} onChange={e => setFilters(f => ({ ...f, kind: e.target.value }))}>
           <option value="">{t('movements.log.filters.allKinds')}</option><option value="fuel">{t('movements.log.kind.fuel')}</option><option value="oil">{t('movements.log.kind.oil')}</option>
         </select>
@@ -136,15 +140,18 @@ export default function GeneralMovementLog({ lang, canApprove = false }) {
           <table className="data-table movement-ledger-table">
             <thead><tr>
               <th><button className="table-sort" onClick={() => changeSort('date')}>{t('movements.log.columns.date')}</button></th>
-              <th><button className="table-sort" onClick={() => changeSort('station')}>{t('movements.log.columns.station')}</button></th>
-              <th>{t('movements.log.columns.site')}</th><th>{t('movements.log.columns.kind')}</th>
+              {!isCommercialMode && <th><button className="table-sort" onClick={() => changeSort('station')}>{t('movements.log.columns.station')}</button></th>}
+              {!isCommercialMode && <th>{t('movements.log.columns.site')}</th>}
+              <th>{t('movements.log.columns.kind')}</th>
               <th><button className="table-sort" onClick={() => changeSort('type')}>{t('movements.log.columns.type')}</button></th>
               <th><button className="table-sort" onClick={() => changeSort('quantity')}>{t('movements.log.columns.quantity')}</button></th>
               <th>{t('movements.log.columns.status')}</th><th>{t('movements.log.columns.actions')}</th>
             </tr></thead>
             <tbody>{data.items.map(row => <React.Fragment key={`${row.kind}-${row.id}`}>
               <tr>
-                <td>{date(row.date)}</td><td>{row.station}</td><td>{row.subStation}</td>
+                <td>{date(row.date)}</td>
+                {!isCommercialMode && <td>{row.station}</td>}
+                {!isCommercialMode && <td>{row.subStation}</td>}
                 <td>{t(`movements.log.kind.${row.kind}`)}</td><td>{row.movementType}</td>
                 <td>{number(row.quantity)} {row.unit}</td><td><span className={`badge badge-${row.status}`}>{statusLabel(row.status)}</span></td>
                 <td><div className="table-actions">
@@ -152,7 +159,7 @@ export default function GeneralMovementLog({ lang, canApprove = false }) {
                   {canApprove && row.status === 'pending' && <><button className="btn btn-sm btn-ghost text-success" onClick={() => setConfirm(row)}><ShieldCheck size={14} />{t('movements.log.approve')}</button><button className="btn btn-sm btn-ghost text-danger" onClick={() => setReject(row)}><ShieldAlert size={14} />{t('movements.log.reject')}</button></>}
                 </div></td>
               </tr>
-              {expanded === `${row.kind}-${row.id}` && <tr className="detail-row"><td colSpan={8}><dl><div><dt>{t('movements.log.reference')}</dt><dd>{row.reference || '—'}</dd></div><div><dt>{t('movements.log.createdBy')}</dt><dd>{row.createdBy || '—'}</dd></div><div><dt>{t('movements.log.approvedBy')}</dt><dd>{row.approvedBy || '—'}</dd></div></dl></td></tr>}
+              {expanded === `${row.kind}-${row.id}` && <tr className="detail-row"><td colSpan={isCommercialMode ? 6 : 8}><dl><div><dt>{t('movements.log.reference')}</dt><dd>{row.reference || '—'}</dd></div><div><dt>{t('movements.log.createdBy')}</dt><dd>{row.createdBy || '—'}</dd></div><div><dt>{t('movements.log.approvedBy')}</dt><dd>{row.approvedBy || '—'}</dd></div></dl></td></tr>}
             </React.Fragment>)}</tbody>
           </table>
         </div>

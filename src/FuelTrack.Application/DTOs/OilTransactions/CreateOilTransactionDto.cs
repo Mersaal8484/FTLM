@@ -1,13 +1,13 @@
 namespace FuelTrack.Application.DTOs.OilTransactions;
 
 public record CreateOilTransactionDto(
-    int SubStationId,
-    int OilLookupId,
-    int TransactionTypeLookupId,
-    DateTime TransactionDate,
-    double QuantityLiters,
-    string? Reference,
-    string? SupplierCompany,
-    int? SourceSubStationId,
-    int? DestinationSubStationId,
-    string? Notes);
+    int SubStationId = 0,
+    int OilLookupId = 0,
+    int TransactionTypeLookupId = 0,
+    DateTime TransactionDate = default,
+    double QuantityLiters = 0,
+    string? Reference = null,
+    string? SupplierCompany = null,
+    int? SourceSubStationId = null,
+    int? DestinationSubStationId = null,
+    string? Notes = null);

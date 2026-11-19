@@ -10,36 +10,64 @@ public class OilTransactionService : IOilTransactionService
     private readonly FuelTrackDbContext _db;
     private readonly IUserScopeFilterService _scopeFilter;
     private readonly ICurrentUserService _currentUser;
+    private readonly ICommercialStationModeService _commercialMode;
 
-    public OilTransactionService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser)
+    public OilTransactionService(
+        FuelTrackDbContext db,
+        IUserScopeFilterService scopeFilter,
+        ICurrentUserService currentUser,
+        ICommercialStationModeService commercialMode)
     {
         _db = db;
         _currentUser = currentUser;
         _scopeFilter = scopeFilter;
+        _commercialMode = commercialMode;
     }
 
     public async Task<OilTransactionDetailDto> CreateAsync(CreateOilTransactionDto dto, int userId)
     {
-        var subStationExists = await _db.SubStations.AnyAsync(ss => ss.Id == dto.SubStationId);
-        if (!subStationExists)
-            throw new KeyNotFoundException($"SubStation {dto.SubStationId} not found.");
+        int targetSubStationId;
+
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var scope = await _commercialMode.GetScopeAsync();
+            if (scope is null)
+                throw new InvalidOperationException("Commercial mode has no active technical station scope.");
+            targetSubStationId = scope.SubStationId;
+        }
+        else
+        {
+            var subStationExists = await _db.SubStations.AnyAsync(ss => ss.Id == dto.SubStationId);
+            if (!subStationExists)
+                throw new KeyNotFoundException($"SubStation {dto.SubStationId} not found.");
+            targetSubStationId = dto.SubStationId;
+        }
 
         var oilLookupExists = await _db.Lookups.AnyAsync(l => l.Id == dto.OilLookupId);
         if (!oilLookupExists)
             throw new KeyNotFoundException($"Oil lookup {dto.OilLookupId} not found.");
 
-        var txTypeExists = await _db.Lookups.AnyAsync(l => l.Id == dto.TransactionTypeLookupId);
-        if (!txTypeExists)
-            throw new KeyNotFoundException($"Transaction type lookup {dto.TransactionTypeLookupId} not found.");
+        int txTypeId = dto.TransactionTypeLookupId;
+        if (txTypeId <= 0)
+        {
+            var purchaseLookup = await _db.Lookups
+                .FirstOrDefaultAsync(l => l.Category.Name == "TransactionType" && l.Code == "Purchase");
+            if (purchaseLookup != null)
+                txTypeId = purchaseLookup.Id;
+        }
 
-        await ValidateTransactionTypeAsync(dto.TransactionTypeLookupId);
+        var txTypeExists = await _db.Lookups.AnyAsync(l => l.Id == txTypeId);
+        if (!txTypeExists)
+            throw new KeyNotFoundException($"Transaction type lookup {txTypeId} not found.");
+
+        await ValidateTransactionTypeAsync(txTypeId);
 
         var tx = new OilTransaction
         {
-            SubStationId = dto.SubStationId,
+            SubStationId = targetSubStationId,
             OilLookupId = dto.OilLookupId,
-            TransactionTypeLookupId = dto.TransactionTypeLookupId,
-            TransactionDate = dto.TransactionDate,
+            TransactionTypeLookupId = txTypeId,
+            TransactionDate = dto.TransactionDate == default ? DateTime.UtcNow : dto.TransactionDate,
             QuantityLiters = dto.QuantityLiters,
             Reference = dto.Reference,
             SupplierCompany = dto.SupplierCompany,
@@ -137,7 +165,14 @@ public class OilTransactionService : IOilTransactionService
             .Include(t => t.DestinationSubStation)
             .AsQueryable();
 
-        if (!_currentUser.HasAnyAdminRole)
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var scope = await _commercialMode.GetScopeAsync();
+            if (scope is null)
+                return new List<OilTransactionListDto>();
+            query = query.Where(t => t.SubStationId == scope.SubStationId);
+        }
+        else if (!_currentUser.HasAnyAdminRole)
         {
             var userId = _currentUser.UserId;
             if (userId.HasValue)
