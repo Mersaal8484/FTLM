@@ -118,7 +118,7 @@ public sealed class OilTransactionServiceCommercialTests : IDisposable
             SubStationId = 2,
             OilLookupId = 300,
             TransactionTypeLookupId = 200,
-            QuantityLiters: 50,
+            QuantityLiters = 50,
             TransactionDate = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
