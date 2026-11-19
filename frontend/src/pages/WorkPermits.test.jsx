@@ -19,8 +19,16 @@ import WorkPermits from './WorkPermits';
 afterEach(() => vi.resetAllMocks());
 
 const mockCurrentUser = {
-  roles: ['Admin'],
-  permissions: ['maintenance:permits:read', 'maintenance:permits:create', 'maintenance:permits:edit', 'maintenance:permits:delete'],
+  role: 'admin',
+  permissions: {
+    maintenance: {
+      read: true,
+      create: true,
+      add: true,
+      edit: true,
+      delete: true,
+    },
+  },
 };
 
 describe('WorkPermits Commercial Mode', () => {
@@ -55,7 +63,7 @@ describe('WorkPermits Commercial Mode', () => {
 
     // Site select should not be in the document
     expect(screen.queryByText('الموقع')).not.toBeInTheDocument();
-    expect(screen.getByText('المولد')).toBeInTheDocument();
+    expect(screen.getAllByText('المولد').length).toBeGreaterThanOrEqual(1);
   });
 
   test('requests /api/sub-stations and renders site select in enterprise mode', async () => {

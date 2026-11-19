@@ -43,8 +43,8 @@ describe('TankRefillTransfer with Oil Refill and Log', () => {
       expect(screen.getByText(i18n.t('operational.tanks.refillTitle'))).toBeInTheDocument();
     });
 
-    // Check tabs exist
-    expect(screen.getByText(/تسجيل التوريد \/ التحويل/)).toBeInTheDocument();
+    // Check tabs exist — getAllByText since tab label text also appears inside the form body
+    expect(screen.getAllByText(/تسجيل التوريد \/ التحويل/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/سجل الحركات والتوريدات العام/)).toBeInTheDocument();
 
     // Check Oil Receipt radio exists
