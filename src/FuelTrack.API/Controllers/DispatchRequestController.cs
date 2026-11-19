@@ -89,7 +89,7 @@ public class DispatchRequestController : BaseApiController
         var userId = GetUserId();
         var result = await _dispatchRequestService.CreateAsync(dto, userId);
         if (!result.IsSuccess)
-            return BadRequest(new { error = result.Error });
+            return StatusCode(result.StatusCode, new { error = result.Error });
         return Ok(result.Value);
     }
 
@@ -100,7 +100,7 @@ public class DispatchRequestController : BaseApiController
         var userId = GetUserId();
         var result = await _dispatchRequestService.UpdateAsync(id, dto, userId);
         if (!result.IsSuccess)
-            return BadRequest(new { error = result.Error });
+            return StatusCode(result.StatusCode, new { error = result.Error });
         return Ok(result.Value);
     }
 
@@ -118,7 +118,7 @@ public class DispatchRequestController : BaseApiController
         var userId = GetUserId();
         var result = await _dispatchRequestService.ApproveAsync(id, dto, userId);
         if (!result.IsSuccess)
-            return BadRequest(new { error = result.Error });
+            return StatusCode(result.StatusCode, new { error = result.Error });
         return Ok(result.Value);
     }
 
@@ -129,7 +129,7 @@ public class DispatchRequestController : BaseApiController
         var userId = GetUserId();
         var result = await _dispatchRequestService.RejectAsync(id, dto.Reason, userId);
         if (!result.IsSuccess)
-            return BadRequest(new { error = result.Error });
+            return StatusCode(result.StatusCode, new { error = result.Error });
         return Ok(result.Value);
     }
 
@@ -140,7 +140,7 @@ public class DispatchRequestController : BaseApiController
         var userId = GetUserId();
         var result = await _dispatchRequestService.IssueAsync(id, userId);
         if (!result.IsSuccess)
-            return BadRequest(new { error = result.Error });
+            return StatusCode(result.StatusCode, new { error = result.Error });
         return Ok(result.Value);
     }
 
@@ -150,7 +150,7 @@ public class DispatchRequestController : BaseApiController
     {
         var result = await _dispatchRequestService.DeleteAsync(id);
         if (!result.IsSuccess)
-            return BadRequest(new { error = result.Error });
+            return StatusCode(result.StatusCode, new { error = result.Error });
         return NoContent();
     }
 }

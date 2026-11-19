@@ -24,6 +24,28 @@ public class OilTransactionService : IOilTransactionService
         _commercialMode = commercialMode;
     }
 
+    private async Task<bool> CanAccessAsync(int subStationId)
+    {
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var scope = await _commercialMode.GetScopeAsync();
+            return scope is not null && scope.SubStationId == subStationId;
+        }
+        if (_currentUser.HasAnyAdminRole) return true;
+        return _currentUser.UserId is int userId && await _scopeFilter.HasAccessToSubStationAsync(userId, subStationId);
+    }
+
+    private async Task RequireAccessAsync(int subStationId)
+    {
+        if (!await CanAccessAsync(subStationId)) throw new UnauthorizedAccessException("Access denied to this sub-station.");
+    }
+
+    private async Task RequireTransferAccessAsync(int? sourceId, int? destinationId)
+    {
+        if (sourceId.HasValue) await RequireAccessAsync(sourceId.Value);
+        if (destinationId.HasValue) await RequireAccessAsync(destinationId.Value);
+    }
+
     public async Task<OilTransactionDetailDto> CreateAsync(CreateOilTransactionDto dto, int userId)
     {
         int targetSubStationId;
@@ -42,6 +64,9 @@ public class OilTransactionService : IOilTransactionService
                 throw new KeyNotFoundException($"SubStation {dto.SubStationId} not found.");
             targetSubStationId = dto.SubStationId;
         }
+
+        await RequireAccessAsync(targetSubStationId);
+        await RequireTransferAccessAsync(dto.SourceSubStationId, dto.DestinationSubStationId);
 
         var oilLookupExists = await _db.Lookups.AnyAsync(l => l.Id == dto.OilLookupId);
         if (!oilLookupExists)
@@ -91,6 +116,9 @@ public class OilTransactionService : IOilTransactionService
         var tx = await _db.OilTransactions.FindAsync(new object[] { id })
             ?? throw new KeyNotFoundException($"OilTransaction {id} not found.");
 
+        await RequireAccessAsync(tx.SubStationId);
+        await RequireTransferAccessAsync(dto.SourceSubStationId, dto.DestinationSubStationId);
+
         if (dto.OilLookupId.HasValue) tx.OilLookupId = dto.OilLookupId.Value;
         if (dto.TransactionDate.HasValue) tx.TransactionDate = dto.TransactionDate.Value;
         if (dto.QuantityLiters.HasValue) tx.QuantityLiters = dto.QuantityLiters.Value;
@@ -112,6 +140,7 @@ public class OilTransactionService : IOilTransactionService
     {
         var tx = await _db.OilTransactions.FindAsync(id)
             ?? throw new KeyNotFoundException($"OilTransaction {id} not found");
+        await RequireAccessAsync(tx.SubStationId);
         tx.UpdatedBy = userId;
         tx.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
@@ -123,6 +152,7 @@ public class OilTransactionService : IOilTransactionService
         var tx = await _db.OilTransactions.FindAsync(id)
             ?? throw new KeyNotFoundException($"OilTransaction {id} not found");
 
+        await RequireAccessAsync(tx.SubStationId);
         tx.IsApproved = true;
         tx.ApprovedById = authorizedBy;
         tx.ApprovedAt = DateTime.UtcNow;
@@ -138,6 +168,7 @@ public class OilTransactionService : IOilTransactionService
         var transaction = await _db.OilTransactions.FindAsync(id)
             ?? throw new KeyNotFoundException($"OilTransaction {id} not found");
 
+        await RequireAccessAsync(transaction.SubStationId);
         transaction.IsApproved = false;
         transaction.ApprovedById = rejectedById;
         transaction.ApprovedAt = DateTime.UtcNow;
@@ -151,6 +182,8 @@ public class OilTransactionService : IOilTransactionService
 
     public async Task<OilTransactionDetailDto?> GetByIdAsync(int id)
     {
+        var siteId = await _db.OilTransactions.Where(t => t.Id == id).Select(t => (int?)t.SubStationId).FirstOrDefaultAsync();
+        if (!siteId.HasValue || !await CanAccessAsync(siteId.Value)) return null;
         return await MapToDetailAsync(id);
     }
 
@@ -175,6 +208,7 @@ public class OilTransactionService : IOilTransactionService
         else if (!_currentUser.HasAnyAdminRole)
         {
             var userId = _currentUser.UserId;
+            if (!userId.HasValue) return new List<OilTransactionListDto>();
             if (userId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
@@ -190,12 +224,7 @@ public class OilTransactionService : IOilTransactionService
 
     public async Task<List<OilTransactionListDto>> GetBySubStationAsync(int subStationId)
     {
-        if (!_currentUser.HasAnyAdminRole)
-        {
-            var userId = _currentUser.UserId;
-            if (userId.HasValue && !await _scopeFilter.HasAccessToSubStationAsync(userId.Value, subStationId))
-                throw new UnauthorizedAccessException("Access denied to this sub-station.");
-        }
+        await RequireAccessAsync(subStationId);
 
         return await _db.OilTransactions
             .Include(t => t.SubStation)
@@ -222,14 +251,18 @@ public class OilTransactionService : IOilTransactionService
             .Where(t => t.SubStation != null && t.SubStation.StationId == stationId)
             .AsQueryable();
 
-        if (!_currentUser.HasAnyAdminRole)
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var scope = await _commercialMode.GetScopeAsync();
+            if (scope is null) return new List<OilTransactionListDto>();
+            query = query.Where(t => t.SubStationId == scope.SubStationId);
+        }
+        else if (!_currentUser.HasAnyAdminRole)
         {
             var userId = _currentUser.UserId;
-            if (userId.HasValue)
-            {
-                var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
-                query = query.Where(t => accessibleIds.Contains(t.SubStationId));
-            }
+            if (!userId.HasValue) return new List<OilTransactionListDto>();
+            var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId.Value);
+            query = query.Where(t => accessibleIds.Contains(t.SubStationId));
         }
 
         return await query
@@ -243,12 +276,7 @@ public class OilTransactionService : IOilTransactionService
         var generator = await _db.Generators.FindAsync(generatorId);
         if (generator == null) return new List<OilTransactionListDto>();
 
-        if (!_currentUser.HasAnyAdminRole)
-        {
-            var userId = _currentUser.UserId;
-            if (userId.HasValue && !await _scopeFilter.HasAccessToSubStationAsync(userId.Value, generator.SubStationId))
-                throw new UnauthorizedAccessException("Access denied to this generator's sub-station.");
-        }
+        await RequireAccessAsync(generator.SubStationId);
 
         return await _db.OilTransactions
             .Include(t => t.SubStation)

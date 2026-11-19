@@ -229,6 +229,7 @@ function WarehouseDispatch({ lang, currentUser }) {
             <table>
               <thead>
                 <tr>
+                  <th>{ar ? 'رقم الطلب' : 'Request #'}</th>
                   <th>{ar ? 'الموقع' : 'Station'}</th>
                   <th>{ar ? 'تصريح العمل' : 'Work Permit'}</th>
                   <th>{ar ? 'التاريخ' : 'Date'}</th>
@@ -238,13 +239,14 @@ function WarehouseDispatch({ lang, currentUser }) {
               </thead>
               <tbody>
                 {paginated.length === 0 && (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, opacity: 0.7 }}>{ar ? 'لا توجد بيانات' : 'No data'}</td></tr>
+                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, opacity: 0.7 }}>{ar ? 'لا توجد بيانات' : 'No data'}</td></tr>
                 )}
                 {paginated.map(d => {
                   const status = dispatchStatus(d.statusName || d.status);
                   const cfg = statusCfg[status] || { cls: 'badge-secondary', label: { ar: d.statusName, en: d.statusName } };
                   return (
                     <tr key={d.id}>
+                      <td style={{ fontWeight: 700 }}>{d.requestNumber || '—'}</td>
                       <td style={{ fontWeight: 700 }}>{d.subStationName || d.stationName}</td>
                       <td>{d.workPermitNumber || '—'}</td>
                       <td>{d.createdAt}</td>

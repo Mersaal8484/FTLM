@@ -20,11 +20,18 @@ public class DispatchRequestService : IDispatchRequestService
         _scopeFilter = scopeFilter;
     }
 
+    private async Task<bool> CanAccessAsync(int subStationId)
+    {
+        if (_currentUser.HasAnyAdminRole) return true;
+        return _currentUser.UserId is int userId && await _scopeFilter.HasAccessToSubStationAsync(userId, subStationId);
+    }
+
     public async Task<DispatchRequestDetailDto?> GetByIdAsync(int id, CancellationToken ct = default)
     {
         if (!_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
+            if (!currentUserId.HasValue) return null;
             if (currentUserId.HasValue)
             {
                 var accessibleSubStationIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -87,6 +94,8 @@ public class DispatchRequestService : IDispatchRequestService
         if (!_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
+            if (!currentUserId.HasValue)
+                return new PagedResult<DispatchRequestListDto> { Items = Array.Empty<DispatchRequestListDto>(), TotalCount = 0, Page = page, PageSize = pageSize };
             if (currentUserId.HasValue)
             {
                 var accessibleIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -151,6 +160,8 @@ public class DispatchRequestService : IDispatchRequestService
         if (!_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
+            if (!currentUserId.HasValue)
+                return new PagedResult<DispatchRequestListDto> { Items = Array.Empty<DispatchRequestListDto>(), TotalCount = 0, Page = page, PageSize = pageSize };
             if (currentUserId.HasValue)
             {
                 var accessibleSubStationIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -206,6 +217,8 @@ public class DispatchRequestService : IDispatchRequestService
         if (!_currentUser.HasAnyAdminRole)
         {
             var currentUserId = _currentUser.UserId;
+            if (!currentUserId.HasValue)
+                return new PagedResult<DispatchRequestListDto> { Items = Array.Empty<DispatchRequestListDto>(), TotalCount = 0, Page = page, PageSize = pageSize };
             if (currentUserId.HasValue)
             {
                 var accessibleSubStationIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(currentUserId.Value);
@@ -253,6 +266,11 @@ public class DispatchRequestService : IDispatchRequestService
         var subStation = await _db.SubStations.FirstOrDefaultAsync(ss => ss.Id == dto.SubStationId && ss.DeletedAt == null, ct);
         if (subStation is null)
             return Result<DispatchRequestDetailDto>.NotFound("SubStation not found.");
+
+        if (!await CanAccessAsync(subStation.Id)) return Result<DispatchRequestDetailDto>.Forbidden();
+        if (subStation.StationId != dto.StationId) return Result<DispatchRequestDetailDto>.Failure("Site does not belong to the selected station.");
+        if (dto.WorkPermitId.HasValue && !await _db.WorkPermits.AnyAsync(wp => wp.Id == dto.WorkPermitId.Value && wp.SubStationId == subStation.Id && wp.DeletedAt == null, ct))
+            return Result<DispatchRequestDetailDto>.Failure("Work permit is not available at this site.");
 
         var station = await _db.Stations.FirstOrDefaultAsync(s => s.Id == dto.StationId && s.DeletedAt == null, ct);
         if (station is null)
@@ -350,9 +368,13 @@ public class DispatchRequestService : IDispatchRequestService
         if (dispatch is null)
             return Result<DispatchRequestDetailDto>.NotFound($"Dispatch request {id} not found.");
 
+        if (!await CanAccessAsync(dispatch.SubStationId)) return Result<DispatchRequestDetailDto>.Forbidden();
+
         if (dispatch.StatusLookup.Code == "Issued" || dispatch.StatusLookup.Code == "Completed")
             return Result<DispatchRequestDetailDto>.Failure("Cannot update an issued or completed dispatch request.");
 
+        if (dto.WorkPermitId.HasValue && !await _db.WorkPermits.AnyAsync(wp => wp.Id == dto.WorkPermitId.Value && wp.SubStationId == dispatch.SubStationId && wp.DeletedAt == null, ct))
+            return Result<DispatchRequestDetailDto>.Failure("Work permit is not available at this site.");
         dispatch.WorkPermitId = dto.WorkPermitId;
         dispatch.Purpose = dto.Purpose;
         dispatch.Notes = dto.Notes;
@@ -374,6 +396,8 @@ public class DispatchRequestService : IDispatchRequestService
 
         if (dispatch is null)
             return Result<DispatchRequestDetailDto>.NotFound($"Dispatch request {id} not found.");
+
+        if (!await CanAccessAsync(dispatch.SubStationId)) return Result<DispatchRequestDetailDto>.Forbidden();
 
         var pendingStatus = await _db.Lookups
             .FirstOrDefaultAsync(l => l.Category.Name == "DispatchStatus" && l.Code == "Pending", ct);
@@ -445,6 +469,8 @@ public class DispatchRequestService : IDispatchRequestService
         if (dispatch is null)
             return Result<DispatchRequestDetailDto>.NotFound($"Dispatch request {id} not found.");
 
+        if (!await CanAccessAsync(dispatch.SubStationId)) return Result<DispatchRequestDetailDto>.Forbidden();
+
         var pendingStatus = await _db.Lookups
             .FirstOrDefaultAsync(l => l.Category.Name == "DispatchStatus" && l.Code == "Pending", ct);
         if (pendingStatus == null || (dispatch.StatusLookupId != pendingStatus.Id && dispatch.StatusLookup.Code != "PartialApproved"))
@@ -493,6 +519,8 @@ public class DispatchRequestService : IDispatchRequestService
 
         if (dispatch is null)
             return Result<DispatchRequestDetailDto>.NotFound($"Dispatch request {id} not found.");
+
+        if (!await CanAccessAsync(dispatch.SubStationId)) return Result<DispatchRequestDetailDto>.Forbidden();
 
         if (dispatch.StatusLookup.Code != "Approved" && dispatch.StatusLookup.Code != "PartialApproved")
             return Result<DispatchRequestDetailDto>.Failure("Only approved dispatch requests can be issued.");
@@ -560,6 +588,8 @@ public class DispatchRequestService : IDispatchRequestService
 
         if (dispatch is null)
             return Result.NotFound($"Dispatch request {id} not found.");
+
+        if (!await CanAccessAsync(dispatch.SubStationId)) return Result.Failure("Forbidden", 403);
 
         if (dispatch.StatusLookup.Code == "Issued" || dispatch.StatusLookup.Code == "Completed")
             return Result.Failure("Cannot delete an issued or completed dispatch request.");
@@ -630,7 +660,7 @@ public class DispatchRequestService : IDispatchRequestService
                 .ThenInclude(i => i.SparePart)
             .FirstOrDefaultAsync(dr => dr.Id == id && dr.DeletedAt == null, ct);
 
-        if (dispatch is null)
+        if (dispatch is null || !await CanAccessAsync(dispatch.SubStationId))
             return new List<DispatchApprovalItemDto>();
 
         var result = new List<DispatchApprovalItemDto>();
