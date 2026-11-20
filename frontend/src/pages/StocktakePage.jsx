@@ -10,6 +10,11 @@ const quantity = (value) => Number(value || 0).toLocaleString(undefined, { maxim
 
 export default function StocktakePage({ lang }) {
   const { t } = useTranslation();
+  const statusLabel = {
+    pending: t('stocktake.pending'),
+    approved: t('stocktake.approved'),
+    rejected: t('stocktake.rejected'),
+  };
   const [date, setDate] = useState(today);
   const [draft, setDraft] = useState(null);
   const [items, setItems] = useState([]);
@@ -81,8 +86,8 @@ export default function StocktakePage({ lang }) {
       <StocktakeLines title={t('stocktake.oils')} lines={draft.oilLines} kind="oilLines" t={t} onChange={updateCount} />
       <button className="btn btn-primary" disabled={busy}><Camera size={16}/>{busy ? t('stocktake.submitting') : t('stocktake.submit')}</button>
     </form>}
-    <section className="section-card"><h2>{t('stocktake.history')}</h2>{items.length === 0 ? <div className="empty-state">{t('stocktake.noData')}</div> : <table className="data-table"><thead><tr><th>{t('stocktake.date')}</th><th>{t('stocktake.status')}</th><th>{t('stocktake.variance')}</th><th /></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td>{item.stocktakeDate}</td><td>{t(`stocktake.${statusKey(item.status)}`)}</td><td>{quantity(Number(item.totalFuelVarianceLiters) + Number(item.totalOilVarianceLiters))}</td><td><button type="button" className="btn btn-ghost" onClick={() => view(item.id)}>{t('stocktake.view')}</button>{statusKey(item.status) === 'pending' && <><button type="button" className="btn btn-ghost" onClick={() => review(item.id, 'approve')}>{t('stocktake.approve')}</button><button type="button" className="btn btn-danger" onClick={() => review(item.id, 'reject')}>{t('stocktake.reject')}</button></>}</td></tr>)}</tbody></table>}</section>
-    {selected && <section className="section-card stocktake-detail"><h2>{t('stocktake.details')}</h2><div>{selected.stocktakeDate} · {t(`stocktake.${statusKey(selected.status)}`)}</div><div className="stocktake-photo-list">{selected.photos.length === 0 ? <span>{t('stocktake.noPhoto')}</span> : selected.photos.map((photo) => <img key={photo.attachmentId} src={photo.url} alt={t('stocktake.photo')} />)}</div></section>}
+    <section className="section-card"><h2>{t('stocktake.history')}</h2>{items.length === 0 ? <div className="empty-state">{t('stocktake.noData')}</div> : <table className="data-table"><thead><tr><th>{t('stocktake.date')}</th><th>{t('stocktake.status')}</th><th>{t('stocktake.variance')}</th><th /></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td>{item.stocktakeDate}</td><td>{statusLabel[statusKey(item.status)]}</td><td>{quantity(Number(item.totalFuelVarianceLiters) + Number(item.totalOilVarianceLiters))}</td><td><button type="button" className="btn btn-ghost" onClick={() => view(item.id)}>{t('stocktake.view')}</button>{statusKey(item.status) === 'pending' && <><button type="button" className="btn btn-ghost" onClick={() => review(item.id, 'approve')}>{t('stocktake.approve')}</button><button type="button" className="btn btn-danger" onClick={() => review(item.id, 'reject')}>{t('stocktake.reject')}</button></>}</td></tr>)}</tbody></table>}</section>
+    {selected && <section className="section-card stocktake-detail"><h2>{t('stocktake.details')}</h2><div>{selected.stocktakeDate} · {statusLabel[statusKey(selected.status)]}</div><div className="stocktake-photo-list">{selected.photos.length === 0 ? <span>{t('stocktake.noPhoto')}</span> : selected.photos.map((photo) => <img key={photo.attachmentId} src={photo.url} alt={t('stocktake.photo')} />)}</div></section>}
   </main>;
 }
 
