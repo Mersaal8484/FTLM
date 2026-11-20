@@ -31,7 +31,7 @@ public sealed class OilLedgerServiceTests : IDisposable
     [Fact]
     public async Task GetMonthlyLedgerAsync_RejectsInvalidMonth()
     {
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _service.GetMonthlyLedgerAsync(2026, 13));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _service.GetMonthlyLedgerAsync(2026, 13, null));
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class OilLedgerServiceTests : IDisposable
         _commercialMode.Setup(x => x.GetScopeAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CommercialStationScope(branch.Id, station.Id, subStation.Id));
 
-        var ledger = await _service.GetMonthlyLedgerAsync(2026, 1);
+        var ledger = await _service.GetMonthlyLedgerAsync(2026, 1, null);
 
         Assert.Equal(31, ledger.Rows.Count);
         Assert.All(ledger.Rows, row =>
