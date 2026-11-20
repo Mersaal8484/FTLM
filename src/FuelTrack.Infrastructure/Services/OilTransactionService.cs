@@ -218,7 +218,21 @@ public class OilTransactionService : IOilTransactionService
 
         return await query
             .OrderByDescending(t => t.TransactionDate)
-            .Select(t => MapToList(t))
+            .Select(t => new OilTransactionListDto(
+                t.Id,
+                t.SubStationId, t.SubStation.Name,
+                t.OilLookupId, t.OilLookup.Name,
+                t.TransactionTypeLookupId, t.TransactionTypeLookup.Name,
+                t.TransactionDate, t.QuantityLiters,
+                t.Reference,
+                t.SourceSubStationId, t.SourceSubStation != null ? t.SourceSubStation.Name : null,
+                t.DestinationSubStationId, t.DestinationSubStation != null ? t.DestinationSubStation.Name : null,
+                t.IsApproved,
+                t.ApprovedBy != null ? t.ApprovedBy.FullName : null,
+                t.ApprovedAt,
+                t.CreatedAt,
+                t.CorrectedFromId,
+                t.CorrectionReason))
             .ToListAsync();
     }
 
