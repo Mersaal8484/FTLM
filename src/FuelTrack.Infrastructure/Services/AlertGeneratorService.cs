@@ -1,5 +1,6 @@
 using FuelTrack.Application.DTOs.Notifications;
 using FuelTrack.Application.Interfaces;
+using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
 using FuelTrack.Domain.Services;
 using Microsoft.EntityFrameworkCore;
@@ -110,6 +111,31 @@ public sealed class AlertGeneratorService : IAlertGeneratorService
                 "Spare part replacement required",
                 $"{part.SparePart.Name} on generator {part.Generator.Name} {state}.",
                 type, severity, null, "InstalledPart", part.Id), new[] { "maintenance" }, ct))
+                created++;
+        }
+        return created;
+    }
+
+    public async Task<int> CheckStocktakeVariancesAsync(CancellationToken ct = default)
+    {
+        var candidates = await _db.StationStocktakes.AsNoTracking()
+            .Where(x => x.Status == StocktakeStatus.Approved)
+            .Select(x => new
+            {
+                x.Id, x.SubStationId,
+                Threshold = x.Station.OperationalSettings == null ? (decimal?)null : x.Station.OperationalSettings.StocktakeVarianceAlertPercent,
+                FuelExceeded = x.FuelLines.Any(line => line.BookLiters == 0 ? line.VarianceLiters != 0 : Math.Abs(line.VarianceLiters) * 100m / Math.Abs(line.BookLiters) > (x.Station.OperationalSettings == null || x.Station.OperationalSettings.StocktakeVarianceAlertPercent == null ? 2m : x.Station.OperationalSettings.StocktakeVarianceAlertPercent.Value)),
+                OilExceeded = x.OilLines.Any(line => line.BookLiters == 0 ? line.VarianceLiters != 0 : Math.Abs(line.VarianceLiters) * 100m / Math.Abs(line.BookLiters) > (x.Station.OperationalSettings == null || x.Station.OperationalSettings.StocktakeVarianceAlertPercent == null ? 2m : x.Station.OperationalSettings.StocktakeVarianceAlertPercent.Value))
+            }).ToListAsync(ct);
+        var created = 0;
+        foreach (var item in candidates.Where(x => x.FuelExceeded || x.OilExceeded))
+        {
+            if (await WasRecentlyRaisedAsync("commercial.stocktake.variance", "StationStocktake", item.Id, ct)) continue;
+            if (await CreateAndPublishAsync(new CreateNotificationDto(
+                item.SubStationId,
+                "commercial.stocktake.variance.title",
+                "commercial.stocktake.variance.message",
+                "commercial.stocktake.variance", "warning", null, "StationStocktake", item.Id), new[] { "oil_transactions" }, ct))
                 created++;
         }
         return created;

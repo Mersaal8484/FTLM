@@ -43,6 +43,7 @@ const GeneratorsOverview = lazy(() => import('./pages/GeneratorsOverview'));
 const FuelStockPage = lazy(() => import('./pages/FuelStockPage'));
 const OilStockPage = lazy(() => import('./pages/OilStockPage'));
 const OilLedger = lazy(() => import('./pages/OilLedger'));
+const StocktakePage = lazy(() => import('./pages/StocktakePage'));
 const WarehouseParts = lazy(() => import('./pages/WarehouseParts'));
 const WarehouseStock = lazy(() => import('./pages/WarehouseStock'));
 const WarehouseSupply = lazy(() => import('./pages/WarehouseSupply'));
@@ -331,6 +332,7 @@ function App() {
               <Route path="/stock/fuel" element={<Protected module="inventory"><FuelStockPage lang={lang} /></Protected>} />
               <Route path="/stock/oil" element={<Protected module="oil"><OilStockPage lang={lang} /></Protected>} />
               <Route path="/commercial/oil-ledger" element={<CommercialOnly><Protected module="oil_transactions"><OilLedger lang={lang} /></Protected></CommercialOnly>} />
+              <Route path="/commercial/stocktakes" element={<CommercialOnly><Protected module="oil_transactions"><StocktakePage lang={lang} /></Protected></CommercialOnly>} />
               {/* Warehouse */}
               <Route path="/warehouse/parts" element={<Protected module="warehouse"><WarehouseParts lang={lang} currentUser={user} /></Protected>} />
               <Route path="/warehouse/stock" element={<Protected module="warehouse"><WarehouseStock lang={lang} currentUser={user} /></Protected>} />

@@ -17,5 +17,6 @@ public sealed class UpdateStationOperationalSettingsDtoValidator : AbstractValid
             .WithMessage("Missing-data interval must divide one day exactly.");
         RuleFor(x => x.AverageLoadWarningTolerancePercent).InclusiveBetween(0, 100);
         RuleFor(x => x.FuelReconciliationWarningThresholdPercent).InclusiveBetween(0, 100);
+        RuleFor(x => x.StocktakeVarianceAlertPercent).InclusiveBetween(0, 100).When(x => x.StocktakeVarianceAlertPercent.HasValue);
     }
 }

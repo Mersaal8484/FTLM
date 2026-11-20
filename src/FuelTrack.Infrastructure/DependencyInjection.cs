@@ -91,6 +91,7 @@ public static class DependencyInjection
         services.AddScoped<IOilService, OilService>();
         services.AddScoped<IOilTransactionService, OilTransactionService>();
         services.AddScoped<IOilLedgerService, OilLedgerService>();
+        services.AddScoped<IStationStocktakeService, StationStocktakeService>();
         services.AddScoped<IPeriodicInventoryService, PeriodicInventoryService>();
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<IStockSummaryService, StockSummaryService>();

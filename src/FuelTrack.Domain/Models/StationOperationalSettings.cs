@@ -35,6 +35,8 @@ public sealed class StationOperationalSettings : BaseEntity
     public int MissingDataIntervalMinutes { get; set; } = DefaultMissingDataIntervalMinutes;
     public decimal AverageLoadWarningTolerancePercent { get; set; } = DefaultAverageLoadWarningTolerancePercent;
     public decimal FuelReconciliationWarningThresholdPercent { get; set; } = DefaultFuelReconciliationWarningThresholdPercent;
+    /// <summary>Variance percentage above which an approved physical stocktake raises an alert.</summary>
+    public decimal? StocktakeVarianceAlertPercent { get; set; }
     /// <summary>Consecutive equal active-load values required before recording a consistency warning.</summary>
     public int RepeatedValueWarningCount { get; set; } = DefaultRepeatedValueWarningCount;
 

@@ -68,6 +68,9 @@ namespace FuelTrack.Infrastructure
         public DbSet<AttachmentLink> AttachmentLinks => Set<AttachmentLink>();
         public DbSet<CustomerFeatureSetting> CustomerFeatureSettings => Set<CustomerFeatureSetting>();
         public DbSet<IdempotencyRequest> IdempotencyRequests => Set<IdempotencyRequest>();
+        public DbSet<StationStocktake> StationStocktakes => Set<StationStocktake>();
+        public DbSet<StationStocktakeFuelLine> StationStocktakeFuelLines => Set<StationStocktakeFuelLine>();
+        public DbSet<StationStocktakeOilLine> StationStocktakeOilLines => Set<StationStocktakeOilLine>();
 
         // Operational capture (Phase 2). These are raw Pending records only;
         // Phase 3 owns review, approval and official calculations.
@@ -158,6 +161,9 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<AttachmentLink>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<CustomerFeatureSetting>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<IdempotencyRequest>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<StationStocktake>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<StationStocktakeFuelLine>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<StationStocktakeOilLine>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<OperationalSubmission>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<OperationalGeneratorReading>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<TankLevelReading>().HasQueryFilter(e => e.DeletedAt == null);
@@ -215,6 +221,34 @@ namespace FuelTrack.Infrastructure
                 .HasOne(link => link.Attachment)
                 .WithMany(attachment => attachment.Links)
                 .HasForeignKey(link => link.AttachmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<StationStocktake>()
+                .HasOne(x => x.Station).WithMany().HasForeignKey(x => x.StationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<StationStocktake>()
+                .HasOne(x => x.SubStation).WithMany().HasForeignKey(x => x.SubStationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<StationStocktake>()
+                .HasOne(x => x.SubmittedByUser).WithMany().HasForeignKey(x => x.SubmittedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<StationStocktake>()
+                .HasOne(x => x.ReviewedByUser).WithMany().HasForeignKey(x => x.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<StationStocktakeFuelLine>()
+                .HasOne(x => x.Stocktake).WithMany(x => x.FuelLines).HasForeignKey(x => x.StocktakeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<StationStocktakeFuelLine>()
+                .HasOne(x => x.FuelTank).WithMany().HasForeignKey(x => x.FuelTankId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<StationStocktakeOilLine>()
+                .HasOne(x => x.Stocktake).WithMany(x => x.OilLines).HasForeignKey(x => x.StocktakeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<StationStocktakeOilLine>()
+                .HasOne(x => x.Oil).WithMany().HasForeignKey(x => x.OilId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<StationStocktakeOilLine>()
+                .HasOne(x => x.OilLookup).WithMany().HasForeignKey(x => x.OilLookupId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<OperationalSubmission>()
@@ -2540,6 +2574,39 @@ namespace FuelTrack.Infrastructure
                 entity.Property(e => e.ProducedVsSentWarningThresholdPercent).HasPrecision(5, 2);
                 entity.Property(e => e.AverageLoadWarningTolerancePercent).HasPrecision(5, 2);
                 entity.Property(e => e.FuelReconciliationWarningThresholdPercent).HasPrecision(5, 2);
+                entity.Property(e => e.StocktakeVarianceAlertPercent).HasPrecision(5, 2);
+            });
+
+            modelBuilder.Entity<StationStocktake>(entity =>
+            {
+                entity.HasIndex(x => new { x.StationId, x.StocktakeDate, x.ClientRequestId }).IsUnique()
+                    .HasDatabaseName("UX_StationStocktakes_Station_Date_Request").HasFilter(activeFilter);
+                entity.HasIndex(x => new { x.Status, x.StocktakeDate })
+                    .HasDatabaseName("IX_StationStocktakes_Status_Date").HasFilter(activeFilter);
+                entity.Property(x => x.RejectionReason).HasMaxLength(1000);
+                entity.Property(x => x.Notes).HasMaxLength(2000);
+                entity.Property(x => x.ConcurrencyToken).IsConcurrencyToken();
+            });
+
+            modelBuilder.Entity<StationStocktakeFuelLine>(entity =>
+            {
+                entity.HasIndex(x => new { x.StocktakeId, x.FuelTankId }).IsUnique()
+                    .HasDatabaseName("UX_StationStocktakeFuelLines_Stocktake_Tank").HasFilter(activeFilter);
+                entity.Property(x => x.CountedLiters).HasPrecision(18, 3);
+                entity.Property(x => x.BookLiters).HasPrecision(18, 3);
+                entity.Property(x => x.DeadStockLiters).HasPrecision(18, 3);
+                entity.Property(x => x.UsableCountedLiters).HasPrecision(18, 3);
+                entity.Property(x => x.VarianceLiters).HasPrecision(18, 3);
+                entity.Property(x => x.DipLevelCm).HasPrecision(18, 3);
+            });
+
+            modelBuilder.Entity<StationStocktakeOilLine>(entity =>
+            {
+                entity.HasIndex(x => new { x.StocktakeId, x.OilId }).IsUnique()
+                    .HasDatabaseName("UX_StationStocktakeOilLines_Stocktake_Oil").HasFilter(activeFilter);
+                entity.Property(x => x.CountedLiters).HasPrecision(18, 3);
+                entity.Property(x => x.BookLiters).HasPrecision(18, 3);
+                entity.Property(x => x.VarianceLiters).HasPrecision(18, 3);
             });
 
             modelBuilder.Entity<Attachment>(entity =>

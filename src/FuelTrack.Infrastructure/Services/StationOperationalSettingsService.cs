@@ -42,7 +42,7 @@ public sealed class StationOperationalSettingsService(
             return Result<StationOperationalSettingsDto>.Failure("The approved reading-photo limit is 65 KB.");
         if (dto.MissingDataIntervalMinutes is < 5 or > 1440 || 1440 % dto.MissingDataIntervalMinutes != 0)
             return Result<StationOperationalSettingsDto>.Failure("Missing-data interval must be between 5 and 1440 minutes and divide one day exactly.");
-        if (dto.AverageLoadWarningTolerancePercent is < 0 or > 100 || dto.FuelReconciliationWarningThresholdPercent is < 0 or > 100)
+        if (dto.AverageLoadWarningTolerancePercent is < 0 or > 100 || dto.FuelReconciliationWarningThresholdPercent is < 0 or > 100 || dto.StocktakeVarianceAlertPercent is < 0 or > 100)
             return Result<StationOperationalSettingsDto>.Failure("Operational warning thresholds must be between 0 and 100.");
 
         var settings = await db.StationOperationalSettings.SingleOrDefaultAsync(x => x.StationId == stationId, cancellationToken);
@@ -67,6 +67,7 @@ public sealed class StationOperationalSettingsService(
         settings.MissingDataIntervalMinutes = dto.MissingDataIntervalMinutes;
         settings.AverageLoadWarningTolerancePercent = dto.AverageLoadWarningTolerancePercent;
         settings.FuelReconciliationWarningThresholdPercent = dto.FuelReconciliationWarningThresholdPercent;
+        settings.StocktakeVarianceAlertPercent = dto.StocktakeVarianceAlertPercent;
         settings.UpdatedAt = DateTime.UtcNow;
         settings.UpdatedBy = userId;
 
@@ -100,7 +101,8 @@ public sealed class StationOperationalSettingsService(
         false,
         StationOperationalSettings.DefaultMissingDataIntervalMinutes,
         StationOperationalSettings.DefaultAverageLoadWarningTolerancePercent,
-        StationOperationalSettings.DefaultFuelReconciliationWarningThresholdPercent);
+        StationOperationalSettings.DefaultFuelReconciliationWarningThresholdPercent,
+        null);
 
     private static StationOperationalSettingsDto ToDto(StationOperationalSettings entity) => new(
         entity.StationId,
@@ -113,5 +115,6 @@ public sealed class StationOperationalSettingsService(
         entity.Tier1RequiresApproval,
         entity.MissingDataIntervalMinutes,
         entity.AverageLoadWarningTolerancePercent,
-        entity.FuelReconciliationWarningThresholdPercent);
+        entity.FuelReconciliationWarningThresholdPercent,
+        entity.StocktakeVarianceAlertPercent);
 }

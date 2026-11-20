@@ -1,6 +1,7 @@
 using FuelTrack.Application.DTOs.OilLedger;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Application.Services;
+using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -144,12 +145,19 @@ public sealed class OilLedgerService(
         List<int> siteIds, int? oilLookupId, DateOnly before, CancellationToken ct)
     {
         var beforeDate = before.ToDateTime(TimeOnly.MinValue);
-        var raw = await db.PeriodicInventoryOils.AsNoTracking()
+        var periodic = await db.PeriodicInventoryOils.AsNoTracking()
             .Where(x => x.PeriodicInventory.IsApproved && siteIds.Contains(x.PeriodicInventory.SubStationId) &&
                 x.PeriodicInventory.InventoryDate < beforeDate && (!oilLookupId.HasValue || x.OilLookupId == oilLookupId.Value))
             .Select(x => new { x.OilLookupId, x.PeriodicInventory.InventoryDate, x.ActualStockLiters })
             .ToListAsync(ct);
-        return raw.Select(x => new AnchorRow(x.OilLookupId, DateOnly.FromDateTime(x.InventoryDate), OilBalanceCalculator.ToDecimal(x.ActualStockLiters))).ToList();
+        var stocktakes = await db.StationStocktakeOilLines.AsNoTracking()
+            .Where(x => x.Stocktake.Status == StocktakeStatus.Approved && siteIds.Contains(x.Stocktake.SubStationId) &&
+                x.Stocktake.StocktakeDate < before && (!oilLookupId.HasValue || x.OilLookupId == oilLookupId.Value))
+            .Select(x => new { x.OilLookupId, x.Stocktake.StocktakeDate, x.CountedLiters })
+            .ToListAsync(ct);
+        return periodic.Select(x => new AnchorRow(x.OilLookupId, DateOnly.FromDateTime(x.InventoryDate), OilBalanceCalculator.ToDecimal(x.ActualStockLiters)))
+            .Concat(stocktakes.Select(x => new AnchorRow(x.OilLookupId, x.StocktakeDate, x.CountedLiters)))
+            .ToList();
     }
 
     private static decimal Apply(decimal opening, string type, decimal quantity) => type switch

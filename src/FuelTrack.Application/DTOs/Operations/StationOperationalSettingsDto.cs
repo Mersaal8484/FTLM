@@ -11,7 +11,8 @@ public sealed record StationOperationalSettingsDto(
     bool Tier1RequiresApproval = false,
     int MissingDataIntervalMinutes = 60,
     decimal AverageLoadWarningTolerancePercent = 15m,
-    decimal FuelReconciliationWarningThresholdPercent = 10m);
+    decimal FuelReconciliationWarningThresholdPercent = 10m,
+    decimal? StocktakeVarianceAlertPercent = null);
 
 public sealed record UpdateStationOperationalSettingsDto(
     string TimeZone,
@@ -23,4 +24,5 @@ public sealed record UpdateStationOperationalSettingsDto(
     bool Tier1RequiresApproval = false,
     int MissingDataIntervalMinutes = 60,
     decimal AverageLoadWarningTolerancePercent = 15m,
-    decimal FuelReconciliationWarningThresholdPercent = 10m);
+    decimal FuelReconciliationWarningThresholdPercent = 10m,
+    decimal? StocktakeVarianceAlertPercent = null);

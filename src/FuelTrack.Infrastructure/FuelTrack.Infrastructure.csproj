@@ -18,6 +18,7 @@
     <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/008_phase4_service_intervals.sql" Link="MultiTenancy/008_phase4_service_intervals.sql" LogicalName="FuelTrack.Tenants.008_phase4_service_intervals.sql" />
     <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/009_phase4_service_item_arabic_text.sql" Link="MultiTenancy/009_phase4_service_item_arabic_text.sql" LogicalName="FuelTrack.Tenants.009_phase4_service_item_arabic_text.sql" />
     <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/010_commercial_tankrole.sql" Link="MultiTenancy/010_commercial_tankrole.sql" LogicalName="FuelTrack.Tenants.010_commercial_tankrole.sql" />
+    <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/011_commercial_c5_stocktake.sql" Link="MultiTenancy/011_commercial_c5_stocktake.sql" LogicalName="FuelTrack.Tenants.011_commercial_c5_stocktake.sql" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FuelTrack.Domain\FuelTrack.Domain.csproj" />
