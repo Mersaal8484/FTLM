@@ -859,4 +859,7 @@ i18n
     },
   });
 
+Object.assign(appTranslations.en.translation.stocktake, { status: 'Status' });
+Object.assign(appTranslations.ar.translation.stocktake, { status: '\u0627\u0644\u062d\u0627\u0644\u0629' });
+
 export default i18n;
