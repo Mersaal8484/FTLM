@@ -2,12 +2,59 @@ import React from 'react';
 import { Search } from 'lucide-react';
 import HierarchicalFilter from '../../../../components/common/HierarchicalFilter';
 import { DATE_SHORTCUTS } from '../../hooks/useReportFilters';
+import useCommercialMode from '../../../../hooks/useCommercialMode';
 
 export default function ReportFilters({ filters, lang, hideLocation = false }) {
   const isAr = lang === 'ar';
+  const { isCommercialMode } = useCommercialMode();
+
+  const setCommercialDateFrom = (value) => {
+    filters.setDateFrom(value);
+    if (filters.dateTo && value > filters.dateTo) filters.setDateTo(value);
+  };
+
+  const setCommercialDateTo = (value) => {
+    filters.setDateTo(value);
+    if (filters.dateFrom && value < filters.dateFrom) filters.setDateFrom(value);
+  };
 
   return (
-    <div className="report-filters-container">
+    <div className={`report-filters-container ${isCommercialMode ? 'report-filters-container-commercial' : ''}`}>
+      {isCommercialMode ? (
+        <div className="report-filters-commercial-row">
+          <label className="report-date-field">
+            <span>{isAr ? 'من تاريخ' : 'From date'}</span>
+            <input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(e) => setCommercialDateFrom(e.target.value)}
+              className="form-control"
+            />
+          </label>
+          <label className="report-date-field">
+            <span>{isAr ? 'إلى تاريخ' : 'To date'}</span>
+            <input
+              type="date"
+              value={filters.dateTo}
+              onChange={(e) => setCommercialDateTo(e.target.value)}
+              className="form-control"
+            />
+          </label>
+          <label className="report-search-field">
+            <span>{isAr ? 'بحث' : 'Search'}</span>
+            <div className="input-with-icon">
+              <Search size={16} className="text-gray-400" />
+              <input
+                type="text"
+                placeholder={isAr ? 'بحث...' : 'Search...'}
+                value={filters.searchQuery}
+                onChange={(e) => filters.setSearchQuery(e.target.value)}
+                className="form-control"
+              />
+            </div>
+          </label>
+        </div>
+      ) : (
       <div className="report-filters-grid">
         <div className="filter-group date-group">
           <div className="date-inputs">
@@ -72,6 +119,7 @@ export default function ReportFilters({ filters, lang, hideLocation = false }) {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
