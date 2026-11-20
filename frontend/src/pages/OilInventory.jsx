@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import client from '../api/client';
 import { Droplet, Check, X, AlertTriangle, PackageSearch, MapPin, Fuel } from 'lucide-react';
 import { PageHeader, Modal } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 function OilInventory({ lang }) {
   const ar = lang === 'ar';
+  const { isCommercialMode } = useCommercialMode();
   const [oils, setOils] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,6 +33,11 @@ function OilInventory({ lang }) {
 
   const groupedOils = {};
   oils.forEach(oil => {
+    if (isCommercialMode) {
+      groupedOils.commercial = groupedOils.commercial || [];
+      groupedOils.commercial.push(oil);
+      return;
+    }
     const stationName = oil.stationName || (ar ? 'غير محدد (بدون محطة)' : 'Unassigned');
     if (!groupedOils[stationName]) groupedOils[stationName] = [];
     groupedOils[stationName].push(oil);
@@ -84,7 +91,7 @@ function OilInventory({ lang }) {
         <div className="grouped-container">
           {Object.entries(groupedOils).map(([stationName, stationOils]) => (
             <div key={stationName} className="station-group" style={{ marginBottom: 40 }}>
-              <div className="station-group-header" style={{ display: 'flex', alignItems: 'center', gap: 15, padding: '15px 20px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderBottom: '2px solid var(--primary)', borderRadius: 'var(--radius-md)', marginBottom: 20, boxShadow: 'var(--shadow-sm)' }}>
+              {!isCommercialMode && <div className="station-group-header" style={{ display: 'flex', alignItems: 'center', gap: 15, padding: '15px 20px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderBottom: '2px solid var(--primary)', borderRadius: 'var(--radius-md)', marginBottom: 20, boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, borderRadius: 10, background: 'var(--primary-light)', color: 'var(--primary)' }}>
                   <MapPin size={22} />
                 </div>
@@ -95,7 +102,7 @@ function OilInventory({ lang }) {
                 <span style={{ marginInlineStart: 'auto', padding: '6px 14px', background: 'var(--warning)', color: 'var(--on-accent)', borderRadius: 'var(--radius-pill)', fontSize: 13, fontWeight: 'bold' }}>
                   {stationOils.length} {ar ? 'أنواع زيوت' : 'Oil Types'}
                 </span>
-              </div>
+              </div>}
 
               <div className="section-card" style={{ padding: 0 }}>
                 <div style={{ overflowX: 'auto' }}>
@@ -104,7 +111,7 @@ function OilInventory({ lang }) {
                       <tr>
                         <th>#</th>
                         <th>{ar ? 'نوع الزيت' : 'Oil Type'}</th>
-                        <th>{ar ? 'المنطقة' : 'Area'}</th>
+                        {!isCommercialMode && <th>{ar ? 'المنطقة' : 'Area'}</th>}
                         <th>{ar ? 'الكمية الحالية' : 'Current Stock'}</th>
                         <th>{ar ? 'الحد الأدنى' : 'Min Stock'}</th>
                         <th>{ar ? 'الحالة' : 'Status'}</th>
@@ -134,9 +141,9 @@ function OilInventory({ lang }) {
                                 </div>
                               </div>
                             </td>
-                            <td>
+                            {!isCommercialMode && <td>
                               <div style={{ fontSize: 13 }}>{oil.subStationName || '—'}</div>
-                            </td>
+                            </td>}
                             <td>
                               <span style={{ fontWeight: 700, fontSize: 15, color: isLow ? 'var(--danger)' : 'var(--text)' }}>
                                 {oil.currentStock} <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>{ar ? 'لتر' : 'L'}</span>
@@ -190,11 +197,11 @@ function OilInventory({ lang }) {
             </div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-main)' }}>{selectedOil.name}</div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              {!isCommercialMode && <div style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                 <MapPin size={13} />
                 {selectedOil.stationName || (ar ? 'غير محدد' : 'Unassigned')}
                 {selectedOil.subStationName && <> — {selectedOil.subStationName}</>}
-              </div>
+              </div>}
             </div>
           </div>
 

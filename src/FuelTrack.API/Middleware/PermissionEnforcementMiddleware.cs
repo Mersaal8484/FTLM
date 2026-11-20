@@ -37,6 +37,7 @@ public static class PermissionMapping
         ["FuelMovements"] = "fuel_movements",
         ["MovementLedger"] = "fuel_movements",
         ["OilTransactions"] = "oil_transactions",
+        ["OilLedger"] = "oil_transactions",
         ["Inventory"] = "periodic_inventory",
         ["Reports"] = "reports",
         ["Audits"] = "audit_logs",

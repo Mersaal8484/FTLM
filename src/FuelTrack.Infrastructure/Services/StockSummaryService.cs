@@ -2,6 +2,7 @@ using System.Security.Claims;
 using FuelTrack.Application;
 using FuelTrack.Application.DTOs.FuelMovements;
 using FuelTrack.Application.Interfaces;
+using FuelTrack.Application.Services;
 using FuelTrack.Domain.Models;
 using FuelTrack.Domain.Services;
 using Microsoft.AspNetCore.Http;
@@ -14,15 +15,18 @@ public class StockSummaryService : IStockSummaryService
     private readonly FuelTrackDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IUserScopeFilterService _scopeFilter;
+    private readonly ICommercialStationModeService _commercialMode;
 
     public StockSummaryService(
         FuelTrackDbContext db,
         IUserScopeFilterService scopeFilter,
-        ICurrentUserService currentUser)
+        ICurrentUserService currentUser,
+        ICommercialStationModeService? commercialMode = null)
     {
         _db = db;
         _scopeFilter = scopeFilter;
         _currentUser = currentUser;
+        _commercialMode = commercialMode ?? new CommercialStationModeService(db);
     }
 
     public async Task<List<FuelStockSummaryDto>> GetFuelStockSummaryAsync(DateTime fromDate, DateTime toDate, int? userId)
@@ -161,7 +165,10 @@ public class StockSummaryService : IStockSummaryService
                 }
             }
 
-            var remaining = (baseStock + inbound + transferIn) - (transferOut + loss + consumed);
+            // Sale is an approved outward movement and must reduce the oil book balance.
+            var remaining = (double)OilBalanceCalculator.CalculateClosing(
+                (decimal)baseStock, (decimal)inbound, (decimal)outbound,
+                (decimal)transferIn, (decimal)transferOut, (decimal)loss, (decimal)consumed);
             var alertLevel = DetermineOilAlertLevel(remaining);
 
             results.Add(new OilStockSummaryDto(
@@ -189,6 +196,12 @@ public class StockSummaryService : IStockSummaryService
 
     private async Task<List<int>> GetAccessibleSubStationIdsAsync(int? userId)
     {
+        if (await _commercialMode.IsCommercialModeAsync())
+        {
+            var commercialScope = await _commercialMode.GetScopeAsync();
+            return commercialScope is null ? [] : [commercialScope.SubStationId];
+        }
+
         if (!userId.HasValue)
             return new List<int>();
 

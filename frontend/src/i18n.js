@@ -773,8 +773,12 @@ Object.assign(appTranslations.ar.translation.sidebar, {
 Object.assign(appTranslations.en.translation.sidebar, {
   feeders: 'Feeders',
   dailyTanks: 'Daily Tanks',
+  oilLedger: 'Oil Ledger',
 });
 Object.assign(appTranslations.en.translation, {
+  oilLedger: {
+    title: 'Monthly Oil Ledger', subtitle: 'Daily approved oil movements and carried book balance.', month: 'Month', oil: 'Oil', allOils: 'All oils', refresh: 'Refresh', loading: 'Loading...', empty: 'No ledger data for this month.', loadError: 'Unable to load the oil ledger.', date: 'Date', opening: 'Opening', inbound: 'Purchase', outbound: 'Sale', transferIn: 'Transfer in', transferOut: 'Transfer out', loss: 'Loss', closing: 'Closing', details: 'Details', expandDay: 'Show day transactions', noTransactions: 'No approved transactions for this day.', totals: 'Movement totals',
+  },
   feeders: {
     title: 'Feeders', subtitle: 'Manage site-level feeders and their optional energy meters.',
     site: 'Site', selectSite: 'Select a site', add: 'Add feeder', edit: 'Edit feeder', deactivate: 'Deactivate',
@@ -800,6 +804,10 @@ Object.assign(appTranslations.ar.translation, {
   sidebar: {
     ...appTranslations.ar.translation.sidebar,
     commercialMode: '\u0648\u0636\u0639 \u0627\u0644\u0645\u062d\u0637\u0629 \u0627\u0644\u062a\u062c\u0627\u0631\u064a\u0629',
+    oilLedger: '\u0633\u062c\u0644 \u0627\u0644\u0632\u064a\u0648\u062a',
+  },
+  oilLedger: {
+    title: '\u0633\u062c\u0644 \u0627\u0644\u0632\u064a\u0648\u062a \u0627\u0644\u0634\u0647\u0631\u064a', subtitle: '\u062d\u0631\u0643\u0627\u062a \u0627\u0644\u0632\u064a\u0648\u062a \u0627\u0644\u0645\u0639\u062a\u0645\u062f\u0629 \u0648\u0627\u0644\u0631\u0635\u064a\u062f \u0627\u0644\u0645\u062a\u0631\u0627\u062d\u0644 \u064a\u0648\u0645\u064a\u0627\u064b.', month: '\u0627\u0644\u0634\u0647\u0631', oil: '\u0627\u0644\u0632\u064a\u062a', allOils: '\u0643\u0644 \u0627\u0644\u0632\u064a\u0648\u062a', refresh: '\u062a\u062d\u062f\u064a\u062b', loading: '\u062c\u0627\u0631\u064d \u0627\u0644\u062a\u062d\u0645\u064a\u0644...', empty: '\u0644\u0627 \u062a\u0648\u062c\u062f \u0628\u064a\u0627\u0646\u0627\u062a \u0644\u0644\u0634\u0647\u0631 \u0627\u0644\u0645\u062d\u062f\u062f.', loadError: '\u062a\u0639\u0630\u0631 \u062a\u062d\u0645\u064a\u0644 \u0633\u062c\u0644 \u0627\u0644\u0632\u064a\u0648\u062a.', date: '\u0627\u0644\u062a\u0627\u0631\u064a\u062e', opening: '\u0627\u0644\u0627\u0641\u062a\u062a\u0627\u062d\u064a', inbound: '\u0634\u0631\u0627\u0621', outbound: '\u0628\u064a\u0639', transferIn: '\u0646\u0642\u0644 \u0648\u0627\u0631\u062f', transferOut: '\u0646\u0642\u0644 \u0635\u0627\u062f\u0631', loss: '\u0641\u0627\u0642\u062f', closing: '\u0627\u0644\u0625\u0642\u0641\u0627\u0644\u064a', details: '\u0627\u0644\u062a\u0641\u0627\u0635\u064a\u0644', expandDay: '\u0625\u0638\u0647\u0627\u0631 \u062d\u0631\u0643\u0627\u062a \u0627\u0644\u064a\u0648\u0645', noTransactions: '\u0644\u0627 \u062a\u0648\u062c\u062f \u062d\u0631\u0643\u0627\u062a \u0645\u0639\u062a\u0645\u062f\u0629 \u0644\u0647\u0630\u0627 \u0627\u0644\u064a\u0648\u0645.', totals: '\u0625\u062c\u0645\u0627\u0644\u064a \u0627\u0644\u062d\u0631\u0643\u0627\u062a',
   },
   commercialMode: {
     title: '\u0648\u0636\u0639 \u0627\u0644\u0645\u062d\u0637\u0629 \u0627\u0644\u062a\u062c\u0627\u0631\u064a\u0629',

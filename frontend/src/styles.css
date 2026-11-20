@@ -2607,6 +2607,23 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Commercial C5 — computed oil ledger only; uses the shared visual tokens. */
+.app-root .oil-ledger-page .oil-ledger-table thead th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  background: var(--surface-2);
+}
+.app-root .oil-ledger-page .oil-ledger-details td {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+@media print {
+  .app-root .oil-ledger-page .page-header button { display: none !important; }
+  .app-root .oil-ledger-page .oil-ledger-table { min-width: 0; }
+}
 /* Commercial generator cards omit the legacy generator-type statistic. */
 .commercial-generator-page .gen-stats > .gen-stat-item:nth-child(2) {
   display: none;

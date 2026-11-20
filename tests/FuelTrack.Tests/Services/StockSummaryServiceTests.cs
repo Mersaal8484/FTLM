@@ -342,7 +342,8 @@ public class StockSummaryServiceTests : IDisposable
         _db.LookupCategories.Add(transactionTypeCategory);
         await _db.SaveChangesAsync();
         var purchaseType = new Lookup { CategoryId = transactionTypeCategory.Id, Code = "Purchase", Name = "Purchase" };
-        _db.Lookups.Add(purchaseType);
+        var saleType = new Lookup { CategoryId = transactionTypeCategory.Id, Code = "Sale", Name = "Sale" };
+        _db.Lookups.AddRange(purchaseType, saleType);
         await _db.SaveChangesAsync();
 
         _db.Oils.Add(new Oil
@@ -389,6 +390,15 @@ public class StockSummaryServiceTests : IDisposable
             QuantityLiters = 50,
             IsApproved = true
         });
+        _db.OilTransactions.Add(new OilTransaction
+        {
+            SubStationId = subStation.Id,
+            OilLookupId = oilType.Id,
+            TransactionTypeLookupId = saleType.Id,
+            TransactionDate = new DateTime(2026, 8, 6),
+            QuantityLiters = 20,
+            IsApproved = true
+        });
         await _db.SaveChangesAsync();
 
         var fromDate = new DateTime(2026, 8, 1);
@@ -398,6 +408,8 @@ public class StockSummaryServiceTests : IDisposable
         var row = result.Single();
         Assert.Equal(600, row.BaseStock);
         Assert.Equal(50, row.Inbound);
+        Assert.Equal(20, row.Outbound);
+        Assert.Equal(630, row.RemainingStock);
     }
 
     public void Dispose()
