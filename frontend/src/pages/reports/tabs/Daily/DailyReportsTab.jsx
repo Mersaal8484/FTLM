@@ -9,7 +9,7 @@ const DAILY_TABS = [
   { key: 'generators', ar: 'المولدات', en: 'Generators', icon: Settings, endpoint: 'generators' },
   { key: 'fuel', ar: 'الوقود', en: 'Fuel', icon: Zap, endpoint: 'fuel-transactions' },
   { key: 'oil', ar: 'الزيوت', en: 'Oils', icon: Droplet, endpoint: 'oil-transactions' },
-  { key: 'station', ar: 'قراءات الموقع', en: 'Site Readings', icon: Layout, endpoint: 'station-readings' },
+  { key: 'station', ar: 'قراءات عدادات الفيدرات', en: 'Feeder Meter Readings', icon: Layout, endpoint: 'station-readings' },
   { key: 'incoming', ar: 'الوارد', en: 'Incoming', icon: Truck, endpoint: 'fuel-incoming' },
   { key: 'transfer', ar: 'النقل', en: 'Transfer', icon: ArrowRightLeft, endpoint: 'fuel-transfer' },
   { key: 'loss', ar: 'الفاقد', en: 'Loss', icon: AlertCircle, endpoint: 'fuel-loss' },
