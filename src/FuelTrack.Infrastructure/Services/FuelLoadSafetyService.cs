@@ -33,7 +33,12 @@ public sealed class FuelLoadSafetyService(
             .Select(g => new { g.Id, g.SubStationId }).SingleOrDefaultAsync(ct);
         if (generator is null) return Result<FuelConsumptionReportDto>.NotFound("Generator not found or outside your scope.");
 
-        var tankIds = await db.FuelTanks.AsNoTracking().Where(t => t.GeneratorId == generatorId)
+        // Consumption belongs to a generator's daily tank. A legacy generator-linked
+        // tank without a role remains supported, but an explicitly main tank never
+        // contributes to generator consumption.
+        var tankIds = await db.FuelTanks.AsNoTracking()
+            .Where(t => t.GeneratorId == generatorId
+                && (t.TankRole == TankRole.Daily || t.TankRole == null || t.ParentTankId != null))
             .Select(t => t.Id).ToListAsync(ct);
 
         // Fetch official readings using the central policy set
@@ -256,7 +261,7 @@ public sealed class FuelLoadSafetyService(
             ?? StationOperationalSettings.DefaultFuelReconciliationWarningThresholdPercent;
 
         var tanks = await db.FuelTanks.AsNoTracking().Where(t => t.SubStationId == subStationId)
-            .Select(t => new { t.Id, t.Name, t.ParentTankId }).ToListAsync(ct);
+            .Select(t => new { t.Id, t.Name, t.ParentTankId, t.GeneratorId, t.TankRole }).ToListAsync(ct);
         var readings = await db.TankLevelReadings.AsNoTracking()
             .Where(r => tanks.Select(t => t.Id).Contains(r.FuelTankId) && r.CapturedAtUtc >= fromUtc && r.CapturedAtUtc <= toUtc
                 && ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
@@ -281,14 +286,10 @@ public sealed class FuelLoadSafetyService(
         foreach (var line in lines)
         {
             var tank = tanks.First(t => t.Id == line.TankId);
-            if (tank.ParentTankId == null)
-            {
-                totalMainTransferOut += line.TransferOutLitres;
-            }
-            else
-            {
-                totalDailyTransferIn += line.TransferInLitres;
-            }
+            var isDaily = tank.TankRole == TankRole.Daily
+                || (tank.TankRole != TankRole.Main && (tank.ParentTankId != null || tank.GeneratorId != null));
+            if (isDaily) totalDailyTransferIn += line.TransferInLitres;
+            else totalMainTransferOut += line.TransferOutLitres;
         }
 
         var siteGenerators = await db.Generators.AsNoTracking().Where(g => g.SubStationId == subStationId).Select(g => g.Id).ToListAsync(ct);

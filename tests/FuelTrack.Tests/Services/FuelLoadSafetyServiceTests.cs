@@ -170,6 +170,35 @@ public sealed class FuelLoadSafetyServiceTests
     }
 
     [Fact]
+    public async Task FuelConsumption_ExplicitMainTankLinkedToGenerator_IsExcludedFromConsumption()
+    {
+        await using var db = CreateDb();
+        var (_, _, generatorId, _, submissionId) = await SeedBaseAsync(db);
+        var mainTank = new FuelTank
+        {
+            Id = 21,
+            SubStationId = 10,
+            GeneratorId = generatorId,
+            Name = "MainTank",
+            TankRole = TankRole.Main,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        var t0 = new DateTime(2026, 11, 8, 8, 0, 0, DateTimeKind.Utc);
+        var t1 = t0.AddHours(8);
+        db.AddRange(mainTank,
+            new TankLevelReading { OperationalSubmissionId = submissionId, FuelTankId = mainTank.Id, EventType = TankEventType.Level, Status = OperationalReadingStatus.Approved, CapturedAtUtc = t0, ComputedLitres = 900m, CreatedAt = t0, UpdatedAt = t0 },
+            new TankLevelReading { OperationalSubmissionId = submissionId, FuelTankId = mainTank.Id, EventType = TankEventType.Level, Status = OperationalReadingStatus.Approved, CapturedAtUtc = t1, ComputedLitres = 700m, CreatedAt = t1, UpdatedAt = t1 });
+        await db.SaveChangesAsync();
+
+        var result = await new FuelLoadSafetyService(db, new SiteScope(), new TrackingNotificationService())
+            .GetConsumptionAsync(generatorId, t0, t1, 1);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0m, result.Value!.ConsumptionLitres);
+    }
+
+    [Fact]
     public async Task FuelConsumption_TwoRefillsInOneDay_CalculatesTotalRefillsAndConsumptionCorrectly()
     {
         await using var db = CreateDb();
