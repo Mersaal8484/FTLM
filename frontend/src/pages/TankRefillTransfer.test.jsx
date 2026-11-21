@@ -78,7 +78,10 @@ describe('TankRefillTransfer with Oil Refill and Log', () => {
     fireEvent.click(screen.getByLabelText('زيت'));
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '10' } });
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '42' } });
-    fireEvent.click(screen.getByRole('button', { name: /تسجيل وارد الزيت/ }));
+    // Submit the form directly: JSDOM's native datetime-local constraint
+    // validation can suppress a synthetic button click before React receives
+    // the submit event.
+    fireEvent.submit(screen.getByRole('button', { name: /تسجيل وارد الزيت/ }).closest('form'));
 
     await waitFor(() => expect(client.post).toHaveBeenCalledWith('/api/oil-transactions', expect.objectContaining({
       oilLookupId: 10,
