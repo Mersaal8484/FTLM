@@ -340,6 +340,16 @@ public sealed class CommercialC3_2Tests : IDisposable
         Assert.Contains("DROP COLUMN IF EXISTS \"TankRole\"", upgrade10.Sql); // Rollback plan documented
     }
 
+    [Fact]
+    public async Task TenantUpgrade013_RegisteredInCatalog_WithFilteredMainTankIndex()
+    {
+        var upgrade = (await TenantSchemaUpgradeCatalog.GetCurrentAsync()).Single(x => x.Version == 13);
+
+        Assert.Contains("DROP INDEX IF EXISTS \"IX_FuelTanks_SubStationId_FuelLookupId\"", upgrade.Sql);
+        Assert.Contains("CREATE UNIQUE INDEX IF NOT EXISTS \"IX_FuelTanks_SubStationId_FuelLookupId\"", upgrade.Sql);
+        Assert.Contains("\"DeletedAt\" IS NULL AND \"GeneratorId\" IS NULL", upgrade.Sql);
+    }
+
     private sealed class RestrictedScopeFilter : IUserScopeFilterService
     {
         private readonly List<int> _accessible;

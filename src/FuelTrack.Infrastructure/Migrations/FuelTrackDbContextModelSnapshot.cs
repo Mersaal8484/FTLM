@@ -1046,7 +1046,9 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.HasIndex("ParentTankId");
 
                     b.HasIndex("SubStationId", "FuelLookupId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_FuelTanks_SubStationId_FuelLookupId")
+                        .HasFilter("[DeletedAt] IS NULL AND [GeneratorId] IS NULL");
 
                     b.ToTable("FuelTanks");
                 });

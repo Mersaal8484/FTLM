@@ -471,7 +471,11 @@ namespace FuelTrack.Infrastructure
 
             modelBuilder.Entity<FuelTank>()
                 .HasIndex(t => new { t.SubStationId, t.FuelLookupId })
-                .IsUnique();
+                .IsUnique()
+                .HasDatabaseName("IX_FuelTanks_SubStationId_FuelLookupId")
+                .HasFilter(Database.IsNpgsql()
+                    ? "\"DeletedAt\" IS NULL AND \"GeneratorId\" IS NULL"
+                    : "[DeletedAt] IS NULL AND [GeneratorId] IS NULL");
 
             // === Ledger: DailyReading ===
             modelBuilder.Entity<DailyReading>()
