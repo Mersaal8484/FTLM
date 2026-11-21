@@ -1,7 +1,10 @@
+using System.Data;
 using FuelTrack.Application.DTOs.OilTransactions;
 using FuelTrack.Application.Interfaces;
+using FuelTrack.Application.Constants;
 using FuelTrack.Domain.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace FuelTrack.Infrastructure.Services;
 
@@ -11,17 +14,20 @@ public class OilTransactionService : IOilTransactionService
     private readonly IUserScopeFilterService _scopeFilter;
     private readonly ICurrentUserService _currentUser;
     private readonly ICommercialStationModeService _commercialMode;
+    private readonly IAttachmentService _attachments;
 
     public OilTransactionService(
         FuelTrackDbContext db,
         IUserScopeFilterService scopeFilter,
         ICurrentUserService currentUser,
-        ICommercialStationModeService commercialMode)
+        ICommercialStationModeService commercialMode,
+        IAttachmentService attachments)
     {
         _db = db;
         _currentUser = currentUser;
         _scopeFilter = scopeFilter;
         _commercialMode = commercialMode;
+        _attachments = attachments;
     }
 
     private async Task<bool> CanAccessAsync(int subStationId)
@@ -49,8 +55,9 @@ public class OilTransactionService : IOilTransactionService
     public async Task<OilTransactionDetailDto> CreateAsync(CreateOilTransactionDto dto, int userId)
     {
         int targetSubStationId;
+        var isCommercial = await _commercialMode.IsCommercialModeAsync();
 
-        if (await _commercialMode.IsCommercialModeAsync())
+        if (isCommercial)
         {
             var scope = await _commercialMode.GetScopeAsync();
             if (scope is null)
@@ -67,6 +74,11 @@ public class OilTransactionService : IOilTransactionService
 
         await RequireAccessAsync(targetSubStationId);
         await RequireTransferAccessAsync(dto.SourceSubStationId, dto.DestinationSubStationId);
+
+        if (isCommercial && dto.QuantityLiters <= 0)
+            throw new ArgumentOutOfRangeException(nameof(dto.QuantityLiters), "Oil supply quantity must be greater than zero.");
+
+        var attachmentIds = dto.AttachmentIds?.ToArray() ?? [];
 
         var oilLookupExists = await _db.Lookups.AnyAsync(l => l.Id == dto.OilLookupId);
         if (!oilLookupExists)
@@ -105,10 +117,51 @@ public class OilTransactionService : IOilTransactionService
             UpdatedBy = userId,
         };
 
-        _db.OilTransactions.Add(tx);
-        await _db.SaveChangesAsync();
+        IDbContextTransaction? databaseTransaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+            : null;
+        try
+        {
+            // Keep ownership and unlinked checks in the same relational transaction as the row and links.
+            await ValidateAttachmentIdsAsync(attachmentIds, userId);
+            _db.OilTransactions.Add(tx);
+            await _db.SaveChangesAsync();
 
-        return (await MapToDetailAsync(tx.Id))!;
+            for (var sortOrder = 0; sortOrder < attachmentIds.Length; sortOrder++)
+            {
+                var link = await _attachments.LinkAsync(
+                    attachmentIds[sortOrder], AttachmentEntityTypes.OilTransaction, tx.Id, sortOrder, userId);
+                if (!link.IsSuccess)
+                    throw new InvalidOperationException(link.Error ?? "Unable to link oil transaction attachment.");
+            }
+
+            if (databaseTransaction is not null)
+                await databaseTransaction.CommitAsync();
+        }
+        catch
+        {
+            if (databaseTransaction is not null)
+            {
+                await databaseTransaction.RollbackAsync();
+            }
+            else if (tx.Id > 0)
+            {
+                var linkedAttachments = await _db.AttachmentLinks
+                    .Where(link => link.EntityType == AttachmentEntityTypes.OilTransaction && link.EntityId == tx.Id)
+                    .ToListAsync();
+                _db.AttachmentLinks.RemoveRange(linkedAttachments);
+                _db.OilTransactions.Remove(tx);
+                await _db.SaveChangesAsync();
+            }
+            throw;
+        }
+        finally
+        {
+            if (databaseTransaction is not null)
+                await databaseTransaction.DisposeAsync();
+        }
+
+        return (await MapToDetailAsync(tx.Id))! with { AttachmentIds = attachmentIds };
     }
 
     public async Task<OilTransactionDetailDto> UpdateAsync(int id, UpdateOilTransactionDto dto, int userId)
@@ -184,7 +237,15 @@ public class OilTransactionService : IOilTransactionService
     {
         var siteId = await _db.OilTransactions.Where(t => t.Id == id).Select(t => (int?)t.SubStationId).FirstOrDefaultAsync();
         if (!siteId.HasValue || !await CanAccessAsync(siteId.Value)) return null;
-        return await MapToDetailAsync(id);
+        var transaction = await MapToDetailAsync(id);
+        if (transaction is null) return null;
+
+        var attachmentIds = await _db.AttachmentLinks.AsNoTracking()
+            .Where(link => link.EntityType == AttachmentEntityTypes.OilTransaction && link.EntityId == id)
+            .OrderBy(link => link.SortOrder)
+            .Select(link => link.AttachmentId)
+            .ToListAsync();
+        return transaction with { AttachmentIds = attachmentIds };
     }
 
     public async Task<List<OilTransactionListDto>> GetAllAsync()
@@ -216,7 +277,7 @@ public class OilTransactionService : IOilTransactionService
             }
         }
 
-        return await query
+        var transactions = await query
             .OrderByDescending(t => t.TransactionDate)
             .Select(t => new OilTransactionListDto(
                 t.Id,
@@ -234,6 +295,8 @@ public class OilTransactionService : IOilTransactionService
                 t.CorrectedFromId,
                 t.CorrectionReason))
             .ToListAsync();
+
+        return await AddAttachmentIdsAsync(transactions);
     }
 
     public async Task<List<OilTransactionListDto>> GetBySubStationAsync(int subStationId)
@@ -353,6 +416,48 @@ public class OilTransactionService : IOilTransactionService
             t.CreatedAt,
             t.CorrectedFromId,
             t.CorrectionReason);
+    }
+
+    private async Task ValidateAttachmentIdsAsync(IReadOnlyList<int> attachmentIds, int userId)
+    {
+        if (attachmentIds.Count > 3)
+            throw new InvalidOperationException("At most three attachments are allowed.");
+        if (attachmentIds.Count != attachmentIds.Distinct().Count())
+            throw new InvalidOperationException("Duplicate attachment identifiers are not allowed.");
+        if (attachmentIds.Count == 0) return;
+
+        var ownedIds = await _db.Attachments.AsNoTracking()
+            .Where(x => attachmentIds.Contains(x.Id) && x.CreatedBy == userId)
+            .Select(x => x.Id)
+            .ToListAsync();
+        if (ownedIds.Count != attachmentIds.Count)
+            throw new UnauthorizedAccessException("Attachments must belong to the current user.");
+
+        var isLinked = await _db.AttachmentLinks.AsNoTracking()
+            .AnyAsync(x => attachmentIds.Contains(x.AttachmentId));
+        if (isLinked)
+            throw new InvalidOperationException("An attachment is already linked to another entity.");
+    }
+
+    private async Task<List<OilTransactionListDto>> AddAttachmentIdsAsync(List<OilTransactionListDto> transactions)
+    {
+        if (transactions.Count == 0) return transactions;
+
+        var transactionIds = transactions.Select(x => x.Id).ToList();
+        var links = await _db.AttachmentLinks.AsNoTracking()
+            .Where(x => x.EntityType == AttachmentEntityTypes.OilTransaction && transactionIds.Contains(x.EntityId))
+            .OrderBy(x => x.SortOrder)
+            .Select(x => new { x.EntityId, x.AttachmentId })
+            .ToListAsync();
+        var attachmentIdsByTransaction = links.GroupBy(x => x.EntityId)
+            .ToDictionary(x => x.Key, x => (IReadOnlyList<int>)x.Select(link => link.AttachmentId).ToList());
+
+        return transactions.Select(transaction => transaction with
+        {
+            AttachmentIds = attachmentIdsByTransaction.TryGetValue(transaction.Id, out var attachmentIds)
+                ? attachmentIds
+                : Array.Empty<int>()
+        }).ToList();
     }
 
     private static readonly HashSet<string> AllowedTransactionTypeCodes = new(StringComparer.OrdinalIgnoreCase)

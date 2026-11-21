@@ -5,8 +5,10 @@ import i18n from '../../i18n';
 import client from '../../api/client';
 import GeneralMovementLog from './GeneralMovementLog';
 
+const commercialMode = vi.hoisted(() => ({ enabled: false }));
 vi.mock('../../api/client', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 vi.mock('../reports/utils/reportExport', () => ({ exportToExcel: vi.fn() }));
+vi.mock('../../hooks/useCommercialMode', () => ({ default: () => ({ isCommercialMode: commercialMode.enabled, modeResolved: true }) }));
 
 const empty = { items: [], totalCount: 0, page: 1, pageSize: 20 };
 const rows = Array.from({ length: 21 }, (_, index) => ({
@@ -23,7 +25,7 @@ function mockLookupsAndLedger(ledger = empty) {
 }
 
 describe('GeneralMovementLog', () => {
-  beforeEach(async () => { client.get.mockReset(); client.post.mockReset(); await i18n.changeLanguage('en'); });
+  beforeEach(async () => { commercialMode.enabled = false; client.get.mockReset(); client.post.mockReset(); await i18n.changeLanguage('en'); });
 
   it('shows a loading skeleton instead of a blank body', () => {
     client.get.mockImplementation((url) => url === '/api/movement-ledger' ? new Promise(() => {}) : Promise.resolve({ data: [] }));
@@ -67,5 +69,17 @@ describe('GeneralMovementLog', () => {
     await i18n.changeLanguage('ar');
     view.rerender(<GeneralMovementLog lang="ar" />);
     expect(await screen.findByText('السجل العام للحركات')).toBeInTheDocument();
+  });
+
+  it('omits hierarchy selectors and hierarchy export fields in commercial mode', async () => {
+    commercialMode.enabled = true;
+    mockLookupsAndLedger();
+    render(<GeneralMovementLog lang="en" />);
+
+    await screen.findByText('No movements found');
+    expect(screen.queryByLabelText('Station')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Site')).not.toBeInTheDocument();
+    expect(client.get).not.toHaveBeenCalledWith('/api/stations');
+    expect(client.get).not.toHaveBeenCalledWith('/api/sub-stations');
   });
 });

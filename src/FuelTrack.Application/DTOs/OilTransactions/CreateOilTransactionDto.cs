@@ -10,4 +10,5 @@ public record CreateOilTransactionDto(
     string? SupplierCompany = null,
     int? SourceSubStationId = null,
     int? DestinationSubStationId = null,
-    string? Notes = null);
+    string? Notes = null,
+    IReadOnlyList<int>? AttachmentIds = null);

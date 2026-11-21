@@ -40,18 +40,18 @@ describe('TankRefillTransfer with Oil Refill and Log', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(i18n.t('operational.tanks.refillTitle'))).toBeInTheDocument();
+      expect(screen.getByText(i18n.t('operational.tanks.commercialRefillTitle'))).toBeInTheDocument();
     });
 
     // Check tabs exist — getAllByText since tab label text also appears inside the form body
     expect(screen.getAllByText(/تسجيل التوريد \/ التحويل/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/سجل الحركات والتوريدات العام/)).toBeInTheDocument();
 
-    // Check Oil Receipt radio exists
-    const oilRadio = screen.getByLabelText(/توريد زيت خارجي/);
+    // Commercial mode chooses the item first, then renders the oil-supply form.
+    const oilRadio = screen.getByLabelText('زيت');
     expect(oilRadio).toBeInTheDocument();
 
-    // Switch to Oil Receipt
+    // Switch to oil supply
     fireEvent.click(oilRadio);
     expect(screen.getByText(/نوع الزيت \/ خزان الزيت/)).toBeInTheDocument();
 
@@ -63,5 +63,29 @@ describe('TankRefillTransfer with Oil Refill and Log', () => {
     await waitFor(() => {
       expect(client.get).toHaveBeenCalledWith('/api/movement-ledger', expect.anything());
     });
+  });
+
+  test('submits an oil supply through the oil transaction endpoint with attachment ids only on the oil payload', async () => {
+    client.get.mockImplementation(async (url) => {
+      if (url === '/api/fuel-tanks') return { data: [] };
+      if (url === '/api/oils') return { data: [{ id: 1, oilLookupId: 10, oilLookupName: '15W-40' }] };
+      return { data: [] };
+    });
+    client.post.mockResolvedValue({ data: { id: 1 } });
+
+    render(<TankRefillTransfer />, { wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter> });
+    await screen.findByText(i18n.t('operational.tanks.commercialRefillTitle'));
+    fireEvent.click(screen.getByLabelText('زيت'));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '10' } });
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '42' } });
+    fireEvent.click(screen.getByRole('button', { name: /تسجيل وارد الزيت/ }));
+
+    await waitFor(() => expect(client.post).toHaveBeenCalledWith('/api/oil-transactions', expect.objectContaining({
+      oilLookupId: 10,
+      quantityLiters: 42,
+      attachmentIds: [],
+    })));
+    const [, payload] = client.post.mock.calls.find(([url]) => url === '/api/oil-transactions');
+    expect(payload).not.toHaveProperty('subStationId');
   });
 });

@@ -1,8 +1,11 @@
 using System.Security.Claims;
+using FuelTrack.Application.Constants;
 using FuelTrack.Application.DTOs.OilTransactions;
 using FuelTrack.Application.Interfaces;
+using FuelTrack.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.API.Controllers;
 
@@ -13,11 +16,25 @@ public class OilTransactionsController : BaseApiController
 {
     private readonly IOilTransactionService _oilTransactionService;
     private readonly IRealtimeNotifier _notifier;
+    private readonly IAttachmentService _attachmentService;
+    private readonly IUserScopeFilterService _scopeFilter;
+    private readonly ICommercialStationModeService _commercialMode;
+    private readonly FuelTrackDbContext _db;
 
-    public OilTransactionsController(IOilTransactionService oilTransactionService, IRealtimeNotifier notifier)
+    public OilTransactionsController(
+        IOilTransactionService oilTransactionService,
+        IRealtimeNotifier notifier,
+        IAttachmentService attachmentService,
+        IUserScopeFilterService scopeFilter,
+        ICommercialStationModeService commercialMode,
+        FuelTrackDbContext db)
     {
         _oilTransactionService = oilTransactionService;
         _notifier = notifier;
+        _attachmentService = attachmentService;
+        _scopeFilter = scopeFilter;
+        _commercialMode = commercialMode;
+        _db = db;
     }
 
     [HttpPost]
@@ -44,6 +61,38 @@ public class OilTransactionsController : BaseApiController
         var result = await _oilTransactionService.GetByIdAsync(id);
         if (result is null) return NotFound();
         return Ok(result);
+    }
+
+    [HttpGet("{id:int}/attachments/{attachmentId:int}")]
+    public async Task<IActionResult> GetAttachment(int id, int attachmentId, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        var accessibleSubStationIds = await _scopeFilter.GetAccessibleSubStationIdsAsync(userId);
+        if (await _commercialMode.IsCommercialModeAsync(cancellationToken))
+        {
+            var scope = await _commercialMode.GetScopeAsync(cancellationToken);
+            if (scope is null)
+                return Forbid();
+            accessibleSubStationIds = [scope.SubStationId];
+        }
+
+        var inScope = await _db.AttachmentLinks.AsNoTracking()
+            .AnyAsync(link => link.AttachmentId == attachmentId
+                && link.EntityType == AttachmentEntityTypes.OilTransaction
+                && link.EntityId == id
+                && _db.OilTransactions.Any(transaction => transaction.Id == id
+                    && accessibleSubStationIds.Contains(transaction.SubStationId)), cancellationToken);
+        if (!inScope)
+            return Forbid();
+
+        var attachment = await _attachmentService.OpenReadAsync(attachmentId, cancellationToken);
+        if (attachment is null)
+            return NotFound();
+
+        Response.Headers.ContentDisposition =
+            $"inline; filename=\"{attachment.Value.Metadata.OriginalFileName.Replace("\"", string.Empty)}\"";
+        Response.Headers.XContentTypeOptions = "nosniff";
+        return File(attachment.Value.Content, attachment.Value.Metadata.ContentType);
     }
 
     [HttpGet]

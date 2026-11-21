@@ -187,14 +187,15 @@ function FuelMovements({ lang, currentUser }) {
     } catch { /* silently fail — each Promise.allSettled handles its own */ }
   };
 
-  useEffect(() => { if (modeResolved) fetchAll(); }, [lang, isCommercialMode, modeResolved]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (modeResolved && !isCommercialMode) fetchAll(); }, [lang, isCommercialMode, modeResolved]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
+    if (isCommercialMode) return;
     const type = TAB_API_TYPES[activeTab];
     if (!type) return;
     client.get('/api/fuel-movements', { params: { page: 1, pageSize: 200, type } })
       .then(response => setMovements(response.data?.items || []))
       .catch(() => setMovements([]));
-  }, [activeTab]);
+  }, [activeTab, isCommercialMode]);
 
   const fld = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -383,6 +384,27 @@ function FuelMovements({ lang, currentUser }) {
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
+  if (isCommercialMode) {
+    return (
+      <div className="fuel-movements-page" style={{ animation: 'fadeIn 0.5s ease' }}>
+        <PageHeader title={t('movements.pageTitle')} subtitle={t('movements.commercialSubtitle')} />
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 30 }}>
+          <div className="ft-tabs">
+            <button type="button" className={`ft-tab ${activeTab === 'log' ? 'active' : ''}`} onClick={() => setActiveTab('log')}>
+              {t('movements.tabs.log')}
+            </button>
+            <button type="button" className={`ft-tab ${activeTab === 'supply' ? 'active' : ''}`} onClick={() => setActiveTab('supply')}>
+              {t('movements.tabs.commercialInbound')}
+            </button>
+          </div>
+        </div>
+        {activeTab === 'log'
+          ? <GeneralMovementLog lang={lang} canApprove={canApprove} />
+          : <CommercialInboundSupplyList lang={lang} />}
+      </div>
+    );
+  }
+
   return (
     <div className="fuel-movements-page" style={{ animation: 'fadeIn 0.5s ease' }}>
       {/* ── Header (unified PageHeader component) ── */}
@@ -1014,6 +1036,61 @@ function FuelMovements({ lang, currentUser }) {
         onCancel={() => setConfirmModal({ open: false, id: null })}
       />
     </div>
+  );
+}
+
+function CommercialInboundSupplyList({ lang }) {
+  const { t } = useTranslation();
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let current = true;
+    Promise.all([
+      client.get('/api/movement-ledger', { params: { movementType: 'Purchase', page: 1, pageSize: 200, sort: 'date', sortDirection: 'desc' } }),
+      client.get('/api/oil-transactions', { params: { page: 1, pageSize: 200 } }),
+    ]).then(([ledgerResponse, oilResponse]) => {
+      if (!current) return;
+      const attachmentIdsByOilTransaction = new Map((oilResponse.data?.data || []).map(item => [item.id, item.attachmentIds || []]));
+      setRows((ledgerResponse.data?.items || []).map(item => ({
+        ...item,
+        attachmentIds: item.kind === 'oil' ? (attachmentIdsByOilTransaction.get(item.id) || []) : [],
+      })));
+      setError('');
+    }).catch(() => {
+      if (current) setError(t('movements.commercialInboundLoadError'));
+    }).finally(() => {
+      if (current) setLoading(false);
+    });
+    return () => { current = false; };
+  }, [t]);
+
+  const viewPhoto = async (row, attachmentId) => {
+    const response = await client.get(`/api/oil-transactions/${row.id}/attachments/${attachmentId}`, { responseType: 'blob' });
+    const url = URL.createObjectURL(response.data);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+
+  const date = value => value
+    ? new Intl.DateTimeFormat(lang === 'ar' ? 'ar-YE-u-nu-latn' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+    : '—';
+
+  return (
+    <section className="section-card" aria-label={t('movements.tabs.commercialInbound')}>
+      {loading ? <div className="movement-log-skeleton" role="status">{[1, 2, 3].map(item => <div className="skeleton-row" key={item} />)}</div>
+        : error ? <div className="empty-state" role="alert"><h3>{error}</h3></div>
+          : rows.length === 0 ? <div className="empty-state"><h3>{t('movements.log.emptyTitle')}</h3></div>
+            : <div className="data-table-wrap"><table className="data-table"><thead><tr>
+              <th>{t('movements.log.columns.date')}</th><th>{t('movements.log.columns.kind')}</th><th>{t('movements.log.columns.type')}</th>
+              <th>{t('movements.log.columns.quantity')}</th><th>{t('movements.log.columns.status')}</th><th>{t('movements.log.columns.actions')}</th>
+            </tr></thead><tbody>{rows.map(row => <tr key={`${row.kind}-${row.id}`}>
+              <td>{date(row.date)}</td><td>{row.kind === 'oil' ? t('movements.log.kind.oil') : t('movements.log.kind.fuel')}</td>
+              <td>{row.movementType}</td><td>{Number(row.quantity || 0).toLocaleString()}</td><td>{t(`movements.status.${row.status}`)}</td>
+              <td>{row.kind === 'oil' && row.attachmentIds.length > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => viewPhoto(row, row.attachmentIds[0])}>{t('movements.viewPhoto')}</button>}</td>
+            </tr>)}</tbody></table></div>}
+    </section>
   );
 }
 

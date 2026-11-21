@@ -4,6 +4,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 
 // ── Module mocks ──────────────────────────────────────────────────────────
 
+const commercialMode = vi.hoisted(() => ({ enabled: false }));
 vi.mock('../api/client', () => ({
   default: {
     get: vi.fn(),
@@ -27,6 +28,10 @@ vi.mock('../api/stockSummaryApi', () => ({
   },
   useFuelStockSummary: () => ({ data: [], isLoading: false, refetch: vi.fn() }),
   useOilStockSummary: () => ({ data: [], isLoading: false, refetch: vi.fn() }),
+}));
+
+vi.mock('../hooks/useCommercialMode', () => ({
+  default: () => ({ isCommercialMode: commercialMode.enabled, modeResolved: true }),
 }));
 
 vi.mock('../components/ConfirmModal', () => ({
@@ -266,6 +271,7 @@ async function clickNewMovement() {
 
 describe('FuelMovements component', () => {
   beforeEach(() => {
+    commercialMode.enabled = false;
     mockClient.get.mockReset();
     mockClient.post.mockReset();
     mockClient.put.mockReset();
@@ -379,5 +385,23 @@ describe('FuelMovements component', () => {
     await waitFor(() => {
       expect(screen.getByText(/Fuel & Oil Movements|حركة الوقود/i)).toBeInTheDocument();
     });
+  });
+
+  test('commercial mode keeps only the general log and inbound fuel-and-oil tabs', async () => {
+    commercialMode.enabled = true;
+    mockClient.get.mockImplementation((url) => {
+      if (url === '/api/movement-ledger') return Promise.resolve({ data: { items: [], totalCount: 0 } });
+      if (url === '/api/oil-transactions') return Promise.resolve({ data: { data: [] } });
+      return Promise.resolve({ data: [] });
+    });
+
+    render(<FuelMovements {...defaultProps} />);
+
+    expect(await screen.findByRole('button', { name: /General Log|السجل العام/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Inbound \(Fuel & Oil\)|الوارد \(وقود وزيت\)/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Transfer|نقل/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Loss|فاقد/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Adjustment|تسوية/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /New Movement|حركة جديدة/i })).not.toBeInTheDocument();
   });
 });

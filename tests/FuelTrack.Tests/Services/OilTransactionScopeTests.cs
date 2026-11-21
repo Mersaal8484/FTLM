@@ -22,7 +22,7 @@ public class OilTransactionScopeTests
         var scope = new Mock<IUserScopeFilterService>();
         scope.Setup(x => x.HasAccessToSubStationAsync(2, 1)).ReturnsAsync(false);
         scope.Setup(x => x.GetAccessibleSubStationIdsAsync(2)).ReturnsAsync(new List<int>());
-        var service = new OilTransactionService(db, scope.Object, new StubCurrentUserService { UserId = 2, IsAdmin = false }, new CommercialStationModeService(db));
+        var service = new OilTransactionService(db, scope.Object, new StubCurrentUserService { UserId = 2, IsAdmin = false }, new CommercialStationModeService(db), new Mock<IAttachmentService>().Object);
 
         Assert.Null(await service.GetByIdAsync(10));
         Assert.Empty(await service.GetAllAsync());
@@ -47,7 +47,7 @@ public class OilTransactionScopeTests
         var scope = new Mock<IUserScopeFilterService>();
         scope.Setup(x => x.HasAccessToSubStationAsync(2, 1)).ReturnsAsync(true);
         scope.Setup(x => x.HasAccessToSubStationAsync(2, 2)).ReturnsAsync(false);
-        var service = new OilTransactionService(db, scope.Object, new StubCurrentUserService { UserId = 2, IsAdmin = false }, new CommercialStationModeService(db));
+        var service = new OilTransactionService(db, scope.Object, new StubCurrentUserService { UserId = 2, IsAdmin = false }, new CommercialStationModeService(db), new Mock<IAttachmentService>().Object);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.CreateAsync(new CreateOilTransactionDto(SubStationId: 1, DestinationSubStationId: 2), 2));
         Assert.Empty(db.OilTransactions);
     }

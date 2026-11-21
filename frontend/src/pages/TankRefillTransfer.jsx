@@ -6,6 +6,17 @@ import { PageHeader, Button, FormField } from '../components/ui';
 import OperationalBackLink from '../components/OperationalBackLink';
 import useCommercialMode from '../hooks/useCommercialMode';
 import GeneralMovementLog from './movements/GeneralMovementLog';
+import { compressPhoto } from './OperationalCapture';
+
+const stationTimeZone = 'Asia/Aden';
+
+function stationDateTimeInput(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: stationTimeZone,
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date).reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
 
 export default function TankRefillTransfer() {
   const { t, i18n } = useTranslation();
@@ -13,6 +24,7 @@ export default function TankRefillTransfer() {
   const [activeTab, setActiveTab] = useState('entry'); // 'entry' | 'log'
   const [tanks, setTanks] = useState([]);
   const [oils, setOils] = useState([]);
+  const [itemType, setItemType] = useState('fuel');
   const [tankId, setTankId] = useState('');
   const [eventType, setEventType] = useState('Receipt'); // Receipt, TransferIn, TransferOut, OilReceipt
   const [beforeLevelCm, setBeforeLevelCm] = useState('');
@@ -34,6 +46,7 @@ export default function TankRefillTransfer() {
   const [oilReference, setOilReference] = useState('');
   const [oilSupplier, setOilSupplier] = useState('');
   const [oilNotes, setOilNotes] = useState('');
+  const [oilTransactionDate, setOilTransactionDate] = useState(() => stationDateTimeInput());
 
   useEffect(() => {
     client.get('/api/fuel-tanks').then(res => {
@@ -50,15 +63,24 @@ export default function TankRefillTransfer() {
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 65 * 1024) {
-      setErrorMsg('Photo exceeds 65 KB limit.');
-      return;
-    }
     setUploading(true);
     setErrorMsg('');
     try {
+      const isOilSupply = isCommercial && itemType === 'oil';
+      const uploadFile = isOilSupply
+        ? await compressPhoto(file, {
+          capturedAt: `${oilTransactionDate}:00+03:00`,
+          subjectCode: `OIL-${oilLookupId || 'SUPPLY'}`,
+          locale: document.documentElement.lang,
+          timeZone: stationTimeZone,
+        })
+        : file;
+      if (uploadFile.size > 65 * 1024) {
+        setErrorMsg(t('operational.tanks.photoTooLarge'));
+        return;
+      }
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', uploadFile);
       const res = await client.post('/api/attachments', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
@@ -73,23 +95,25 @@ export default function TankRefillTransfer() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (eventType === 'OilReceipt') {
-      if (!oilLookupId || !deliveryNoteLitres) {
+    const isOilSupply = isCommercial ? itemType === 'oil' : eventType === 'OilReceipt';
+    if (isOilSupply) {
+      if (!oilLookupId || !deliveryNoteLitres || Number(deliveryNoteLitres) <= 0) {
         setErrorMsg(t('operational.tanks.fillRequiredOil', 'يرجى اختيار نوع الزيت وتحديد كمية التوريد'));
         return;
       }
       setSubmitting(true);
       setErrorMsg('');
-      setSuccessMsg('');
+        setSuccessMsg('');
       try {
         const payload = {
-          subStationId: 0,
+          ...(isCommercial ? {} : { subStationId: 0 }),
           oilLookupId: parseInt(oilLookupId, 10),
           quantityLiters: parseFloat(deliveryNoteLitres),
           reference: oilReference || null,
           supplierCompany: oilSupplier || null,
-          transactionDate: new Date().toISOString(),
+          transactionDate: isCommercial ? `${oilTransactionDate}:00+03:00` : new Date().toISOString(),
           notes: oilNotes || null,
+          ...(isCommercial ? { attachmentIds: photoId ? [photoId] : [] } : {}),
         };
         await client.post('/api/oil-transactions', payload);
         setSuccessMsg(t('operational.tanks.successOilRefill', 'تم تسجيل توريد الزيت بنجاح'));
@@ -99,6 +123,7 @@ export default function TankRefillTransfer() {
         setOilNotes('');
         setDeliveryNoteLitres('');
         setPhotoId(null);
+        setOilTransactionDate(stationDateTimeInput());
       } catch (err) {
         setErrorMsg(err.response?.data?.error || err.response?.data?.msg || err.message || 'Error recording oil refill');
       } finally {
@@ -196,8 +221,8 @@ export default function TankRefillTransfer() {
     <div className="capture-page operational-shell" style={{ maxWidth: activeTab === 'log' ? 1100 : 800, margin: '0 auto', padding: 24 }}>
       <OperationalBackLink />
       <PageHeader
-        title={t('operational.tanks.refillTitle')}
-        subtitle={t('operational.tanks.refillSubtitle')}
+        title={isCommercial ? t('operational.tanks.commercialRefillTitle') : t('operational.tanks.refillTitle')}
+        subtitle={isCommercial ? t('operational.tanks.commercialRefillSubtitle') : t('operational.tanks.refillSubtitle')}
       />
 
       {/* Tabs */}
@@ -254,9 +279,28 @@ export default function TankRefillTransfer() {
           )}
 
           <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 16 }}>
-            <FormField label={t('operational.tanks.eventType')}>
+            {isCommercial && (
+              <FormField label={t('operational.tanks.itemType')}>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  {['fuel', 'oil'].map(type => (
+                    <label key={type} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="itemType"
+                        value={type}
+                        checked={itemType === type}
+                        onChange={e => setItemType(e.target.value)}
+                      />
+                      <span>{type === 'fuel' ? t('operational.tanks.itemFuel') : t('operational.tanks.itemOil')}</span>
+                    </label>
+                  ))}
+                </div>
+              </FormField>
+            )}
+
+            {(!isCommercial || itemType === 'fuel') && <FormField label={t('operational.tanks.eventType')}>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                {(isCommercial ? ['Receipt', 'TransferIn', 'OilReceipt'] : ['Receipt', 'TransferIn', 'TransferOut', 'OilReceipt']).map(type => (
+                {(isCommercial ? ['Receipt', 'TransferIn'] : ['Receipt', 'TransferIn', 'TransferOut', 'OilReceipt']).map(type => (
                   <label key={type} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                     <input
                       type="radio"
@@ -277,9 +321,9 @@ export default function TankRefillTransfer() {
                   </label>
                 ))}
               </div>
-            </FormField>
+            </FormField>}
 
-            {eventType === 'OilReceipt' ? (
+            {(isCommercial ? itemType === 'oil' : eventType === 'OilReceipt') ? (
               <>
                 <FormField label={t('operational.tanks.oilType', 'نوع الزيت / خزان الزيت') + ' *'}>
                   <select
@@ -300,6 +344,7 @@ export default function TankRefillTransfer() {
                 <FormField label={t('operational.tanks.deliveryNoteLitres', 'كمية سند التوريد (لتر)') + ' *'}>
                   <input
                     type="number"
+                    min={isCommercial ? '0.001' : undefined}
                     step="0.1"
                     value={deliveryNoteLitres}
                     onChange={e => setDeliveryNoteLitres(e.target.value)}
@@ -308,6 +353,16 @@ export default function TankRefillTransfer() {
                     style={{ width: '100%', padding: '10px 14px', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }}
                   />
                 </FormField>
+
+                {isCommercial && <FormField label={t('operational.tanks.supplyDateTime') + ' *'}>
+                  <input
+                    type="datetime-local"
+                    value={oilTransactionDate}
+                    onChange={e => setOilTransactionDate(e.target.value)}
+                    required
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }}
+                  />
+                </FormField>}
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <FormField label={t('operational.tanks.reference', 'رقم سند التوريد / الفاتورة')}>
@@ -457,7 +512,7 @@ export default function TankRefillTransfer() {
             <Button type="submit" disabled={submitting || uploading} style={{ marginTop: 12 }}>
               {submitting
                 ? t('operational.tanks.submitting')
-                : eventType === 'OilReceipt'
+                : (isCommercial ? itemType === 'oil' : eventType === 'OilReceipt')
                   ? t('operational.tanks.submitOilRefill', 'تسجيل توريد الزيت')
                   : t('operational.tanks.submitRefill')}
             </Button>

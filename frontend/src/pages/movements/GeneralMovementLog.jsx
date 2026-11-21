@@ -37,6 +37,7 @@ export default function GeneralMovementLog({ lang, canApprove = false }) {
   }, [applied, page, pageSize]);
 
   const load = useCallback(async () => {
+    if (!modeResolved) return;
     setLoading(true);
     setError('');
     try {
@@ -47,7 +48,7 @@ export default function GeneralMovementLog({ lang, canApprove = false }) {
     } finally {
       setLoading(false);
     }
-  }, [requestParams, t]);
+  }, [modeResolved, requestParams, t]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -77,15 +78,19 @@ export default function GeneralMovementLog({ lang, canApprove = false }) {
   const exportFiltered = async () => {
     const response = await client.get('/api/movement-ledger', { params: { ...requestParams, page: 1, pageSize: 200 } });
     const rows = response.data?.items || [];
-    exportToExcel(rows, [
+    const columns = [
       { header: t('movements.log.columns.date'), accessor: 'date' },
-      { header: t('movements.log.columns.station'), accessor: 'station' },
-      { header: t('movements.log.columns.site'), accessor: 'subStation' },
       { header: t('movements.log.columns.kind'), accessor: 'kind' },
       { header: t('movements.log.columns.type'), accessor: 'movementType' },
       { header: t('movements.log.columns.quantity'), accessor: 'quantity' },
       { header: t('movements.log.columns.status'), accessor: 'status' },
-    ], 'movement-ledger');
+    ];
+    if (!isCommercialMode) {
+      columns.splice(1, 0,
+        { header: t('movements.log.columns.station'), accessor: 'station' },
+        { header: t('movements.log.columns.site'), accessor: 'subStation' });
+    }
+    exportToExcel(rows, columns, 'movement-ledger');
   };
 
   const totalPages = Math.max(1, Math.ceil(data.totalCount / pageSize));

@@ -26,4 +26,5 @@ public record OilTransactionDetailDto(
     int CreatedBy,
     int UpdatedBy,
     DateTime CreatedAt,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    IReadOnlyList<int>? AttachmentIds = null);

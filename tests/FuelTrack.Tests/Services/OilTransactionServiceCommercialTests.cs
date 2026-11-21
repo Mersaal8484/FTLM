@@ -1,8 +1,10 @@
 using FuelTrack.Application.DTOs.OilTransactions;
+using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
 using FuelTrack.Infrastructure;
 using FuelTrack.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Xunit;
 
 namespace FuelTrack.Tests.Services;
@@ -64,7 +66,7 @@ public sealed class OilTransactionServiceCommercialTests : IDisposable
     {
         EnableCommercialMode();
         var commercialMode = new CommercialStationModeService(_db);
-        var service = new OilTransactionService(_db, new StubUserScopeFilterService(), new StubCurrentUserService(), commercialMode);
+        var service = new OilTransactionService(_db, new StubUserScopeFilterService(), new StubCurrentUserService(), commercialMode, new Mock<IAttachmentService>().Object);
 
         var dto = new CreateOilTransactionDto(
             SubStationId: 0,
@@ -86,7 +88,7 @@ public sealed class OilTransactionServiceCommercialTests : IDisposable
     public async Task CreateAsync_EnterpriseMode_RejectsInvalidSubStationId()
     {
         var commercialMode = new CommercialStationModeService(_db);
-        var service = new OilTransactionService(_db, new StubUserScopeFilterService(), new StubCurrentUserService(), commercialMode);
+        var service = new OilTransactionService(_db, new StubUserScopeFilterService(), new StubCurrentUserService(), commercialMode, new Mock<IAttachmentService>().Object);
 
         var dto = new CreateOilTransactionDto(
             SubStationId: 999, // Non-existent site
@@ -102,7 +104,7 @@ public sealed class OilTransactionServiceCommercialTests : IDisposable
     {
         EnableCommercialMode();
         var commercialMode = new CommercialStationModeService(_db);
-        var service = new OilTransactionService(_db, new StubUserScopeFilterService(), new StubCurrentUserService(), commercialMode);
+        var service = new OilTransactionService(_db, new StubUserScopeFilterService(), new StubCurrentUserService(), commercialMode, new Mock<IAttachmentService>().Object);
 
         // Add commercial transaction (site 1) — scope resolver sees exactly 1 active SubStation
         await service.CreateAsync(new CreateOilTransactionDto(

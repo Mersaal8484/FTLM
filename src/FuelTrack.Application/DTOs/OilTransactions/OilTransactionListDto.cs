@@ -20,4 +20,5 @@ public record OilTransactionListDto(
     DateTime? ApprovedAt,
     DateTime CreatedAt,
     int? CorrectedFromId,
-    string? CorrectionReason);
+    string? CorrectionReason,
+    IReadOnlyList<int>? AttachmentIds = null);
