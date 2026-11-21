@@ -104,7 +104,7 @@ describe('DailyTanks', () => {
         status: 409,
         data: {
           title: 'Conflict',
-          detail: 'The selected generator is already associated with another active daily tank.',
+          detail: 'This generator already has a daily tank.',
         },
       },
     });
@@ -127,7 +127,7 @@ describe('DailyTanks', () => {
     fireEvent.click(saveBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/The selected generator is already associated with another active daily tank/i)).toBeInTheDocument();
+      expect(screen.getByText(/This generator already has a daily tank/i)).toBeInTheDocument();
     });
   });
 

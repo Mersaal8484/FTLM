@@ -186,7 +186,7 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
             GeneratorId: 1);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => _tankService.CreateAsync(dto2, 1));
-        Assert.Contains("already associated with another active daily tank", ex.Message);
+        Assert.Contains("already has a daily tank", ex.Message);
     }
 
     [Fact]
