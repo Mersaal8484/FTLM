@@ -232,6 +232,27 @@ public class ExceptionHandlingMiddlewareTests
         Assert.Contains("A main tank for this fuel type already exists.", body);
     }
 
+    [Theory]
+    [InlineData("UNIQUE constraint failed: FuelTanks.SubStationId, FuelTanks.FuelLookupId [IX_FuelTanks_SubStationId_FuelLookupId]")]
+    [InlineData("Cannot insert duplicate key row with unique index 'IX_FuelTanks_SubStationId_FuelLookupId'. Error 2601")]
+    [InlineData("duplicate key value violates unique constraint \"IX_FuelTanks_SubStationId_FuelLookupId\" (23505)")]
+    public async Task CatchesDbUpdateException_MainTankUniqueViolationAcrossProviders_ReturnsStableConflict(string providerMessage)
+    {
+        var sut = new ExceptionHandlingMiddleware(
+            _ => throw new DbUpdateException("Save failed.", new Exception(providerMessage)),
+            NullLogger<ExceptionHandlingMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await sut.InvokeAsync(context);
+
+        Assert.Equal(409, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+        var body = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        Assert.Contains("A main tank for this fuel type already exists.", body);
+        Assert.DoesNotContain(providerMessage, body);
+    }
+
     [Fact]
     public async Task CatchesDbUpdateException_ForeignKeyViolation_Returns400AndReadableMessage()
     {

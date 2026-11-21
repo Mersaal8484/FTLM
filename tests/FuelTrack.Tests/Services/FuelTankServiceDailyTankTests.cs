@@ -266,6 +266,7 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
         var updated = await _tankService.UpdateAsync(created.Id, updateDto, 1);
         Assert.Equal("Renamed Tank", updated.Name);
         Assert.Equal(1, updated.GeneratorId);
+        Assert.Equal(TankRole.Daily, updated.TankRole);
     }
 
     [Fact]
@@ -399,6 +400,24 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => _tankService.UpdateAsync(main.Id, update, 1));
 
         Assert.Contains("role cannot be changed", ex.Message);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CommercialLegacyMainWithoutGenerator_BackfillsMainRole()
+    {
+        await EnableCommercialModeAsync();
+        _db.FuelTanks.Add(new FuelTank
+        {
+            Id = 50, SubStationId = 1, FuelLookupId = 1, Name = "Legacy main", Code = "LEG-01",
+            CapacityLiters = 5000, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+
+        var update = new UpdateFuelTankDto(null, null, "Renamed legacy main", null, null, null, null, null, null, null, null, null, null);
+        var result = await _tankService.UpdateAsync(50, update, 1);
+
+        Assert.Equal(TankRole.Main, result.TankRole);
+        Assert.Null(result.GeneratorId);
     }
 
     public void Dispose()

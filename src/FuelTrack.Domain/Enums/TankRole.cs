@@ -2,7 +2,7 @@ namespace FuelTrack.Domain.Enums;
 
 /// <summary>
 /// Commercial-mode tank role.
-/// Main  (1): the primary horizontal main storage tank at the commercial station.
+/// Main  (1): the primary vertical cylindrical storage tank with a conical bottom (TankShape 0).
 /// Daily (2): the daily service tank linked to a specific generator (via GeneratorId).
 /// Null column value means enterprise mode — no role constraint applied.
 /// </summary>

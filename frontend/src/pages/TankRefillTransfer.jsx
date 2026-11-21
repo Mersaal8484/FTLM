@@ -214,7 +214,11 @@ export default function TankRefillTransfer() {
     }
   };
 
-  const mainTanks = tanks.filter(t => t.tankRole === 1 || !t.parentTankId);
+  // Legacy main tanks may not have a role. Explicit daily and generator-linked tanks
+  // must never be offered as a main-tank receipt destination.
+  const mainTanks = tanks.filter(t =>
+    t.tankRole === 1 || (t.tankRole !== 2 && !t.parentTankId && t.generatorId == null)
+  );
   const dailyTanks = tanks.filter(t => t.tankRole === 2 || t.parentTankId != null || t.generatorId != null);
 
   return (
