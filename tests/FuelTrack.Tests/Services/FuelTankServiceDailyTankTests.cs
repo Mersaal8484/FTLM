@@ -35,7 +35,9 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
         var branch = new Branch { Id = 1, Code = "BR-01", Name = "Commercial Branch", IsActive = true };
         var station = new Station { Id = 1, BranchId = 1, Code = "ST-01", Name = "Commercial Station", IsActive = true };
         var subStation1 = new SubStation { Id = 1, StationId = 1, Code = "SITE-01", Name = "Site 1", IsActive = true };
-        var subStation2 = new SubStation { Id = 2, StationId = 1, Code = "SITE-02", Name = "Site 2", IsActive = true };
+        // Keep exactly one active technical scope for commercial mode. This inactive
+        // site still supplies cross-site validation fixtures without invalidating it.
+        var subStation2 = new SubStation { Id = 2, StationId = 1, Code = "SITE-02", Name = "Site 2", IsActive = false };
 
         var fuelCategory = new LookupCategory { Id = 1, Name = "FuelType", DisplayName = "Fuel types", IsActive = true };
         var fuelLookup = new Lookup { Id = 1, CategoryId = fuelCategory.Id, Code = "DIESEL", Name = "Diesel", IsActive = true };

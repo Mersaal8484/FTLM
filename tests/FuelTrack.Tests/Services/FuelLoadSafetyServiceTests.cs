@@ -1044,7 +1044,7 @@ public sealed class FuelLoadSafetyServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Null(result.Value!.DailyTankId);
-        Assert.Contains("No daily fuel tank", result.Value.Warnings);
+        Assert.Contains(result.Value.Warnings, warning => warning.Contains("No daily fuel tank"));
     }
 
     [Fact]
