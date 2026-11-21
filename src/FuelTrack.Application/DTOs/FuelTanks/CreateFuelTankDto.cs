@@ -8,13 +8,13 @@ public record CreateFuelTankDto(
     string Name,
     string Code,
     double CapacityLiters,
-    double? MinAlertLiters,
-    double? DeadStockLiters,
-    double? ActualStockLiters,
-    bool HasMeter,
-    double? MeterReading,
-    double? MeterReadingActual,
-    string? Notes,
+    double? MinAlertLiters = null,
+    double? DeadStockLiters = null,
+    double? ActualStockLiters = null,
+    bool HasMeter = false,
+    double? MeterReading = null,
+    double? MeterReadingActual = null,
+    string? Notes = null,
     bool IsActive = true,
     TankRole? TankRole = null,
     int? GeneratorId = null,
@@ -23,4 +23,7 @@ public record CreateFuelTankDto(
     decimal? DiameterCm = null,
     decimal? CylinderHeightCm = null,
     decimal? ConeHeightCm = null,
-    decimal? MultiplicationFactor = null);
+    decimal? MultiplicationFactor = null)
+{
+    public CreateFuelTankDto() : this(0, 0, string.Empty, string.Empty, 0) { }
+}

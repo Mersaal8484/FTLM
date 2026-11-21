@@ -3,6 +3,7 @@ using System.Text.Json;
 using FluentValidation;
 using FuelTrack.Application.Exceptions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.API.Middleware;
 
@@ -43,6 +44,12 @@ public class ExceptionHandlingMiddleware
             _logger.LogWarning(ex, "Invalid operation");
             await WriteProblemDetails(context, StatusCodes.Status400BadRequest, "Bad Request", ex.Message);
         }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Database update constraint violation");
+            var (statusCode, title, message) = MapDbUpdateException(ex);
+            await WriteProblemDetails(context, statusCode, title, message);
+        }
         catch (ForbiddenException ex)
         {
             _logger.LogWarning(ex, "Forbidden access");
@@ -58,6 +65,29 @@ public class ExceptionHandlingMiddleware
             _logger.LogError(ex, "Unhandled exception: {Message}", ex.Message);
             await WriteProblemDetails(context, StatusCodes.Status500InternalServerError, "Internal Server Error", ex.Message);
         }
+    }
+
+    private static (int StatusCode, string Title, string Message) MapDbUpdateException(DbUpdateException ex)
+    {
+        var raw = $"{ex.Message} {ex.InnerException?.Message}".ToLowerInvariant();
+
+        // Unique constraint violation (SQLite 19/UNIQUE, Postgres 23505/unique, SQL Server 2601/2627)
+        if (raw.Contains("unique") || raw.Contains("duplicate") || raw.Contains("ux_") || raw.Contains("ix_") || raw.Contains("23505") || raw.Contains("2601") || raw.Contains("2627"))
+        {
+            if (raw.Contains("ux_fueltanks_activedailygenerator") || raw.Contains("generatorid"))
+            {
+                return (StatusCodes.Status409Conflict, "Conflict", "The selected generator is already associated with another active daily tank.");
+            }
+            return (StatusCodes.Status409Conflict, "Conflict", "A record with the same unique value already exists.");
+        }
+
+        // Foreign key constraint violation (SQLite 19/FOREIGN KEY, Postgres 23503/foreign key, SQL Server 547)
+        if (raw.Contains("foreign key") || raw.Contains("fk_") || raw.Contains("23503") || raw.Contains("547"))
+        {
+            return (StatusCodes.Status400BadRequest, "Bad Request", "A related record could not be found or a database foreign key constraint was violated.");
+        }
+
+        return (StatusCodes.Status400BadRequest, "Bad Request", "A database constraint violation occurred.");
     }
 
     private static async Task WriteProblemDetails(HttpContext context, int statusCode, string title, object detail)

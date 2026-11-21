@@ -43,6 +43,31 @@ public class FuelTankService : IFuelTankService
             throw new ArgumentException("Daily tank must be associated with a generator.");
         }
 
+        if (dto.GeneratorId.HasValue)
+        {
+            var generator = await _db.Generators
+                .FirstOrDefaultAsync(g => g.Id == dto.GeneratorId.Value && g.DeletedAt == null)
+                ?? throw new KeyNotFoundException($"Generator {dto.GeneratorId.Value} not found.");
+
+            if (generator.SubStationId != subStationId)
+                throw new ArgumentException($"Generator {dto.GeneratorId.Value} does not belong to substation {subStationId}.");
+
+            var existingActiveTank = await _db.FuelTanks
+                .AnyAsync(t => t.GeneratorId == dto.GeneratorId.Value && t.DeletedAt == null);
+            if (existingActiveTank)
+                throw new InvalidOperationException("The selected generator is already associated with another active daily tank.");
+        }
+
+        if (dto.ParentTankId.HasValue)
+        {
+            var parentTank = await _db.FuelTanks
+                .FirstOrDefaultAsync(t => t.Id == dto.ParentTankId.Value && t.DeletedAt == null)
+                ?? throw new KeyNotFoundException($"Parent tank {dto.ParentTankId.Value} not found.");
+
+            if (parentTank.SubStationId != subStationId)
+                throw new ArgumentException($"Parent tank {dto.ParentTankId.Value} does not belong to substation {subStationId}.");
+        }
+
         if (dto.Shape.HasValue && !Enum.IsDefined(typeof(TankShape), dto.Shape.Value))
             throw new ArgumentException("Unsupported tank shape. Only vertical cylinder with conical bottom (Shape = 0) is supported.");
 
@@ -97,6 +122,63 @@ public class FuelTankService : IFuelTankService
         if (commercialScope is not null && tank.SubStationId != commercialScope.SubStationId)
             throw new KeyNotFoundException($"FuelTank {id} not found.");
 
+        var targetSubStationId = tank.SubStationId;
+        if (!isCommercial && dto.SubStationId.HasValue)
+        {
+            var subStation = await _db.SubStations.FindAsync(dto.SubStationId.Value)
+                ?? throw new KeyNotFoundException($"SubStation {dto.SubStationId.Value} not found.");
+            targetSubStationId = dto.SubStationId.Value;
+        }
+
+        var targetRole = dto.TankRole ?? tank.TankRole;
+        var targetGeneratorId = dto.GeneratorId ?? tank.GeneratorId;
+
+        if (targetRole == TankRole.Daily && !targetGeneratorId.HasValue)
+        {
+            throw new ArgumentException("Daily tank must be associated with a generator.");
+        }
+
+        if (dto.GeneratorId.HasValue)
+        {
+            var generator = await _db.Generators
+                .FirstOrDefaultAsync(g => g.Id == dto.GeneratorId.Value && g.DeletedAt == null)
+                ?? throw new KeyNotFoundException($"Generator {dto.GeneratorId.Value} not found.");
+
+            if (generator.SubStationId != targetSubStationId)
+                throw new ArgumentException($"Generator {dto.GeneratorId.Value} does not belong to substation {targetSubStationId}.");
+
+            var existingActiveTank = await _db.FuelTanks
+                .AnyAsync(t => t.Id != id && t.GeneratorId == dto.GeneratorId.Value && t.DeletedAt == null);
+            if (existingActiveTank)
+                throw new InvalidOperationException("The selected generator is already associated with another active daily tank.");
+
+            tank.GeneratorId = dto.GeneratorId.Value;
+        }
+        else if (targetRole == TankRole.Daily && tank.GeneratorId.HasValue && targetSubStationId != tank.SubStationId)
+        {
+            var generator = await _db.Generators
+                .FirstOrDefaultAsync(g => g.Id == tank.GeneratorId.Value && g.DeletedAt == null)
+                ?? throw new KeyNotFoundException($"Generator {tank.GeneratorId.Value} not found.");
+
+            if (generator.SubStationId != targetSubStationId)
+                throw new ArgumentException($"Generator {tank.GeneratorId.Value} does not belong to substation {targetSubStationId}.");
+        }
+
+        if (dto.ParentTankId.HasValue)
+        {
+            if (dto.ParentTankId.Value == id)
+                throw new ArgumentException("A tank cannot be its own parent tank.");
+
+            var parentTank = await _db.FuelTanks
+                .FirstOrDefaultAsync(t => t.Id == dto.ParentTankId.Value && t.DeletedAt == null)
+                ?? throw new KeyNotFoundException($"Parent tank {dto.ParentTankId.Value} not found.");
+
+            if (parentTank.SubStationId != targetSubStationId)
+                throw new ArgumentException($"Parent tank {dto.ParentTankId.Value} does not belong to substation {targetSubStationId}.");
+
+            tank.ParentTankId = dto.ParentTankId.Value;
+        }
+
         if (dto.Name is not null) tank.Name = dto.Name;
         if (dto.Code is not null) tank.Code = dto.Code;
         if (dto.CapacityLiters.HasValue) tank.CapacityLiters = dto.CapacityLiters.Value;
@@ -111,15 +193,11 @@ public class FuelTankService : IFuelTankService
         if (dto.FuelLookupId.HasValue) tank.FuelLookupId = dto.FuelLookupId.Value;
         if (!isCommercial && dto.SubStationId.HasValue)
         {
-            var subStation = await _db.SubStations.FindAsync(dto.SubStationId.Value)
-                ?? throw new KeyNotFoundException($"SubStation {dto.SubStationId.Value} not found.");
-            tank.SubStationId = dto.SubStationId.Value;
+            tank.SubStationId = targetSubStationId;
         }
         if (dto.Notes is not null) tank.Notes = dto.Notes;
         if (dto.IsActive.HasValue) tank.IsActive = dto.IsActive.Value;
         if (dto.TankRole.HasValue) tank.TankRole = dto.TankRole.Value;
-        if (dto.GeneratorId.HasValue) tank.GeneratorId = dto.GeneratorId.Value;
-        if (dto.ParentTankId.HasValue) tank.ParentTankId = dto.ParentTankId.Value;
         if (dto.Shape.HasValue && !Enum.IsDefined(typeof(TankShape), dto.Shape.Value))
             throw new ArgumentException("Unsupported tank shape. Only vertical cylinder with conical bottom (Shape = 0) is supported.");
 

@@ -22,6 +22,29 @@ const initialDailyTankForm = {
   isActive: true,
 };
 
+const extractErrorMessage = (err, fallback) => {
+  const data = err?.response?.data;
+  if (!data) return err?.message || fallback;
+  if (typeof data === 'string') return data;
+  if (data.detail) return data.detail;
+  if (data.message) return data.message;
+  if (data.error) return data.error;
+  if (Array.isArray(data.errors) && data.errors.length > 0) {
+    const first = data.errors[0];
+    return typeof first === 'string' ? first : first?.message || JSON.stringify(first);
+  }
+  if (data.errors && typeof data.errors === 'object') {
+    const values = Object.values(data.errors);
+    if (values.length > 0) {
+      const first = values[0];
+      if (Array.isArray(first) && first.length > 0) return first[0];
+      if (typeof first === 'string') return first;
+    }
+  }
+  if (data.title) return data.title;
+  return fallback;
+};
+
 export default function DailyTanks({ lang, currentUser }) {
   const ar = lang === 'ar';
   const { isCommercialMode, modeResolved } = useCommercialMode();
@@ -33,6 +56,7 @@ export default function DailyTanks({ lang, currentUser }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
   const [formError, setFormError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -48,6 +72,7 @@ export default function DailyTanks({ lang, currentUser }) {
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
+    setWarning('');
     try {
       const ts = Date.now();
       const responses = await Promise.all([
@@ -95,7 +120,7 @@ export default function DailyTanks({ lang, currentUser }) {
     setForm({
       name: tank.name || '',
       code: tank.code || '',
-      generatorId: tank.generatorId ? String(tank.generatorId) : '',
+      generatorId: tank.generatorId != null ? String(tank.generatorId) : (tank.generator?.id != null ? String(tank.generator.id) : ''),
       fuelLookupId: tank.fuelLookupId ? String(tank.fuelLookupId) : '',
       capacityLiters: tank.capacityLiters ?? '',
       diameterCm: tank.diameterCm != null ? String(tank.diameterCm) : '',
@@ -139,8 +164,8 @@ export default function DailyTanks({ lang, currentUser }) {
 
     setSaving(true);
     setFormError('');
+    setWarning('');
     try {
-      const subStationId = isCommercialMode ? 0 : (subStations[0]?.id || 1);
       const fuelId = form.fuelLookupId ? Number(form.fuelLookupId) : (fuelTypes[0]?.id || 1);
 
       const dCm = form.diameterCm ? parseFloat(form.diameterCm) : null;
@@ -170,8 +195,7 @@ export default function DailyTanks({ lang, currentUser }) {
         });
       } else {
         const autoCode = form.code.trim() || `DT-${Date.now().toString(36).toUpperCase().slice(-4)}`;
-        const createRes = await client.post('/api/fuel-tanks', {
-          subStationId,
+        const payload = {
           fuelLookupId: fuelId,
           name: form.name.trim(),
           code: autoCode,
@@ -189,25 +213,40 @@ export default function DailyTanks({ lang, currentUser }) {
           notes: form.notes || null,
           isActive: form.isActive,
           hasMeter: false,
-        });
+        };
+        if (!isCommercialMode) {
+          payload.subStationId = subStations[0]?.id || 1;
+        }
+        const createRes = await client.post('/api/fuel-tanks', payload);
         savedId = createRes.data?.id;
       }
 
+      let calWarning = '';
       if (savedId && dCm && coneCm) {
-        await client.put(`/api/fuel-tanks/${savedId}/calibration`, {
-          diameterCm: dCm,
-          cylinderHeightCm: cylCm ?? 0,
-          coneHeightCm: coneCm,
-          multiplicationFactor: factor,
-          deadStockLitres: form.deadStockLiters ? parseFloat(form.deadStockLiters) : null,
-          shape: 0,
-        }).catch(() => {});
+        try {
+          await client.put(`/api/fuel-tanks/${savedId}/calibration`, {
+            diameterCm: dCm,
+            cylinderHeightCm: cylCm ?? 0,
+            coneHeightCm: coneCm,
+            multiplicationFactor: factor,
+            deadStockLitres: form.deadStockLiters ? parseFloat(form.deadStockLiters) : null,
+            shape: 0,
+          });
+        } catch (calErr) {
+          const reason = extractErrorMessage(calErr, ar ? 'فشل الاتصال' : 'Connection failed');
+          calWarning = ar
+            ? `تم حفظ الخزان ولكن فشلت المعايرة: ${reason}`
+            : `Tank saved, calibration failed: ${reason}`;
+        }
       }
 
       await fetchData();
       resetForm();
+      if (calWarning) {
+        setWarning(calWarning);
+      }
     } catch (err) {
-      setFormError(err.response?.data?.error || err.response?.data?.message || (ar ? 'فشل حفظ الخزان اليومي.' : 'Failed to save daily tank.'));
+      setFormError(extractErrorMessage(err, ar ? 'فشل حفظ الخزان اليومي.' : 'Failed to save daily tank.'));
     } finally {
       setSaving(false);
     }
@@ -219,8 +258,8 @@ export default function DailyTanks({ lang, currentUser }) {
       await client.delete(`/api/fuel-tanks/${deleteConfirm.id}`);
       setTanks(prev => prev.filter(t => t.id !== deleteConfirm.id));
       setDeleteConfirm(null);
-    } catch {
-      setError(ar ? 'فشل حذف الخزان اليومي.' : 'Failed to delete daily tank.');
+    } catch (err) {
+      setError(extractErrorMessage(err, ar ? 'فشل حذف الخزان اليومي.' : 'Failed to delete daily tank.'));
     }
   };
 
@@ -262,6 +301,7 @@ export default function DailyTanks({ lang, currentUser }) {
         </span>
       </div>
 
+      {warning && <div className="alert-inline alert-inline-warning" style={{ marginBottom: 16 }}>{warning}</div>}
       {error && <div className="alert-inline alert-inline-danger" style={{ marginBottom: 16 }}>{error}</div>}
 
       {/* Search Bar */}
@@ -379,12 +419,30 @@ export default function DailyTanks({ lang, currentUser }) {
               <Input value={form.code} onChange={e => fld('code', e.target.value)} placeholder="DT-01" />
             </FormField>
             <FormField label={ar ? 'المولد المرتبط *' : 'Linked Generator *'} required>
-              <select className="form-select" value={form.generatorId} onChange={e => fld('generatorId', e.target.value)} required>
-                <option value="">— {ar ? 'اختر المولد' : 'Select Generator'} —</option>
-                {generators.map(g => (
-                  <option key={g.id} value={g.id}>{g.name} {g.model ? `(${g.model})` : ''}</option>
-                ))}
-              </select>
+              {generators.length === 0 ? (
+                <div
+                  className="generator-empty-state"
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    background: 'var(--surface-2, rgba(255,255,255,0.04))',
+                    border: '1px dashed var(--border)',
+                    color: 'var(--text-muted, #888)',
+                    fontSize: 13,
+                  }}
+                >
+                  {ar
+                    ? 'لا توجد مولدات معرفة في المحطة. يرجى إضافة مولد أولاً.'
+                    : 'No generators defined in station. Please add a generator first.'}
+                </div>
+              ) : (
+                <select className="form-select" value={form.generatorId} onChange={e => fld('generatorId', e.target.value)} required>
+                  <option value="">— {ar ? 'اختر المولد' : 'Select Generator'} —</option>
+                  {generators.map(g => (
+                    <option key={g.id} value={g.id}>{g.name} {g.model ? `(${g.model})` : ''}</option>
+                  ))}
+                </select>
+              )}
             </FormField>
           </div>
 

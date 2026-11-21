@@ -1,5 +1,6 @@
 using FuelTrack.API.Middleware;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Net;
@@ -173,5 +174,62 @@ public class ExceptionHandlingMiddlewareTests
         await sut.InvokeAsync(context);
 
         Assert.Equal(400, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CatchesDbUpdateException_UniqueViolation_Returns409AndReadableMessage()
+    {
+        var inner = new Exception("duplicate key value violates unique constraint \"ix_some_table\"");
+        var sut = new ExceptionHandlingMiddleware(
+            _ => throw new DbUpdateException("An error occurred while saving the entity changes.", inner),
+            NullLogger<ExceptionHandlingMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await sut.InvokeAsync(context);
+
+        Assert.Equal(409, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+        var body = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        Assert.Contains("problem+json", context.Response.ContentType);
+        Assert.Contains("A record with the same unique value already exists.", body);
+    }
+
+    [Fact]
+    public async Task CatchesDbUpdateException_GeneratorUniqueViolation_Returns409AndSpecificMessage()
+    {
+        var inner = new Exception("UNIQUE constraint failed: FuelTanks.GeneratorId [UX_FuelTanks_ActiveDailyGenerator]");
+        var sut = new ExceptionHandlingMiddleware(
+            _ => throw new DbUpdateException("An error occurred while saving the entity changes.", inner),
+            NullLogger<ExceptionHandlingMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await sut.InvokeAsync(context);
+
+        Assert.Equal(409, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+        var body = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        Assert.Contains("problem+json", context.Response.ContentType);
+        Assert.Contains("The selected generator is already associated with another active daily tank.", body);
+    }
+
+    [Fact]
+    public async Task CatchesDbUpdateException_ForeignKeyViolation_Returns400AndReadableMessage()
+    {
+        var inner = new Exception("insert or update on table \"FuelTanks\" violates foreign key constraint \"FK_FuelTanks_Generators_GeneratorId\"");
+        var sut = new ExceptionHandlingMiddleware(
+            _ => throw new DbUpdateException("An error occurred while saving the entity changes.", inner),
+            NullLogger<ExceptionHandlingMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await sut.InvokeAsync(context);
+
+        Assert.Equal(400, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+        var body = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        Assert.Contains("problem+json", context.Response.ContentType);
+        Assert.Contains("foreign key constraint was violated", body);
     }
 }
