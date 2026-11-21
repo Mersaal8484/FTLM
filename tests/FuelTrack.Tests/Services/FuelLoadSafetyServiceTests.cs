@@ -1031,6 +1031,23 @@ public sealed class FuelLoadSafetyServiceTests
     }
 
     [Fact]
+    public async Task GetDailyConsumptionAsync_ExplicitMainTankIsNotUsedAsFallbackDailyTank()
+    {
+        await using var db = CreateDb();
+        var (_, _, generatorId, tankId, _) = await SeedBaseAsync(db);
+        var mainTank = await db.FuelTanks.FindAsync(tankId);
+        mainTank!.TankRole = TankRole.Main;
+        await db.SaveChangesAsync();
+
+        var result = await new FuelLoadSafetyService(db, new SiteScope(), new TrackingNotificationService())
+            .GetDailyConsumptionAsync(generatorId, new DateOnly(2026, 11, 10), 1);
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value!.DailyTankId);
+        Assert.Contains("No daily fuel tank", result.Value.Warnings);
+    }
+
+    [Fact]
     public async Task GetDailyConsumptionAsync_DeadStockWarning_WhenClosingBalanceBelowDeadStock()
     {
         await using var db = CreateDb();

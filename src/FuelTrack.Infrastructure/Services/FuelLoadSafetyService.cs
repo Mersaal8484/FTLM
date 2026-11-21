@@ -142,7 +142,9 @@ public sealed class FuelLoadSafetyService(
         if (dailyTank is null)
         {
             dailyTank = await db.FuelTanks.AsNoTracking()
-                .Where(t => t.GeneratorId == generatorId)
+                // Legacy generator-linked tanks had no role. Do not fall back to an
+                // explicitly main tank: it is a supply source, never a consumption tank.
+                .Where(t => t.GeneratorId == generatorId && t.TankRole == null)
                 .Select(t => new { t.Id, t.Name, t.DeadStockLiters })
                 .FirstOrDefaultAsync(ct);
         }
