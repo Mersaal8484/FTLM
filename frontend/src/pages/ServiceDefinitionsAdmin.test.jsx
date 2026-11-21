@@ -12,6 +12,10 @@ vi.mock('../api/client', () => ({
   },
 }));
 
+vi.mock('../hooks/useCommercialMode', () => ({
+  default: () => ({ isCommercialMode: false, modeResolved: true }),
+}));
+
 import client from '../api/client';
 
 afterEach(() => vi.resetAllMocks());

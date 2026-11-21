@@ -86,6 +86,7 @@ namespace FuelTrack.Infrastructure
         public DbSet<TankDeadStockEpisode> TankDeadStockEpisodes => Set<TankDeadStockEpisode>();
         public DbSet<ServiceItem> ServiceItems => Set<ServiceItem>();
         public DbSet<ServiceIntervalDefinition> ServiceIntervalDefinitions => Set<ServiceIntervalDefinition>();
+        public DbSet<GeneratorMaintenanceOilConfiguration> GeneratorMaintenanceOilConfigurations => Set<GeneratorMaintenanceOilConfiguration>();
         public DbSet<ServiceReplacementRecord> ServiceReplacementRecords => Set<ServiceReplacementRecord>();
         public DbSet<ServiceDueState> ServiceDueStates => Set<ServiceDueState>();
 
@@ -176,6 +177,7 @@ namespace FuelTrack.Infrastructure
             modelBuilder.Entity<TankDeadStockEpisode>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<ServiceItem>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<ServiceIntervalDefinition>().HasQueryFilter(e => e.DeletedAt == null);
+            modelBuilder.Entity<GeneratorMaintenanceOilConfiguration>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<ServiceReplacementRecord>().HasQueryFilter(e => e.DeletedAt == null);
             modelBuilder.Entity<ServiceDueState>().HasQueryFilter(e => e.DeletedAt == null);
 
@@ -318,6 +320,22 @@ namespace FuelTrack.Infrastructure
                 .HasOne(d => d.ServiceItem)
                 .WithMany(i => i.Definitions)
                 .HasForeignKey(d => d.ServiceItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<GeneratorMaintenanceOilConfiguration>()
+                .HasOne(x => x.Generator)
+                .WithMany()
+                .HasForeignKey(x => x.GeneratorId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<GeneratorMaintenanceOilConfiguration>()
+                .HasOne(x => x.ServiceItem)
+                .WithMany()
+                .HasForeignKey(x => x.ServiceItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<GeneratorMaintenanceOilConfiguration>()
+                .HasOne(x => x.Oil)
+                .WithMany()
+                .HasForeignKey(x => x.OilId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<ServiceReplacementRecord>()
@@ -2819,6 +2837,14 @@ namespace FuelTrack.Infrastructure
                 entity.Property(x => x.IntervalHours).HasPrecision(18, 4);
                 entity.Property(x => x.WarningLeadHours).HasPrecision(18, 4);
                 entity.Property(x => x.Notes).HasMaxLength(1000);
+            });
+
+            modelBuilder.Entity<GeneratorMaintenanceOilConfiguration>(entity =>
+            {
+                entity.HasIndex(x => new { x.GeneratorId, x.ServiceItemId }).IsUnique()
+                    .HasDatabaseName("UX_GeneratorMaintenanceOilConfigurations_Generator_Item").HasFilter(activeFilter);
+                entity.HasIndex(x => x.OilId).HasDatabaseName("IX_GeneratorMaintenanceOilConfigurations_Oil");
+                entity.Property(x => x.QuantityLiters).HasPrecision(18, 3);
             });
 
             modelBuilder.Entity<ServiceReplacementRecord>(entity =>

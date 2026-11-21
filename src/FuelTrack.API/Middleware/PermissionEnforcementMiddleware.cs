@@ -64,6 +64,7 @@ public static class PermissionMapping
         ["MaintenanceDashboard"] = "maintenance",
         ["ServiceItems"] = "maintenance",
         ["ServiceIntervalDefinitions"] = "maintenance",
+        ["GeneratorMaintenanceOilConfigurations"] = "maintenance",
         ["ServiceReplacements"] = "maintenance",
         ["ServiceDue"] = "maintenance",
     };
@@ -124,7 +125,7 @@ public static class PermissionMapping
                 actionKey = "manage";
             }
         }
-        else if (controllerName is "ServiceItems" or "ServiceIntervalDefinitions")
+        else if (controllerName is "ServiceItems" or "ServiceIntervalDefinitions" or "GeneratorMaintenanceOilConfigurations")
             actionKey = httpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) ? "view" : "configure_service";
         else if (controllerName.Equals("ServiceReplacements", StringComparison.OrdinalIgnoreCase))
             actionKey = httpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) ? "view" : "record_service";
@@ -211,6 +212,7 @@ public class PermissionEnforcementMiddleware
 
         var isNewServiceController = controllerName is "ServiceItems"
             or "ServiceIntervalDefinitions"
+            or "GeneratorMaintenanceOilConfigurations"
             or "ServiceReplacements"
             or "ServiceDue";
 

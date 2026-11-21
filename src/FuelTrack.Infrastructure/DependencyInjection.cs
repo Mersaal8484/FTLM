@@ -134,6 +134,7 @@ public static class DependencyInjection
         services.AddScoped<OperationalCompletenessService>();
         services.AddScoped<IServiceItemService, ServiceItemService>();
         services.AddScoped<IServiceIntervalDefinitionService, ServiceIntervalDefinitionService>();
+        services.AddScoped<IGeneratorMaintenanceOilConfigurationService, GeneratorMaintenanceOilConfigurationService>();
         services.AddScoped<IServiceReplacementService, ServiceReplacementService>();
         services.AddScoped<IServiceDueService, ServiceDueService>();
         services.AddScoped<IServiceDueEvaluationService, ServiceDueEvaluationService>();

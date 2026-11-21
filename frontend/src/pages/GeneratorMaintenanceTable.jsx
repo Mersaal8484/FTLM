@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Wrench, Clock, AlertTriangle, CheckCircle, Plus, History, Settings, ListPlus, X } from 'lucide-react';
 import client from '../api/client';
 import { Button, Modal, FormField, Input } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 export default function GeneratorMaintenanceTable({ lang }) {
   const ar = lang === 'ar';
   const navigate = useNavigate();
+  const { isCommercialMode } = useCommercialMode();
 
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +28,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
   const [formNotes, setFormNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [maintenanceOilConfig, setMaintenanceOilConfig] = useState(undefined);
 
   // History modal state
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -61,7 +64,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
     setter(e.target.value);
   };
 
-  const openRecordModal = (gen, item) => {
+  const openRecordModal = async (gen, item) => {
     clientRequestIdRef.current = crypto.randomUUID();
     setModalGen(gen);
     setModalItem(item);
@@ -72,6 +75,16 @@ export default function GeneratorMaintenanceTable({ lang }) {
     setFormNotes('');
     setErrorMsg('');
     setModalOpen(true);
+    setMaintenanceOilConfig(undefined);
+    if (isCommercialMode) {
+      try {
+        const response = await client.get('/api/generator-maintenance-oil-configurations', { params: { generatorId: gen.generatorId } });
+        const configurations = response.data?.items || response.data || [];
+        setMaintenanceOilConfig(configurations.find(config => config.serviceItemId === item.serviceItemId) || null);
+      } catch {
+        setMaintenanceOilConfig(null);
+      }
+    }
   };
 
   const isEarlyReplacement = () => {
@@ -386,6 +399,17 @@ export default function GeneratorMaintenanceTable({ lang }) {
           title={ar ? `تسجيل خدمة: ${modalItem.serviceItemNameAr} - ${modalGen.generatorName}` : `Record Service: ${modalItem.serviceItemNameEn} - ${modalGen.generatorName}`}
         >
           <form onSubmit={handleSaveReplacement}>
+            {isCommercialMode && maintenanceOilConfig === null && (
+              <div style={{ background: 'var(--warning-subtle)', color: 'var(--warning)', padding: '10px 14px', borderRadius: 'var(--radius-xs)', marginBottom: 14, fontSize: '0.875rem' }}>
+                <AlertTriangle size={16} style={{ verticalAlign: 'text-bottom', marginInlineEnd: 6 }} />
+                {ar ? 'لم يُضبط زيت وكمية لهذا البند. سيُسجّل تنفيذ الصيانة دون أي خصم من مخزون الزيت.' : 'No oil and quantity are configured for this service item. The service is recorded without deducting oil stock.'}
+              </div>
+            )}
+            {isCommercialMode && maintenanceOilConfig && (
+              <div style={{ background: 'var(--info-subtle, var(--surface-2))', color: 'var(--text)', padding: '10px 14px', borderRadius: 'var(--radius-xs)', marginBottom: 14, fontSize: '0.875rem' }}>
+                {ar ? `زيت الصيانة المضبوط: ${maintenanceOilConfig.oilLookupName} — ${maintenanceOilConfig.quantityLiters} لتر. يُخصم عند اعتماد نتيجة الصيانة.` : `Configured maintenance oil: ${maintenanceOilConfig.oilLookupName} — ${maintenanceOilConfig.quantityLiters} L. It is deducted when the maintenance result is approved.`}
+              </div>
+            )}
             {errorMsg && (
               <div style={{ background: 'var(--danger-subtle)', color: 'var(--danger)', padding: '10px 14px', borderRadius: 'var(--radius-xs)', marginBottom: 16, fontSize: '0.875rem' }}>
                 {errorMsg}

@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Settings, Plus, Edit2, Trash2, ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import client from '../api/client';
 import { Button, Modal, FormField, Input } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 export default function ServiceDefinitionsAdmin({ lang }) {
   const ar = lang === 'ar';
   const navigate = useNavigate();
+  const { isCommercialMode, modeResolved } = useCommercialMode();
 
   const [definitions, setDefinitions] = useState([]);
   const [serviceItems, setServiceItems] = useState([]);
@@ -34,15 +36,32 @@ export default function ServiceDefinitionsAdmin({ lang }) {
   const [submittingItem, setSubmittingItem] = useState(false);
   const [itemError, setItemError] = useState('');
 
+  const [maintenanceOilConfigs, setMaintenanceOilConfigs] = useState([]);
+  const [generators, setGenerators] = useState([]);
+  const [oils, setOils] = useState([]);
+  const [oilConfigModalOpen, setOilConfigModalOpen] = useState(false);
+  const [oilConfigGeneratorId, setOilConfigGeneratorId] = useState('');
+  const [oilConfigServiceItemId, setOilConfigServiceItemId] = useState('');
+  const [oilConfigOilId, setOilConfigOilId] = useState('');
+  const [oilConfigQuantity, setOilConfigQuantity] = useState('');
+  const [oilConfigError, setOilConfigError] = useState('');
+  const [submittingOilConfig, setSubmittingOilConfig] = useState(false);
+
   const loadData = async () => {
     setLoading(true);
     try {
-      const [defRes, itemsRes] = await Promise.all([
+      const [defRes, itemsRes, oilConfigRes, generatorRes, oilsRes] = await Promise.all([
         client.get('/api/service-interval-definitions'),
         client.get('/api/service-items?includeInactive=true'),
+        isCommercialMode ? client.get('/api/generator-maintenance-oil-configurations') : Promise.resolve({ data: [] }),
+        isCommercialMode ? client.get('/api/generators') : Promise.resolve({ data: [] }),
+        isCommercialMode ? client.get('/api/oils') : Promise.resolve({ data: [] }),
       ]);
       setDefinitions(defRes.data || []);
       setServiceItems(itemsRes.data || []);
+      setMaintenanceOilConfigs(oilConfigRes.data || []);
+      setGenerators(generatorRes.data?.items || generatorRes.data || []);
+      setOils(oilsRes.data?.items || oilsRes.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -51,8 +70,8 @@ export default function ServiceDefinitionsAdmin({ lang }) {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (modeResolved) loadData();
+  }, [isCommercialMode, modeResolved]);
 
   const openAddDefModal = () => {
     setDefModelKey(selectedModel || '');
@@ -127,6 +146,45 @@ export default function ServiceDefinitionsAdmin({ lang }) {
     } finally {
       setSubmittingItem(false);
     }
+  };
+
+  const openOilConfigModal = () => {
+    setOilConfigGeneratorId(generators.length ? String(generators[0].id) : '');
+    setOilConfigServiceItemId(serviceItems.length ? String(serviceItems[0].id) : '');
+    setOilConfigOilId(oils.length ? String(oils[0].id) : '');
+    setOilConfigQuantity('');
+    setOilConfigError('');
+    setOilConfigModalOpen(true);
+  };
+
+  const handleSaveOilConfig = async (event) => {
+    event.preventDefault();
+    if (!oilConfigGeneratorId || !oilConfigServiceItemId || !oilConfigOilId || Number(oilConfigQuantity) <= 0) {
+      setOilConfigError(ar ? 'اختر المولد وبند الصيانة ونوع الزيت وأدخل كمية موجبة' : 'Select generator, service item and oil, then enter a positive quantity');
+      return;
+    }
+    setSubmittingOilConfig(true);
+    setOilConfigError('');
+    try {
+      await client.post('/api/generator-maintenance-oil-configurations', {
+        generatorId: Number(oilConfigGeneratorId),
+        serviceItemId: Number(oilConfigServiceItemId),
+        oilId: Number(oilConfigOilId),
+        quantityLiters: Number(oilConfigQuantity),
+      });
+      setOilConfigModalOpen(false);
+      await loadData();
+    } catch (error) {
+      setOilConfigError(error.response?.data?.error || (ar ? 'فشل حفظ ربط زيت الصيانة' : 'Failed to save maintenance oil configuration'));
+    } finally {
+      setSubmittingOilConfig(false);
+    }
+  };
+
+  const handleDeleteOilConfig = async (id) => {
+    if (!window.confirm(ar ? 'هل تريد إزالة ربط زيت الصيانة؟' : 'Remove this maintenance-oil configuration?')) return;
+    await client.delete(`/api/generator-maintenance-oil-configurations/${id}`);
+    await loadData();
   };
 
   const models = Array.from(new Set(definitions.map(d => d.generatorModelKey))).sort();
@@ -269,6 +327,76 @@ export default function ServiceDefinitionsAdmin({ lang }) {
           </table>
         </div>
       </div>
+
+      {isCommercialMode && (
+        <div className="panel" style={{ padding: 20, borderRadius: 'var(--radius-xs)', border: '1px solid var(--border)', marginTop: 30 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{ar ? 'زيت بنود صيانة المولدات' : 'Generator Maintenance Oils'}</h3>
+              <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                {ar ? 'حدّد الزيت والكمية لكل مولد وبند صيانة. لا يتم افتراض أي زيت أو خصمه إن لم يوجد ربط.' : 'Choose the stocked oil and quantity for each generator/service item. No oil is assumed or deducted without a configuration.'}
+              </p>
+            </div>
+            <Button variant="primary" onClick={openOilConfigModal} disabled={!generators.length || !oils.length || !serviceItems.length}>
+              <Plus size={16} /> {ar ? 'ربط زيت صيانة' : 'Configure Maintenance Oil'}
+            </Button>
+          </div>
+          {maintenanceOilConfigs.length === 0 ? (
+            <div style={{ padding: 18, color: 'var(--text-muted)', textAlign: 'center' }}>
+              {ar ? 'لا توجد روابط زيت صيانة مضبوطة بعد.' : 'No maintenance-oil configurations have been set.'}
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table" style={{ width: '100%', fontSize: '0.9rem', textAlign: ar ? 'right' : 'left' }}>
+                <thead><tr style={{ background: 'var(--surface-2)' }}>
+                  <th style={{ padding: '8px 10px' }}>{ar ? 'المولد' : 'Generator'}</th>
+                  <th style={{ padding: '8px 10px' }}>{ar ? 'بند الصيانة' : 'Service item'}</th>
+                  <th style={{ padding: '8px 10px' }}>{ar ? 'الزيت' : 'Oil'}</th>
+                  <th style={{ padding: '8px 10px' }}>{ar ? 'الكمية (لتر)' : 'Quantity (L)'}</th>
+                  <th style={{ padding: '8px 10px' }}>{ar ? 'إجراء' : 'Action'}</th>
+                </tr></thead>
+                <tbody>{maintenanceOilConfigs.map(config => <tr key={config.id}>
+                  <td style={{ padding: '8px 10px' }}>{config.generatorName}</td>
+                  <td style={{ padding: '8px 10px' }}>{ar ? config.serviceItemNameAr : config.serviceItemNameEn}</td>
+                  <td style={{ padding: '8px 10px' }}>{config.oilLookupName}</td>
+                  <td style={{ padding: '8px 10px' }}>{Number(config.quantityLiters).toLocaleString('en-US', { maximumFractionDigits: 3 })}</td>
+                  <td style={{ padding: '8px 10px' }}><button className="btn btn-sm btn-danger" onClick={() => handleDeleteOilConfig(config.id)}><Trash2 size={14} /></button></td>
+                </tr>)}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {oilConfigModalOpen && (
+        <Modal open={oilConfigModalOpen} onClose={() => setOilConfigModalOpen(false)} title={ar ? 'إعداد زيت بند صيانة' : 'Configure Maintenance Oil'}>
+          <form onSubmit={handleSaveOilConfig}>
+            {oilConfigError && <div style={{ background: 'var(--danger-subtle)', color: 'var(--danger)', padding: '10px 14px', borderRadius: 'var(--radius-xs)', marginBottom: 14 }}>{oilConfigError}</div>}
+            <FormField label={ar ? 'المولد' : 'Generator'}>
+              <select className="ft-input" required value={oilConfigGeneratorId} onChange={event => setOilConfigGeneratorId(event.target.value)} style={{ width: '100%', height: 38 }}>
+                {generators.map(generator => <option key={generator.id} value={generator.id}>{generator.name}</option>)}
+              </select>
+            </FormField>
+            <FormField label={ar ? 'بند الصيانة' : 'Service item'}>
+              <select className="ft-input" required value={oilConfigServiceItemId} onChange={event => setOilConfigServiceItemId(event.target.value)} style={{ width: '100%', height: 38 }}>
+                {serviceItems.filter(item => item.isActive !== false).map(item => <option key={item.id} value={item.id}>{ar ? item.nameAr : item.nameEn}</option>)}
+              </select>
+            </FormField>
+            <FormField label={ar ? 'الزيت من المخزون' : 'Stocked oil'}>
+              <select className="ft-input" required value={oilConfigOilId} onChange={event => setOilConfigOilId(event.target.value)} style={{ width: '100%', height: 38 }}>
+                {oils.map(oil => <option key={oil.id} value={oil.id}>{oil.oilLookupName || oil.name}</option>)}
+              </select>
+            </FormField>
+            <FormField label={ar ? 'الكمية لكل صيانة (لتر)' : 'Quantity per service (L)'}>
+              <Input type="number" min="0.001" step="0.001" required value={oilConfigQuantity} onChange={event => setOilConfigQuantity(event.target.value)} />
+            </FormField>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
+              <Button type="button" variant="secondary" onClick={() => setOilConfigModalOpen(false)}>{ar ? 'إلغاء' : 'Cancel'}</Button>
+              <Button type="submit" disabled={submittingOilConfig}>{submittingOilConfig ? (ar ? 'جارٍ الحفظ...' : 'Saving...') : (ar ? 'حفظ الربط' : 'Save configuration')}</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* Add Definition Modal */}
       {defModalOpen && (

@@ -18,7 +18,8 @@ public static class TenantSchemaUpgradeCatalog
             new TenantSchemaUpgrade(8, await ReadUpgradeAsync("008_phase4_service_intervals", cancellationToken)),
             new TenantSchemaUpgrade(9, await ReadUpgradeAsync("009_phase4_service_item_arabic_text", cancellationToken)),
             new TenantSchemaUpgrade(10, await ReadUpgradeAsync("010_commercial_tankrole", cancellationToken)),
-            new TenantSchemaUpgrade(11, await ReadUpgradeAsync("011_commercial_c5_stocktake", cancellationToken))
+            new TenantSchemaUpgrade(11, await ReadUpgradeAsync("011_commercial_c5_stocktake", cancellationToken)),
+            new TenantSchemaUpgrade(12, await ReadUpgradeAsync("012_commercial_c6_maintenance_oil_config", cancellationToken))
         ];
     }
 
