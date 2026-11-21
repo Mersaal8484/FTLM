@@ -62,6 +62,21 @@ function TanksManagement({ lang, currentUser }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [search, setSearch]         = useState('');
 
+  const extractServerMessage = (err) => {
+    const data = err?.response?.data;
+    if (!data) return null;
+    if (typeof data === 'string') return data;
+    if (data.error) return data.error;
+    if (data.message) return data.message;
+    if (data.msg) return data.msg;
+    if (Array.isArray(data.errors) && data.errors.length) return data.errors[0]?.message || data.errors[0];
+    if (data.errors && typeof data.errors === 'object') {
+      const first = Object.values(data.errors)[0];
+      return Array.isArray(first) ? first[0] : first;
+    }
+    return data.detail || data.title || null;
+  };
+
   const fetchAll = useCallback(async () => {
     setLoading(true); setError('');
     try {
@@ -174,12 +189,7 @@ function TanksManagement({ lang, currentUser }) {
       await fetchAll();
       resetForm();
     } catch (e) {
-      const serverMsg = e.response?.data?.error
-        || e.response?.data?.message
-        || e.response?.data?.msg
-        || e.response?.data?.errors?.[0]?.message
-        || e.response?.data?.detail
-        || e.response?.data?.title;
+      const serverMsg = extractServerMessage(e);
       const fallback  = ar ? 'فشل الحفظ. تحقق من البيانات وأعد المحاولة.' : 'Save failed. Please check the data and try again.';
       setFormError(serverMsg || fallback);
     } finally {

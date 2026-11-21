@@ -45,6 +45,17 @@ public class FuelTankService : IFuelTankService
             throw new ArgumentException("Daily tank must be associated with a generator.");
         }
 
+        if (!dto.GeneratorId.HasValue)
+        {
+            var duplicateMainTank = await _db.FuelTanks.AnyAsync(t =>
+                t.SubStationId == subStationId &&
+                t.FuelLookupId == dto.FuelLookupId &&
+                t.GeneratorId == null &&
+                t.DeletedAt == null);
+            if (duplicateMainTank)
+                throw new InvalidOperationException("A main tank for this fuel type already exists.");
+        }
+
         if (dto.GeneratorId.HasValue)
         {
             var generator = await _db.Generators
@@ -57,7 +68,7 @@ public class FuelTankService : IFuelTankService
             var existingActiveTank = await _db.FuelTanks
                 .AnyAsync(t => t.GeneratorId == dto.GeneratorId.Value && t.DeletedAt == null);
             if (existingActiveTank)
-                throw new InvalidOperationException("The selected generator is already associated with another active daily tank.");
+                throw new InvalidOperationException("This generator already has a daily tank.");
         }
 
         if (dto.ParentTankId.HasValue)
@@ -137,10 +148,23 @@ public class FuelTankService : IFuelTankService
 
         var targetRole = dto.TankRole ?? tank.TankRole;
         var targetGeneratorId = dto.GeneratorId ?? tank.GeneratorId;
+        var targetFuelLookupId = dto.FuelLookupId ?? tank.FuelLookupId;
 
         if (targetRole == TankRole.Daily && !targetGeneratorId.HasValue)
         {
             throw new ArgumentException("Daily tank must be associated with a generator.");
+        }
+
+        if (!targetGeneratorId.HasValue)
+        {
+            var duplicateMainTank = await _db.FuelTanks.AnyAsync(t =>
+                t.Id != id &&
+                t.SubStationId == targetSubStationId &&
+                t.FuelLookupId == targetFuelLookupId &&
+                t.GeneratorId == null &&
+                t.DeletedAt == null);
+            if (duplicateMainTank)
+                throw new InvalidOperationException("A main tank for this fuel type already exists.");
         }
 
         if (dto.GeneratorId.HasValue)
@@ -155,7 +179,7 @@ public class FuelTankService : IFuelTankService
             var existingActiveTank = await _db.FuelTanks
                 .AnyAsync(t => t.Id != id && t.GeneratorId == dto.GeneratorId.Value && t.DeletedAt == null);
             if (existingActiveTank)
-                throw new InvalidOperationException("The selected generator is already associated with another active daily tank.");
+                throw new InvalidOperationException("This generator already has a daily tank.");
 
             tank.GeneratorId = dto.GeneratorId.Value;
         }

@@ -76,8 +76,10 @@ public class ExceptionHandlingMiddleware
         {
             if (raw.Contains("ux_fueltanks_activedailygenerator") || raw.Contains("generatorid"))
             {
-                return (StatusCodes.Status409Conflict, "Conflict", "The selected generator is already associated with another active daily tank.");
+                return (StatusCodes.Status409Conflict, "Conflict", "This generator already has a daily tank.");
             }
+            if (raw.Contains("ix_fueltanks_substationid_fuellookupid"))
+                return (StatusCodes.Status409Conflict, "Conflict", "A main tank for this fuel type already exists.");
             return (StatusCodes.Status409Conflict, "Conflict", "A record with the same unique value already exists.");
         }
 
