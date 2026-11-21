@@ -40,16 +40,17 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
         var fuelCategory = new LookupCategory { Id = 1, Name = "FuelType", DisplayName = "Fuel types", IsActive = true };
         var fuelLookup = new Lookup { Id = 1, CategoryId = fuelCategory.Id, Code = "DIESEL", Name = "Diesel", IsActive = true };
 
-        var gen1 = new Generator { Id = 1, SubStationId = 1, Name = "Gen-01", Code = "G01", IsActive = true };
-        var gen2 = new Generator { Id = 2, SubStationId = 2, Name = "Gen-02", Code = "G02", IsActive = true };
-        var genDeleted = new Generator { Id = 3, SubStationId = 1, Name = "Gen-Del", Code = "G03", IsActive = false, DeletedAt = DateTime.UtcNow };
+        var gen1 = new Generator { Id = 1, SubStationId = 1, Name = "Gen-01", SerialNumber = "G01", IsActive = true };
+        var genSameSite = new Generator { Id = 4, SubStationId = 1, Name = "Gen-04", SerialNumber = "G04", IsActive = true };
+        var gen2 = new Generator { Id = 2, SubStationId = 2, Name = "Gen-02", SerialNumber = "G02", IsActive = true };
+        var genDeleted = new Generator { Id = 3, SubStationId = 1, Name = "Gen-Del", SerialNumber = "G03", IsActive = false, DeletedAt = DateTime.UtcNow };
 
         _db.Branches.Add(branch);
         _db.Stations.Add(station);
         _db.SubStations.AddRange(subStation1, subStation2);
         _db.LookupCategories.Add(fuelCategory);
         _db.Lookups.Add(fuelLookup);
-        _db.Generators.AddRange(gen1, gen2, genDeleted);
+        _db.Generators.AddRange(gen1, genSameSite, gen2, genDeleted);
         _db.SaveChanges();
     }
 
@@ -339,6 +340,65 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
 
         var result = await _tankService.CreateAsync(dto, 1);
         Assert.Equal(2, result.SubStationId);
+    }
+
+    [Fact]
+    public async Task CreateAsync_CommercialNullRole_DefaultsToMain()
+    {
+        await EnableCommercialModeAsync();
+
+        var result = await _tankService.CreateAsync(new CreateFuelTankDto(
+            SubStationId: 0, FuelLookupId: 1, Name: "Default main", Code: "MT-DEFAULT", CapacityLiters: 5000), 1);
+
+        Assert.Equal(TankRole.Main, result.TankRole);
+        Assert.Null(result.GeneratorId);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ActiveDuplicateMainFuelType_ThrowsButSoftDeletedTankDoesNotBlock()
+    {
+        await EnableCommercialModeAsync();
+        var first = await _tankService.CreateAsync(new CreateFuelTankDto(
+            0, 1, "Main 1", "MT-01", 5000, TankRole: TankRole.Main), 1);
+
+        var duplicate = new CreateFuelTankDto(0, 1, "Main 2", "MT-02", 5000, TankRole: TankRole.Main);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => _tankService.CreateAsync(duplicate, 1));
+        Assert.Contains("main tank for this fuel type", ex.Message);
+
+        var entity = await _db.FuelTanks.FindAsync(first.Id);
+        entity!.DeletedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        var replacement = await _tankService.CreateAsync(duplicate, 1);
+        Assert.Equal(TankRole.Main, replacement.TankRole);
+    }
+
+    [Fact]
+    public async Task CreateAsync_DailyTanksForDifferentGeneratorsMayUseSameFuelType()
+    {
+        await EnableCommercialModeAsync();
+
+        var first = await _tankService.CreateAsync(new CreateFuelTankDto(
+            0, 1, "Daily G1", "DT-01", 1000, TankRole: TankRole.Daily, GeneratorId: 1), 1);
+        var second = await _tankService.CreateAsync(new CreateFuelTankDto(
+            0, 1, "Daily G4", "DT-04", 1000, TankRole: TankRole.Daily, GeneratorId: 4), 1);
+
+        Assert.Equal(1, first.GeneratorId);
+        Assert.Equal(4, second.GeneratorId);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CommercialGenericUpdateCannotChangeTankRole()
+    {
+        await EnableCommercialModeAsync();
+        var main = await _tankService.CreateAsync(new CreateFuelTankDto(
+            0, 1, "Main", "MT-01", 5000, TankRole: TankRole.Main), 1);
+
+        var update = new UpdateFuelTankDto(null, null, null, null, null, null, null, null, null, null, null, null, null,
+            TankRole: TankRole.Daily, GeneratorId: 1);
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => _tankService.UpdateAsync(main.Id, update, 1));
+
+        Assert.Contains("role cannot be changed", ex.Message);
     }
 
     public void Dispose()

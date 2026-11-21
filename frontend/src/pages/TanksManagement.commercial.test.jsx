@@ -25,3 +25,20 @@ test('waits for mode and loads commercial tanks without hierarchy requests', asy
   expect(client.get).not.toHaveBeenCalledWith('/api/sub-stations', expect.anything());
   expect(screen.queryByText('فشل تحميل البيانات.')).not.toBeInTheDocument();
 });
+
+test('shows only main tanks in commercial mode', async () => {
+  useCommercialMode.mockReturnValue({ isCommercialMode: true, modeResolved: true });
+  client.get.mockImplementation(async url => {
+    if (url === '/api/fuel-tanks') return { data: [
+      { id: 1, name: 'Main Tank', code: 'MT-01', tankRole: 1, capacityLiters: 5000 },
+      { id: 2, name: 'Daily Tank', code: 'DT-01', tankRole: 2, generatorId: 10, capacityLiters: 1000 },
+    ] };
+    if (url.includes('FuelType')) return { data: [{ id: 1, name: 'Diesel' }] };
+    return { data: [] };
+  });
+
+  render(<MemoryRouter><TanksManagement lang="en" currentUser={{ role: 'admin' }} /></MemoryRouter>);
+
+  expect(await screen.findByText('Main Tank')).toBeInTheDocument();
+  expect(screen.queryByText('Daily Tank')).not.toBeInTheDocument();
+});

@@ -45,17 +45,6 @@ public class FuelTankService : IFuelTankService
             throw new ArgumentException("Daily tank must be associated with a generator.");
         }
 
-        if (!dto.GeneratorId.HasValue)
-        {
-            var duplicateMainTank = await _db.FuelTanks.AnyAsync(t =>
-                t.SubStationId == subStationId &&
-                t.FuelLookupId == dto.FuelLookupId &&
-                t.GeneratorId == null &&
-                t.DeletedAt == null);
-            if (duplicateMainTank)
-                throw new InvalidOperationException("A main tank for this fuel type already exists.");
-        }
-
         if (dto.GeneratorId.HasValue)
         {
             var generator = await _db.Generators
@@ -79,6 +68,17 @@ public class FuelTankService : IFuelTankService
 
             if (parentTank.SubStationId != subStationId)
                 throw new ArgumentException($"Parent tank {dto.ParentTankId.Value} does not belong to substation {subStationId}.");
+        }
+
+        if (!dto.GeneratorId.HasValue)
+        {
+            var duplicateMainTank = await _db.FuelTanks.AnyAsync(t =>
+                t.SubStationId == subStationId &&
+                t.FuelLookupId == dto.FuelLookupId &&
+                t.GeneratorId == null &&
+                t.DeletedAt == null);
+            if (duplicateMainTank)
+                throw new InvalidOperationException("A main tank for this fuel type already exists.");
         }
 
         if (dto.Shape.HasValue && !Enum.IsDefined(typeof(TankShape), dto.Shape.Value))

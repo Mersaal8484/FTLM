@@ -49,6 +49,23 @@ describe('DailyTanks', () => {
     });
   });
 
+  test('lists only daily tanks in commercial mode', async () => {
+    client.get.mockImplementation(async (url) => {
+      if (url === '/api/fuel-tanks') return { data: [
+        { id: 1, name: 'Main Tank', tankRole: 1, capacityLiters: 5000 },
+        { id: 2, name: 'Daily Tank', tankRole: 2, generatorId: 10, capacityLiters: 1000 },
+      ] };
+      if (url === '/api/generators') return { data: [{ id: 10, name: 'Gen-01' }] };
+      if (url.startsWith('/api/lookups')) return { data: [] };
+      return { data: [] };
+    });
+
+    render(<DailyTanks lang="en" currentUser={{ role: 'admin' }} />);
+
+    expect(await screen.findByText('Daily Tank')).toBeInTheDocument();
+    expect(screen.queryByText('Main Tank')).not.toBeInTheDocument();
+  });
+
   test('submitting new daily tank in commercial mode omits subStationId in POST payload', async () => {
     client.get.mockImplementation(async (url) => {
       if (url === '/api/fuel-tanks') return { data: [] };
@@ -56,25 +73,25 @@ describe('DailyTanks', () => {
       if (url.startsWith('/api/lookups')) return { data: [{ id: 1, name: 'ديزل' }] };
       return { data: [] };
     });
-    client.post.mockResolvedValue({ data: { id: 101, name: 'خزان يومي 1' } });
+    client.post.mockResolvedValue({ data: { id: 101, name: 'Daily Tank 1' } });
 
-    render(<DailyTanks lang="ar" currentUser={{ role: 'admin' }} />);
+    render(<DailyTanks lang="en" currentUser={{ role: 'admin' }} />);
 
-    const addBtn = await screen.findByRole('button', { name: /إضافة خزان يومي/i });
+    const addBtn = await screen.findByRole('button', { name: /Add Daily Tank/i });
     fireEvent.click(addBtn);
 
     // Fill form
-    const nameInput = screen.getByPlaceholderText(/خزان يومي للمولد/i);
-    fireEvent.change(nameInput, { target: { value: 'خزان يومي 1' } });
+    const nameInput = screen.getByPlaceholderText('e.g. Gen 1 Daily Tank');
+    fireEvent.change(nameInput, { target: { value: 'Daily Tank 1' } });
 
-    const genSelect = screen.getByRole('combobox');
+    const genSelect = screen.getAllByRole('combobox')[0];
     fireEvent.change(genSelect, { target: { value: '10' } });
 
     const capInput = screen.getByPlaceholderText('1000');
     fireEvent.change(capInput, { target: { value: '1500' } });
 
     // Submit form
-    const saveBtn = screen.getByRole('button', { name: /حفظ الخزان اليومي/i });
+    const saveBtn = screen.getByRole('button', { name: /Save Daily Tank/i });
     fireEvent.click(saveBtn);
 
     await waitFor(() => {
@@ -83,7 +100,7 @@ describe('DailyTanks', () => {
 
     const [postUrl, payload] = client.post.mock.calls[0];
     expect(postUrl).toBe('/api/fuel-tanks');
-    expect(payload.name).toBe('خزان يومي 1');
+    expect(payload.name).toBe('Daily Tank 1');
     expect(payload.generatorId).toBe(10);
     expect(payload.capacityLiters).toBe(1500);
     expect(payload.tankRole).toBe(2);
@@ -109,21 +126,21 @@ describe('DailyTanks', () => {
       },
     });
 
-    render(<DailyTanks lang="ar" currentUser={{ role: 'admin' }} />);
+    render(<DailyTanks lang="en" currentUser={{ role: 'admin' }} />);
 
-    const addBtn = await screen.findByRole('button', { name: /إضافة خزان يومي/i });
+    const addBtn = await screen.findByRole('button', { name: /Add Daily Tank/i });
     fireEvent.click(addBtn);
 
-    const nameInput = screen.getByPlaceholderText(/خزان يومي للمولد/i);
-    fireEvent.change(nameInput, { target: { value: 'خزان يومي 2' } });
+    const nameInput = screen.getByPlaceholderText('e.g. Gen 1 Daily Tank');
+    fireEvent.change(nameInput, { target: { value: 'Daily Tank 2' } });
 
-    const genSelect = screen.getByRole('combobox');
+    const genSelect = screen.getAllByRole('combobox')[0];
     fireEvent.change(genSelect, { target: { value: '10' } });
 
     const capInput = screen.getByPlaceholderText('1000');
     fireEvent.change(capInput, { target: { value: '1500' } });
 
-    const saveBtn = screen.getByRole('button', { name: /حفظ الخزان اليومي/i });
+    const saveBtn = screen.getByRole('button', { name: /Save Daily Tank/i });
     fireEvent.click(saveBtn);
 
     await waitFor(() => {
@@ -139,7 +156,7 @@ describe('DailyTanks', () => {
       return { data: [] };
     });
 
-    client.post.mockResolvedValue({ data: { id: 101, name: 'خزان يومي 1' } });
+    client.post.mockResolvedValue({ data: { id: 101, name: 'Daily Tank 1' } });
     client.put.mockRejectedValue({
       response: {
         status: 400,
@@ -147,15 +164,15 @@ describe('DailyTanks', () => {
       },
     });
 
-    render(<DailyTanks lang="ar" currentUser={{ role: 'admin' }} />);
+    render(<DailyTanks lang="en" currentUser={{ role: 'admin' }} />);
 
-    const addBtn = await screen.findByRole('button', { name: /إضافة خزان يومي/i });
+    const addBtn = await screen.findByRole('button', { name: /Add Daily Tank/i });
     fireEvent.click(addBtn);
 
-    const nameInput = screen.getByPlaceholderText(/خزان يومي للمولد/i);
-    fireEvent.change(nameInput, { target: { value: 'خزان يومي 1' } });
+    const nameInput = screen.getByPlaceholderText('e.g. Gen 1 Daily Tank');
+    fireEvent.change(nameInput, { target: { value: 'Daily Tank 1' } });
 
-    const genSelect = screen.getByRole('combobox');
+    const genSelect = screen.getAllByRole('combobox')[0];
     fireEvent.change(genSelect, { target: { value: '10' } });
 
     const capInput = screen.getByPlaceholderText('1000');
@@ -164,14 +181,14 @@ describe('DailyTanks', () => {
     const diameterInput = screen.getByPlaceholderText('200');
     fireEvent.change(diameterInput, { target: { value: '100' } });
 
-    const coneInput = screen.getByPlaceholderText('30');
+    const coneInput = screen.getByPlaceholderText('50');
     fireEvent.change(coneInput, { target: { value: '25' } });
 
-    const saveBtn = screen.getByRole('button', { name: /حفظ الخزان اليومي/i });
+    const saveBtn = screen.getByRole('button', { name: /Save Daily Tank/i });
     fireEvent.click(saveBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/تم حفظ الخزان ولكن فشلت المعايرة: Calibration geometry error/i)).toBeInTheDocument();
+      expect(screen.getByText(/Tank saved, calibration failed: Calibration geometry error/i)).toBeInTheDocument();
     });
   });
 });

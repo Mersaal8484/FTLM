@@ -211,7 +211,25 @@ public class ExceptionHandlingMiddlewareTests
         context.Response.Body.Position = 0;
         var body = await new StreamReader(context.Response.Body).ReadToEndAsync();
         Assert.Contains("problem+json", context.Response.ContentType);
-        Assert.Contains("The selected generator is already associated with another active daily tank.", body);
+        Assert.Contains("This generator already has a daily tank.", body);
+    }
+
+    [Fact]
+    public async Task CatchesDbUpdateException_MainTankUniqueViolation_Returns409AndSpecificMessage()
+    {
+        var inner = new Exception("duplicate key value violates unique constraint \"IX_FuelTanks_SubStationId_FuelLookupId\"");
+        var sut = new ExceptionHandlingMiddleware(
+            _ => throw new DbUpdateException("An error occurred while saving the entity changes.", inner),
+            NullLogger<ExceptionHandlingMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await sut.InvokeAsync(context);
+
+        Assert.Equal(409, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+        var body = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        Assert.Contains("A main tank for this fuel type already exists.", body);
     }
 
     [Fact]
