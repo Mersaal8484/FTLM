@@ -6,6 +6,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 import TankSetup from './TankSetup';
 import useCommercialMode from '../hooks/useCommercialMode';
+import { isDailyTank } from '../utils/tankRoles';
 
 const emptyForm = {
   code: '', name: '',
@@ -147,8 +148,6 @@ function TanksManagement({ lang, currentUser }) {
     setSaving(true);
     setFormError('');
     try {
-      const effectiveSubStationId = isCommercialMode ? 0 : (Number(form.subStation) || 0);
-
       const payload = {
         name: form.name,
         code: form.code,
@@ -157,17 +156,27 @@ function TanksManagement({ lang, currentUser }) {
         deadStockLiters: form.deadStockLiters === '' ? null : Number(form.deadStockLiters),
         actualStockLiters: form.actualStockLiters === '' ? null : Number(form.actualStockLiters),
         fuelLookupId: Number(form.fuelLookupId) || 0,
-        subStationId: effectiveSubStationId,
         isActive: form.isActive,
         notes: form.notes || null,
       };
+
+      if (isCommercialMode) {
+        if (!editItem) {
+          payload.tankRole = 1;
+          payload.shape = 0;
+        }
+      } else {
+        payload.subStationId = Number(form.subStation) || 0;
+      }
 
       if (editItem) await client.put(`/api/fuel-tanks/${editItem.id}`, payload);
       else          await client.post('/api/fuel-tanks', payload);
       await fetchAll();
       resetForm();
     } catch (e) {
-      const serverMsg = e.response?.data?.msg
+      const serverMsg = e.response?.data?.error
+        || e.response?.data?.message
+        || e.response?.data?.msg
         || e.response?.data?.errors?.[0]?.message
         || e.response?.data?.detail
         || e.response?.data?.title;
@@ -195,7 +204,8 @@ function TanksManagement({ lang, currentUser }) {
     finally { setDeleteConfirm(null); }
   };
 
-  const filtered = tanks.filter(t =>
+  const visibleTanks = isCommercialMode ? tanks.filter(t => !isDailyTank(t)) : tanks;
+  const filtered = visibleTanks.filter(t =>
     t.name?.includes(search) || t.code?.includes(search)
   );
 
@@ -263,10 +273,10 @@ function TanksManagement({ lang, currentUser }) {
       {!loading && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
           {[
-            { label: ar?'إجمالي الخزانات':'Total Tanks', value: tanks.length, color: 'var(--primary)' },
-            { label: ar?'إجمالي السعة (لتر)':'Total Capacity (L)', value: tanks.reduce((a, t) => a + (t.capacityLiters || 0), 0).toLocaleString('en-US'), color: 'var(--success)' },
-            { label: ar?'المخزون الفعلي (لتر)':'Actual Stock (L)', value: tanks.reduce((a, t) => a + (t.actualStockLiters || 0), 0).toLocaleString('en-US'), color: 'var(--purple)' },
-            { label: ar?'خزانات بدون قراءة':'No Reading', value: tanks.filter(t => !getFillPct(t)).length, color: 'var(--warning)' },
+            { label: ar?'إجمالي الخزانات':'Total Tanks', value: visibleTanks.length, color: 'var(--primary)' },
+            { label: ar?'إجمالي السعة (لتر)':'Total Capacity (L)', value: visibleTanks.reduce((a, t) => a + (t.capacityLiters || 0), 0).toLocaleString('en-US'), color: 'var(--success)' },
+            { label: ar?'المخزون الفعلي (لتر)':'Actual Stock (L)', value: visibleTanks.reduce((a, t) => a + (t.actualStockLiters || 0), 0).toLocaleString('en-US'), color: 'var(--purple)' },
+            { label: ar?'خزانات بدون قراءة':'No Reading', value: visibleTanks.filter(t => !getFillPct(t)).length, color: 'var(--warning)' },
           ].map((c, i) => (
             <div key={i} className="glass-card" style={{ padding: '14px 16px', margin: 0 }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: c.color }}>{c.value}</div>

@@ -4,6 +4,7 @@ import client from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 import useCommercialMode from '../hooks/useCommercialMode';
+import { isDailyTank } from '../utils/tankRoles';
 
 const initialDailyTankForm = {
   name: '',
@@ -84,8 +85,7 @@ export default function DailyTanks({ lang, currentUser }) {
       const [tRes, gRes, ftRes, ssRes = { data: [] }] = responses;
 
       const allTanks = Array.isArray(tRes.data?.items) ? tRes.data.items : Array.isArray(tRes.data) ? tRes.data : [];
-      // Filter daily tanks: TankRole == 2 (Daily) or GeneratorId != null
-      const dailyTanks = allTanks.filter(t => t.tankRole === 2 || t.tankRole === 'Daily' || t.generatorId != null);
+      const dailyTanks = allTanks.filter(isDailyTank);
       setTanks(dailyTanks);
 
       const gens = Array.isArray(gRes.data?.data) ? gRes.data.data : Array.isArray(gRes.data) ? gRes.data : [];

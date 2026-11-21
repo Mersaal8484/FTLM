@@ -7,7 +7,7 @@ namespace FuelTrack.Domain.Models
         /// <summary>
         /// Commercial-mode role of this tank.
         /// Null for enterprise-mode tanks (backward-compatible).
-        /// Main (1) = primary horizontal main tank; Daily (2) = generator daily service tank.
+        /// Main (1) = primary vertical tank with a conical bottom; Daily (2) = generator daily service tank.
         /// </summary>
         public TankRole? TankRole { get; set; }
         public int SubStationId { get; set; }

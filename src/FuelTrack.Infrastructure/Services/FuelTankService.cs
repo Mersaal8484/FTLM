@@ -38,7 +38,9 @@ public class FuelTankService : IFuelTankService
         var subStation = await _db.SubStations.FindAsync(subStationId)
             ?? throw new KeyNotFoundException($"SubStation {subStationId} not found.");
 
-        if (dto.TankRole == TankRole.Daily && !dto.GeneratorId.HasValue)
+        var tankRole = isCommercial && dto.TankRole is null ? TankRole.Main : dto.TankRole;
+
+        if (tankRole == TankRole.Daily && !dto.GeneratorId.HasValue)
         {
             throw new ArgumentException("Daily tank must be associated with a generator.");
         }
@@ -85,7 +87,7 @@ public class FuelTankService : IFuelTankService
             ActualStockLiters = dto.ActualStockLiters,
             Notes = dto.Notes,
             IsActive = dto.IsActive,
-            TankRole = dto.TankRole,
+            TankRole = tankRole,
             GeneratorId = dto.GeneratorId,
             ParentTankId = dto.ParentTankId,
             Shape = shape,
@@ -129,6 +131,9 @@ public class FuelTankService : IFuelTankService
                 ?? throw new KeyNotFoundException($"SubStation {dto.SubStationId.Value} not found.");
             targetSubStationId = dto.SubStationId.Value;
         }
+
+        if (isCommercial && tank.TankRole.HasValue && dto.TankRole.HasValue && dto.TankRole.Value != tank.TankRole.Value)
+            throw new ArgumentException("Tank role cannot be changed through the generic update.");
 
         var targetRole = dto.TankRole ?? tank.TankRole;
         var targetGeneratorId = dto.GeneratorId ?? tank.GeneratorId;
@@ -198,6 +203,7 @@ public class FuelTankService : IFuelTankService
         if (dto.Notes is not null) tank.Notes = dto.Notes;
         if (dto.IsActive.HasValue) tank.IsActive = dto.IsActive.Value;
         if (dto.TankRole.HasValue) tank.TankRole = dto.TankRole.Value;
+        else if (isCommercial && !tank.TankRole.HasValue && !tank.GeneratorId.HasValue) tank.TankRole = TankRole.Main;
         if (dto.Shape.HasValue && !Enum.IsDefined(typeof(TankShape), dto.Shape.Value))
             throw new ArgumentException("Unsupported tank shape. Only vertical cylinder with conical bottom (Shape = 0) is supported.");
 
