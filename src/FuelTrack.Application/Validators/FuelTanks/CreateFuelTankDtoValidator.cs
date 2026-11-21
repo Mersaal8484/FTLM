@@ -1,14 +1,21 @@
 using FluentValidation;
 using FuelTrack.Application.DTOs.FuelTanks;
+using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Enums;
 
 namespace FuelTrack.Application.Validators.FuelTanks;
 
 public class CreateFuelTankDtoValidator : AbstractValidator<CreateFuelTankDto>
 {
-    public CreateFuelTankDtoValidator()
+    private readonly ICommercialStationModeService? _commercialMode;
+
+    public CreateFuelTankDtoValidator(ICommercialStationModeService? commercialMode = null)
     {
-        RuleFor(x => x.SubStationId).NotEmpty();
+        _commercialMode = commercialMode;
+
+        RuleFor(x => x.SubStationId)
+            .MustAsync(HasTechnicalSiteOrCommercialModeAsync)
+            .WithMessage("SubStationId is required outside commercial mode.");
         RuleFor(x => x.FuelLookupId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Code).NotEmpty().MaximumLength(50);
@@ -20,5 +27,14 @@ public class CreateFuelTankDtoValidator : AbstractValidator<CreateFuelTankDto>
         RuleFor(x => x.Shape)
             .Must(s => !s.HasValue || Enum.IsDefined(typeof(TankShape), s.Value))
             .WithMessage("Unsupported tank shape. Only vertical cylinder with conical bottom (Shape = 0) is supported.");
+    }
+
+    private async Task<bool> HasTechnicalSiteOrCommercialModeAsync(
+        CreateFuelTankDto _, int subStationId, CancellationToken cancellationToken)
+    {
+        if (_commercialMode is not null && await _commercialMode.IsCommercialModeAsync(cancellationToken))
+            return true;
+
+        return subStationId > 0;
     }
 }

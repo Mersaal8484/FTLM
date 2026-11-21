@@ -167,7 +167,10 @@ function TanksManagement({ lang, currentUser }) {
       await fetchAll();
       resetForm();
     } catch (e) {
-      const serverMsg = e.response?.data?.msg;
+      const serverMsg = e.response?.data?.msg
+        || e.response?.data?.errors?.[0]?.message
+        || e.response?.data?.detail
+        || e.response?.data?.title;
       const fallback  = ar ? 'فشل الحفظ. تحقق من البيانات وأعد المحاولة.' : 'Save failed. Please check the data and try again.';
       setFormError(serverMsg || fallback);
     } finally {
