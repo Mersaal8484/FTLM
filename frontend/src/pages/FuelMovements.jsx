@@ -1042,21 +1042,18 @@ function FuelMovements({ lang, currentUser }) {
 function CommercialInboundSupplyList({ lang }) {
   const { t } = useTranslation();
   const [rows, setRows] = useState([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const pageSize = 50;
 
   useEffect(() => {
     let current = true;
-    Promise.all([
-      client.get('/api/movement-ledger', { params: { movementType: 'Purchase', page: 1, pageSize: 200, sort: 'date', sortDirection: 'desc' } }),
-      client.get('/api/oil-transactions', { params: { page: 1, pageSize: 200 } }),
-    ]).then(([ledgerResponse, oilResponse]) => {
+    client.get('/api/movement-ledger', { params: { movementType: 'Purchase', page, pageSize, sort: 'date', sortDirection: 'desc' } }).then(ledgerResponse => {
       if (!current) return;
-      const attachmentIdsByOilTransaction = new Map((oilResponse.data?.data || []).map(item => [item.id, item.attachmentIds || []]));
-      setRows((ledgerResponse.data?.items || []).map(item => ({
-        ...item,
-        attachmentIds: item.kind === 'oil' ? (attachmentIdsByOilTransaction.get(item.id) || []) : [],
-      })));
+      setRows(ledgerResponse.data?.items || []);
+      setTotal(ledgerResponse.data?.totalCount || 0);
       setError('');
     }).catch(() => {
       if (current) setError(t('movements.commercialInboundLoadError'));
@@ -1064,7 +1061,7 @@ function CommercialInboundSupplyList({ lang }) {
       if (current) setLoading(false);
     });
     return () => { current = false; };
-  }, [t]);
+  }, [page, t]);
 
   const viewPhoto = async (row, attachmentId) => {
     const response = await client.get(`/api/oil-transactions/${row.id}/attachments/${attachmentId}`, { responseType: 'blob' });
@@ -1088,8 +1085,9 @@ function CommercialInboundSupplyList({ lang }) {
             </tr></thead><tbody>{rows.map(row => <tr key={`${row.kind}-${row.id}`}>
               <td>{date(row.date)}</td><td>{row.kind === 'oil' ? t('movements.log.kind.oil') : t('movements.log.kind.fuel')}</td>
               <td>{row.movementType}</td><td>{Number(row.quantity || 0).toLocaleString()}</td><td>{t(`movements.status.${row.status}`)}</td>
-              <td>{row.kind === 'oil' && row.attachmentIds.length > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => viewPhoto(row, row.attachmentIds[0])}>{t('movements.viewPhoto')}</button>}</td>
+              <td>{row.kind === 'oil' && row.attachmentIds?.length > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => viewPhoto(row, row.attachmentIds[0])}>{t('movements.viewPhoto')}</button>}</td>
             </tr>)}</tbody></table></div>}
+      <Pagination page={page} totalPages={Math.max(1, Math.ceil(total / pageSize))} total={total} pageSize={pageSize} onPageChange={setPage} lang={lang} />
     </section>
   );
 }

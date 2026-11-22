@@ -1,10 +1,8 @@
-using System.Data;
 using FuelTrack.Application.DTOs.OilTransactions;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Application.Constants;
 using FuelTrack.Domain.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 namespace FuelTrack.Infrastructure.Services;
 
@@ -117,34 +115,27 @@ public class OilTransactionService : IOilTransactionService
             UpdatedBy = userId,
         };
 
-        IDbContextTransaction? databaseTransaction = _db.Database.IsRelational()
-            ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
-            : null;
         try
         {
-            // Keep ownership and unlinked checks in the same relational transaction as the row and links.
-            await ValidateAttachmentIdsAsync(attachmentIds, userId);
-            _db.OilTransactions.Add(tx);
-            await _db.SaveChangesAsync();
-
-            for (var sortOrder = 0; sortOrder < attachmentIds.Length; sortOrder++)
+            await DbTransactionRunner.RunAsync(_db, async _ =>
             {
-                var link = await _attachments.LinkAsync(
-                    attachmentIds[sortOrder], AttachmentEntityTypes.OilTransaction, tx.Id, sortOrder, userId);
-                if (!link.IsSuccess)
-                    throw new InvalidOperationException(link.Error ?? "Unable to link oil transaction attachment.");
-            }
+                // Keep ownership and unlinked checks in the same relational transaction as the row and links.
+                await ValidateAttachmentIdsAsync(attachmentIds, userId);
+                _db.OilTransactions.Add(tx);
+                await _db.SaveChangesAsync();
 
-            if (databaseTransaction is not null)
-                await databaseTransaction.CommitAsync();
+                for (var sortOrder = 0; sortOrder < attachmentIds.Length; sortOrder++)
+                {
+                    var link = await _attachments.LinkAsync(
+                        attachmentIds[sortOrder], AttachmentEntityTypes.OilTransaction, tx.Id, sortOrder, userId);
+                    if (!link.IsSuccess)
+                        throw new InvalidOperationException(link.Error ?? "Unable to link oil transaction attachment.");
+                }
+            });
         }
         catch
         {
-            if (databaseTransaction is not null)
-            {
-                await databaseTransaction.RollbackAsync();
-            }
-            else if (tx.Id > 0)
+            if (!_db.Database.IsRelational() && tx.Id > 0)
             {
                 var linkedAttachments = await _db.AttachmentLinks
                     .Where(link => link.EntityType == AttachmentEntityTypes.OilTransaction && link.EntityId == tx.Id)
@@ -154,11 +145,6 @@ public class OilTransactionService : IOilTransactionService
                 await _db.SaveChangesAsync();
             }
             throw;
-        }
-        finally
-        {
-            if (databaseTransaction is not null)
-                await databaseTransaction.DisposeAsync();
         }
 
         return (await MapToDetailAsync(tx.Id))! with { AttachmentIds = attachmentIds };

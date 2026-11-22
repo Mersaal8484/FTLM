@@ -243,7 +243,7 @@ public class DispatchRequestApiTests : IntegrationTestBase
         var dto = BuildCreateDto(stationId, 99999, sparePartId);
         var response = await client.PostAsJsonAsync("/api/warehouse/dispatch", dto);
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]

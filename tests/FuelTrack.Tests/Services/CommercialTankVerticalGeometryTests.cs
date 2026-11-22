@@ -120,7 +120,7 @@ public sealed class CommercialTankVerticalGeometryTests : IDisposable
     }
 
     [Fact]
-    public void Validator_Rejects_Shape1_OnCreate()
+    public async Task Validator_Rejects_Shape1_OnCreate()
     {
         var validator = new CreateFuelTankDtoValidator();
         var dto = new CreateFuelTankDto(
@@ -139,7 +139,7 @@ public sealed class CommercialTankVerticalGeometryTests : IDisposable
             Shape: (TankShape)1 // Shape = 1
         );
 
-        var result = validator.Validate(dto);
+        var result = await validator.ValidateAsync(dto);
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.PropertyName == nameof(CreateFuelTankDto.Shape));

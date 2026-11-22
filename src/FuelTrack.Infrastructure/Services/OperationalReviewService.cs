@@ -24,6 +24,16 @@ public sealed class OperationalReviewService(
     IServiceDueEvaluationService? serviceDueEvaluation = null,
     ILogger<OperationalReviewService>? logger = null) : IOperationalReviewService
 {
+    private sealed class ReviewTransactionResultException(Result result) : Exception
+    {
+        public Result Result { get; } = result;
+    }
+
+    private sealed record ApprovalCommit(
+        OperationalSubmission Submission,
+        int SubmittedBy,
+        List<TankLevelReading> TankLines,
+        List<MeterReading> MeterLines);
     private static readonly TimeSpan SkewThreshold = TimeSpan.FromHours(12);
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> SubjectLocks = new();
 
@@ -262,18 +272,22 @@ public sealed class OperationalReviewService(
     {
         var accessibleSiteIds = await scopeFilter.GetAccessibleSubStationIdsAsync(userId);
 
-        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+        ApprovalCommit committed;
+        try
+        {
+            committed = await DbTransactionRunner.RunAsync(db, async _ =>
+            {
 
         var submission = await db.OperationalSubmissions
             .Where(s => s.Id == submissionId && accessibleSiteIds.Contains(s.SubStationId))
             .SingleOrDefaultAsync(cancellationToken);
 
         if (submission is null)
-            return Result.NotFound("Submission not found or outside your scope.");
+            throw new ReviewTransactionResultException(Result.NotFound("Submission not found or outside your scope."));
 
         // Idempotent: already fully approved
         if (submission.Status == OperationalReadingStatus.Approved)
-            return Result.Success();
+            throw new ReviewTransactionResultException(Result.Success());
 
         // Approver ≠ submitter (D18, configurable)
         var settings = await db.StationOperationalSettings
@@ -288,7 +302,7 @@ public sealed class OperationalReviewService(
         bool requiresDifferent = settings?.RequiresDifferentReviewer ?? true;
         int submittedBy = submission.SubmittedByUserId ?? submission.CreatedBy;
         if (requiresDifferent && submittedBy == userId)
-            return Result.Failure("The approver must be different from the submitter (D18).", 403);
+            throw new ReviewTransactionResultException(Result.Failure("The approver must be different from the submitter (D18).", 403));
 
         var now = DateTime.UtcNow;
 
@@ -350,8 +364,7 @@ public sealed class OperationalReviewService(
             }
             if (!monoResult.IsSuccess)
             {
-                await tx.RollbackAsync(cancellationToken);
-                return Result.Failure(monoResult.Error!, 422);
+                throw new ReviewTransactionResultException(Result.Failure(monoResult.Error!, 422));
             }
         }
 
@@ -367,7 +380,18 @@ public sealed class OperationalReviewService(
         submission.UpdatedBy = userId;
 
         await db.SaveChangesAsync(cancellationToken);
-        await tx.CommitAsync(cancellationToken);
+        return new ApprovalCommit(submission, submittedBy, tankLines, meterLines);
+            }, cancellationToken);
+        }
+        catch (ReviewTransactionResultException result)
+        {
+            return result.Result;
+        }
+
+        var submission = committed.Submission;
+        var submittedBy = committed.SubmittedBy;
+        var tankLines = committed.TankLines;
+        var meterLines = committed.MeterLines;
 
         // Tier-2 readings become official only after this transaction commits.
         // Evaluate the dead-stock episode now; rejected/pending lines never alert.
@@ -418,8 +442,11 @@ public sealed class OperationalReviewService(
         var accessibleSiteIds = await scopeFilter.GetAccessibleSubStationIdsAsync(userId);
         var now = DateTime.UtcNow;
 
-        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
-
+        (int SubmissionId, int SubmittedBy) committed;
+        try
+        {
+            committed = await DbTransactionRunner.RunAsync(db, async _ =>
+            {
         int submissionId;
         int submittedBy;
 
@@ -432,12 +459,12 @@ public sealed class OperationalReviewService(
                     .Where(r => r.Id == lineId
                                 && accessibleSiteIds.Contains(r.OperationalSubmission.SubStationId))
                     .SingleOrDefaultAsync(cancellationToken);
-                if (line is null) return Result.NotFound("Generator reading not found.");
-                if (!ReadingApprovalPolicy.CanApprove(line.Status)) return Result.Success(); // idempotent
+                if (line is null) throw new ReviewTransactionResultException(Result.NotFound("Generator reading not found."));
+                if (!ReadingApprovalPolicy.CanApprove(line.Status)) throw new ReviewTransactionResultException(Result.Success()); // idempotent
                 var settings = await GetSettingsAsync(line.OperationalSubmission.SubStationId, cancellationToken);
                 submittedBy = line.OperationalSubmission.SubmittedByUserId ?? line.OperationalSubmission.CreatedBy;
                 if ((settings?.RequiresDifferentReviewer ?? true) && submittedBy == userId)
-                    return Result.Failure("The reviewer must differ from the submitter (D18).", 403);
+                    throw new ReviewTransactionResultException(Result.Failure("The reviewer must differ from the submitter (D18).", 403));
                 line.Status = OperationalReadingStatus.Rejected;
                 line.RejectedAt = now;
                 line.RejectedByUserId = userId;
@@ -452,12 +479,12 @@ public sealed class OperationalReviewService(
                     .Where(r => r.Id == lineId
                                 && accessibleSiteIds.Contains(r.OperationalSubmission.SubStationId))
                     .SingleOrDefaultAsync(cancellationToken);
-                if (line is null) return Result.NotFound("Tank reading not found.");
-                if (!ReadingApprovalPolicy.CanApprove(line.Status)) return Result.Success();
+                if (line is null) throw new ReviewTransactionResultException(Result.NotFound("Tank reading not found."));
+                if (!ReadingApprovalPolicy.CanApprove(line.Status)) throw new ReviewTransactionResultException(Result.Success());
                 var settings = await GetSettingsAsync(line.OperationalSubmission.SubStationId, cancellationToken);
                 submittedBy = line.OperationalSubmission.SubmittedByUserId ?? line.OperationalSubmission.CreatedBy;
                 if ((settings?.RequiresDifferentReviewer ?? true) && submittedBy == userId)
-                    return Result.Failure("The reviewer must differ from the submitter (D18).", 403);
+                    throw new ReviewTransactionResultException(Result.Failure("The reviewer must differ from the submitter (D18).", 403));
                 line.Status = OperationalReadingStatus.Rejected;
                 line.RejectedAt = now;
                 line.RejectedByUserId = userId;
@@ -472,12 +499,12 @@ public sealed class OperationalReviewService(
                     .Where(r => r.Id == lineId
                                 && accessibleSiteIds.Contains(r.OperationalSubmission.SubStationId))
                     .SingleOrDefaultAsync(cancellationToken);
-                if (line is null) return Result.NotFound("Feeder reading not found.");
-                if (!ReadingApprovalPolicy.CanApprove(line.Status)) return Result.Success();
+                if (line is null) throw new ReviewTransactionResultException(Result.NotFound("Feeder reading not found."));
+                if (!ReadingApprovalPolicy.CanApprove(line.Status)) throw new ReviewTransactionResultException(Result.Success());
                 var settings = await GetSettingsAsync(line.OperationalSubmission.SubStationId, cancellationToken);
                 submittedBy = line.OperationalSubmission.SubmittedByUserId ?? line.OperationalSubmission.CreatedBy;
                 if ((settings?.RequiresDifferentReviewer ?? true) && submittedBy == userId)
-                    return Result.Failure("The reviewer must differ from the submitter (D18).", 403);
+                    throw new ReviewTransactionResultException(Result.Failure("The reviewer must differ from the submitter (D18).", 403));
                 line.Status = OperationalReadingStatus.Rejected;
                 line.RejectedAt = now;
                 line.RejectedByUserId = userId;
@@ -492,12 +519,12 @@ public sealed class OperationalReviewService(
                     .Where(r => r.Id == lineId
                                 && accessibleSiteIds.Contains(r.OperationalSubmission.SubStationId))
                     .SingleOrDefaultAsync(cancellationToken);
-                if (line is null) return Result.NotFound("Meter reading not found.");
-                if (!ReadingApprovalPolicy.CanApprove(line.Status)) return Result.Success();
+                if (line is null) throw new ReviewTransactionResultException(Result.NotFound("Meter reading not found."));
+                if (!ReadingApprovalPolicy.CanApprove(line.Status)) throw new ReviewTransactionResultException(Result.Success());
                 var settings = await GetSettingsAsync(line.OperationalSubmission.SubStationId, cancellationToken);
                 submittedBy = line.OperationalSubmission.SubmittedByUserId ?? line.OperationalSubmission.CreatedBy;
                 if ((settings?.RequiresDifferentReviewer ?? true) && submittedBy == userId)
-                    return Result.Failure("The reviewer must differ from the submitter (D18).", 403);
+                    throw new ReviewTransactionResultException(Result.Failure("The reviewer must differ from the submitter (D18).", 403));
                 line.Status = OperationalReadingStatus.Rejected;
                 line.RejectedAt = now;
                 line.RejectedByUserId = userId;
@@ -506,7 +533,7 @@ public sealed class OperationalReviewService(
                 break;
             }
             default:
-                return Result.Failure($"Unknown line type '{lineType}'.");
+                throw new ReviewTransactionResultException(Result.Failure($"Unknown line type '{lineType}'."));
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -515,7 +542,15 @@ public sealed class OperationalReviewService(
         await UpdateSubmissionStatusIfAllRejectedAsync(submissionId, now, userId, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
-        await tx.CommitAsync(cancellationToken);
+        return (submissionId, submittedBy);
+            }, cancellationToken);
+        }
+        catch (ReviewTransactionResultException result)
+        {
+            return result.Result;
+        }
+
+        var submissionId = committed.SubmissionId;
 
         // Notify submitter on rejection
         var sub = await db.OperationalSubmissions.AsNoTracking()

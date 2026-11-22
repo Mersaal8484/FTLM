@@ -163,8 +163,10 @@ public sealed class OperationalCaptureService(
                 return Result<OperationalSubmissionDto>.Failure(validation);
             }
 
-            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-            var submission = new OperationalSubmission
+            OperationalSubmission? submission = null;
+            await DbTransactionRunner.RunAsync(db, async _ =>
+            {
+            submission = new OperationalSubmission
             {
                 SubStationId = dto.SubStationId,
                 ClientRequestId = dto.ClientRequestId,
@@ -286,22 +288,24 @@ public sealed class OperationalCaptureService(
                     SortOrder = 0, CreatedAt = now, UpdatedAt = now, CreatedBy = userId, UpdatedBy = userId,
                 });
             await db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            });
+
+            var committedSubmission = submission!;
 
             // Safety episodes are evaluated after capture is durable. Notification failures
             // cannot roll back an accepted operator submission.
-            foreach (var readingId in submission.GeneratorReadings.Select(x => x.Id))
+            foreach (var readingId in committedSubmission.GeneratorReadings.Select(x => x.Id))
             {
                 try { await fuelLoadSafety.EvaluateOnReceiptAsync(readingId, cancellationToken); }
                 catch { /* the scheduled evaluator remains able to assess limits */ }
             }
-            foreach (var readingId in submission.TankLevelReadings.Select(x => x.Id))
+            foreach (var readingId in committedSubmission.TankLevelReadings.Select(x => x.Id))
             {
                 try { await fuelLoadSafety.EvaluateTankDeadStockAsync(readingId, cancellationToken); }
                 catch { /* notification failures cannot roll back an accepted operator submission */ }
             }
 
-            var accepted = ToDto(submission);
+            var accepted = ToDto(committedSubmission);
             var response = accepted with { Lines = accepted.Lines!.Concat(duplicateLines).ToList() };
             await idempotency.CompleteAsync(dto.ClientRequestId, 201, JsonSerializer.Serialize(response), userId, cancellationToken);
             return Result<OperationalSubmissionDto>.Success(response, 201);

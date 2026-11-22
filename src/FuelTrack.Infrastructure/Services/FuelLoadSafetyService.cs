@@ -38,6 +38,7 @@ public sealed class FuelLoadSafetyService(
         // contributes to generator consumption.
         var tankIds = await db.FuelTanks.AsNoTracking()
             .Where(t => t.GeneratorId == generatorId
+                && t.TankRole != TankRole.Main
                 && (t.TankRole == TankRole.Daily || t.TankRole == null || t.ParentTankId != null))
             .Select(t => t.Id).ToListAsync(ct);
 

@@ -16,7 +16,8 @@ public sealed record MovementLedgerRowDto(
     string Status,
     string? CreatedBy,
     string? ApprovedBy,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    IReadOnlyList<int>? AttachmentIds = null);
 
 public sealed record MovementLedgerFilterDto(
     DateTime? DateFrom,

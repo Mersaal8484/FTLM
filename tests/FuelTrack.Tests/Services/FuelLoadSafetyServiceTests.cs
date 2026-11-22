@@ -170,7 +170,7 @@ public sealed class FuelLoadSafetyServiceTests
     }
 
     [Fact]
-    public async Task FuelConsumption_ExplicitMainTankLinkedToGenerator_IsExcludedFromConsumption()
+    public async Task FuelConsumption_ExplicitMainTankWithParentLinkedToGenerator_IsExcludedFromConsumption()
     {
         await using var db = CreateDb();
         var (_, _, generatorId, _, submissionId) = await SeedBaseAsync(db);
@@ -179,14 +179,23 @@ public sealed class FuelLoadSafetyServiceTests
             Id = 21,
             SubStationId = 10,
             GeneratorId = generatorId,
+            ParentTankId = 22,
             Name = "MainTank",
             TankRole = TankRole.Main,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
+        var parentTank = new FuelTank
+        {
+            Id = 22,
+            SubStationId = 10,
+            Name = "Supply Parent Tank",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
         var t0 = new DateTime(2026, 11, 8, 8, 0, 0, DateTimeKind.Utc);
         var t1 = t0.AddHours(8);
-        db.AddRange(mainTank,
+        db.AddRange(parentTank, mainTank,
             new TankLevelReading { OperationalSubmissionId = submissionId, FuelTankId = mainTank.Id, EventType = TankEventType.Level, Status = OperationalReadingStatus.Approved, CapturedAtUtc = t0, ComputedLitres = 900m, CreatedAt = t0, UpdatedAt = t0 },
             new TankLevelReading { OperationalSubmissionId = submissionId, FuelTankId = mainTank.Id, EventType = TankEventType.Level, Status = OperationalReadingStatus.Approved, CapturedAtUtc = t1, ComputedLitres = 700m, CreatedAt = t1, UpdatedAt = t1 });
         await db.SaveChangesAsync();

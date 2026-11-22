@@ -1,4 +1,5 @@
 using FuelTrack.Application;
+using FuelTrack.Application.Constants;
 using FuelTrack.Application.DTOs.Movements;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Models;
@@ -187,6 +188,13 @@ public sealed class MovementLedgerService(
                 .ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken)
             : new Dictionary<int, string>();
 
+        var attachmentIdsByOilTransaction = oilIds.Count > 0
+            ? await db.AttachmentLinks.AsNoTracking()
+                .Where(x => x.EntityType == AttachmentEntityTypes.OilTransaction && oilIds.Contains(x.EntityId))
+                .GroupBy(x => x.EntityId)
+                .ToDictionaryAsync(x => x.Key, x => (IReadOnlyList<int>)x.OrderBy(link => link.SortOrder).Select(link => link.AttachmentId).ToList(), cancellationToken)
+            : new Dictionary<int, IReadOnlyList<int>>();
+
         var fuelMap = fuelEntities.ToDictionary(
             x => x.Id,
             x => new MovementLedgerRowDto(
@@ -205,7 +213,8 @@ public sealed class MovementLedgerService(
                 x.IsApproved ? "approved" : x.ApprovedAt != null ? "rejected" : "pending",
                 userNames.TryGetValue(x.CreatedBy, out var cb) ? cb : null,
                 x.ApprovedBy?.FullName ?? (x.ApprovedById.HasValue && userNames.TryGetValue(x.ApprovedById.Value, out var ab) ? ab : null),
-                x.CreatedAt));
+                x.CreatedAt,
+                []));
 
         var oilMap = oilEntities.ToDictionary(
             x => x.Id,
@@ -225,7 +234,8 @@ public sealed class MovementLedgerService(
                 x.IsApproved ? "approved" : x.ApprovedAt != null ? "rejected" : "pending",
                 userNames.TryGetValue(x.CreatedBy, out var cb) ? cb : null,
                 x.ApprovedBy?.FullName ?? (x.ApprovedById.HasValue && userNames.TryGetValue(x.ApprovedById.Value, out var ab) ? ab : null),
-                x.CreatedAt));
+                x.CreatedAt,
+                attachmentIdsByOilTransaction.GetValueOrDefault(x.Id, [])));
 
         var items = new List<MovementLedgerRowDto>(pageKeys.Count);
         foreach (var key in pageKeys)
