@@ -188,12 +188,33 @@ public sealed class MovementLedgerService(
                 .ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken)
             : new Dictionary<int, string>();
 
-        var attachmentIdsByOilTransaction = oilIds.Count > 0
-            ? await db.AttachmentLinks.AsNoTracking()
-                .Where(x => x.EntityType == AttachmentEntityTypes.OilTransaction && oilIds.Contains(x.EntityId))
+        Dictionary<int, IReadOnlyList<int>> attachmentIdsByOilTransaction;
+        if (oilIds.Count == 0)
+        {
+            attachmentIdsByOilTransaction = new Dictionary<int, IReadOnlyList<int>>();
+        }
+        else
+        {
+            var rawLinks = new List<(int EntityId, int AttachmentId, int SortOrder)>();
+            const int chunkSize = 1000;
+            for (var i = 0; i < oilIds.Count; i += chunkSize)
+            {
+                var chunk = oilIds.Skip(i).Take(chunkSize).ToList();
+                var links = await db.AttachmentLinks.AsNoTracking()
+                    .Where(x => x.DeletedAt == null
+                             && x.EntityType == AttachmentEntityTypes.OilTransaction
+                             && chunk.Contains(x.EntityId))
+                    .OrderBy(x => x.SortOrder)
+                    .Select(x => new { x.EntityId, x.AttachmentId, x.SortOrder })
+                    .ToListAsync(cancellationToken);
+                rawLinks.AddRange(links.Select(x => (x.EntityId, x.AttachmentId, x.SortOrder)));
+            }
+            attachmentIdsByOilTransaction = rawLinks
                 .GroupBy(x => x.EntityId)
-                .ToDictionaryAsync(x => x.Key, x => (IReadOnlyList<int>)x.OrderBy(link => link.SortOrder).Select(link => link.AttachmentId).ToList(), cancellationToken)
-            : new Dictionary<int, IReadOnlyList<int>>();
+                .ToDictionary(
+                    g => g.Key,
+                    g => (IReadOnlyList<int>)g.OrderBy(x => x.SortOrder).Select(x => x.AttachmentId).ToList());
+        }
 
         var fuelMap = fuelEntities.ToDictionary(
             x => x.Id,
