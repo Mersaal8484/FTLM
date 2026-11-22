@@ -23,7 +23,10 @@ public class ServiceReplacementRecord : BaseEntity
     public int? VoidedByUserId { get; set; }
     public string? VoidReason { get; set; }
 
+    public int? OilTransactionId { get; set; }
+
     public Generator Generator { get; set; } = null!;
     public ServiceItem ServiceItem { get; set; } = null!;
     public WorkPermit? WorkPermit { get; set; }
+    public OilTransaction? OilTransaction { get; set; }
 }

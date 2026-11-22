@@ -114,7 +114,9 @@ public sealed record ServiceReplacementRecordDto(
     DateTime? VoidedAtUtc,
     string? VoidReason,
     int CreatedBy,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    int? OilTransactionId = null,
+    IReadOnlyList<string>? Warnings = null);
 
 public sealed record VoidReplacementRecordDto(
     string Reason);

@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, Droplet, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import client from '../api/client';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 const number = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
 
 export default function OilLedger({ lang }) {
   const { t } = useTranslation();
+  const { isCommercialMode } = useCommercialMode();
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [oilLookupId, setOilLookupId] = useState('');
   const [rows, setRows] = useState([]);
@@ -68,7 +70,7 @@ export default function OilLedger({ lang }) {
         {error && <div className="alert alert-error">{error}</div>}
         {loading ? <div className="empty-state">{t('oilLedger.loading')}</div> : rows.length === 0 ? <div className="empty-state">{t('oilLedger.empty')}</div> : (
           <table className="data-table oil-ledger-table">
-            <thead><tr><th>{t('oilLedger.date')}</th><th>{t('oilLedger.oil')}</th><th>{t('oilLedger.opening')}</th><th>{t('oilLedger.inbound')}</th><th>{t('oilLedger.outbound')}</th><th>{t('oilLedger.transferIn')}</th><th>{t('oilLedger.transferOut')}</th><th>{t('oilLedger.loss')}</th><th>{t('oilLedger.closing')}</th><th>{t('oilLedger.details')}</th></tr></thead>
+            <thead><tr><th>{t('oilLedger.date')}</th><th>{t('oilLedger.oil')}</th><th>{t('oilLedger.opening')}</th><th>{t('oilLedger.inbound')}</th><th>{isCommercialMode ? t('oilLedger.outboundCommercial') : t('oilLedger.outbound')}</th><th>{t('oilLedger.transferIn')}</th><th>{t('oilLedger.transferOut')}</th><th>{t('oilLedger.loss')}</th><th>{t('oilLedger.closing')}</th><th>{t('oilLedger.details')}</th></tr></thead>
             <tbody>{rows.map((row) => <React.Fragment key={`${row.oilLookupId}-${row.date}`}><tr><td>{row.date}</td><td>{row.oilLookupName}</td><td>{number(row.opening)}</td><td>{number(row.inbound)}</td><td>{number(row.outbound)}</td><td>{number(row.transferIn)}</td><td>{number(row.transferOut)}</td><td>{number(row.loss)}</td><td style={{ fontWeight: 700 }}>{number(row.closing)}</td><td><button className="btn btn-ghost" aria-label={t('oilLedger.expandDay')} onClick={() => toggleDay(row.date)}>{expanded === row.date ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button></td></tr>{expanded === row.date && <tr className="oil-ledger-details"><td colSpan="10">{transactions.length === 0 ? t('oilLedger.noTransactions') : transactions.map((item) => <div key={item.id}>{item.typeName} · {number(item.quantityLiters)} L {item.reference ? `· ${item.reference}` : ''} {item.supplier ? `· ${item.supplier}` : ''}</div>)}</td></tr>}</React.Fragment>)}</tbody>
             <tfoot><tr><td colSpan="3">{t('oilLedger.totals')}</td><td>{number(totals.inbound)}</td><td>{number(totals.outbound)}</td><td>{number(totals.transferIn)}</td><td>{number(totals.transferOut)}</td><td>{number(totals.loss)}</td><td colSpan="2" /></tr></tfoot>
           </table>

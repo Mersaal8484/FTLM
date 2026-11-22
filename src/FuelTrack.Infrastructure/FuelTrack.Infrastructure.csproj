@@ -21,6 +21,7 @@
     <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/011_commercial_c5_stocktake.sql" Link="MultiTenancy/011_commercial_c5_stocktake.sql" LogicalName="FuelTrack.Tenants.011_commercial_c5_stocktake.sql" />
     <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/012_commercial_c6_maintenance_oil_config.sql" Link="MultiTenancy/012_commercial_c6_maintenance_oil_config.sql" LogicalName="FuelTrack.Tenants.012_commercial_c6_maintenance_oil_config.sql" />
     <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/013_commercial_tank_main_daily_index.sql" Link="MultiTenancy/013_commercial_tank_main_daily_index.sql" LogicalName="FuelTrack.Tenants.013_commercial_tank_main_daily_index.sql" />
+    <EmbeddedResource Include="../FuelTrack.Platform/MultiTenancy/014_commercial_service_replacement_oil_tx.sql" Link="MultiTenancy/014_commercial_service_replacement_oil_tx.sql" LogicalName="FuelTrack.Tenants.014_commercial_service_replacement_oil_tx.sql" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FuelTrack.Domain\FuelTrack.Domain.csproj" />

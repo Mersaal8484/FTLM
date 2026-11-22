@@ -11,8 +11,9 @@ vi.mock('../api/client', () => ({
   },
 }));
 
+const mockUseCommercialMode = vi.fn(() => ({ isCommercialMode: false, modeResolved: true }));
 vi.mock('../hooks/useCommercialMode', () => ({
-  default: () => ({ isCommercialMode: false, modeResolved: true }),
+  default: () => mockUseCommercialMode(),
 }));
 
 import client from '../api/client';
@@ -241,6 +242,153 @@ describe('GeneratorMaintenanceTable', () => {
     await waitFor(() => {
       expect(screen.getByText('إلغاء سجل خدمة')).toBeInTheDocument();
       expect(screen.getByText(/إلغاء هذا السجل سيعيد حساب ساعات الاستحقاق للمولد/i)).toBeInTheDocument();
+    });
+  });
+
+  test('displays configured oil to be deducted in commercial mode when oil configuration exists', async () => {
+    mockUseCommercialMode.mockReturnValue({ isCommercialMode: true, modeResolved: true });
+    client.get.mockImplementation(async (url) => {
+      if (url.includes('/api/service-due/station')) {
+        return { data: mockTables };
+      }
+      if (url.includes('/api/generator-maintenance-oil-configurations')) {
+        return {
+          data: [
+            {
+              generatorId: 1,
+              serviceItemId: 1,
+              oilLookupId: 100,
+              oilLookupName: 'Mobil Delvac 15W-40',
+              quantityLiters: 15.0,
+            },
+          ],
+        };
+      }
+      return { data: [] };
+    });
+
+    render(
+      <BrowserRouter>
+        <GeneratorMaintenanceTable lang="ar" />
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Generator Alpha')).toBeInTheDocument();
+    });
+
+    const recordButtons = screen.getAllByRole('button', { name: /تسجيل خدمة/i });
+    fireEvent.click(recordButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText(/زيت الصيانة الذي سيُخصم: Mobil Delvac 15W-40 — 15 لتر/i)).toBeInTheDocument();
+    });
+  });
+
+  test('displays oil not configured warning and configuration link in commercial mode when oil configuration is missing', async () => {
+    mockUseCommercialMode.mockReturnValue({ isCommercialMode: true, modeResolved: true });
+    client.get.mockImplementation(async (url) => {
+      if (url.includes('/api/service-due/station')) {
+        return { data: mockTables };
+      }
+      if (url.includes('/api/generator-maintenance-oil-configurations')) {
+        return { data: [] };
+      }
+      return { data: [] };
+    });
+
+    render(
+      <BrowserRouter>
+        <GeneratorMaintenanceTable lang="ar" />
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Generator Alpha')).toBeInTheDocument();
+    });
+
+    const recordButtons = screen.getAllByRole('button', { name: /تسجيل خدمة/i });
+    fireEvent.click(recordButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText(/لم يُضبط زيت لهذا البند — لن يتغير المخزون/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /ضبط زيت المعدات/i })).toBeInTheDocument();
+    });
+  });
+
+  test('displays warning banner when server response contains OIL_STOCK_INSUFFICIENT', async () => {
+    mockUseCommercialMode.mockReturnValue({ isCommercialMode: true, modeResolved: true });
+    client.get.mockImplementation(async (url) => {
+      if (url.includes('/api/service-due/station')) return { data: mockTables };
+      if (url.includes('/api/generator-maintenance-oil-configurations')) {
+        return { data: [{ generatorId: 1, serviceItemId: 1, oilLookupName: 'SAE 40', quantityLiters: 20 }] };
+      }
+      return { data: [] };
+    });
+
+    client.post.mockResolvedValueOnce({
+      data: {
+        id: 101,
+        oilTransactionId: 501,
+        warnings: ['OIL_STOCK_INSUFFICIENT'],
+      },
+    });
+
+    render(
+      <BrowserRouter>
+        <GeneratorMaintenanceTable lang="ar" />
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Generator Alpha')).toBeInTheDocument();
+    });
+
+    const recordButtons = screen.getAllByRole('button', { name: /تسجيل خدمة/i });
+    fireEvent.click(recordButtons[0]);
+
+    const saveButton = screen.getByRole('button', { name: /حفظ السجل/i });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/تم تسجيل الاستبدال. تحذير: مخزون الزيت غير كافٍ \(أصبح الرصيد سالباً\)\./i)).toBeInTheDocument();
+    });
+  });
+
+  test('displays warning banner when server response contains OIL_NOT_CONFIGURED', async () => {
+    mockUseCommercialMode.mockReturnValue({ isCommercialMode: true, modeResolved: true });
+    client.get.mockImplementation(async (url) => {
+      if (url.includes('/api/service-due/station')) return { data: mockTables };
+      if (url.includes('/api/generator-maintenance-oil-configurations')) return { data: [] };
+      return { data: [] };
+    });
+
+    client.post.mockResolvedValueOnce({
+      data: {
+        id: 102,
+        oilTransactionId: null,
+        warnings: ['OIL_NOT_CONFIGURED'],
+      },
+    });
+
+    render(
+      <BrowserRouter>
+        <GeneratorMaintenanceTable lang="ar" />
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Generator Alpha')).toBeInTheDocument();
+    });
+
+    const recordButtons = screen.getAllByRole('button', { name: /تسجيل خدمة/i });
+    fireEvent.click(recordButtons[0]);
+
+    const saveButton = screen.getByRole('button', { name: /حفظ السجل/i });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/تم تسجيل الاستبدال. تحذير: لا يوجد ضبط زيت لهذا البند، لم يتغير المخزون\./i)).toBeInTheDocument();
     });
   });
 });

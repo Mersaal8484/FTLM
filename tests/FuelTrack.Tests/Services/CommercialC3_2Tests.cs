@@ -350,6 +350,19 @@ public sealed class CommercialC3_2Tests : IDisposable
         Assert.Contains("\"DeletedAt\" IS NULL AND \"GeneratorId\" IS NULL", upgrade.Sql);
     }
 
+    [Fact]
+    public async Task TenantUpgrade014_RegisteredInCatalog_AddsOilTransactionIdColumnAndIndex()
+    {
+        var upgrade = (await TenantSchemaUpgradeCatalog.GetCurrentAsync()).Single(x => x.Version == 14);
+
+        Assert.NotNull(upgrade);
+        Assert.Equal(14, upgrade.Version);
+        Assert.NotNull(upgrade.Sql);
+        Assert.Contains("ALTER TABLE \"ServiceReplacementRecords\"", upgrade.Sql);
+        Assert.Contains("ADD COLUMN IF NOT EXISTS \"OilTransactionId\" integer", upgrade.Sql);
+        Assert.Contains("CREATE INDEX IF NOT EXISTS \"IX_ServiceReplacementRecords_OilTransactionId\"", upgrade.Sql);
+    }
+
     private sealed class RestrictedScopeFilter : IUserScopeFilterService
     {
         private readonly List<int> _accessible;

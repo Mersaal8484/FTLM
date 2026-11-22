@@ -455,16 +455,16 @@ public sealed class ServiceDueServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CommercialOilConfiguredReplacement_CreatesApprovedMaintenanceUseAndVoidingReversesIt()
+    public async Task CommercialOilConfiguredReplacement_CreatesApprovedConsumptionAndVoidingReversesIt()
     {
         var site = new SubStation { Id = 84, Name = "Commercial Site", Code = "COM", StationId = 1 };
         var generator = new Generator { Id = 840, Name = "G-840", Model = "Perkins", SubStationId = site.Id, SubStation = site };
         var serviceItem = new ServiceItem { Id = 841, Code = "OilChangeSet", NameAr = "طقم تغيير الزيت", NameEn = "Oil change set", IsActive = true };
         var transactionCategory = new LookupCategory { Id = 842, Name = "OilTransactionType", DisplayName = "Oil transaction type", IsActive = true };
-        var maintenanceUse = new Lookup { Id = 843, CategoryId = transactionCategory.Id, Category = transactionCategory, Code = "MaintenanceUse", Name = "استخدام صيانة", IsActive = true };
+        var consumption = new Lookup { Id = 843, CategoryId = transactionCategory.Id, Category = transactionCategory, Code = "Consumption", Name = "استهلاك", IsActive = true };
         var oilLookup = new Lookup { Id = 844, Code = "SAE40", Name = "SAE 40", IsActive = true };
         var oil = new Oil { Id = 845, SubStationId = site.Id, OilLookupId = oilLookup.Id, OilLookup = oilLookup, CurrentStock = 100m };
-        _db.AddRange(site, generator, serviceItem, transactionCategory, maintenanceUse, oilLookup, oil,
+        _db.AddRange(site, generator, serviceItem, transactionCategory, consumption, oilLookup, oil,
             new GeneratorMaintenanceOilConfiguration { GeneratorId = generator.Id, ServiceItemId = serviceItem.Id, OilId = oil.Id, QuantityLiters = 12.5m });
         await _db.SaveChangesAsync();
 
@@ -478,19 +478,25 @@ public sealed class ServiceDueServiceTests : IDisposable
 
         Assert.True(replacement.IsSuccess);
         var oilTransaction = Assert.Single(_db.OilTransactions);
-        Assert.Equal(maintenanceUse.Id, oilTransaction.TransactionTypeLookupId);
+        Assert.Equal(consumption.Id, oilTransaction.TransactionTypeLookupId);
         Assert.Equal(12.5d, oilTransaction.QuantityLiters);
         Assert.True(oilTransaction.IsApproved);
-        Assert.Equal($"MAINT-{replacement.Value!.Id}", oilTransaction.Reference);
+        Assert.Equal($"SRV-{replacement.Value!.Id}", oilTransaction.Reference);
+        Assert.Equal(oilTransaction.Id, replacement.Value!.OilTransactionId);
 
         var voidResult = await service.VoidAsync(replacement.Value.Id, new VoidReplacementRecordDto("Correction"), 1);
 
         Assert.True(voidResult.IsSuccess);
-        Assert.False((await _db.OilTransactions.SingleAsync()).IsApproved);
+        Assert.Equal(2, _db.OilTransactions.Count());
+        var original = await _db.OilTransactions.FirstAsync(x => x.Id == oilTransaction.Id);
+        Assert.True(original.IsApproved);
+        var reversing = await _db.OilTransactions.FirstAsync(x => x.Reference == $"VOID-SRV-{replacement.Value.Id}");
+        Assert.Equal(-12.5d, reversing.QuantityLiters);
+        Assert.True(reversing.IsApproved);
     }
 
     [Fact]
-    public async Task CommercialOilConfiguredReplacement_RequiresMaintenanceUseLookupBeforePersisting()
+    public async Task CommercialOilConfiguredReplacement_RejectsInvalidNonPositiveQuantity()
     {
         var site = new SubStation { Id = 85, Name = "Commercial Site", Code = "COM", StationId = 1 };
         var generator = new Generator { Id = 850, Name = "G-850", Model = "Perkins", SubStationId = site.Id, SubStation = site };
@@ -498,7 +504,7 @@ public sealed class ServiceDueServiceTests : IDisposable
         var oilLookup = new Lookup { Id = 852, Code = "SAE50", Name = "SAE 50", IsActive = true };
         var oil = new Oil { Id = 853, SubStationId = site.Id, OilLookupId = oilLookup.Id, OilLookup = oilLookup, CurrentStock = 100m };
         _db.AddRange(site, generator, serviceItem, oilLookup, oil,
-            new GeneratorMaintenanceOilConfiguration { GeneratorId = generator.Id, ServiceItemId = serviceItem.Id, OilId = oil.Id, QuantityLiters = 10m });
+            new GeneratorMaintenanceOilConfiguration { GeneratorId = generator.Id, ServiceItemId = serviceItem.Id, OilId = oil.Id, QuantityLiters = 0m });
         await _db.SaveChangesAsync();
 
         var commercialMode = new Mock<ICommercialStationModeService>();
@@ -506,11 +512,9 @@ public sealed class ServiceDueServiceTests : IDisposable
         var service = new ServiceReplacementService(_db, _dueEvaluation, _scopeFilter, _currentUser,
             new IdempotencyService(_db), NullLogger<ServiceReplacementService>.Instance, commercialMode.Object);
 
-        var result = await service.RecordReplacementAsync(new RecordReplacementRequestDto(
-            generator.Id, serviceItem.Id, 1000m, DateTime.UtcNow, ClientRequestId: Guid.NewGuid()), 1);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RecordReplacementAsync(new RecordReplacementRequestDto(
+            generator.Id, serviceItem.Id, 1000m, DateTime.UtcNow, ClientRequestId: Guid.NewGuid()), 1));
 
-        Assert.False(result.IsSuccess);
-        Assert.Contains("MaintenanceUse", result.Error);
         Assert.Empty(_db.ServiceReplacementRecords);
         Assert.Empty(_db.OilTransactions);
     }

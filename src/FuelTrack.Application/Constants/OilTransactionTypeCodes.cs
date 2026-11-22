@@ -4,4 +4,5 @@ namespace FuelTrack.Application.Constants;
 public static class OilTransactionTypeCodes
 {
     public const string MaintenanceUse = "MaintenanceUse";
+    public const string Consumption = "Consumption";
 }

@@ -356,6 +356,12 @@ namespace FuelTrack.Infrastructure
                 .HasForeignKey(r => r.WorkPermitId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<ServiceReplacementRecord>()
+                .HasOne(r => r.OilTransaction)
+                .WithMany()
+                .HasForeignKey(r => r.OilTransactionId)
+                .OnDelete(DeleteBehavior.SetNull);
+
             modelBuilder.Entity<ServiceDueState>()
                 .HasOne(s => s.Generator)
                 .WithMany(g => g.ServiceDueStates)
@@ -2857,6 +2863,8 @@ namespace FuelTrack.Infrastructure
                     .HasDatabaseName("IX_ServiceReplacementRecords_Gen_Item_Hours");
                 entity.HasIndex(x => new { x.GeneratorId, x.ServiceItemId, x.VoidedAtUtc })
                     .HasDatabaseName("IX_ServiceReplacementRecords_Voided");
+                entity.HasIndex(x => x.OilTransactionId)
+                    .HasDatabaseName("IX_ServiceReplacementRecords_OilTransactionId");
                 entity.Property(x => x.HoursAtService).HasPrecision(18, 4);
                 entity.Property(x => x.IntervalHoursSnapshot).HasPrecision(18, 4);
                 entity.Property(x => x.EarlyReplacementReason).HasMaxLength(500);

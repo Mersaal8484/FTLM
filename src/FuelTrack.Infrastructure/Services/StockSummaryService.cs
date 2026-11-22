@@ -121,7 +121,7 @@ public class StockSummaryService : IStockSummaryService
 
         var grouped = GroupOilTransactions(filteredTxData, accessibleIds, effectiveFromBySite, fromDate);
         var inboundMap = grouped.Where(x => x.TypeCode == "Purchase").ToDictionary(x => (x.SubStationId, x.LookupId), x => x.Total);
-        var outboundMap = grouped.Where(x => x.TypeCode is "Sale" or OilTransactionTypeCodes.MaintenanceUse)
+        var outboundMap = grouped.Where(x => x.TypeCode is "Sale" or "Consumption" or OilTransactionTypeCodes.MaintenanceUse or OilTransactionTypeCodes.Consumption)
             .GroupBy(x => (x.SubStationId, x.LookupId))
             .ToDictionary(x => x.Key, x => x.Sum(value => value.Total));
         var transferOutMap = grouped.Where(x => x.TypeCode == "TransferOut").ToDictionary(x => (x.SubStationId, x.LookupId), x => x.Total);

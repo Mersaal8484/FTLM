@@ -21,5 +21,5 @@ public static class OilBalanceCalculator
 
     public static bool IsInbound(string? typeCode) => typeCode is "Purchase" or "TransferIn";
 
-    public static bool IsOutbound(string? typeCode) => typeCode is "Sale" or "TransferOut" or "Loss" or OilTransactionTypeCodes.MaintenanceUse;
+    public static bool IsOutbound(string? typeCode) => typeCode is "Sale" or "TransferOut" or "Loss" or "Consumption" or OilTransactionTypeCodes.MaintenanceUse or OilTransactionTypeCodes.Consumption;
 }

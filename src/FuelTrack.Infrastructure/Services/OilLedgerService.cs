@@ -66,7 +66,9 @@ public sealed class OilLedgerService(
                     {
                         case "Purchase": inbound += transaction.QuantityLiters; break;
                         case "Sale":
-                        case OilTransactionTypeCodes.MaintenanceUse: outbound += transaction.QuantityLiters; break;
+                        case "Consumption":
+                        case OilTransactionTypeCodes.MaintenanceUse:
+                        case OilTransactionTypeCodes.Consumption: outbound += transaction.QuantityLiters; break;
                         case "TransferIn": transferIn += transaction.QuantityLiters; break;
                         case "TransferOut": transferOut += transaction.QuantityLiters; break;
                         case "Loss": loss += transaction.QuantityLiters; break;
@@ -99,6 +101,47 @@ public sealed class OilLedgerService(
             .Select(x => new OilLedgerTransactionDto(x.Id, x.TransactionDate, x.OilLookupId, x.OilLookupName,
                 EffectiveType(x, siteIds), x.TypeName, x.QuantityLiters, x.Reference, x.Supplier, x.Notes))
             .ToList();
+    }
+
+    public async Task<decimal> GetCurrentBalanceAsync(
+        int subStationId, int oilLookupId, CancellationToken cancellationToken = default)
+    {
+        var stationId = await db.SubStations.AsNoTracking()
+            .Where(x => x.Id == subStationId)
+            .Select(x => (int?)x.StationId)
+            .FirstOrDefaultAsync(cancellationToken);
+        var timeZone = await GetTimeZoneAsync(stationId, cancellationToken);
+
+        var siteIds = new List<int> { subStationId };
+        var anchors = await GetAnchorsAsync(siteIds, oilLookupId, DateOnly.MaxValue, cancellationToken);
+        var anchor = anchors.Where(x => x.OilLookupId == oilLookupId)
+            .OrderByDescending(x => x.InventoryDate).FirstOrDefault();
+
+        decimal balance;
+        DateOnly effectiveFrom;
+        if (anchor is not null)
+        {
+            balance = anchor.ActualStock;
+            effectiveFrom = anchor.InventoryDate;
+        }
+        else
+        {
+            var oil = await db.Oils.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.SubStationId == subStationId && x.OilLookupId == oilLookupId, cancellationToken);
+            balance = oil is null ? 0m : OilBalanceCalculator.Round(oil.CurrentStock);
+            effectiveFrom = DateOnly.MinValue;
+        }
+
+        var rows = await GetTransactionsAsync(siteIds, oilLookupId, cancellationToken);
+        foreach (var transaction in rows.Where(x => x.OilLookupId == oilLookupId)
+                     .OrderBy(x => x.TransactionDate).ThenBy(x => x.Id))
+        {
+            var businessDate = ToBusinessDate(transaction.TransactionDate, timeZone);
+            if (businessDate < effectiveFrom) continue;
+            balance = Apply(balance, EffectiveType(transaction, siteIds), transaction.QuantityLiters);
+        }
+
+        return OilBalanceCalculator.Round(balance);
     }
 
     private async Task<List<int>> GetScopedSubStationIdsAsync(CancellationToken ct)
@@ -146,7 +189,7 @@ public sealed class OilLedgerService(
     private async Task<List<AnchorRow>> GetAnchorsAsync(
         List<int> siteIds, int? oilLookupId, DateOnly before, CancellationToken ct)
     {
-        var beforeDate = before.ToDateTime(TimeOnly.MinValue);
+        var beforeDate = before == DateOnly.MaxValue ? DateTime.MaxValue : before.ToDateTime(TimeOnly.MinValue);
         var periodic = await db.PeriodicInventoryOils.AsNoTracking()
             .Where(x => x.PeriodicInventory.IsApproved && siteIds.Contains(x.PeriodicInventory.SubStationId) &&
                 x.PeriodicInventory.InventoryDate < beforeDate && (!oilLookupId.HasValue || x.OilLookupId == oilLookupId.Value))
@@ -166,7 +209,7 @@ public sealed class OilLedgerService(
     {
         "Purchase" => OilBalanceCalculator.CalculateClosing(opening, quantity, 0, 0, 0, 0),
         "TransferIn" => OilBalanceCalculator.CalculateClosing(opening, 0, 0, quantity, 0, 0),
-        "Sale" or OilTransactionTypeCodes.MaintenanceUse => OilBalanceCalculator.CalculateClosing(opening, 0, quantity, 0, 0, 0),
+        "Sale" or "Consumption" or OilTransactionTypeCodes.MaintenanceUse or OilTransactionTypeCodes.Consumption => OilBalanceCalculator.CalculateClosing(opening, 0, quantity, 0, 0, 0),
         "TransferOut" => OilBalanceCalculator.CalculateClosing(opening, 0, 0, 0, quantity, 0),
         "Loss" => OilBalanceCalculator.CalculateClosing(opening, 0, 0, 0, 0, quantity),
         _ => opening

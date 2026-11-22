@@ -22,6 +22,7 @@ public sealed class ServiceReplacementService : IServiceReplacementService
     private readonly IIdempotencyService _idempotency;
     private readonly ILogger<ServiceReplacementService> _logger;
     private readonly ICommercialStationModeService? _commercialMode;
+    private readonly IOilLedgerService? _oilLedger;
 
     public ServiceReplacementService(
         FuelTrackDbContext db,
@@ -30,7 +31,8 @@ public sealed class ServiceReplacementService : IServiceReplacementService
         ICurrentUserService currentUser,
         IIdempotencyService idempotency,
         ILogger<ServiceReplacementService> logger,
-        ICommercialStationModeService? commercialMode = null)
+        ICommercialStationModeService? commercialMode = null,
+        IOilLedgerService? oilLedger = null)
     {
         _db = db;
         _dueEvaluation = dueEvaluation;
@@ -39,6 +41,7 @@ public sealed class ServiceReplacementService : IServiceReplacementService
         _idempotency = idempotency;
         _logger = logger;
         _commercialMode = commercialMode;
+        _oilLedger = oilLedger;
     }
 
     public async Task<Result<ServiceReplacementRecordDto>> RecordReplacementAsync(
@@ -100,14 +103,46 @@ public sealed class ServiceReplacementService : IServiceReplacementService
             return Result<ServiceReplacementRecordDto>.Failure(validation.ErrorMessage ?? "Validation failed.", 400);
         }
 
-        MaintenanceOilUse? maintenanceOilUse;
-        try
+        var isCommercial = _commercialMode is not null && await _commercialMode.IsCommercialModeAsync(ct);
+        GeneratorMaintenanceOilConfiguration? oilConfig = null;
+        var warnings = new List<string>();
+
+        if (isCommercial)
         {
-            maintenanceOilUse = await ResolveMaintenanceOilUseAsync(generator, serviceItem.Id, ct);
+            oilConfig = await _db.GeneratorMaintenanceOilConfigurations
+                .Include(x => x.Oil)
+                .FirstOrDefaultAsync(x => x.GeneratorId == generator.Id && x.ServiceItemId == serviceItem.Id, ct);
+
+            if (oilConfig is null)
+            {
+                warnings.Add(ServiceReplacementWarningCodes.OilNotConfigured);
+            }
+            else
+            {
+                if (oilConfig.QuantityLiters <= 0)
+                    throw new InvalidOperationException("The configured maintenance oil quantity must be greater than zero.");
+
+                if (oilConfig.Oil.SubStationId != generator.SubStationId)
+                    throw new InvalidOperationException("The configured maintenance oil is invalid for this generator.");
+
+                var currentStock = _oilLedger is not null
+                    ? await _oilLedger.GetCurrentBalanceAsync(generator.SubStationId, oilConfig.Oil.OilLookupId, ct)
+                    : oilConfig.Oil.CurrentStock;
+
+                if (currentStock < oilConfig.QuantityLiters)
+                {
+                    warnings.Add(ServiceReplacementWarningCodes.OilStockInsufficient);
+                }
+            }
         }
-        catch (InvalidOperationException ex)
+
+        int? consumptionTypeId = null;
+        if (oilConfig is not null)
         {
-            return Result<ServiceReplacementRecordDto>.Failure(ex.Message, 400);
+            consumptionTypeId = await _db.Lookups
+                .Where(x => x.Code == OilTransactionTypeCodes.Consumption && (x.Category.Name == "OilTransactionType" || x.CategoryId == 100) && x.IsActive)
+                .Select(x => (int?)x.Id)
+                .FirstOrDefaultAsync(ct) ?? 206;
         }
 
         // Only register idempotency command once validation has completely passed (C3)
@@ -117,25 +152,61 @@ public sealed class ServiceReplacementService : IServiceReplacementService
         if (!idempotency.Value!.IsNew)
             return Replay<ServiceReplacementRecordDto>(idempotency.Value);
 
-        var record = new ServiceReplacementRecord
-        {
-            GeneratorId = dto.GeneratorId,
-            ServiceItemId = dto.ServiceItemId,
-            Kind = ServiceRecordKind.Replacement,
-            HoursAtService = dto.HoursAtService,
-            OccurredAtUtc = dto.OccurredAtUtc,
-            WorkPermitId = dto.WorkPermitId,
-            IsEarly = isEarly,
-            EarlyReplacementReason = isEarly ? dto.EarlyReplacementReason?.Trim() : null,
-            IntervalHoursSnapshot = intervalHours,
-            Notes = dto.Notes?.Trim(),
-            CreatedAt = DateTime.UtcNow,
-            CreatedBy = userId,
-            UpdatedAt = DateTime.UtcNow,
-            UpdatedBy = userId
-        };
+        ServiceReplacementRecord record = null!;
+        OilTransaction? createdOilTx = null;
 
-        await PersistReplacementAndMaintenanceOilAsync(record, maintenanceOilUse, userId, ct);
+        await DbTransactionRunner.RunAsync(_db, async trCt =>
+        {
+            record = new ServiceReplacementRecord
+            {
+                GeneratorId = dto.GeneratorId,
+                ServiceItemId = dto.ServiceItemId,
+                Kind = ServiceRecordKind.Replacement,
+                HoursAtService = dto.HoursAtService,
+                OccurredAtUtc = dto.OccurredAtUtc,
+                WorkPermitId = dto.WorkPermitId,
+                IsEarly = isEarly,
+                EarlyReplacementReason = isEarly ? dto.EarlyReplacementReason?.Trim() : null,
+                IntervalHoursSnapshot = intervalHours,
+                Notes = dto.Notes?.Trim(),
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = userId,
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = userId
+            };
+
+            _db.ServiceReplacementRecords.Add(record);
+            await _db.SaveChangesAsync(trCt);
+
+            if (oilConfig is not null)
+            {
+                var now = DateTime.UtcNow;
+                createdOilTx = new OilTransaction
+                {
+                    SubStationId = generator.SubStationId,
+                    OilLookupId = oilConfig.Oil.OilLookupId,
+                    TransactionTypeLookupId = consumptionTypeId!.Value,
+                    TransactionDate = record.OccurredAtUtc,
+                    QuantityLiters = (double)oilConfig.QuantityLiters,
+                    Reference = $"SRV-{record.Id}",
+                    Notes = $"Maintenance replacement: {serviceItem.NameAr ?? serviceItem.NameEn} on {generator.Name}",
+                    IsApproved = true,
+                    ApprovedById = userId,
+                    ApprovedAt = now,
+                    CorrectedFromId = null,
+                    CreatedAt = now,
+                    CreatedBy = userId,
+                    UpdatedAt = now,
+                    UpdatedBy = userId
+                };
+
+                _db.OilTransactions.Add(createdOilTx);
+                await _db.SaveChangesAsync(trCt);
+
+                record.OilTransactionId = createdOilTx.Id;
+                await _db.SaveChangesAsync(trCt);
+            }
+        }, ct);
 
         try
         {
@@ -165,7 +236,9 @@ public sealed class ServiceReplacementService : IServiceReplacementService
             record.VoidedAtUtc,
             record.VoidReason,
             record.CreatedBy,
-            record.CreatedAt);
+            record.CreatedAt,
+            record.OilTransactionId,
+            warnings.Count > 0 ? warnings : null);
 
         if (dto.ClientRequestId != Guid.Empty)
             await _idempotency.CompleteAsync(dto.ClientRequestId, 201, JsonSerializer.Serialize(response), userId, ct);
@@ -209,7 +282,8 @@ public sealed class ServiceReplacementService : IServiceReplacementService
             r.VoidedAtUtc,
             r.VoidReason,
             r.CreatedBy,
-            r.CreatedAt)).ToList();
+            r.CreatedAt,
+            r.OilTransactionId)).ToList();
 
         return Result<IReadOnlyList<ServiceReplacementRecordDto>>.Success(dtos, 201);
     }
@@ -371,8 +445,26 @@ public sealed class ServiceReplacementService : IServiceReplacementService
             .Where(i => itemIds.Contains(i.Id))
             .ToDictionaryAsync(i => i.Id, ct);
 
-        var createdRecords = new List<ServiceReplacementRecord>();
-        var maintenanceOilUses = new List<(ServiceReplacementRecord Record, MaintenanceOilUse? OilUse)>();
+        var isCommercial = _commercialMode is not null && await _commercialMode.IsCommercialModeAsync(ct);
+        var configs = isCommercial
+            ? await _db.GeneratorMaintenanceOilConfigurations
+                .Include(x => x.Oil)
+                .Where(x => x.GeneratorId == generator.Id)
+                .ToListAsync(ct)
+            : new List<GeneratorMaintenanceOilConfiguration>();
+        var configByItem = configs.ToDictionary(x => x.ServiceItemId);
+
+        int? consumptionTypeId = null;
+        if (configs.Count > 0)
+        {
+            consumptionTypeId = await _db.Lookups
+                .Where(x => x.Code == OilTransactionTypeCodes.Consumption && (x.Category.Name == "OilTransactionType" || x.CategoryId == 100) && x.IsActive)
+                .Select(x => (int?)x.Id)
+                .FirstOrDefaultAsync(ct) ?? 206;
+        }
+
+        var simulatedBalances = new Dictionary<int, decimal>();
+        var itemPlans = new List<(MultiItemReplacementRowDto Row, ServiceItem Item, decimal? Interval, bool IsEarly, string? EarlyReason, GeneratorMaintenanceOilConfiguration? OilConfig, List<string> Warnings)>();
 
         foreach (var itemRow in dto.Items)
         {
@@ -399,33 +491,39 @@ public sealed class ServiceReplacementService : IServiceReplacementService
             if (isEarly && string.IsNullOrWhiteSpace(itemRow.EarlyReplacementReason))
                 return Result<IReadOnlyList<ServiceReplacementRecordDto>>.Failure($"Early replacement reason is required for item {sItem.Code}.", 400);
 
-            var record = new ServiceReplacementRecord
-            {
-                GeneratorId = dto.GeneratorId,
-                ServiceItemId = itemRow.ServiceItemId,
-                Kind = ServiceRecordKind.Replacement,
-                HoursAtService = dto.HoursAtService,
-                OccurredAtUtc = dto.OccurredAtUtc,
-                WorkPermitId = dto.WorkPermitId,
-                IsEarly = isEarly,
-                EarlyReplacementReason = isEarly ? itemRow.EarlyReplacementReason?.Trim() : null,
-                IntervalHoursSnapshot = interval,
-                Notes = itemRow.Notes?.Trim(),
-                CreatedAt = DateTime.UtcNow,
-                CreatedBy = userId,
-                UpdatedAt = DateTime.UtcNow,
-                UpdatedBy = userId
-            };
+            var itemWarnings = new List<string>();
+            GeneratorMaintenanceOilConfiguration? itemOilConfig = null;
 
-            createdRecords.Add(record);
-            try
+            if (isCommercial)
             {
-                maintenanceOilUses.Add((record, await ResolveMaintenanceOilUseAsync(generator, sItem.Id, ct)));
+                if (configByItem.TryGetValue(itemRow.ServiceItemId, out itemOilConfig))
+                {
+                    if (itemOilConfig.QuantityLiters <= 0)
+                        throw new InvalidOperationException("The configured maintenance oil quantity must be greater than zero.");
+                    if (itemOilConfig.Oil.SubStationId != generator.SubStationId)
+                        throw new InvalidOperationException("The configured maintenance oil is invalid for this generator.");
+
+                    var oilLookupId = itemOilConfig.Oil.OilLookupId;
+                    if (!simulatedBalances.TryGetValue(oilLookupId, out var balance))
+                    {
+                        balance = _oilLedger is not null
+                            ? await _oilLedger.GetCurrentBalanceAsync(generator.SubStationId, oilLookupId, ct)
+                            : itemOilConfig.Oil.CurrentStock;
+                    }
+
+                    if (balance < itemOilConfig.QuantityLiters)
+                    {
+                        itemWarnings.Add(ServiceReplacementWarningCodes.OilStockInsufficient);
+                    }
+                    simulatedBalances[oilLookupId] = balance - itemOilConfig.QuantityLiters;
+                }
+                else
+                {
+                    itemWarnings.Add(ServiceReplacementWarningCodes.OilNotConfigured);
+                }
             }
-            catch (InvalidOperationException ex)
-            {
-                return Result<IReadOnlyList<ServiceReplacementRecordDto>>.Failure(ex.Message, 400);
-            }
+
+            itemPlans.Add((itemRow, sItem, interval, isEarly, isEarly ? itemRow.EarlyReplacementReason?.Trim() : null, itemOilConfig, itemWarnings));
         }
 
         var idempotency = await StartIdempotentCommandAsync(dto.ClientRequestId, "service-multi-replacement", dto, userId, ct);
@@ -434,7 +532,65 @@ public sealed class ServiceReplacementService : IServiceReplacementService
         if (!idempotency.Value!.IsNew)
             return Replay<IReadOnlyList<ServiceReplacementRecordDto>>(idempotency.Value);
 
-        await PersistReplacementsAndMaintenanceOilAsync(maintenanceOilUses, userId, ct);
+        var createdRecords = new List<(ServiceReplacementRecord Record, ServiceItem Item, GeneratorMaintenanceOilConfiguration? OilConfig, List<string> Warnings)>();
+
+        await DbTransactionRunner.RunAsync(_db, async trCt =>
+        {
+            foreach (var plan in itemPlans)
+            {
+                var record = new ServiceReplacementRecord
+                {
+                    GeneratorId = dto.GeneratorId,
+                    ServiceItemId = plan.Item.Id,
+                    Kind = ServiceRecordKind.Replacement,
+                    HoursAtService = dto.HoursAtService,
+                    OccurredAtUtc = dto.OccurredAtUtc,
+                    WorkPermitId = dto.WorkPermitId,
+                    IsEarly = plan.IsEarly,
+                    EarlyReplacementReason = plan.EarlyReason,
+                    IntervalHoursSnapshot = plan.Interval,
+                    Notes = plan.Row.Notes?.Trim(),
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = userId,
+                    UpdatedAt = DateTime.UtcNow,
+                    UpdatedBy = userId
+                };
+                _db.ServiceReplacementRecords.Add(record);
+                createdRecords.Add((record, plan.Item, plan.OilConfig, plan.Warnings));
+            }
+            await _db.SaveChangesAsync(trCt);
+
+            var now = DateTime.UtcNow;
+            foreach (var item in createdRecords)
+            {
+                if (item.OilConfig is not null)
+                {
+                    var oilTx = new OilTransaction
+                    {
+                        SubStationId = generator.SubStationId,
+                        OilLookupId = item.OilConfig.Oil.OilLookupId,
+                        TransactionTypeLookupId = consumptionTypeId!.Value,
+                        TransactionDate = item.Record.OccurredAtUtc,
+                        QuantityLiters = (double)item.OilConfig.QuantityLiters,
+                        Reference = $"SRV-{item.Record.Id}",
+                        Notes = $"Maintenance replacement: {item.Item.NameAr ?? item.Item.NameEn} on {generator.Name}",
+                        IsApproved = true,
+                        ApprovedById = userId,
+                        ApprovedAt = now,
+                        CorrectedFromId = null,
+                        CreatedAt = now,
+                        CreatedBy = userId,
+                        UpdatedAt = now,
+                        UpdatedBy = userId
+                    };
+                    _db.OilTransactions.Add(oilTx);
+                    await _db.SaveChangesAsync(trCt);
+
+                    item.Record.OilTransactionId = oilTx.Id;
+                    await _db.SaveChangesAsync(trCt);
+                }
+            }
+        }, ct);
 
         try
         {
@@ -446,25 +602,27 @@ public sealed class ServiceReplacementService : IServiceReplacementService
         }
 
         var dtos = createdRecords.Select(r => new ServiceReplacementRecordDto(
-            r.Id,
-            r.GeneratorId,
+            r.Record.Id,
+            r.Record.GeneratorId,
             generator.Name,
-            r.ServiceItemId,
-            serviceItems[r.ServiceItemId].Code,
-            serviceItems[r.ServiceItemId].NameAr,
-            serviceItems[r.ServiceItemId].NameEn,
-            r.Kind,
-            r.HoursAtService,
-            r.OccurredAtUtc,
-            r.WorkPermitId,
-            r.IsEarly,
-            r.EarlyReplacementReason,
-            r.IntervalHoursSnapshot,
-            r.Notes,
-            r.VoidedAtUtc,
-            r.VoidReason,
-            r.CreatedBy,
-            r.CreatedAt)).ToList();
+            r.Item.Id,
+            r.Item.Code,
+            r.Item.NameAr,
+            r.Item.NameEn,
+            r.Record.Kind,
+            r.Record.HoursAtService,
+            r.Record.OccurredAtUtc,
+            r.Record.WorkPermitId,
+            r.Record.IsEarly,
+            r.Record.EarlyReplacementReason,
+            r.Record.IntervalHoursSnapshot,
+            r.Record.Notes,
+            r.Record.VoidedAtUtc,
+            r.Record.VoidReason,
+            r.Record.CreatedBy,
+            r.Record.CreatedAt,
+            r.Record.OilTransactionId,
+            r.Warnings.Count > 0 ? r.Warnings : null)).ToList();
 
         if (dto.ClientRequestId != Guid.Empty)
             await _idempotency.CompleteAsync(dto.ClientRequestId, 201, JsonSerializer.Serialize(dtos), userId, ct);
@@ -497,13 +655,10 @@ public sealed class ServiceReplacementService : IServiceReplacementService
 
         if (record.VoidedAtUtc.HasValue)
         {
-            return Result<bool>.Failure("This service replacement record has already been voided.");
+            throw new InvalidOperationException("This service replacement record has already been voided.");
         }
 
-        var transaction = _db.Database.IsRelational()
-            ? await _db.Database.BeginTransactionAsync(ct)
-            : null;
-        try
+        await DbTransactionRunner.RunAsync(_db, async trCt =>
         {
             var now = DateTime.UtcNow;
             record.VoidedAtUtc = now;
@@ -511,31 +666,38 @@ public sealed class ServiceReplacementService : IServiceReplacementService
             record.UpdatedAt = now;
             record.UpdatedBy = userId;
 
-            var maintenanceOilTransactions = await _db.OilTransactions
-                .Where(x => x.Reference == MaintenanceReference(record.Id) && x.IsApproved)
-                .ToListAsync(ct);
-            foreach (var oilTransaction in maintenanceOilTransactions)
+            if (record.OilTransactionId.HasValue)
             {
-                oilTransaction.IsApproved = false;
-                oilTransaction.ApprovedById = userId;
-                oilTransaction.ApprovedAt = now;
-                oilTransaction.UpdatedAt = now;
-                oilTransaction.UpdatedBy = userId;
-                oilTransaction.Notes = $"{oilTransaction.Notes}\nMaintenance replacement voided: {record.VoidReason}".Trim();
+                var original = await _db.OilTransactions
+                    .FirstOrDefaultAsync(x => x.Id == record.OilTransactionId.Value, trCt);
+
+                if (original is not null)
+                {
+                    // Audit trail: DO NOT delete or edit original OilTransaction
+                    var reversingTx = new OilTransaction
+                    {
+                        SubStationId = original.SubStationId,
+                        OilLookupId = original.OilLookupId,
+                        TransactionTypeLookupId = original.TransactionTypeLookupId,
+                        TransactionDate = now,
+                        QuantityLiters = -original.QuantityLiters,
+                        Reference = $"VOID-SRV-{record.Id}",
+                        Notes = $"Reversal of voided replacement #{record.Id} on generator {record.GeneratorId}: {record.VoidReason}",
+                        IsApproved = true,
+                        ApprovedById = userId,
+                        ApprovedAt = now,
+                        CorrectedFromId = null,
+                        CreatedAt = now,
+                        CreatedBy = userId,
+                        UpdatedAt = now,
+                        UpdatedBy = userId
+                    };
+                    _db.OilTransactions.Add(reversingTx);
+                }
             }
 
-            await _db.SaveChangesAsync(ct);
-            if (transaction is not null) await transaction.CommitAsync(ct);
-        }
-        catch
-        {
-            if (transaction is not null) await transaction.RollbackAsync(ct);
-            throw;
-        }
-        finally
-        {
-            if (transaction is not null) await transaction.DisposeAsync();
-        }
+            await _db.SaveChangesAsync(trCt);
+        }, ct);
 
         try
         {
@@ -592,7 +754,8 @@ public sealed class ServiceReplacementService : IServiceReplacementService
             r.VoidedAtUtc,
             r.VoidReason,
             r.CreatedBy,
-            r.CreatedAt)).ToList();
+            r.CreatedAt,
+            r.OilTransactionId)).ToList();
     }
 
     private async Task<Result<Generator>> GetScopedGeneratorAsync(int generatorId, CancellationToken ct)
@@ -611,84 +774,6 @@ public sealed class ServiceReplacementService : IServiceReplacementService
         var userId = _currentUser.UserId;
         return userId.HasValue && await _scopeFilter.HasAccessToSubStationAsync(userId.Value, subStationId);
     }
-
-    private sealed record MaintenanceOilUse(int SubStationId, int OilLookupId, decimal QuantityLiters, int TransactionTypeLookupId);
-
-    private async Task<MaintenanceOilUse?> ResolveMaintenanceOilUseAsync(Generator generator, int serviceItemId, CancellationToken ct)
-    {
-        if (_commercialMode is null || !await _commercialMode.IsCommercialModeAsync(ct)) return null;
-
-        var configuration = await _db.GeneratorMaintenanceOilConfigurations
-            .Include(x => x.Oil)
-            .FirstOrDefaultAsync(x => x.GeneratorId == generator.Id && x.ServiceItemId == serviceItemId, ct);
-        if (configuration is null) return null;
-        if (configuration.Oil.SubStationId != generator.SubStationId || configuration.QuantityLiters <= 0)
-            throw new InvalidOperationException("The configured maintenance oil is invalid for this generator.");
-
-        var maintenanceUseTypeId = await _db.Lookups
-            .Where(x => x.Category.Name == "OilTransactionType" && x.Code == OilTransactionTypeCodes.MaintenanceUse && x.IsActive)
-            .Select(x => (int?)x.Id)
-            .FirstOrDefaultAsync(ct);
-        if (!maintenanceUseTypeId.HasValue)
-            throw new InvalidOperationException("The MaintenanceUse oil transaction type must be configured before recording this maintenance action.");
-
-        return new MaintenanceOilUse(generator.SubStationId, configuration.Oil.OilLookupId, configuration.QuantityLiters, maintenanceUseTypeId.Value);
-    }
-
-    private async Task PersistReplacementAndMaintenanceOilAsync(
-        ServiceReplacementRecord record, MaintenanceOilUse? oilUse, int userId, CancellationToken ct)
-    {
-        await PersistReplacementsAndMaintenanceOilAsync([(record, oilUse)], userId, ct);
-    }
-
-    private async Task PersistReplacementsAndMaintenanceOilAsync(
-        IReadOnlyList<(ServiceReplacementRecord Record, MaintenanceOilUse? OilUse)> replacements, int userId, CancellationToken ct)
-    {
-        var transaction = _db.Database.IsRelational()
-            ? await _db.Database.BeginTransactionAsync(ct)
-            : null;
-        try
-        {
-            _db.ServiceReplacementRecords.AddRange(replacements.Select(x => x.Record));
-            await _db.SaveChangesAsync(ct);
-
-            var now = DateTime.UtcNow;
-            foreach (var (record, oilUse) in replacements)
-            {
-                if (oilUse is null) continue;
-                _db.OilTransactions.Add(new OilTransaction
-                {
-                    SubStationId = oilUse.SubStationId,
-                    OilLookupId = oilUse.OilLookupId,
-                    TransactionTypeLookupId = oilUse.TransactionTypeLookupId,
-                    TransactionDate = record.OccurredAtUtc,
-                    QuantityLiters = (double)oilUse.QuantityLiters,
-                    Reference = MaintenanceReference(record.Id),
-                    Notes = $"Maintenance replacement for service item {record.ServiceItemId} on generator {record.GeneratorId}.",
-                    IsApproved = true,
-                    ApprovedById = userId,
-                    ApprovedAt = now,
-                    CreatedAt = now,
-                    CreatedBy = userId,
-                    UpdatedAt = now,
-                    UpdatedBy = userId
-                });
-            }
-            await _db.SaveChangesAsync(ct);
-            if (transaction is not null) await transaction.CommitAsync(ct);
-        }
-        catch
-        {
-            if (transaction is not null) await transaction.RollbackAsync(ct);
-            throw;
-        }
-        finally
-        {
-            if (transaction is not null) await transaction.DisposeAsync();
-        }
-    }
-
-    private static string MaintenanceReference(int replacementRecordId) => $"MAINT-{replacementRecordId}";
 
     private async Task<Result<IdempotencyStartResult>> StartIdempotentCommandAsync<T>(Guid requestId, string operation, T request, int userId, CancellationToken ct)
     {

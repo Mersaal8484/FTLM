@@ -5040,6 +5040,9 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<int>("UpdatedBy")
                         .HasColumnType("int");
 
+                    b.Property<int?>("OilTransactionId")
+                        .HasColumnType("int");
+
                     b.Property<string>("VoidReason")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -5056,6 +5059,9 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ServiceItemId");
+
+                    b.HasIndex("OilTransactionId")
+                        .HasDatabaseName("IX_ServiceReplacementRecords_OilTransactionId");
 
                     b.HasIndex("WorkPermitId");
 
@@ -7023,6 +7029,11 @@ namespace FuelTrack.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("FuelTrack.Domain.Models.OilTransaction", "OilTransaction")
+                        .WithMany()
+                        .HasForeignKey("OilTransactionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("FuelTrack.Domain.Models.ServiceItem", "ServiceItem")
                         .WithMany("ReplacementRecords")
                         .HasForeignKey("ServiceItemId")
@@ -7035,6 +7046,8 @@ namespace FuelTrack.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Generator");
+
+                    b.Navigation("OilTransaction");
 
                     b.Navigation("ServiceItem");
 

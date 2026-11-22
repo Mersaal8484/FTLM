@@ -29,6 +29,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [maintenanceOilConfig, setMaintenanceOilConfig] = useState(undefined);
+  const [bannerMsg, setBannerMsg] = useState(null);
 
   // History modal state
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -74,6 +75,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
     setFormEarlyReason('');
     setFormNotes('');
     setErrorMsg('');
+    setBannerMsg(null);
     setModalOpen(true);
     setMaintenanceOilConfig(undefined);
     if (isCommercialMode) {
@@ -107,7 +109,7 @@ export default function GeneratorMaintenanceTable({ lang }) {
     setSubmitting(true);
     setErrorMsg('');
     try {
-      await client.post('/api/service-replacements', {
+      const res = await client.post('/api/service-replacements', {
         generatorId: modalGen.generatorId,
         serviceItemId: modalItem.serviceItemId,
         hoursAtService: parseFloat(formHours),
@@ -119,6 +121,27 @@ export default function GeneratorMaintenanceTable({ lang }) {
       });
       clientRequestIdRef.current = crypto.randomUUID();
       setModalOpen(false);
+      const warnings = res.data?.warnings || [];
+      if (warnings.includes('OIL_STOCK_INSUFFICIENT')) {
+        setBannerMsg({
+          type: 'warning',
+          text: ar
+            ? 'تم تسجيل الاستبدال. تحذير: مخزون الزيت غير كافٍ (أصبح الرصيد سالباً).'
+            : 'Replacement recorded. Warning: insufficient oil stock (balance went negative).'
+        });
+      } else if (warnings.includes('OIL_NOT_CONFIGURED')) {
+        setBannerMsg({
+          type: 'warning',
+          text: ar
+            ? 'تم تسجيل الاستبدال. تحذير: لا يوجد ضبط زيت لهذا البند، لم يتغير المخزون.'
+            : 'Replacement recorded. Warning: no oil configuration for this item, stock unchanged.'
+        });
+      } else {
+        setBannerMsg({
+          type: 'success',
+          text: ar ? 'تم تسجيل الاستبدال بنجاح' : 'Replacement recorded successfully'
+        });
+      }
       await loadData();
     } catch (err) {
       setErrorMsg(err.response?.data?.error || (ar ? 'فشل حفظ السجل' : 'Failed to save record'));
@@ -191,6 +214,30 @@ export default function GeneratorMaintenanceTable({ lang }) {
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease', paddingBottom: 40 }}>
+      {/* Status / Warning Banner */}
+      {bannerMsg && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: bannerMsg.type === 'warning' ? 'var(--warning-subtle)' : 'var(--success-subtle)',
+          color: bannerMsg.type === 'warning' ? 'var(--warning)' : 'var(--success)',
+          border: `1px solid ${bannerMsg.type === 'warning' ? 'var(--warning)' : 'var(--success)'}`,
+          padding: '12px 16px',
+          borderRadius: 'var(--radius-sm)',
+          marginBottom: 16,
+          fontSize: '0.9rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {bannerMsg.type === 'warning' ? <AlertTriangle size={18} /> : <CheckCircle size={18} />}
+            <span>{bannerMsg.text}</span>
+          </div>
+          <button type="button" onClick={() => setBannerMsg(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 4 }}>
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="page-header" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
@@ -400,14 +447,26 @@ export default function GeneratorMaintenanceTable({ lang }) {
         >
           <form onSubmit={handleSaveReplacement}>
             {isCommercialMode && maintenanceOilConfig === null && (
-              <div style={{ background: 'var(--warning-subtle)', color: 'var(--warning)', padding: '10px 14px', borderRadius: 'var(--radius-xs)', marginBottom: 14, fontSize: '0.875rem' }}>
-                <AlertTriangle size={16} style={{ verticalAlign: 'text-bottom', marginInlineEnd: 6 }} />
-                {ar ? 'لم يُضبط زيت وكمية لهذا البند. سيُسجّل تنفيذ الصيانة دون أي خصم من مخزون الزيت.' : 'No oil and quantity are configured for this service item. The service is recorded without deducting oil stock.'}
+              <div style={{ background: 'var(--warning-subtle)', color: 'var(--warning)', padding: '10px 14px', borderRadius: 'var(--radius-xs)', marginBottom: 14, fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                <div>
+                  <AlertTriangle size={16} style={{ verticalAlign: 'text-bottom', marginInlineEnd: 6 }} />
+                  {ar ? 'لم يُضبط زيت لهذا البند — لن يتغير المخزون' : 'Oil not configured — stock will not change'}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/maintenance/service/definitions')}
+                  style={{ background: 'none', border: 'none', color: 'inherit', textDecoration: 'underline', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                >
+                  {ar ? 'ضبط زيت المعدات' : 'Configure equipment oil'}
+                </button>
               </div>
             )}
             {isCommercialMode && maintenanceOilConfig && (
               <div style={{ background: 'var(--info-subtle, var(--surface-2))', color: 'var(--text)', padding: '10px 14px', borderRadius: 'var(--radius-xs)', marginBottom: 14, fontSize: '0.875rem' }}>
-                {ar ? `زيت الصيانة المضبوط: ${maintenanceOilConfig.oilLookupName} — ${maintenanceOilConfig.quantityLiters} لتر. يُخصم عند اعتماد نتيجة الصيانة.` : `Configured maintenance oil: ${maintenanceOilConfig.oilLookupName} — ${maintenanceOilConfig.quantityLiters} L. It is deducted when the maintenance result is approved.`}
+                <CheckCircle size={16} style={{ verticalAlign: 'text-bottom', marginInlineEnd: 6, color: 'var(--primary)' }} />
+                {ar
+                  ? `زيت الصيانة الذي سيُخصم: ${maintenanceOilConfig.oilLookupName} — ${maintenanceOilConfig.quantityLiters} لتر`
+                  : `Configured oil to be deducted: ${maintenanceOilConfig.oilLookupName} — ${maintenanceOilConfig.quantityLiters} L`}
               </div>
             )}
             {errorMsg && (
