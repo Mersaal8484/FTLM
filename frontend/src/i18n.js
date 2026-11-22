@@ -846,7 +846,7 @@ Object.assign(appTranslations.ar.translation, {
     replacementRecordedSuccess: 'تم تسجيل الاستبدال بنجاح.',
   },
   sidebar: {
-    ...appTranslations.ar.translation.sidebar:
+    ...appTranslations.ar.translation.sidebar,
     commercialMode: '\u0648\u0636\u0639 \u0627\u0644\u0645\u062d\u0637\u0629 \u0627\u0644\u062a\u062c\u0627\u0631\u064a\u0629',
     oilLedger: '\u0633\u062c\u0644 \u0627\u0644\u0632\u064a\u0648\u062a',
     stocktake: '\u0627\u0644\u062c\u0631\u062f \u0627\u0644\u0641\u0639\u0644\u064a \u0644\u0644\u0648\u0642\u0648\u062f \u0648\u0627\u0644\u0632\u064a\u0648\u062a',
