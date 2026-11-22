@@ -4,12 +4,14 @@ import { Pencil, Plus, Power, RefreshCw } from 'lucide-react';
 import client from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
 import { Button, FormField, Input, Modal, PageHeader } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 const blankForm = { code: '', name: '', meterMultiplier: '1', meterId: '' };
 
 export default function FeedersManagement({ lang, currentUser }) {
   const { t, i18n } = useTranslation();
   const ar = lang === 'ar';
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const [sites, setSites] = useState([]);
   const [meters, setMeters] = useState([]);
   const [feeders, setFeeders] = useState([]);
@@ -25,13 +27,18 @@ export default function FeedersManagement({ lang, currentUser }) {
   useEffect(() => { if (lang && i18n.language !== lang) i18n.changeLanguage(lang); }, [i18n, lang]);
 
   const loadSites = useCallback(async () => {
+    if (isCommercialMode) {
+      setSites([]);
+      setSiteId('0');
+      return;
+    }
     try {
       const response = await client.get('/api/sub-stations');
       setSites(response.data?.items || response.data || []);
     } catch {
       setError(t('feeders.errors.loadSites'));
     }
-  }, [t]);
+  }, [isCommercialMode, t]);
 
   const loadFeeders = useCallback(async (selectedSiteId) => {
     if (!selectedSiteId) { setFeeders([]); setMeters([]); return; }
@@ -40,7 +47,9 @@ export default function FeedersManagement({ lang, currentUser }) {
     try {
       const [feedersResponse, metersResponse] = await Promise.all([
         client.get(`/api/operational-feeders/by-site/${selectedSiteId}`),
-        client.get('/api/meters', { params: { subStationId: selectedSiteId } }),
+        isCommercialMode
+          ? client.get('/api/meters')
+          : client.get('/api/meters', { params: { subStationId: selectedSiteId } }),
       ]);
       setFeeders(feedersResponse.data || []);
       setMeters(metersResponse.data?.items || metersResponse.data || []);
@@ -49,9 +58,9 @@ export default function FeedersManagement({ lang, currentUser }) {
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [isCommercialMode, t]);
 
-  useEffect(() => { loadSites(); }, [loadSites]);
+  useEffect(() => { if (modeResolved) loadSites(); }, [loadSites, modeResolved]);
   useEffect(() => { loadFeeders(siteId); }, [loadFeeders, siteId]);
 
   const openCreate = () => {
@@ -75,7 +84,7 @@ export default function FeedersManagement({ lang, currentUser }) {
       if (editing) {
         await client.put(`/api/operational-feeders/${editing.id}`, { ...payload, isActive: true });
       } else {
-        await client.post('/api/operational-feeders', { subStationId: Number(siteId), code: form.code, ...payload });
+        await client.post('/api/operational-feeders', { subStationId: isCommercialMode ? 0 : Number(siteId), code: form.code, ...payload });
       }
       setShowForm(false);
       await loadFeeders(siteId);
@@ -116,12 +125,12 @@ export default function FeedersManagement({ lang, currentUser }) {
         </div>}
       />
 
-      <FormField label={t('feeders.site')}>
+      {!isCommercialMode && <FormField label={t('feeders.site')}>
         <select className="form-control" value={siteId} onChange={event => setSiteId(event.target.value)}>
           <option value="">{t('feeders.selectSite')}</option>
           {sites.map(site => <option key={site.id} value={site.id}>{site.name}</option>)}
         </select>
-      </FormField>
+      </FormField>}
 
       {error && <div className="alert alert-danger" style={{ marginTop: 16 }}>{error}</div>}
 

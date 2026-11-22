@@ -1,3 +1,5 @@
+using FuelTrack.Application.Constants;
+
 namespace FuelTrack.Application.Services;
 
 /// <summary>Shared, deterministic oil book-balance arithmetic.</summary>
@@ -19,5 +21,5 @@ public static class OilBalanceCalculator
 
     public static bool IsInbound(string? typeCode) => typeCode is "Purchase" or "TransferIn";
 
-    public static bool IsOutbound(string? typeCode) => typeCode is "Sale" or "TransferOut" or "Loss";
+    public static bool IsOutbound(string? typeCode) => typeCode is "Sale" or "TransferOut" or "Loss" or OilTransactionTypeCodes.MaintenanceUse;
 }

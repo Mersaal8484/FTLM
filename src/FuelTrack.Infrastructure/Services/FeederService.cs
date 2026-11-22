@@ -6,17 +6,24 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FuelTrack.Infrastructure.Services;
 
-public sealed class FeederService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser) : IFeederService
+public sealed class FeederService(
+    FuelTrackDbContext db,
+    IUserScopeFilterService scopeFilter,
+    ICurrentUserService currentUser,
+    ICommercialStationModeService? commercialMode = null) : IFeederService
 {
+    private readonly ICommercialStationModeService _commercialMode = commercialMode ?? new CommercialStationModeService(db);
+
     public async Task<Result<FeederDto>> CreateAsync(CreateFeederDto dto, int userId, CancellationToken cancellationToken = default)
     {
-        if (dto.SubStationId <= 0 || string.IsNullOrWhiteSpace(dto.Code) || string.IsNullOrWhiteSpace(dto.Name) || dto.MeterMultiplier is null or <= 0)
+        var subStationId = await ResolveSubStationIdAsync(dto.SubStationId, cancellationToken);
+        if (subStationId <= 0 || string.IsNullOrWhiteSpace(dto.Code) || string.IsNullOrWhiteSpace(dto.Name) || dto.MeterMultiplier is null or <= 0)
             return Result<FeederDto>.Failure("Site, code, name, and a positive meter multiplier are required.");
-        if (!currentUser.HasAnyAdminRole && !await scopeFilter.HasAccessToSubStationAsync(userId, dto.SubStationId)) return Result<FeederDto>.NotFound("Site not found or outside your scope.");
-        if (!await db.SubStations.AnyAsync(x => x.Id == dto.SubStationId, cancellationToken)) return Result<FeederDto>.NotFound("Site was not found.");
-        if (dto.MeterId.HasValue && !await db.Meters.AnyAsync(x => x.Id == dto.MeterId && x.SubStationId == dto.SubStationId, cancellationToken)) return Result<FeederDto>.Failure("The selected meter does not belong to the Site.");
-        if (await db.Feeders.AnyAsync(x => x.SubStationId == dto.SubStationId && x.Code == dto.Code.Trim(), cancellationToken)) return Result<FeederDto>.Conflict("Feeder code already exists at this Site.");
-        var feeder = new Feeder { SubStationId = dto.SubStationId, Code = dto.Code.Trim(), Name = dto.Name.Trim(), MeterMultiplier = dto.MeterMultiplier ?? 1m, MeterId = dto.MeterId, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow, CreatedBy = userId, UpdatedBy = userId };
+        if (!currentUser.HasAnyAdminRole && !await scopeFilter.HasAccessToSubStationAsync(userId, subStationId)) return Result<FeederDto>.NotFound("Site not found or outside your scope.");
+        if (!await db.SubStations.AnyAsync(x => x.Id == subStationId, cancellationToken)) return Result<FeederDto>.NotFound("Site was not found.");
+        if (dto.MeterId.HasValue && !await db.Meters.AnyAsync(x => x.Id == dto.MeterId && x.SubStationId == subStationId, cancellationToken)) return Result<FeederDto>.Failure("The selected meter does not belong to the Site.");
+        if (await db.Feeders.AnyAsync(x => x.SubStationId == subStationId && x.Code == dto.Code.Trim(), cancellationToken)) return Result<FeederDto>.Conflict("Feeder code already exists at this Site.");
+        var feeder = new Feeder { SubStationId = subStationId, Code = dto.Code.Trim(), Name = dto.Name.Trim(), MeterMultiplier = dto.MeterMultiplier ?? 1m, MeterId = dto.MeterId, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow, CreatedBy = userId, UpdatedBy = userId };
         db.Feeders.Add(feeder); await db.SaveChangesAsync(cancellationToken);
         return Result<FeederDto>.Success(ToDto(feeder), 201);
     }
@@ -88,8 +95,17 @@ public sealed class FeederService(FuelTrackDbContext db, IUserScopeFilterService
 
     public async Task<IReadOnlyList<FeederDto>> GetBySiteAsync(int subStationId, int userId, CancellationToken cancellationToken = default)
     {
+        subStationId = await ResolveSubStationIdAsync(subStationId, cancellationToken);
         if (!currentUser.HasAnyAdminRole && !await scopeFilter.HasAccessToSubStationAsync(userId, subStationId)) return [];
         return await db.Feeders.AsNoTracking().Where(x => x.SubStationId == subStationId).OrderBy(x => x.Name).Select(x => new FeederDto(x.Id, x.SubStationId, x.Code, x.Name, x.MeterMultiplier, x.MeterId)).ToListAsync(cancellationToken);
+    }
+
+    private async Task<int> ResolveSubStationIdAsync(int requestedSubStationId, CancellationToken cancellationToken)
+    {
+        if (!await _commercialMode.IsCommercialModeAsync(cancellationToken))
+            return requestedSubStationId;
+
+        return (await _commercialMode.GetScopeAsync(cancellationToken))?.SubStationId ?? 0;
     }
 
     private static FeederDto ToDto(Feeder feeder) => new(feeder.Id, feeder.SubStationId, feeder.Code, feeder.Name, feeder.MeterMultiplier, feeder.MeterId);

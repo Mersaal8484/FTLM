@@ -1,4 +1,5 @@
 using FuelTrack.Application.DTOs.OilLedger;
+using FuelTrack.Application.Constants;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Application.Services;
 using FuelTrack.Domain.Enums;
@@ -64,7 +65,8 @@ public sealed class OilLedgerService(
                     switch (EffectiveType(transaction, siteIds))
                     {
                         case "Purchase": inbound += transaction.QuantityLiters; break;
-                        case "Sale": outbound += transaction.QuantityLiters; break;
+                        case "Sale":
+                        case OilTransactionTypeCodes.MaintenanceUse: outbound += transaction.QuantityLiters; break;
                         case "TransferIn": transferIn += transaction.QuantityLiters; break;
                         case "TransferOut": transferOut += transaction.QuantityLiters; break;
                         case "Loss": loss += transaction.QuantityLiters; break;
@@ -164,7 +166,7 @@ public sealed class OilLedgerService(
     {
         "Purchase" => OilBalanceCalculator.CalculateClosing(opening, quantity, 0, 0, 0, 0),
         "TransferIn" => OilBalanceCalculator.CalculateClosing(opening, 0, 0, quantity, 0, 0),
-        "Sale" => OilBalanceCalculator.CalculateClosing(opening, 0, quantity, 0, 0, 0),
+        "Sale" or OilTransactionTypeCodes.MaintenanceUse => OilBalanceCalculator.CalculateClosing(opening, 0, quantity, 0, 0, 0),
         "TransferOut" => OilBalanceCalculator.CalculateClosing(opening, 0, 0, 0, quantity, 0),
         "Loss" => OilBalanceCalculator.CalculateClosing(opening, 0, 0, 0, 0, quantity),
         _ => opening

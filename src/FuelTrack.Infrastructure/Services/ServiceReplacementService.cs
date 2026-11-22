@@ -1,4 +1,5 @@
 using FuelTrack.Application.Common;
+using FuelTrack.Application.Constants;
 using FuelTrack.Application.DTOs.Maintenance;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Enums;
@@ -20,6 +21,7 @@ public sealed class ServiceReplacementService : IServiceReplacementService
     private readonly ICurrentUserService _currentUser;
     private readonly IIdempotencyService _idempotency;
     private readonly ILogger<ServiceReplacementService> _logger;
+    private readonly ICommercialStationModeService? _commercialMode;
 
     public ServiceReplacementService(
         FuelTrackDbContext db,
@@ -27,7 +29,8 @@ public sealed class ServiceReplacementService : IServiceReplacementService
         IUserScopeFilterService scopeFilter,
         ICurrentUserService currentUser,
         IIdempotencyService idempotency,
-        ILogger<ServiceReplacementService> logger)
+        ILogger<ServiceReplacementService> logger,
+        ICommercialStationModeService? commercialMode = null)
     {
         _db = db;
         _dueEvaluation = dueEvaluation;
@@ -35,6 +38,7 @@ public sealed class ServiceReplacementService : IServiceReplacementService
         _currentUser = currentUser;
         _idempotency = idempotency;
         _logger = logger;
+        _commercialMode = commercialMode;
     }
 
     public async Task<Result<ServiceReplacementRecordDto>> RecordReplacementAsync(
@@ -96,6 +100,16 @@ public sealed class ServiceReplacementService : IServiceReplacementService
             return Result<ServiceReplacementRecordDto>.Failure(validation.ErrorMessage ?? "Validation failed.", 400);
         }
 
+        MaintenanceOilUse? maintenanceOilUse;
+        try
+        {
+            maintenanceOilUse = await ResolveMaintenanceOilUseAsync(generator, serviceItem.Id, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result<ServiceReplacementRecordDto>.Failure(ex.Message, 400);
+        }
+
         // Only register idempotency command once validation has completely passed (C3)
         var idempotency = await StartIdempotentCommandAsync(dto.ClientRequestId, "service-replacement", dto, userId, ct);
         if (!idempotency.IsSuccess)
@@ -121,8 +135,7 @@ public sealed class ServiceReplacementService : IServiceReplacementService
             UpdatedBy = userId
         };
 
-        _db.ServiceReplacementRecords.Add(record);
-        await _db.SaveChangesAsync(ct);
+        await PersistReplacementAndMaintenanceOilAsync(record, maintenanceOilUse, userId, ct);
 
         try
         {
@@ -359,6 +372,7 @@ public sealed class ServiceReplacementService : IServiceReplacementService
             .ToDictionaryAsync(i => i.Id, ct);
 
         var createdRecords = new List<ServiceReplacementRecord>();
+        var maintenanceOilUses = new List<(ServiceReplacementRecord Record, MaintenanceOilUse? OilUse)>();
 
         foreach (var itemRow in dto.Items)
         {
@@ -404,6 +418,14 @@ public sealed class ServiceReplacementService : IServiceReplacementService
             };
 
             createdRecords.Add(record);
+            try
+            {
+                maintenanceOilUses.Add((record, await ResolveMaintenanceOilUseAsync(generator, sItem.Id, ct)));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Result<IReadOnlyList<ServiceReplacementRecordDto>>.Failure(ex.Message, 400);
+            }
         }
 
         var idempotency = await StartIdempotentCommandAsync(dto.ClientRequestId, "service-multi-replacement", dto, userId, ct);
@@ -412,8 +434,7 @@ public sealed class ServiceReplacementService : IServiceReplacementService
         if (!idempotency.Value!.IsNew)
             return Replay<IReadOnlyList<ServiceReplacementRecordDto>>(idempotency.Value);
 
-        _db.ServiceReplacementRecords.AddRange(createdRecords);
-        await _db.SaveChangesAsync(ct);
+        await PersistReplacementsAndMaintenanceOilAsync(maintenanceOilUses, userId, ct);
 
         try
         {
@@ -479,12 +500,42 @@ public sealed class ServiceReplacementService : IServiceReplacementService
             return Result<bool>.Failure("This service replacement record has already been voided.");
         }
 
-        record.VoidedAtUtc = DateTime.UtcNow;
-        record.VoidReason = dto.Reason.Trim();
-        record.UpdatedAt = DateTime.UtcNow;
-        record.UpdatedBy = userId;
+        var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync(ct)
+            : null;
+        try
+        {
+            var now = DateTime.UtcNow;
+            record.VoidedAtUtc = now;
+            record.VoidReason = dto.Reason.Trim();
+            record.UpdatedAt = now;
+            record.UpdatedBy = userId;
 
-        await _db.SaveChangesAsync(ct);
+            var maintenanceOilTransactions = await _db.OilTransactions
+                .Where(x => x.Reference == MaintenanceReference(record.Id) && x.IsApproved)
+                .ToListAsync(ct);
+            foreach (var oilTransaction in maintenanceOilTransactions)
+            {
+                oilTransaction.IsApproved = false;
+                oilTransaction.ApprovedById = userId;
+                oilTransaction.ApprovedAt = now;
+                oilTransaction.UpdatedAt = now;
+                oilTransaction.UpdatedBy = userId;
+                oilTransaction.Notes = $"{oilTransaction.Notes}\nMaintenance replacement voided: {record.VoidReason}".Trim();
+            }
+
+            await _db.SaveChangesAsync(ct);
+            if (transaction is not null) await transaction.CommitAsync(ct);
+        }
+        catch
+        {
+            if (transaction is not null) await transaction.RollbackAsync(ct);
+            throw;
+        }
+        finally
+        {
+            if (transaction is not null) await transaction.DisposeAsync();
+        }
 
         try
         {
@@ -560,6 +611,84 @@ public sealed class ServiceReplacementService : IServiceReplacementService
         var userId = _currentUser.UserId;
         return userId.HasValue && await _scopeFilter.HasAccessToSubStationAsync(userId.Value, subStationId);
     }
+
+    private sealed record MaintenanceOilUse(int SubStationId, int OilLookupId, decimal QuantityLiters, int TransactionTypeLookupId);
+
+    private async Task<MaintenanceOilUse?> ResolveMaintenanceOilUseAsync(Generator generator, int serviceItemId, CancellationToken ct)
+    {
+        if (_commercialMode is null || !await _commercialMode.IsCommercialModeAsync(ct)) return null;
+
+        var configuration = await _db.GeneratorMaintenanceOilConfigurations
+            .Include(x => x.Oil)
+            .FirstOrDefaultAsync(x => x.GeneratorId == generator.Id && x.ServiceItemId == serviceItemId, ct);
+        if (configuration is null) return null;
+        if (configuration.Oil.SubStationId != generator.SubStationId || configuration.QuantityLiters <= 0)
+            throw new InvalidOperationException("The configured maintenance oil is invalid for this generator.");
+
+        var maintenanceUseTypeId = await _db.Lookups
+            .Where(x => x.Category.Name == "OilTransactionType" && x.Code == OilTransactionTypeCodes.MaintenanceUse && x.IsActive)
+            .Select(x => (int?)x.Id)
+            .FirstOrDefaultAsync(ct);
+        if (!maintenanceUseTypeId.HasValue)
+            throw new InvalidOperationException("The MaintenanceUse oil transaction type must be configured before recording this maintenance action.");
+
+        return new MaintenanceOilUse(generator.SubStationId, configuration.Oil.OilLookupId, configuration.QuantityLiters, maintenanceUseTypeId.Value);
+    }
+
+    private async Task PersistReplacementAndMaintenanceOilAsync(
+        ServiceReplacementRecord record, MaintenanceOilUse? oilUse, int userId, CancellationToken ct)
+    {
+        await PersistReplacementsAndMaintenanceOilAsync([(record, oilUse)], userId, ct);
+    }
+
+    private async Task PersistReplacementsAndMaintenanceOilAsync(
+        IReadOnlyList<(ServiceReplacementRecord Record, MaintenanceOilUse? OilUse)> replacements, int userId, CancellationToken ct)
+    {
+        var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync(ct)
+            : null;
+        try
+        {
+            _db.ServiceReplacementRecords.AddRange(replacements.Select(x => x.Record));
+            await _db.SaveChangesAsync(ct);
+
+            var now = DateTime.UtcNow;
+            foreach (var (record, oilUse) in replacements)
+            {
+                if (oilUse is null) continue;
+                _db.OilTransactions.Add(new OilTransaction
+                {
+                    SubStationId = oilUse.SubStationId,
+                    OilLookupId = oilUse.OilLookupId,
+                    TransactionTypeLookupId = oilUse.TransactionTypeLookupId,
+                    TransactionDate = record.OccurredAtUtc,
+                    QuantityLiters = (double)oilUse.QuantityLiters,
+                    Reference = MaintenanceReference(record.Id),
+                    Notes = $"Maintenance replacement for service item {record.ServiceItemId} on generator {record.GeneratorId}.",
+                    IsApproved = true,
+                    ApprovedById = userId,
+                    ApprovedAt = now,
+                    CreatedAt = now,
+                    CreatedBy = userId,
+                    UpdatedAt = now,
+                    UpdatedBy = userId
+                });
+            }
+            await _db.SaveChangesAsync(ct);
+            if (transaction is not null) await transaction.CommitAsync(ct);
+        }
+        catch
+        {
+            if (transaction is not null) await transaction.RollbackAsync(ct);
+            throw;
+        }
+        finally
+        {
+            if (transaction is not null) await transaction.DisposeAsync();
+        }
+    }
+
+    private static string MaintenanceReference(int replacementRecordId) => $"MAINT-{replacementRecordId}";
 
     private async Task<Result<IdempotencyStartResult>> StartIdempotentCommandAsync<T>(Guid requestId, string operation, T request, int userId, CancellationToken ct)
     {

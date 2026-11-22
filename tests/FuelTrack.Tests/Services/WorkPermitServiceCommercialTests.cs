@@ -89,7 +89,7 @@ public sealed class WorkPermitServiceCommercialTests : IDisposable
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value);
         Assert.Equal(1, result.Value.SubStationId);
-        Assert.StartsWith("WP-", result.Value.PermitNumber);
+        Assert.Matches("^PS01-WP-\\d{5}$", result.Value.PermitNumber);
     }
 
     [Fact]
@@ -112,6 +112,33 @@ public sealed class WorkPermitServiceCommercialTests : IDisposable
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value);
         Assert.Equal(1, result.Value.SubStationId);
+    }
+
+    [Fact]
+    public async Task CreateAsync_CommercialMode_IncrementsStationPermitSequence()
+    {
+        EnableCommercialMode();
+        _db.WorkPermits.Add(new WorkPermit
+        {
+            PermitNumber = "PS01-WP-00009",
+            SubStationId = 1,
+            MaintenanceTypeLookupId = 10,
+            DepartmentLookupId = 20,
+            PriorityLookupId = 30,
+            StatusLookupId = 40,
+            PermitDate = DateTime.UtcNow,
+            ProblemDescription = "Existing permit",
+            RequestedById = 1,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+
+        var service = new WorkPermitService(_db, new StubCurrentUserService { UserId = 1, IsAdmin = true }, new StubUserScopeFilterService(), new CommercialStationModeService(_db));
+        var result = await service.CreateAsync(new CreateWorkPermitDto(0, null, 10, 20, 30, DateTime.UtcNow, "Next permit"), 1);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("PS01-WP-00010", result.Value!.PermitNumber);
     }
 
     [Fact]

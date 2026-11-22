@@ -10,12 +10,18 @@ public class SubStationReadingService : ISubStationReadingService
     private readonly FuelTrackDbContext _db;
     private readonly IUserScopeFilterService _scopeFilter;
     private readonly ICurrentUserService _currentUser;
+    private readonly ICommercialStationModeService _commercialMode;
 
-    public SubStationReadingService(FuelTrackDbContext db, IUserScopeFilterService scopeFilter, ICurrentUserService currentUser)
+    public SubStationReadingService(
+        FuelTrackDbContext db,
+        IUserScopeFilterService scopeFilter,
+        ICurrentUserService currentUser,
+        ICommercialStationModeService? commercialMode = null)
     {
         _db = db;
         _scopeFilter = scopeFilter;
         _currentUser = currentUser;
+        _commercialMode = commercialMode ?? new CommercialStationModeService(db);
     }
 
     private async Task<int?> GetExportEnergyMeterTypeIdAsync()
@@ -45,6 +51,10 @@ public class SubStationReadingService : ISubStationReadingService
 
     public async Task<SubStationReadingDto> CreateAsync(CreateSubStationReadingDto dto)
     {
+        var commercialScope = await GetCommercialScopeAsync();
+        if (commercialScope is not null)
+            dto = dto with { SubStationId = commercialScope.SubStationId };
+
         if (dto.SubStationId is null or <= 0)
             throw new ArgumentException("Site number (SubStationId) is required.");
 
@@ -258,6 +268,13 @@ public class SubStationReadingService : ISubStationReadingService
 
     public async Task<SubStationReadingDto?> GetLastByStationAsync(int stationId, int? subStation = null, CancellationToken ct = default)
     {
+        var commercialScope = await GetCommercialScopeAsync(ct);
+        if (commercialScope is not null)
+        {
+            stationId = commercialScope.StationId;
+            subStation = commercialScope.SubStationId;
+        }
+
         var query = _db.SubStationReadings
             .Include(r => r.SubStation)
             .Include(r => r.Meter)
@@ -362,6 +379,13 @@ public class SubStationReadingService : ISubStationReadingService
 
     public async Task<ProductionSummaryDto> GetProductionSummaryAsync(int stationId, DateTime date, int? subStationId = null)
     {
+        var commercialScope = await GetCommercialScopeAsync();
+        if (commercialScope is not null)
+        {
+            stationId = commercialScope.StationId;
+            subStationId = commercialScope.SubStationId;
+        }
+
         var approvedLookupId = await GetLookupIdAsync("ReadingStatus", "Approved");
 
         var query = _db.DailyReadings
@@ -398,6 +422,11 @@ public class SubStationReadingService : ISubStationReadingService
 
         return result ?? new ProductionSummaryDto(0, 0, date);
     }
+
+    private async Task<CommercialStationScope?> GetCommercialScopeAsync(CancellationToken cancellationToken = default) =>
+        await _commercialMode.IsCommercialModeAsync(cancellationToken)
+            ? await _commercialMode.GetScopeAsync(cancellationToken)
+            : null;
 
     public async Task RejectAsync(int id, int userId, string? reason = null)
     {

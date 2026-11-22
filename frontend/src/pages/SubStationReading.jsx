@@ -5,9 +5,11 @@ import {
 } from 'lucide-react';
 import client from '../api/client';
 import { PageHeader, Button, FormField, Input } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 function SubStationReadingPage({ lang, currentUser: _currentUser }) {
   const ar = lang === 'ar';
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const canEditSchedule = true;
   const { stationId } = useParams();
   const [searchParams] = useSearchParams();
@@ -41,23 +43,27 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
   });
 
   useEffect(() => {
+    if (!modeResolved) return undefined;
+
     const fetchData = async () => {
       setLoading(true);
       setStatus(null);
 
       try {
-        const subsPromise = subStationId
+        const subsPromise = isCommercialMode
+          ? Promise.resolve({ data: null })
+          : subStationId
           ? client.get(`/api/sub-stations/${subStationId}`)
           : client.get(`/api/sub-stations/by-station/${stationId}`);
 
         const [lastRes, metersRes, subsRes] = await Promise.all([
-          client.get(`/api/substation-readings/last/${stationId}`, { params: subStationId ? { subStation: subStationId } : {} }),
+          client.get(`/api/substation-readings/last/${isCommercialMode ? 0 : stationId}`, { params: !isCommercialMode && subStationId ? { subStation: subStationId } : {} }),
           client.get('/api/meters'),
           subsPromise,
         ]);
         setLastReading(lastRes.data);
 
-        const subData = subStationId ? subsRes.data : (subsRes.data[0] || null);
+        const subData = isCommercialMode ? null : (subStationId ? subsRes.data : (subsRes.data[0] || null));
         setSubStationData(subData);
         setStationName(subData?.stationName || '');
 
@@ -65,7 +71,7 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
         const targetSubStationId = subStationId ? Number(subStationId) : null;
 
         const activeGridMeter = metersRes.data.find(m =>
-          m.stationId === targetStationId &&
+          (isCommercialMode || m.stationId === targetStationId) &&
           (!targetSubStationId || m.subStationId === targetSubStationId) &&
           m.meterTypeLookupName === 'عداد طاقة'
         );
@@ -90,7 +96,7 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
       try {
         const today = new Date().toISOString().split('T')[0];
         const prodRes = await client.get('/api/substation-readings/production-summary', {
-          params: { stationId, date: today, ...(subStationId ? { subStation: subStationId } : {}) }
+          params: { stationId: isCommercialMode ? 0 : stationId, date: today, ...(!isCommercialMode && subStationId ? { subStation: subStationId } : {}) }
         });
         setProduction(prodRes.data.totalProduced || 0);
       } catch {
@@ -101,7 +107,7 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
     };
 
     fetchData();
-  }, [stationId, subStationId, ar]);
+  }, [stationId, subStationId, ar, isCommercialMode, modeResolved]);
 
   const hasMeter = !!gridMeter;
 
@@ -119,7 +125,7 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!subStationId) {
+    if (!isCommercialMode && !subStationId) {
       setStatus({ type: 'error', msg: ar ? 'رقم الموقع مطلوب' : 'Site number is required' });
       return;
     }
@@ -138,7 +144,7 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
     setSaving(true); setStatus(null);
     try {
       await client.post('/api/substation-readings', {
-        subStationId: subStationId ? Number(subStationId) : null,
+        subStationId: isCommercialMode ? null : (subStationId ? Number(subStationId) : null),
         meterId: gridMeter?.id ?? null,
         readingDate: new Date(form.readingDate).toISOString(),
         prevExportedEnergyKWh: parseFloat(prevGridVal) || 0,
@@ -161,9 +167,9 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
   };
 
   const parentStationName = stationName || stationId;
-  const siteName = subStationId
+  const siteName = isCommercialMode ? '' : (subStationId
     ? (siteNameParam || subStationData?.name || gridMeter?.subStationName || lastReading?.subStationName || subStationId)
-    : parentStationName;
+    : parentStationName);
   const parentContext = subStationId && parentStationName && parentStationName !== siteName
     ? parentStationName
     : '';
@@ -177,10 +183,10 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Button variant="ghost" size="sm" icon={ChevronLeft} onClick={() => navigate('/my-generators')} style={{ transform: ar ? 'rotate(180deg)' : 'none' }} />
             <Layout size={22} style={{ color: 'var(--primary)' }} />
-            {ar ? 'رصد الطاقة المرسلة للموقع' : 'Site Energy Monitoring'}
+            {ar ? (isCommercialMode ? 'رصد طاقة الفيدرات' : 'رصد الطاقة المرسلة للموقع') : (isCommercialMode ? 'Feeder Energy Monitoring' : 'Site Energy Monitoring')}
           </span>
         }
-        subtitle={ar ? `تسجيل قراءة عداد الموقع: ${siteName}${parentContext ? ` التابع للمحطة: ${parentContext}` : ''}` : `Recording site meter: ${siteName}${parentContext ? ` under station: ${parentContext}` : ''}`}
+        subtitle={isCommercialMode ? (ar ? 'تسجيل قراءة عداد الفيدرات' : 'Record feeder meter reading') : (ar ? `تسجيل قراءة عداد الموقع: ${siteName}${parentContext ? ` التابع للمحطة: ${parentContext}` : ''}` : `Recording site meter: ${siteName}${parentContext ? ` under station: ${parentContext}` : ''}`)}
         actions={
           <Button variant="ghost" size="sm" icon={RefreshCw} onClick={() => navigate('/my-generators')} />
         }
@@ -239,11 +245,11 @@ function SubStationReadingPage({ lang, currentUser: _currentUser }) {
 
                 {/* رقم الموقع ورقم العداد */}
                 {hasMeter && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                    <div style={{ background: 'var(--card-2)', borderRadius: 8, padding: '10px 14px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isCommercialMode ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                    {!isCommercialMode && <div style={{ background: 'var(--card-2)', borderRadius: 8, padding: '10px 14px' }}>
                       <div style={{ ...labelStyle, marginBottom: 4 }}>{ar ? 'رقم الموقع' : 'Site Number'}</div>
                       <div style={{ fontSize: 14, fontWeight: 700 }}>{subStationId || '—'}</div>
-                    </div>
+                    </div>}
                     <div style={{ background: 'var(--card-2)', borderRadius: 8, padding: '10px 14px' }}>
                       <div style={{ ...labelStyle, marginBottom: 4 }}>{ar ? 'رقم العداد' : 'Meter Number'}</div>
                       <div style={{ fontSize: 14, fontWeight: 700 }}>{gridMeter?.meterName || gridMeter?.name || '—'}</div>

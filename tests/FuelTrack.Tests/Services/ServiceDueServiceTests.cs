@@ -454,6 +454,67 @@ public sealed class ServiceDueServiceTests : IDisposable
         Assert.True(successResult.IsSuccess);
     }
 
+    [Fact]
+    public async Task CommercialOilConfiguredReplacement_CreatesApprovedMaintenanceUseAndVoidingReversesIt()
+    {
+        var site = new SubStation { Id = 84, Name = "Commercial Site", Code = "COM", StationId = 1 };
+        var generator = new Generator { Id = 840, Name = "G-840", Model = "Perkins", SubStationId = site.Id, SubStation = site };
+        var serviceItem = new ServiceItem { Id = 841, Code = "OilChangeSet", NameAr = "طقم تغيير الزيت", NameEn = "Oil change set", IsActive = true };
+        var transactionCategory = new LookupCategory { Id = 842, Name = "OilTransactionType", DisplayName = "Oil transaction type", IsActive = true };
+        var maintenanceUse = new Lookup { Id = 843, CategoryId = transactionCategory.Id, Category = transactionCategory, Code = "MaintenanceUse", Name = "استخدام صيانة", IsActive = true };
+        var oilLookup = new Lookup { Id = 844, Code = "SAE40", Name = "SAE 40", IsActive = true };
+        var oil = new Oil { Id = 845, SubStationId = site.Id, OilLookupId = oilLookup.Id, OilLookup = oilLookup, CurrentStock = 100m };
+        _db.AddRange(site, generator, serviceItem, transactionCategory, maintenanceUse, oilLookup, oil,
+            new GeneratorMaintenanceOilConfiguration { GeneratorId = generator.Id, ServiceItemId = serviceItem.Id, OilId = oil.Id, QuantityLiters = 12.5m });
+        await _db.SaveChangesAsync();
+
+        var commercialMode = new Mock<ICommercialStationModeService>();
+        commercialMode.Setup(x => x.IsCommercialModeAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var service = new ServiceReplacementService(_db, _dueEvaluation, _scopeFilter, _currentUser,
+            new IdempotencyService(_db), NullLogger<ServiceReplacementService>.Instance, commercialMode.Object);
+
+        var replacement = await service.RecordReplacementAsync(new RecordReplacementRequestDto(
+            generator.Id, serviceItem.Id, 1000m, DateTime.UtcNow, ClientRequestId: Guid.NewGuid()), 1);
+
+        Assert.True(replacement.IsSuccess);
+        var oilTransaction = Assert.Single(_db.OilTransactions);
+        Assert.Equal(maintenanceUse.Id, oilTransaction.TransactionTypeLookupId);
+        Assert.Equal(12.5d, oilTransaction.QuantityLiters);
+        Assert.True(oilTransaction.IsApproved);
+        Assert.Equal($"MAINT-{replacement.Value!.Id}", oilTransaction.Reference);
+
+        var voidResult = await service.VoidAsync(replacement.Value.Id, new VoidReplacementRecordDto("Correction"), 1);
+
+        Assert.True(voidResult.IsSuccess);
+        Assert.False((await _db.OilTransactions.SingleAsync()).IsApproved);
+    }
+
+    [Fact]
+    public async Task CommercialOilConfiguredReplacement_RequiresMaintenanceUseLookupBeforePersisting()
+    {
+        var site = new SubStation { Id = 85, Name = "Commercial Site", Code = "COM", StationId = 1 };
+        var generator = new Generator { Id = 850, Name = "G-850", Model = "Perkins", SubStationId = site.Id, SubStation = site };
+        var serviceItem = new ServiceItem { Id = 851, Code = "OilChangeSet", NameAr = "طقم تغيير الزيت", NameEn = "Oil change set", IsActive = true };
+        var oilLookup = new Lookup { Id = 852, Code = "SAE50", Name = "SAE 50", IsActive = true };
+        var oil = new Oil { Id = 853, SubStationId = site.Id, OilLookupId = oilLookup.Id, OilLookup = oilLookup, CurrentStock = 100m };
+        _db.AddRange(site, generator, serviceItem, oilLookup, oil,
+            new GeneratorMaintenanceOilConfiguration { GeneratorId = generator.Id, ServiceItemId = serviceItem.Id, OilId = oil.Id, QuantityLiters = 10m });
+        await _db.SaveChangesAsync();
+
+        var commercialMode = new Mock<ICommercialStationModeService>();
+        commercialMode.Setup(x => x.IsCommercialModeAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var service = new ServiceReplacementService(_db, _dueEvaluation, _scopeFilter, _currentUser,
+            new IdempotencyService(_db), NullLogger<ServiceReplacementService>.Instance, commercialMode.Object);
+
+        var result = await service.RecordReplacementAsync(new RecordReplacementRequestDto(
+            generator.Id, serviceItem.Id, 1000m, DateTime.UtcNow, ClientRequestId: Guid.NewGuid()), 1);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("MaintenanceUse", result.Error);
+        Assert.Empty(_db.ServiceReplacementRecords);
+        Assert.Empty(_db.OilTransactions);
+    }
+
     private sealed class DeniedScope : IUserScopeFilterService
     {
         public Task<List<int>> GetAccessibleSubStationIdsAsync(int userId) => Task.FromResult(new List<int>());

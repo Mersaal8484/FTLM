@@ -636,8 +636,7 @@ public class WorkPermitService : IWorkPermitService
         if (subStation == null)
             throw new InvalidOperationException("SubStation not found.");
 
-        var year = DateTime.UtcNow.Year;
-        var prefix = $"WP-{year}-{subStation.Code}";
+        var prefix = $"{subStation.Code}-WP-";
 
         var lastPermit = await _db.WorkPermits
             .Where(wp => wp.PermitNumber.StartsWith(prefix) && wp.DeletedAt == null)
@@ -647,12 +646,12 @@ public class WorkPermitService : IWorkPermitService
         int seq = 1;
         if (lastPermit != null)
         {
-            var parts = lastPermit.PermitNumber.Split('-');
-            if (parts.Length == 4 && int.TryParse(parts[3], out var lastSeq))
+            var suffix = lastPermit.PermitNumber[prefix.Length..];
+            if (int.TryParse(suffix, out var lastSeq))
                 seq = lastSeq + 1;
         }
 
-        return $"{prefix}-{seq:D4}";
+        return $"{prefix}{seq:D5}";
     }
 
     private async Task<PagedResult<WorkPermitListDto>> BuildPagedQuery(Expression<Func<WorkPermit, bool>> predicate, int page, int pageSize, int? status, CancellationToken ct)
