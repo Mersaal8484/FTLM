@@ -240,7 +240,8 @@ public sealed class WorkPermitCommercialC6_3Tests : IDisposable
         var submitResult = await service.UpdateStatusAsync(permitId, new UpdateWorkPermitStatusDto(41, "Submitted for review", null, null, null), 2);
 
         Assert.True(submitResult.IsSuccess);
-        Assert.Equal("Submitted", submitResult.Value!.StatusName);
+        Assert.Equal(41, submitResult.Value!.StatusLookupId);
+        Assert.Equal("مقدم", submitResult.Value!.StatusName);
 
         // Verify log was written
         var log = await _db.MaintenanceLogs.FirstOrDefaultAsync(l => l.WorkPermitId == permitId && l.Action.Contains("Draft->Submitted"));
@@ -328,7 +329,8 @@ public sealed class WorkPermitCommercialC6_3Tests : IDisposable
         var result = await service.ApproveAsync(permit.Id, "Approved by Operations Manager", 4);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("Approved", result.Value!.StatusName);
+        Assert.Equal(42, result.Value!.StatusLookupId);
+        Assert.Equal("معتمد", result.Value!.StatusName);
         Assert.Equal(4, result.Value.ApprovedById);
 
         // Verify maintenance log
@@ -364,7 +366,8 @@ public sealed class WorkPermitCommercialC6_3Tests : IDisposable
         var result = await service.RejectAsync(permit.Id, "Scope not justified at this time", 4);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("Rejected", result.Value!.StatusName);
+        Assert.Equal(45, result.Value!.StatusLookupId);
+        Assert.Equal("مرفوض", result.Value!.StatusName);
         Assert.Equal("Scope not justified at this time", result.Value.RejectionReason);
     }
 
@@ -396,12 +399,14 @@ public sealed class WorkPermitCommercialC6_3Tests : IDisposable
         // Approved -> Active
         var activeResult = await service.UpdateStatusAsync(permit.Id, new UpdateWorkPermitStatusDto(43, "Starting maintenance", null, DateTime.UtcNow, null), 3);
         Assert.True(activeResult.IsSuccess);
-        Assert.Equal("Active", activeResult.Value!.StatusName);
+        Assert.Equal(43, activeResult.Value!.StatusLookupId);
+        Assert.Equal("نشط", activeResult.Value!.StatusName);
 
         // Active -> Completed
         var completedResult = await service.UpdateStatusAsync(permit.Id, new UpdateWorkPermitStatusDto(44, "Maintenance done successfully", null, null, DateTime.UtcNow), 3);
         Assert.True(completedResult.IsSuccess);
-        Assert.Equal("Completed", completedResult.Value!.StatusName);
+        Assert.Equal(44, completedResult.Value!.StatusLookupId);
+        Assert.Equal("مكتمل", completedResult.Value!.StatusName);
     }
 
     [Fact]
