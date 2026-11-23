@@ -1,6 +1,7 @@
 using FuelTrack.Application.Common;
 using FuelTrack.Application.Constants;
 using FuelTrack.Application.DTOs.Maintenance;
+using FuelTrack.Application.DTOs.Operations;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
