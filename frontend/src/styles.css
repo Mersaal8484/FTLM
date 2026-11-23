@@ -298,6 +298,8 @@ html { scroll-behavior: smooth; }
   .movement-ledger > .section-header .toolbar-actions .btn { width: 100%; }
 }
 .capture-page { max-width: 1040px; margin: 0 auto; padding: clamp(16px, 3vw, 36px); }
+.capture-page > section { margin-block: 28px; }
+.operational-section-title { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--primary); font-size: var(--text-md); }
 .capture-heading { display: flex; align-items: start; justify-content: space-between; gap: 18px; margin-bottom: 28px; }
 .operational-back-link { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; margin-bottom: 16px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font-weight: 700; text-decoration: none; }
 .operational-back-link:hover { background: var(--surface-2); border-color: var(--border-strong); }

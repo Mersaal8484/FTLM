@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Camera, CheckCircle2, ClipboardList, Droplets, Gauge, Plus, Send, Trash2, Zap, Sun } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import client from '../api/client';
 import { drawPhotoStamp } from '../utils/photoStamp';
 import OperationalBackLink from '../components/OperationalBackLink';
 import useCommercialMode from '../hooks/useCommercialMode';
+import CommercialCaptureHub from './CommercialCaptureHub';
 
 const isoNow = () => new Date().toISOString().slice(0, 16);
 const decimal = (value) => (value === '' || value == null ? null : Number(value));
@@ -67,6 +68,11 @@ function BaseLine({ title, code, icon: Icon, capturedAt, onCapturedAt, photoIds,
 export default function OperationalCapture() {
   const { t } = useTranslation();
   const { isCommercial } = useCommercialMode();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedKind = searchParams.get('kind');
+  const requestedGeneratorId = Number(searchParams.get('generatorId'));
+  const isFocusedCommercial = isCommercial && ['generator', 'feeders', 'tank'].includes(requestedKind);
   const [references, setReferences] = useState([]);
   const [siteId, setSiteId] = useState('');
   const [lines, setLines] = useState([]);
@@ -121,6 +127,29 @@ export default function OperationalCapture() {
       values: kind === 'feeder' ? { multiplier: String(source.meterMultiplier || 1) } : {},
     }))]);
   };
+  useEffect(() => {
+    if (!isFocusedCommercial || !site) return;
+    const createLine = (kind, source) => ({
+      id: crypto.randomUUID(), clientLineId: crypto.randomUUID(), kind,
+      subjectId: source.id, meterId: kind === 'solar' ? source.id : null,
+      capturedAt: '', photoAttachmentIds: [], beforePhotoAttachmentIds: [], isRunning: true,
+      values: kind === 'feeder' ? { multiplier: String(source.meterMultiplier || 1) } : {},
+    });
+    if (requestedKind === 'generator') {
+      const generator = site.generators?.find((item) => item.id === requestedGeneratorId);
+      setLines(generator ? [createLine('generator', generator)] : []);
+      return;
+    }
+    if (requestedKind === 'feeders') {
+      const feeders = (site.feeders || []).map((item) => createLine('feeder', item));
+      const solar = (site.meters || [])
+        .filter((item) => item.meterTypeCode === 'SolarProductionMeter' || item.meterTypeCode === 'SolarMeter')
+        .map((item) => createLine('solar', item));
+      setLines([...feeders, ...solar]);
+      return;
+    }
+    setLines(site.tanks?.[0] ? [createLine('tank', site.tanks[0])] : []);
+  }, [isFocusedCommercial, requestedKind, requestedGeneratorId, site]);
   const update = (id, patch) => setLines((current) => current.map((line) => line.id === id ? { ...line, ...patch } : line));
   const updateValues = (id, patch) => setLines((current) => current.map((line) => line.id === id ? { ...line, values: { ...line.values, ...patch } } : line));
   const previousFor = (subjectType, subjectId, official = false) => {
@@ -213,7 +242,12 @@ export default function OperationalCapture() {
       }
     }
     setSubmitting(true);
-    try { await client.post('/api/operational-captures', payload); setLines([]); window.alert(t('operational.capture.success')); }
+    try {
+      await client.post('/api/operational-captures', payload);
+      setLines([]);
+      window.alert(t('operational.capture.success'));
+      if (isFocusedCommercial) navigate('/operations/capture');
+    }
     catch (error) { window.alert(error.response?.data?.error || t('operational.capture.failed')); }
     finally { setSubmitting(false); }
   };
@@ -234,31 +268,45 @@ export default function OperationalCapture() {
     return source?.code || source?.serialNumber || (line.kind === 'generator' ? `G${line.subjectId}` : `${line.kind}-${line.subjectId}`);
   };
   const number = (line, key, label, required = false) => <label>{label}{required && ' *'}<input type="number" step="any" required={required} value={line.values[key] ?? ''} onChange={(e) => updateValues(line.id, { [key]: e.target.value })} /></label>;
+  if (isCommercial && !isFocusedCommercial) return <CommercialCaptureHub />;
+  const rawGeneratorId = searchParams.get('generatorId');
+  const numericGeneratorId = Number(rawGeneratorId);
+  const isInvalidGeneratorId = !rawGeneratorId || !Number.isFinite(numericGeneratorId) || numericGeneratorId <= 0;
+  const isUnknownGenerator = Boolean(site && requestedKind === 'generator' && !site.generators?.some((g) => g.id === numericGeneratorId));
+  if (requestedKind === 'generator' && (isInvalidGeneratorId || isUnknownGenerator)) {
+    return (
+      <section className="capture-page">
+        <OperationalBackLink />
+        <p className="capture-empty">{t('operational.capture.unknownGenerator', 'Unknown generator. The link may be invalid.')}</p>
+        <Link to="/operations/capture">{t('operational.capture.backToOperations')}</Link>
+      </section>
+    );
+  }
   return <section className="capture-page">
     <OperationalBackLink />
-    <div className="capture-heading"><div><span className="operational-eyebrow"><Zap size={16} /> {t('operational.capture.eyebrow')}</span><h1>{t('operational.capture.title')}</h1><p>{t('operational.capture.pendingNote')}</p></div><Link className="capture-history-link" to="/operations/history"><ClipboardList size={18} />{t('operational.capture.myHistory')}</Link></div>
+    <div className="capture-heading"><div><span className="operational-eyebrow"><Zap size={16} /> {t('operational.capture.eyebrow')}</span><h1>{t('operational.capture.title')}</h1><p>{t('operational.capture.pendingNote')}</p></div>{isFocusedCommercial ? <Link className="capture-history-link" to="/operations/capture">{t('operational.capture.backToOperations')}</Link> : <Link className="capture-history-link" to="/operations/history"><ClipboardList size={18} />{t('operational.capture.myHistory')}</Link>}</div>
     {!isCommercial && <label className="capture-site">{t('operational.capture.site')}<select value={siteId} onChange={(e) => { setSiteId(e.target.value); setLines([]); }}><option value="">{t('operational.capture.chooseSite')}</option>{references.map((item) => <option key={item.subStationId} value={item.subStationId}>{item.name} ({item.code})</option>)}</select></label>}
     {site && <div className="ft-tabs" style={{ marginBottom: 16 }}><button type="button" className={`ft-tab ${captureKind === 'periodic' ? 'active' : ''}`} onClick={() => setCaptureKind('periodic')}>{isCommercial ? (t('operational.capture.hourlyMonitoring', 'قراءات ساعية')) : t('operational.capture.periodicRound')}</button><button type="button" className={`ft-tab ${captureKind === 'dailyClosing' ? 'active' : ''}`} onClick={() => setCaptureKind('dailyClosing')}>{t('operational.capture.dailyClosing')}</button></div>}
     {site && captureKind === 'dailyClosing' && <label className="capture-site">{t('operational.capture.businessDate')}<input type="date" value={businessDate} onChange={(event) => setBusinessDate(event.target.value)} /></label>}
     {site && <label className="capture-site">{t('operational.capture.capturedAt')}<input type="datetime-local" value={submissionTime} onChange={(e) => setSubmissionTime(e.target.value)} /></label>}
-    {site && <><div className="capture-adds">
+    {site && <>{!isFocusedCommercial && <div className="capture-adds">
       <button onClick={() => add('generator')} type="button"><Zap />{t('operational.capture.generator')}</button>
       <button onClick={() => add('tank')} type="button"><Droplets />{captureKind === 'dailyClosing' ? (t('operational.capture.dailyTankClosing', 'خزانات الوقود (إقفال)')) : t('operational.capture.tank')}</button>
       <button onClick={() => add('feeder')} type="button"><Gauge />{isCommercial ? (t('sidebar.meters', 'عداد الفيدر')) : t('operational.capture.feeder')}</button>
       {site?.meters?.some(m => m.meterTypeCode === 'SolarProductionMeter' || m.meterTypeCode === 'SolarMeter') && (
         <button onClick={() => add('solar')} type="button"><Sun />{t('operational.capture.solarProduction')}</button>
       )}
-    </div>
+    </div>}
       <div className="capture-lines">{lines.map((line) => <BaseLine key={line.id} title={sourceName(line)} code={sourceCode(line)} icon={line.kind === 'tank' ? Droplets : line.kind === 'feeder' ? Gauge : line.kind === 'solar' ? Sun : Zap} capturedAt={line.capturedAt || submissionTime} onCapturedAt={(capturedAt) => update(line.id, { capturedAt })} photoIds={line.photoAttachmentIds} onUploaded={(photoId) => update(line.id, { photoAttachmentIds: [photoId] })} onRemove={() => setLines((current) => current.filter((x) => x.id !== line.id))} disabled={submitting} timeZone={site.timeZone || 'Asia/Aden'}>
         {line.kind === 'generator' && <>
           <label className="capture-switch"><input type="checkbox" checked={line.isRunning} onChange={(e) => update(line.id, { isRunning: e.target.checked })}/>{t('operational.capture.running')}</label>
-          {line.isRunning && <div className="capture-grid">{number(line, 'voltage', t('operational.capture.voltage'), true)}{number(line, 'current', t('operational.capture.current'), true)}{number(line, 'waterTemp', t('operational.capture.waterTemp'), true)}{number(line, 'oilPressure', t('operational.capture.oilPressure'), true)}{number(line, 'oilTemp', t('operational.capture.oilTemp'), true)}{number(line, 'activeKw', t('operational.capture.activeKw'), true)}{number(line, 'peakKw', t('operational.capture.activeKw'))}{number(line, 'airPressure', t('operational.capture.oilPressure'))}{number(line, 'apparentKva', t('operational.capture.apparentKva'))}{number(line, 'frequency', t('operational.capture.frequency'))}</div>}
+          {line.isRunning && <div className="capture-grid">{number(line, 'voltage', t('operational.capture.voltage'), true)}{number(line, 'current', t('operational.capture.current'), true)}{number(line, 'waterTemp', t('operational.capture.waterTemp'), true)}{number(line, 'oilPressure', t('operational.capture.oilPressure'), true)}{number(line, 'oilTemp', t('operational.capture.oilTemp'), true)}{number(line, 'activeKw', t('operational.capture.activeKw'), true)}{number(line, 'peakKw', t('operational.capture.peakKw'))}{number(line, 'airPressure', t('operational.capture.airPressure'))}{number(line, 'apparentKva', t('operational.capture.apparentKva'))}{number(line, 'frequency', t('operational.capture.frequency'))}</div>}
           <div className="capture-grid">
             <label>{t('operational.capture.energyCounter')}<input type="number" step="any" value={line.values.energyRaw ?? ''} onChange={(event) => updateValues(line.id, { energyRaw: event.target.value })} /><small>{counterHint(0, line.subjectId, captureKind === 'dailyClosing')}</small>{captureKind === 'dailyClosing' && <small>{closingDifference(0, line.subjectId, line.values.energyRaw)}</small>}{counterWarning(0, line.subjectId, line.values.energyRaw, captureKind === 'dailyClosing') && <><span className="form-error">{counterWarning(0, line.subjectId, line.values.energyRaw, captureKind === 'dailyClosing')}</span><label className="capture-switch"><input type="checkbox" checked={Boolean(line.values.energyRawReset)} onChange={(event) => updateValues(line.id, { energyRawReset: event.target.checked })}/>{t('operational.capture.meterReset')}</label>{line.values.energyRawReset && <input value={line.values.energyRawResetNote || ''} placeholder={t('operational.capture.resetNote')} onChange={(event) => updateValues(line.id, { energyRawResetNote: event.target.value })}/>}</>}</label>
             <label>{t('operational.capture.runningHoursCounter')}<input type="number" step="any" value={line.values.hoursRaw ?? ''} onChange={(event) => updateValues(line.id, { hoursRaw: event.target.value })} /><small>{counterHint(1, line.subjectId, captureKind === 'dailyClosing')}</small>{captureKind === 'dailyClosing' && <small>{closingDifference(1, line.subjectId, line.values.hoursRaw)}</small>}{counterWarning(1, line.subjectId, line.values.hoursRaw, captureKind === 'dailyClosing') && <><span className="form-error">{counterWarning(1, line.subjectId, line.values.hoursRaw, captureKind === 'dailyClosing')}</span><label className="capture-switch"><input type="checkbox" checked={Boolean(line.values.hoursRawReset)} onChange={(event) => updateValues(line.id, { hoursRawReset: event.target.checked })}/>{t('operational.capture.meterReset')}</label>{line.values.hoursRawReset && <input value={line.values.hoursRawResetNote || ''} placeholder={t('operational.capture.resetNote')} onChange={(event) => updateValues(line.id, { hoursRawResetNote: event.target.value })}/>}</>}</label>
           </div>
         </>}
-        {line.kind === 'tank' && <div className="capture-grid">{number(line, 'level', t('operational.capture.levelCm'), true)}<label>{t('operational.capture.tank')}<select value={line.values.eventType || '0'} onChange={(e) => updateValues(line.id, { eventType: e.target.value })}><option value="0">{t('operational.capture.levelCm')}</option><option value="1">{t('operational.capture.tank')}</option><option value="2">{t('operational.capture.tank')}</option><option value="3">{t('operational.capture.tank')}</option></select></label>{Number(line.values.eventType || 0) > 0 && <>{number(line, 'beforeLevel', t('operational.capture.levelCm'), true)}{Number(line.values.eventType) === 1 && number(line, 'deliveryNoteLitres', t('operational.capture.rawValue'), true)}<label>{t('operational.capture.tank')}<select value={line.values.linkedClientLineId || ''} onChange={(e) => updateValues(line.id, { linkedClientLineId: e.target.value || null })}><option value="">—</option>{lines.filter((candidate) => candidate.kind === 'tank' && candidate.id !== line.id).map((candidate) => <option key={candidate.id} value={candidate.clientLineId}>{sourceName(candidate)}</option>)}</select></label><div className="capture-photo-row"><PhotoInput disabled={submitting || (line.beforePhotoAttachmentIds?.length || 0) > 0} onUploaded={(photoId) => update(line.id, { beforePhotoAttachmentIds: [photoId] })} stamp={{ capturedAt: line.capturedAt || submissionTime, subjectCode: sourceCode(line), locale: document.documentElement.lang, timeZone: site.timeZone || 'Asia/Aden' }} />{(line.beforePhotoAttachmentIds?.length || 0) > 0 && <span className="capture-photo-ok"><CheckCircle2 size={17} /> {t('operational.capture.photoReady')}</span>}</div></>}</div>}
+        {line.kind === 'tank' && <div className="capture-grid">{number(line, 'level', t('operational.capture.levelCm'), true)}<label>{t('operational.capture.tankEventType')}<select value={line.values.eventType || '0'} onChange={(e) => updateValues(line.id, { eventType: e.target.value })}><option value="0">{t('operational.capture.tankEventLevel')}</option><option value="1">{t('operational.capture.tankEventDelivery')}</option><option value="2">{t('operational.capture.tankEventTransferOut')}</option><option value="3">{t('operational.capture.tankEventTransferIn')}</option></select></label>{Number(line.values.eventType || 0) > 0 && <>{number(line, 'beforeLevel', t('operational.capture.beforeLevelCm'), true)}{Number(line.values.eventType) === 1 && number(line, 'deliveryNoteLitres', t('operational.capture.rawValue'), true)}<label>{t('operational.capture.linkedTank')}<select value={line.values.linkedClientLineId || ''} onChange={(e) => updateValues(line.id, { linkedClientLineId: e.target.value || null })}><option value="">—</option>{lines.filter((candidate) => candidate.kind === 'tank' && candidate.id !== line.id).map((candidate) => <option key={candidate.id} value={candidate.clientLineId}>{sourceName(candidate)}</option>)}</select></label><div className="capture-photo-row"><PhotoInput disabled={submitting || (line.beforePhotoAttachmentIds?.length || 0) > 0} onUploaded={(photoId) => update(line.id, { beforePhotoAttachmentIds: [photoId] })} stamp={{ capturedAt: line.capturedAt || submissionTime, subjectCode: sourceCode(line), locale: document.documentElement.lang, timeZone: site.timeZone || 'Asia/Aden' }} />{(line.beforePhotoAttachmentIds?.length || 0) > 0 && <span className="capture-photo-ok"><CheckCircle2 size={17} /> {t('operational.capture.photoReady')}</span>}</div></>}</div>}
         {line.kind === 'feeder' && <div className="capture-grid">{number(line, 'activeKw', t('operational.capture.activeKw'))}{number(line, 'apparentKva', t('operational.capture.apparentKva'))}<label>{t('operational.capture.energyCounter')}<input type="number" step="any" value={line.values.energyRaw ?? ''} onChange={(event) => updateValues(line.id, { energyRaw: event.target.value })} /><small>{counterHint(2, line.subjectId, captureKind === 'dailyClosing')}</small>{captureKind === 'dailyClosing' && <small>{closingDifference(2, line.subjectId, line.values.energyRaw, line.values.multiplier)}</small>}{counterWarning(2, line.subjectId, line.values.energyRaw, captureKind === 'dailyClosing') && <><span className="form-error">{counterWarning(2, line.subjectId, line.values.energyRaw, captureKind === 'dailyClosing')}</span><label className="capture-switch"><input type="checkbox" checked={Boolean(line.values.energyRawReset)} onChange={(event) => updateValues(line.id, { energyRawReset: event.target.checked })}/>{t('operational.capture.meterReset')}</label>{line.values.energyRawReset && <input value={line.values.energyRawResetNote || ''} placeholder={t('operational.capture.resetNote')} onChange={(event) => updateValues(line.id, { energyRawResetNote: event.target.value })}/>}</>}</label>{number(line, 'multiplier', t('operational.capture.multiplier'))}</div>}
         {line.kind === 'solar' && <div className="capture-grid"><label>{t('operational.capture.solarCumulativeCounter')} *<input type="number" step="any" required value={line.values.energyRaw ?? ''} onChange={(event) => updateValues(line.id, { energyRaw: event.target.value })} /><small>{counterHint(3, line.subjectId, captureKind === 'dailyClosing')}</small>{captureKind === 'dailyClosing' && <small>{closingDifference(3, line.subjectId, line.values.energyRaw, line.values.multiplier || 1)}</small>}{counterWarning(3, line.subjectId, line.values.energyRaw, captureKind === 'dailyClosing') && <><span className="form-error">{counterWarning(3, line.subjectId, line.values.energyRaw, captureKind === 'dailyClosing')}</span><label className="capture-switch"><input type="checkbox" checked={Boolean(line.values.energyRawReset)} onChange={(event) => updateValues(line.id, { energyRawReset: event.target.checked })}/>{t('operational.capture.meterReset')}</label>{line.values.energyRawReset && <input value={line.values.energyRawResetNote || ''} placeholder={t('operational.capture.resetNote')} onChange={(event) => updateValues(line.id, { energyRawResetNote: event.target.value })}/>}</>}</label>{number(line, 'multiplier', t('operational.capture.multiplier'))}</div>}
       </BaseLine>)}</div>

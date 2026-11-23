@@ -57,7 +57,7 @@ export const navigationRegistry = [
   { id: 'notifications', route: '/notifications', labelKey: 'sidebar.notifications', icon: Bell, permissionRule: moduleRule('alerts'), group: 'utility', order: 0, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'dashboard', route: '/', labelKey: 'sidebar.dashboard', icon: LayoutDashboard, permissionRule: moduleRule('dashboard'), group: 'main', order: 10, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'operations', route: '/operations', labelKey: 'sidebar.operations', icon: Zap, permissionRule: moduleRule('operational_data'), group: 'main', order: 20, legacyDuplicate: false, modeVisibility: 'all' },
-  { id: 'my-generators', route: '/my-generators', labelKey: 'sidebar.myGenerators', icon: Zap, permissionRule: roleRule('operator'), group: 'main', order: 25, legacyDuplicate: true, modeVisibility: 'all' },
+  { id: 'my-generators', route: '/my-generators', labelKey: 'sidebar.myGenerators', icon: Zap, permissionRule: roleRule('operator'), group: 'main', order: 25, legacyDuplicate: true, modeVisibility: 'enterprise' },
 
   { id: 'service-intervals', route: '/maintenance/service', labelKey: 'sidebar.serviceIntervals', icon: Clock, permissionRule: allRule(moduleRule('maintenance'), moduleRule('operational_data')), group: 'maintenance', order: 31, legacyDuplicate: false, modeVisibility: 'all' },
   { id: 'work-permits', route: '/maintenance/permits', labelKey: 'sidebar.workPermits', icon: FileText, permissionRule: moduleRule('maintenance'), group: 'maintenance', order: 32, legacyDuplicate: false, modeVisibility: 'all' },
