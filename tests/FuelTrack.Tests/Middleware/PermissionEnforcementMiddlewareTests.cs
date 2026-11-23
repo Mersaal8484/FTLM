@@ -40,6 +40,9 @@ public sealed class PermissionEnforcementMiddlewareTests : IDisposable
     [InlineData("ServiceDue", "POST", "/api/service-due/evaluate", "maintenance.record_service")]
     [InlineData("OperationalCaptures", "POST", "/api/operational-captures", "operational_data.capture")]
     [InlineData("StationOperationalSettings", "POST", "/api/station-operational-settings", "operational_data.configure")]
+    [InlineData("WorkPermits", "POST", "/api/work-permits/1/approve", "maintenance.approve")]
+    [InlineData("WorkPermits", "POST", "/api/work-permits/1/reject", "maintenance.approve")]
+    [InlineData("WorkPermits", "GET", "/api/work-permits/1/sheet", "maintenance.view")]
     public void PermissionMapping_ResolvesExpectedKey(string controller, string method, string path, string expected)
     {
         var resolved = PermissionMapping.ResolvePermissionKey(controller, method, path);
@@ -149,15 +152,26 @@ public sealed class PermissionEnforcementMiddlewareTests : IDisposable
         var pCapture = new PagePermission { Id = 1, ModuleDefinitionId = 1, ModuleDefinition = opModule, ActionKey = "capture", NameAr = "التقاط", NameEn = "Capture", IsActive = true };
         var pView = new PagePermission { Id = 2, ModuleDefinitionId = 2, ModuleDefinition = maintModule, ActionKey = "view", NameAr = "عرض", NameEn = "View", IsActive = true };
         var pRecord = new PagePermission { Id = 3, ModuleDefinitionId = 2, ModuleDefinition = maintModule, ActionKey = "record_service", NameAr = "تسجيل", NameEn = "Record", IsActive = true };
-        _db.PagePermissions.AddRange(pCapture, pView, pRecord);
+        var pApprove = new PagePermission { Id = 4, ModuleDefinitionId = 2, ModuleDefinition = maintModule, ActionKey = "approve", NameAr = "اعتماد", NameEn = "Approve", IsActive = true };
+        _db.PagePermissions.AddRange(pCapture, pView, pRecord, pApprove);
 
         var role = new Role { Id = 1, Name = "Operator", NormalizedName = "OPERATOR" };
-        _db.Roles.Add(role);
+        var roleManager = new Role { Id = 2, Name = "Manager", NormalizedName = "MANAGER" };
+        var roleMaintenance = new Role { Id = 3, Name = "Maintenance", NormalizedName = "MAINTENANCE" };
+        _db.Roles.AddRange(role, roleManager, roleMaintenance);
 
         _db.RolePermissions.AddRange(
             new RolePermission { RoleId = 1, Role = role, PagePermissionId = 1, PagePermission = pCapture, IsGranted = true },
             new RolePermission { RoleId = 1, Role = role, PagePermissionId = 2, PagePermission = pView, IsGranted = true },
-            new RolePermission { RoleId = 1, Role = role, PagePermissionId = 3, PagePermission = pRecord, IsGranted = true }
+            new RolePermission { RoleId = 1, Role = role, PagePermissionId = 3, PagePermission = pRecord, IsGranted = true },
+
+            // Manager has approve permission
+            new RolePermission { RoleId = 2, Role = roleManager, PagePermissionId = 2, PagePermission = pView, IsGranted = true },
+            new RolePermission { RoleId = 2, Role = roleManager, PagePermissionId = 4, PagePermission = pApprove, IsGranted = true },
+
+            // Maintenance has view and record permissions (no approve)
+            new RolePermission { RoleId = 3, Role = roleMaintenance, PagePermissionId = 2, PagePermission = pView, IsGranted = true },
+            new RolePermission { RoleId = 3, Role = roleMaintenance, PagePermissionId = 3, PagePermission = pRecord, IsGranted = true }
         );
 
         _db.SaveChanges();
@@ -202,6 +216,81 @@ public sealed class PermissionEnforcementMiddlewareTests : IDisposable
     private sealed class RoutingFeatureWrapper(RouteData routeData) : IRoutingFeature
     {
         public RouteData RouteData { get; set; } = routeData;
+    }
+
+    [Fact]
+    public async Task WorkPermits_Operator_Cannot_Approve_Returns403()
+    {
+        var context = CreateHttpContextWithRole("WorkPermits", "POST", "/api/work-permits/1/approve", "Operator");
+        var nextExecuted = false;
+        var middleware = new PermissionEnforcementMiddleware(_ =>
+        {
+            nextExecuted = true;
+            return Task.CompletedTask;
+        }, NullLogger<PermissionEnforcementMiddleware>.Instance);
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+        Assert.False(nextExecuted);
+    }
+
+    [Fact]
+    public async Task WorkPermits_Maintenance_Cannot_Approve_Returns403()
+    {
+        var context = CreateHttpContextWithRole("WorkPermits", "POST", "/api/work-permits/1/approve", "Maintenance");
+        var nextExecuted = false;
+        var middleware = new PermissionEnforcementMiddleware(_ =>
+        {
+            nextExecuted = true;
+            return Task.CompletedTask;
+        }, NullLogger<PermissionEnforcementMiddleware>.Instance);
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+        Assert.False(nextExecuted);
+    }
+
+    [Fact]
+    public async Task WorkPermits_Manager_Can_Approve_Returns200()
+    {
+        var context = CreateHttpContextWithRole("WorkPermits", "POST", "/api/work-permits/1/approve", "Manager");
+        var nextExecuted = false;
+        var middleware = new PermissionEnforcementMiddleware(_ =>
+        {
+            nextExecuted = true;
+            return Task.CompletedTask;
+        }, NullLogger<PermissionEnforcementMiddleware>.Instance);
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        Assert.True(nextExecuted);
+    }
+
+    private HttpContext CreateHttpContextWithRole(string controller, string method, string path, string roleName)
+    {
+        var context = new DefaultHttpContext();
+        context.RequestServices = _serviceProvider;
+        context.Request.Path = path;
+        context.Request.Method = method;
+        context.Request.RouteValues["controller"] = controller;
+
+        var routeData = new RouteData();
+        routeData.Values["controller"] = controller;
+        context.Features.Set<IRoutingFeature>(new RoutingFeatureWrapper(routeData));
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, "10"),
+            new(ClaimTypes.Name, $"user_{roleName.ToLower()}"),
+            new(ClaimTypes.Role, roleName),
+            new("role", roleName)
+        };
+
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+        return context;
     }
 
     public void Dispose()

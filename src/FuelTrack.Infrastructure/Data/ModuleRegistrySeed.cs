@@ -588,7 +588,7 @@ public static class ModuleRegistrySeed
                 IsVisible = true,
                 SupportsAuditLog = true,
                 SupportsGlobalSearch = true,
-                CustomActions = "close_permit,configure_service,record_service"
+                CustomActions = "approve,reject,close_permit,configure_service,record_service"
             },
             new ModuleDefinition
             {

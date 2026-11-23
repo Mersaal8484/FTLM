@@ -6045,7 +6045,8 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.Property<string>("PermitNumber")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime?>("PlannedEndDate")
                         .HasColumnType("datetime2");
@@ -6099,6 +6100,11 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.HasIndex("PriorityLookupId");
 
                     b.HasIndex("RequestedById");
+
+                    b.HasIndex("PermitNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_WorkPermits_PermitNumber")
+                        .HasFilter("[DeletedAt] IS NULL");
 
                     b.HasIndex("StatusLookupId", "PriorityLookupId")
                         .HasDatabaseName("IX_WorkPermit_Status_Priority");

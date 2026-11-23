@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, FileText, Wrench, ChevronDown, ShieldCheck, Check, Save, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, FileText, Wrench, ChevronDown, ShieldCheck, Check, Save, RefreshCw, Printer, XCircle } from 'lucide-react';
 import client from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
@@ -50,42 +50,56 @@ const initialForm = {
   tasks: [{ description: '', assignedTo: '', sortOrder: 1 }],
 };
 
-function WorkPermits({ lang, currentUser }) {
+const PAGE_SIZE = 20;
+
+export function WorkPermits({ lang = 'ar', currentUser = {} }) {
   const ar = lang === 'ar';
   const { isCommercialMode, modeResolved } = useCommercialMode();
+
   const [permits, setPermits] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState(initialForm);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null });
-  const [detailItem, setDetailItem] = useState(null);
-  const [generators, setGenerators] = useState([]);
+  const [error, setError] = useState(null);
+
   const [subStations, setSubStations] = useState([]);
+  const [generators, setGenerators] = useState([]);
   const [maintenanceTypes, setMaintenanceTypes] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [priorities, setPriorities] = useState([]);
   const [statuses, setStatuses] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [lookupsLoading, setLookupsLoading] = useState(true);
+  const [lookupsLoading, setLookupsLoading] = useState(false);
+
   const [statusFilter, setStatusFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
-  const [page, setPage] = useState(1);
-  const PAGE_SIZE = 20;
 
+  const [showModal, setShowModal] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState(initialForm);
+
+  const [detailItem, setDetailItem] = useState(null);
+  const [sheetData, setSheetData] = useState(null);
+  const [rejectModal, setRejectModal] = useState({ open: false, id: null, reason: '' });
+  const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null });
+
+  const role = currentUser?.role || '';
   const perms = currentUser?.permissions?.maintenance || {};
-  const canAdd = currentUser?.role === 'admin' || perms.add || perms.create;
-  const canEdit = currentUser?.role === 'admin' || perms.edit || perms.update;
-  const canApprove = currentUser?.role === 'admin' || perms.approve;
-  const canDelete = currentUser?.role === 'admin' || perms.delete;
+  const isAdmin = role === 'admin' || role === 'systemowner';
+  const isManager = isAdmin || role === 'manager' || role === 'operationsmanager';
+  const canAdd = isAdmin || isManager || perms.create || perms.add;
+  const canEdit = isAdmin || isManager || perms.update || perms.edit;
+  const canDelete = isAdmin || perms.delete;
+  const canApprove = isAdmin || isManager || perms.approve || perms.manage;
 
   const kpis = useMemo(() => {
-    const open = permits.filter(p => !['completed', 'cancelled', 'rejected'].includes(p.status)).length;
-    const critical = permits.filter(p => p.priority === 'critical' || p.priority === 'emergency').length;
-    const completed = permits.filter(p => p.status === 'completed').length;
-    const approved = permits.filter(p => p.status === 'approved').length;
+    let open = 0, critical = 0, completed = 0, approved = 0;
+    for (const p of permits) {
+      if (p.status !== 'completed' && p.status !== 'cancelled') open++;
+      if (p.priority === 'critical' || p.priority === 'emergency') critical++;
+      if (p.status === 'completed') completed++;
+      if (p.status === 'approved') approved++;
+    }
     return { open, critical, completed, approved };
   }, [permits]);
 
@@ -146,6 +160,15 @@ function WorkPermits({ lang, currentUser }) {
   const openDetail = async (p) => {
     try { const res = await client.get(`/api/work-permits/${p.id}`); setDetailItem(res.data); }
     catch { setError(ar ? 'فشل تحميل التصريح' : 'Failed to load permit'); }
+  };
+
+  const openSheet = async (id) => {
+    try {
+      const res = await client.get(`/api/work-permits/${id}/sheet`);
+      setSheetData(res.data);
+    } catch {
+      setError(ar ? 'فشل تحميل سند التصريح' : 'Failed to load permit sheet');
+    }
   };
 
   const openAdd = () => { setForm(initialForm); setEditId(null); setShowModal(true); setError(null); };
@@ -236,13 +259,21 @@ function WorkPermits({ lang, currentUser }) {
       if (!lookup) throw new Error('Status not found');
       await client.post(`/api/work-permits/${id}/status`, { statusLookupId: lookup.id });
       load();
-    } catch { setError(ar ? 'فشل تحديث الحالة' : 'Status update failed'); }
+    } catch (err) { setError(err.response?.data?.error || (ar ? 'فشل تحديث الحالة' : 'Status update failed')); }
+  };
+
+  const handleReject = async () => {
+    if (!rejectModal.reason?.trim()) return;
+    try {
+      await client.post(`/api/work-permits/${rejectModal.id}/reject`, { reason: rejectModal.reason });
+      setRejectModal({ open: false, id: null, reason: '' });
+      load();
+    } catch (err) {
+      setError(err.response?.data?.error || (ar ? 'فشل رفض التصريح' : 'Failed to reject permit'));
+    }
   };
 
   const fld = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const selectedPriorityName = priorities.find(p => String(p.id) === form.priorityLookupId)?.name || '';
-  const priorityCfgKey = Object.keys(priorityCfg).find(k => priorityCfg[k].label.en === selectedPriorityName) || Object.keys(priorityCfg).find(k => priorityCfg[k].label.ar === selectedPriorityName) || 'normal';
 
   return (
     <div>
@@ -253,7 +284,7 @@ function WorkPermits({ lang, currentUser }) {
             {ar ? 'تصاريح العمل' : 'Work Permits'}
           </span>
         }
-        subtitle={ar ? 'إدارة تصاريح عمل الصيانة — مؤشرات الصفحة الحالية' : 'Manage maintenance work permits — current page indicators'}
+        subtitle={ar ? 'إدارة تصاريح عمل الصيانة — سير العمل وسندات التصاريح' : 'Manage maintenance work permits — workflow and permit sheets'}
         actions={
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="ghost" size="sm" icon={RefreshCw} onClick={load} />
@@ -330,10 +361,21 @@ function WorkPermits({ lang, currentUser }) {
                       <td><span className={`badge ${sCfg.cls}`}>{p.statusName}</span></td>
                       <td>{p.plannedStartDate}</td>
                       <td style={{ textAlign: 'center' }}>
-                        <Button variant="ghost" size="sm" icon={Search} onClick={() => openDetail(p)} title={ar ? 'تفاصيل' : 'Details'} />
-                        {canEdit && p.status === 'draft' && <Button variant="ghost" size="sm" icon={Edit2} onClick={() => openEdit(p)} />}
-                        {canDelete && p.status === 'draft' && <Button variant="ghost" size="sm" icon={Trash2} onClick={() => setConfirmDelete({ open: true, id: p.id })} />}
-                        {p.status === 'submitted' && canApprove && <Button variant="success" size="sm" onClick={() => updateStatus(p.id, 'approved')}>{ar ? 'اعتماد' : 'Approve'}</Button>}
+                        <div style={{ display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'center' }}>
+                          <Button variant="ghost" size="sm" icon={Search} onClick={() => openDetail(p)} title={ar ? 'تفاصيل' : 'Details'} />
+                          <Button variant="ghost" size="sm" icon={Printer} onClick={() => openSheet(p.id)} title={ar ? 'سند التصريح' : 'Permit Sheet'} />
+                          {canEdit && p.status === 'draft' && <Button variant="ghost" size="sm" icon={Edit2} onClick={() => openEdit(p)} />}
+                          {canDelete && p.status === 'draft' && <Button variant="ghost" size="sm" icon={Trash2} onClick={() => setConfirmDelete({ open: true, id: p.id })} />}
+                          {canEdit && p.status === 'draft' && <Button variant="primary" size="sm" onClick={() => updateStatus(p.id, 'submitted')}>{ar ? 'تقديم' : 'Submit'}</Button>}
+                          {p.status === 'submitted' && canApprove && (
+                            <>
+                              <Button variant="success" size="sm" onClick={() => updateStatus(p.id, 'approved')}>{ar ? 'اعتماد' : 'Approve'}</Button>
+                              <Button variant="danger" size="sm" onClick={() => setRejectModal({ open: true, id: p.id, reason: '' })}>{ar ? 'رفض' : 'Reject'}</Button>
+                            </>
+                          )}
+                          {p.status === 'approved' && canEdit && <Button variant="primary" size="sm" onClick={() => updateStatus(p.id, 'active')}>{ar ? 'بدء العمل' : 'Start Work'}</Button>}
+                          {p.status === 'active' && canEdit && <Button variant="success" size="sm" onClick={() => updateStatus(p.id, 'completed')}>{ar ? 'إكمال' : 'Complete'}</Button>}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -472,6 +514,14 @@ function WorkPermits({ lang, currentUser }) {
           onClose={() => setDetailItem(null)}
           title={<>{ar ? 'تفاصيل التصريح' : 'Permit Details'}{detailItem ? ` — ${detailItem.permitNumber}` : ''}</>}
           maxWidth={650}
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+              <Button variant="ghost" size="sm" icon={Printer} onClick={() => openSheet(detailItem.id)}>
+                {ar ? 'سند التصريح' : 'Permit Sheet'}
+              </Button>
+              <Button variant="ghost" onClick={() => setDetailItem(null)}>{ar ? 'إغلاق' : 'Close'}</Button>
+            </div>
+          }
         >
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
             <div><strong>{ar ? 'النوع' : 'Type'}:</strong> {detailItem.maintenanceTypeName}</div>
@@ -502,6 +552,189 @@ function WorkPermits({ lang, currentUser }) {
               </table>
             </div>
           )}
+        </Modal>
+      )}
+
+      {/* Sheet / Printable Modal */}
+      {sheetData && (
+        <Modal
+          open={!!sheetData}
+          onClose={() => setSheetData(null)}
+          title={<>{ar ? 'سند تصريح العمل' : 'Work Permit Sheet'} — {sheetData.permitNumber}</>}
+          maxWidth={800}
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+              <Button variant="primary" icon={Printer} onClick={() => window.print()}>
+                {ar ? 'طباعة' : 'Print'}
+              </Button>
+              <Button variant="ghost" onClick={() => setSheetData(null)}>{ar ? 'إغلاق' : 'Close'}</Button>
+            </div>
+          }
+        >
+          <div className="permit-sheet-content" style={{ padding: '8px 4px' }}>
+            {/* Header info */}
+            <div style={{ borderBottom: '2px solid var(--border)', paddingBottom: 12, marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0 }}>{sheetData.stationName}</h3>
+                <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--primary)' }}>{sheetData.permitNumber}</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginTop: 12, fontSize: 14 }}>
+                <div><strong>{ar ? 'تاريخ التصريح:' : 'Permit Date:'}</strong> {new Date(sheetData.permitDate).toLocaleDateString()}</div>
+                <div><strong>{ar ? 'نوع الصيانة:' : 'Maintenance Type:'}</strong> {sheetData.maintenanceTypeName}</div>
+                <div><strong>{ar ? 'الأولوية:' : 'Priority:'}</strong> {sheetData.priorityName}</div>
+                <div><strong>{ar ? 'الحالة:' : 'Status:'}</strong> {sheetData.statusName}</div>
+                <div><strong>{ar ? 'المولد:' : 'Generator:'}</strong> {sheetData.generatorName || (ar ? 'صيانة عامة' : 'General Maintenance')}</div>
+                <div><strong>{ar ? 'القسم:' : 'Department:'}</strong> {sheetData.departmentName}</div>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>{ar ? 'وصف المشكلة والسبب:' : 'Problem Description & Cause:'}</div>
+              <div style={{ background: 'var(--bg-muted, #f8f9fa)', padding: 10, borderRadius: 6, fontSize: 14 }}>
+                <div>{sheetData.problemDescription}</div>
+                {sheetData.problemCause && <div style={{ marginTop: 4, opacity: 0.85 }}><strong>{ar ? 'السبب:' : 'Cause:'}</strong> {sheetData.problemCause}</div>}
+              </div>
+            </div>
+
+            {/* Roles and workflow actors */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 16, background: 'var(--bg-card)', border: '1px solid var(--border)', padding: 12, borderRadius: 6 }}>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>{ar ? 'مقدم الطلب (المشغل)' : 'Requester (Operator)'}</div>
+                <div style={{ fontWeight: 600 }}>{sheetData.requesterName}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>{ar ? 'المعتمد (مدير العمليات)' : 'Approver (Operations Manager)'}</div>
+                <div style={{ fontWeight: 600 }}>{sheetData.approverName || '—'}</div>
+                {sheetData.approvedAt && <div style={{ fontSize: 11, opacity: 0.7 }}>{new Date(sheetData.approvedAt).toLocaleDateString()}</div>}
+              </div>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>{ar ? 'المسند إليه (فريق الصيانة)' : 'Assigned To (Maintenance)'}</div>
+                <div style={{ fontWeight: 600 }}>{sheetData.assignedToName || '—'}</div>
+              </div>
+            </div>
+
+            {/* Tasks section */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>{ar ? 'المهام المنجزة' : 'Tasks'}</div>
+              {sheetData.tasks?.length === 0 ? (
+                <div style={{ opacity: 0.6, fontSize: 13 }}>{ar ? 'لا توجد مهام مسجلة' : 'No tasks recorded'}</div>
+              ) : (
+                <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      <th style={{ textAlign: ar ? 'right' : 'left', padding: '6px 8px' }}>{ar ? 'المهمة' : 'Task'}</th>
+                      <th style={{ textAlign: 'center', padding: '6px 8px', width: 100 }}>{ar ? 'الحالة' : 'Status'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sheetData.tasks.map((t) => (
+                      <tr key={t.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '6px 8px' }}>{t.taskDescription}</td>
+                        <td style={{ textAlign: 'center', padding: '6px 8px' }}>
+                          {t.isCompleted ? (ar ? 'مكتمل' : 'Completed') : (ar ? 'قيد التنفيذ' : 'Pending')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Parts Dispatched */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>{ar ? 'القطع المصروفة' : 'Parts Dispatched'}</div>
+              {sheetData.dispatchedParts?.length === 0 ? (
+                <div style={{ opacity: 0.6, fontSize: 13 }}>{ar ? 'لا توجد قطع مصروفة' : 'No parts dispatched'}</div>
+              ) : (
+                <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      <th style={{ textAlign: ar ? 'right' : 'left', padding: '6px 8px' }}>{ar ? 'القطعة' : 'Part'}</th>
+                      <th style={{ textAlign: 'center', padding: '6px 8px', width: 90 }}>{ar ? 'الكمية المطلوبة' : 'Requested'}</th>
+                      <th style={{ textAlign: 'center', padding: '6px 8px', width: 90 }}>{ar ? 'الكمية المعتمدة' : 'Approved'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sheetData.dispatchedParts.map((p, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '6px 8px' }}>{p.partName} ({p.partNumber})</td>
+                        <td style={{ textAlign: 'center', padding: '6px 8px' }}>{p.quantityRequested} {p.unitOfMeasure || ''}</td>
+                        <td style={{ textAlign: 'center', padding: '6px 8px' }}>{p.quantityApproved ?? '—'} {p.unitOfMeasure || ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Replacements Recorded & Oil Consumed (C6.2 Link) */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <div style={{ fontWeight: 600 }}>{ar ? 'استبدالات الصيانة واستهلاك الزيت' : 'Service Replacements & Oil Consumption'}</div>
+                {sheetData.totalOilConsumedLitres > 0 && (
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>
+                    {ar ? `إجمالي الزيت: ${sheetData.totalOilConsumedLitres} لتر` : `Total Oil: ${sheetData.totalOilConsumedLitres} L`}
+                  </span>
+                )}
+              </div>
+              {sheetData.replacements?.length === 0 ? (
+                <div style={{ opacity: 0.6, fontSize: 13 }}>{ar ? 'لا توجد استبدالات مسجلة' : 'No replacements recorded'}</div>
+              ) : (
+                <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      <th style={{ textAlign: ar ? 'right' : 'left', padding: '6px 8px' }}>{ar ? 'البند' : 'Item'}</th>
+                      <th style={{ textAlign: 'center', padding: '6px 8px', width: 100 }}>{ar ? 'ساعات التشغيل' : 'Hours'}</th>
+                      <th style={{ textAlign: 'center', padding: '6px 8px', width: 90 }}>{ar ? 'النوع' : 'Kind'}</th>
+                      <th style={{ textAlign: 'center', padding: '6px 8px', width: 120 }}>{ar ? 'الزيت المستهلك' : 'Oil Consumed'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sheetData.replacements.map((r) => (
+                      <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '6px 8px' }}>{r.serviceItemName}</td>
+                        <td style={{ textAlign: 'center', padding: '6px 8px' }}>{r.hoursAtService}</td>
+                        <td style={{ textAlign: 'center', padding: '6px 8px' }}>{r.kind}</td>
+                        <td style={{ textAlign: 'center', padding: '6px 8px' }}>
+                          {r.oilConsumedLitres > 0 ? `${r.oilConsumedLitres} L ${r.oilTypeName ? `(${r.oilTypeName})` : ''}` : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Reject Modal */}
+      {rejectModal.open && (
+        <Modal
+          open={rejectModal.open}
+          onClose={() => setRejectModal({ open: false, id: null, reason: '' })}
+          title={ar ? 'رفض تصريح العمل' : 'Reject Work Permit'}
+          maxWidth={500}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setRejectModal({ open: false, id: null, reason: '' })}>{ar ? 'إلغاء' : 'Cancel'}</Button>
+              <Button variant="danger" onClick={handleReject} disabled={!rejectModal.reason?.trim()}>
+                {ar ? 'تأكيد الرفض' : 'Confirm Rejection'}
+              </Button>
+            </>
+          }
+        >
+          <FormField label={ar ? 'سبب الرفض' : 'Rejection Reason'} required>
+            <textarea
+              className="form-control"
+              rows={3}
+              value={rejectModal.reason}
+              onChange={e => setRejectModal(m => ({ ...m, reason: e.target.value }))}
+              placeholder={ar ? 'أدخل سبب الرفض بالتفصيل...' : 'Enter rejection reason in detail...'}
+              style={{ resize: 'vertical', fontFamily: 'inherit' }}
+            />
+          </FormField>
         </Modal>
       )}
 

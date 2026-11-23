@@ -60,6 +60,15 @@ public class WorkPermitsController : BaseApiController
         return Ok(result);
     }
 
+    [HttpGet("{id:int}/sheet")]
+    public async Task<IActionResult> GetSheet(int id)
+    {
+        var result = await _workPermitService.GetSheetAsync(id);
+        if (result is null)
+            return NotFound();
+        return Ok(result);
+    }
+
     [Authorize]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateWorkPermitDto dto)
@@ -84,12 +93,34 @@ public class WorkPermitsController : BaseApiController
         return Ok(result.Value);
     }
 
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize]
     [HttpPost("{id:int}/status")]
     public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateWorkPermitStatusDto dto)
     {
         var userId = GetUserId();
         var result = await _workPermitService.UpdateStatusAsync(id, dto, userId);
+        if (!result.IsSuccess)
+            return StatusCode(result.StatusCode, new { error = result.Error });
+        return Ok(result.Value);
+    }
+
+    [Authorize]
+    [HttpPost("{id:int}/approve")]
+    public async Task<IActionResult> Approve(int id, [FromBody] ApproveWorkPermitDto? dto = null)
+    {
+        var userId = GetUserId();
+        var result = await _workPermitService.ApproveAsync(id, dto?.Notes, userId);
+        if (!result.IsSuccess)
+            return StatusCode(result.StatusCode, new { error = result.Error });
+        return Ok(result.Value);
+    }
+
+    [Authorize]
+    [HttpPost("{id:int}/reject")]
+    public async Task<IActionResult> Reject(int id, [FromBody] RejectWorkPermitDto dto)
+    {
+        var userId = GetUserId();
+        var result = await _workPermitService.RejectAsync(id, dto.Reason, userId);
         if (!result.IsSuccess)
             return StatusCode(result.StatusCode, new { error = result.Error });
         return Ok(result.Value);

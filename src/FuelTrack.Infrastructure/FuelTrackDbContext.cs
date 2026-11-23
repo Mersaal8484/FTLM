@@ -1185,6 +1185,17 @@ namespace FuelTrack.Infrastructure
                 .HasIndex(wp => new { wp.StatusLookupId, wp.PriorityLookupId })
                 .HasDatabaseName("IX_WorkPermit_Status_Priority");
 
+            modelBuilder.Entity<WorkPermit>()
+                .Property(wp => wp.PermitNumber)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            modelBuilder.Entity<WorkPermit>()
+                .HasIndex(wp => wp.PermitNumber)
+                .IsUnique()
+                .HasFilter("[DeletedAt] IS NULL")
+                .HasDatabaseName("UX_WorkPermits_PermitNumber");
+
             // === Seed: ActiveStatus ===
             var seedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 

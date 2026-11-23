@@ -227,6 +227,7 @@ public sealed class WorkPermitServiceCommercialTests : IDisposable
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value);
         Assert.Equal(2, result.Value.SubStationId);
+        Assert.Equal($"WP-{DateTime.UtcNow.Year}-OTH-0001", result.Value.PermitNumber);
     }
 
     [Fact]
