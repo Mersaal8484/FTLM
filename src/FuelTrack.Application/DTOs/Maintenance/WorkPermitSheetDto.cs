@@ -44,8 +44,8 @@ public record WorkPermitSheetTaskDto(
 public record WorkPermitSheetDispatchedPartDto(
     string PartName,
     string PartNumber,
-    int QuantityRequested,
-    int? QuantityApproved,
+    decimal QuantityRequested,
+    decimal? QuantityApproved,
     string? UnitOfMeasure);
 
 public record WorkPermitSheetReplacementDto(

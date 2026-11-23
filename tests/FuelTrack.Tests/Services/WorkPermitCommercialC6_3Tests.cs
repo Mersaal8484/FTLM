@@ -493,7 +493,28 @@ public sealed class WorkPermitCommercialC6_3Tests : IDisposable
         });
 
         // Spare part & dispatch request
-        var part = new SparePart { Id = 1, Name = "Oil Filter", PartNumber = "OF-500", UnitOfMeasure = "PCS", IsActive = true };
+        var unitCat = new LookupCategory { Id = 5, Name = "UnitOfMeasure", DisplayName = "Unit of Measure", IsActive = true };
+        var partCat = new LookupCategory { Id = 6, Name = "PartCategory", DisplayName = "Part Category", IsActive = true };
+        var oilTypeCat = new LookupCategory { Id = 7, Name = "OilType", DisplayName = "Oil Type", IsActive = true };
+        var oilTxTypeCat = new LookupCategory { Id = 8, Name = "OilTransactionType", DisplayName = "Oil Transaction Type", IsActive = true };
+
+        var unitPcs = new Lookup { Id = 50, CategoryId = 5, Category = unitCat, Code = "PCS", Name = "PCS", IsActive = true };
+        var partMech = new Lookup { Id = 51, CategoryId = 6, Category = partCat, Code = "Mechanical", Name = "ميكانيك", IsActive = true };
+        var oil15w40 = new Lookup { Id = 60, CategoryId = 7, Category = oilTypeCat, Code = "15W40", Name = "15W40", IsActive = true };
+        var txConsumption = new Lookup { Id = 70, CategoryId = 8, Category = oilTxTypeCat, Code = "Consumption", Name = "استهلاك", IsActive = true };
+        _db.AddRange(unitCat, partCat, oilTypeCat, oilTxTypeCat, unitPcs, partMech, oil15w40, txConsumption);
+
+        var part = new SparePart
+        {
+            Id = 1,
+            Name = "Oil Filter",
+            PartNumber = "OF-500",
+            UnitLookupId = 50,
+            UnitLookup = unitPcs,
+            PartCategoryLookupId = 51,
+            PartCategoryLookup = partMech,
+            IsActive = true
+        };
         _db.SpareParts.Add(part);
 
         var dispatch = new DispatchRequest
@@ -508,28 +529,39 @@ public sealed class WorkPermitCommercialC6_3Tests : IDisposable
         };
         _db.DispatchRequests.Add(dispatch);
 
-        _db.DispatchItems.Add(new DispatchItem
+        _db.DispatchRequestItems.Add(new DispatchRequestItem
         {
             DispatchRequest = dispatch,
+            DispatchRequestId = dispatch.Id,
+            SparePart = part,
             SparePartId = 1,
-            QuantityRequested = 2,
-            QuantityApproved = 2
+            RequestedQuantity = 2m,
+            ApprovedQuantity = 2m,
+            IsApproved = true
         });
 
         // Service replacement with C6.2 oil transaction link
-        var serviceItem = new ServiceItem { Id = 1, Name = "Engine Oil 15W40", Code = "OIL-15W40", Unit = "Litre", IsActive = true };
+        var serviceItem = new ServiceItem
+        {
+            Id = 1,
+            NameAr = "زيت محرك 15W40",
+            NameEn = "Engine Oil 15W40",
+            Code = "OIL-15W40",
+            IsActive = true
+        };
         _db.ServiceItems.Add(serviceItem);
-
-        var oilTank = new OilTank { Id = 1, SubStationId = 1, Name = "Station Oil Tank", OilType = "15W40", IsActive = true };
-        _db.OilTanks.Add(oilTank);
 
         var oilTx = new OilTransaction
         {
-            OilTankId = 1,
+            SubStationId = 1,
+            OilLookupId = 60,
+            OilLookup = oil15w40,
+            TransactionTypeLookupId = 70,
+            TransactionTypeLookup = txConsumption,
             TransactionDate = DateTime.UtcNow,
-            TransactionType = "Consumption",
-            Litres = 45m,
-            Notes = "500h maintenance oil fill"
+            QuantityLiters = 45.0,
+            Notes = "500h maintenance oil fill",
+            IsApproved = true
         };
         _db.OilTransactions.Add(oilTx);
         await _db.SaveChangesAsync();
@@ -579,11 +611,12 @@ public sealed class WorkPermitCommercialC6_3Tests : IDisposable
         // Dispatched parts
         Assert.Single(sheet.DispatchedParts);
         Assert.Equal("Oil Filter", sheet.DispatchedParts[0].PartName);
-        Assert.Equal(2, sheet.DispatchedParts[0].QuantityRequested);
+        Assert.Equal(2m, sheet.DispatchedParts[0].QuantityRequested);
+        Assert.Equal("PCS", sheet.DispatchedParts[0].UnitOfMeasure);
 
         // Replacements & Oil
         Assert.Single(sheet.Replacements);
-        Assert.Equal("Engine Oil 15W40", sheet.Replacements[0].ServiceItemName);
+        Assert.Equal("زيت محرك 15W40", sheet.Replacements[0].ServiceItemName);
         Assert.Equal(45m, sheet.Replacements[0].OilConsumedLitres);
         Assert.Equal(45m, sheet.TotalOilConsumedLitres);
 

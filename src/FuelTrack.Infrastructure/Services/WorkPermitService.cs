@@ -166,6 +166,7 @@ public class WorkPermitService : IWorkPermitService
             .AsNoTracking()
             .Include(dr => dr.Items)
                 .ThenInclude(i => i.SparePart)
+                    .ThenInclude(sp => sp.UnitLookup)
             .Where(dr => dr.WorkPermitId == id && dr.DeletedAt == null)
             .ToListAsync(ct);
 
@@ -174,9 +175,9 @@ public class WorkPermitService : IWorkPermitService
             .Select(i => new WorkPermitSheetDispatchedPartDto(
                 i.SparePart.Name,
                 i.SparePart.PartNumber,
-                i.QuantityRequested,
-                i.QuantityApproved,
-                i.SparePart.UnitOfMeasure))
+                i.RequestedQuantity,
+                i.ApprovedQuantity,
+                i.SparePart.UnitLookup != null ? i.SparePart.UnitLookup.Name : null))
             .ToList();
 
         // Replacements recorded and oil consumed (from C6.2)
@@ -184,7 +185,7 @@ public class WorkPermitService : IWorkPermitService
             .AsNoTracking()
             .Include(r => r.ServiceItem)
             .Include(r => r.OilTransaction)
-                .ThenInclude(ot => ot!.OilTank)
+                .ThenInclude(ot => ot!.OilLookup)
             .Where(r => r.WorkPermitId == id && r.VoidedAtUtc == null && r.DeletedAt == null)
             .OrderBy(r => r.OccurredAtUtc)
             .ToListAsync(ct);
@@ -193,13 +194,16 @@ public class WorkPermitService : IWorkPermitService
         var replacementDtos = new List<WorkPermitSheetReplacementDto>();
         foreach (var r in replacements)
         {
-            decimal oilLitres = r.OilTransaction?.Litres ?? 0m;
+            decimal oilLitres = r.OilTransaction != null ? (decimal)r.OilTransaction.QuantityLiters : 0m;
             totalOilConsumed += oilLitres;
-            var oilType = r.OilTransaction?.OilTank?.OilType ?? r.OilTransaction?.OilTank?.Name;
+            var oilType = r.OilTransaction?.OilLookup?.Name;
+            var serviceItemName = !string.IsNullOrWhiteSpace(r.ServiceItem.NameAr)
+                ? r.ServiceItem.NameAr
+                : r.ServiceItem.NameEn;
 
             replacementDtos.Add(new WorkPermitSheetReplacementDto(
                 r.Id,
-                r.ServiceItem.Name,
+                serviceItemName,
                 r.HoursAtService,
                 r.Kind.ToString(),
                 r.OccurredAtUtc,
@@ -700,7 +704,9 @@ public class WorkPermitService : IWorkPermitService
         }
 
         var currentStatusCode = currentStatus?.Code ?? "Draft";
-        var newStatusCode = newStatus.Code;
+        var newStatusCode = newStatus.Code ?? "";
+        if (string.IsNullOrWhiteSpace(newStatusCode))
+            return Result<WorkPermitDetailDto>.Failure("Status code is not defined.");
 
         if (isCommercial)
         {

@@ -66,7 +66,6 @@ public sealed class OilLedgerService(
                     {
                         case "Purchase": inbound += transaction.QuantityLiters; break;
                         case "Sale":
-                        case "Consumption":
                         case OilTransactionTypeCodes.MaintenanceUse:
                         case OilTransactionTypeCodes.Consumption: outbound += transaction.QuantityLiters; break;
                         case "TransferIn": transferIn += transaction.QuantityLiters; break;
@@ -209,7 +208,7 @@ public sealed class OilLedgerService(
     {
         "Purchase" => OilBalanceCalculator.CalculateClosing(opening, quantity, 0, 0, 0, 0),
         "TransferIn" => OilBalanceCalculator.CalculateClosing(opening, 0, 0, quantity, 0, 0),
-        "Sale" or "Consumption" or OilTransactionTypeCodes.MaintenanceUse or OilTransactionTypeCodes.Consumption => OilBalanceCalculator.CalculateClosing(opening, 0, quantity, 0, 0, 0),
+        "Sale" or OilTransactionTypeCodes.MaintenanceUse or OilTransactionTypeCodes.Consumption => OilBalanceCalculator.CalculateClosing(opening, 0, quantity, 0, 0, 0),
         "TransferOut" => OilBalanceCalculator.CalculateClosing(opening, 0, 0, 0, quantity, 0),
         "Loss" => OilBalanceCalculator.CalculateClosing(opening, 0, 0, 0, 0, quantity),
         _ => opening
