@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using FuelTrack.Application;
-using FuelTrack.Application.Constants;
 using FuelTrack.Application.DTOs.FuelMovements;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Application.Services;
@@ -121,7 +120,7 @@ public class StockSummaryService : IStockSummaryService
 
         var grouped = GroupOilTransactions(filteredTxData, accessibleIds, effectiveFromBySite, fromDate);
         var inboundMap = grouped.Where(x => x.TypeCode == "Purchase").ToDictionary(x => (x.SubStationId, x.LookupId), x => x.Total);
-        var outboundMap = grouped.Where(x => x.TypeCode is "Sale" or "Consumption" or OilTransactionTypeCodes.MaintenanceUse or OilTransactionTypeCodes.Consumption)
+        var outboundMap = grouped.Where(x => OilBalanceCalculator.IsDirectOutbound(x.TypeCode))
             .GroupBy(x => (x.SubStationId, x.LookupId))
             .ToDictionary(x => x.Key, x => x.Sum(value => value.Total));
         var transferOutMap = grouped.Where(x => x.TypeCode == "TransferOut").ToDictionary(x => (x.SubStationId, x.LookupId), x => x.Total);

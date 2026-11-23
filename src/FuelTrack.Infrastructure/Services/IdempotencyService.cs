@@ -69,6 +69,19 @@ public sealed class IdempotencyService(FuelTrackDbContext db, ITenantRequestCont
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task ReleaseAsync(Guid clientRequestId, int userId, CancellationToken cancellationToken = default)
+    {
+        if (clientRequestId == Guid.Empty || userId <= 0)
+            return;
+
+        var request = await FindAsync(TenantScopeId(), userId, clientRequestId, cancellationToken);
+        if (request is null || !string.Equals(request.Status, "Processing", StringComparison.Ordinal))
+            return;
+
+        db.IdempotencyRequests.Remove(request);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     private Guid TenantScopeId() => tenant?.TenantId ?? Guid.Empty;
 
     private Task<IdempotencyRequest?> FindAsync(Guid tenantId, int userId, Guid clientRequestId, CancellationToken cancellationToken) =>

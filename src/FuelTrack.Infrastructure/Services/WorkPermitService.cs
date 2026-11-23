@@ -491,6 +491,7 @@ public class WorkPermitService : IWorkPermitService
             return Result<WorkPermitDetailDto>.Failure("Draft status is not configured.");
 
         WorkPermit permit = null!;
+        var permitSaved = false;
 
         await _permitSequenceLock.WaitAsync(ct);
         try
@@ -527,6 +528,7 @@ public class WorkPermitService : IWorkPermitService
                 {
                     _db.WorkPermits.Add(permit);
                     await _db.SaveChangesAsync(ct);
+                    permitSaved = true;
                     break;
                 }
                 catch (DbUpdateException) when (attempt < maxRetries)
@@ -539,6 +541,9 @@ public class WorkPermitService : IWorkPermitService
         {
             _permitSequenceLock.Release();
         }
+
+        if (!permitSaved)
+            return Result<WorkPermitDetailDto>.Failure("Could not allocate a unique work permit number. Please retry.", 409);
 
         if (dto.Tasks != null && dto.Tasks.Count > 0)
         {
@@ -893,17 +898,27 @@ public class WorkPermitService : IWorkPermitService
             var stationCode = station.Code.Trim();
             var prefix = $"{stationCode}-WP-";
 
+            var subStation = await _db.SubStations.AsNoTracking()
+                .FirstOrDefaultAsync(ss => ss.Id == scope.SubStationId && ss.DeletedAt == null, ct);
+            if (subStation == null || string.IsNullOrWhiteSpace(subStation.Code))
+                throw new InvalidOperationException("Commercial sub-station code is missing or blank.");
+
+            var legacyPrefix = $"WP-{DateTime.UtcNow.Year}-{subStation.Code.Trim()}-";
             var existingPermits = await _db.WorkPermits
                 .AsNoTracking()
-                .Where(wp => wp.PermitNumber.StartsWith(prefix) && wp.DeletedAt == null)
+                .Where(wp => wp.SubStationId == scope.SubStationId && wp.DeletedAt == null)
                 .Select(wp => wp.PermitNumber)
                 .ToListAsync(ct);
 
             int maxSeq = 0;
             foreach (var pNum in existingPermits)
             {
-                var suffix = pNum[prefix.Length..];
-                if (int.TryParse(suffix, out var parsed) && parsed > maxSeq)
+                var suffix = pNum.StartsWith(prefix, StringComparison.Ordinal)
+                    ? pNum[prefix.Length..]
+                    : pNum.StartsWith(legacyPrefix, StringComparison.Ordinal)
+                        ? pNum[legacyPrefix.Length..]
+                        : null;
+                if (suffix is not null && int.TryParse(suffix, out var parsed) && parsed > maxSeq)
                     maxSeq = parsed;
             }
 

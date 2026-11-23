@@ -1,10 +1,18 @@
-using FuelTrack.Application.Constants;
-
 namespace FuelTrack.Application.Services;
 
 /// <summary>Shared, deterministic oil book-balance arithmetic.</summary>
 public static class OilBalanceCalculator
 {
+    public enum MovementKind
+    {
+        None,
+        Inbound,
+        TransferIn,
+        Outbound,
+        TransferOut,
+        Loss
+    }
+
     public static decimal Round(decimal value) => Math.Round(value, 3, MidpointRounding.AwayFromZero);
 
     public static decimal ToDecimal(double value) => Round(Convert.ToDecimal(value));
@@ -19,7 +27,21 @@ public static class OilBalanceCalculator
         decimal consumed = 0m) =>
         Round(opening + inbound + transferIn - outbound - transferOut - loss - consumed);
 
-    public static bool IsInbound(string? typeCode) => typeCode is "Purchase" or "TransferIn";
+    public static MovementKind Classify(string? typeCode) => typeCode switch
+    {
+        "Purchase" => MovementKind.Inbound,
+        "TransferIn" => MovementKind.TransferIn,
+        "Sale" or "Consumption" => MovementKind.Outbound,
+        "TransferOut" => MovementKind.TransferOut,
+        "Loss" => MovementKind.Loss,
+        _ => MovementKind.None
+    };
 
-    public static bool IsOutbound(string? typeCode) => typeCode is "Sale" or "TransferOut" or "Loss" or "Consumption" or OilTransactionTypeCodes.MaintenanceUse or OilTransactionTypeCodes.Consumption;
+    public static bool IsInbound(string? typeCode) => Classify(typeCode) is MovementKind.Inbound or MovementKind.TransferIn;
+
+    /// <summary>All codes which reduce book balance, including transfer-out and loss.</summary>
+    public static bool IsOutbound(string? typeCode) => Classify(typeCode) is MovementKind.Outbound or MovementKind.TransferOut or MovementKind.Loss;
+
+    /// <summary>Outbound movements represented by the ledger's direct-outbound column.</summary>
+    public static bool IsDirectOutbound(string? typeCode) => Classify(typeCode) == MovementKind.Outbound;
 }

@@ -1,5 +1,4 @@
 using FuelTrack.Application.DTOs.OilLedger;
-using FuelTrack.Application.Constants;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Application.Services;
 using FuelTrack.Domain.Enums;
@@ -62,15 +61,13 @@ public sealed class OilLedgerService(
                 foreach (var transaction in rows.Where(x => x.OilLookupId == oil.OilLookupId && ToBusinessDate(x.TransactionDate, timeZone) == date))
                 {
                     if (date < effectiveFrom) continue;
-                    switch (EffectiveType(transaction, siteIds))
+                    switch (OilBalanceCalculator.Classify(EffectiveType(transaction, siteIds)))
                     {
-                        case "Purchase": inbound += transaction.QuantityLiters; break;
-                        case "Sale":
-                        case OilTransactionTypeCodes.MaintenanceUse:
-                        case OilTransactionTypeCodes.Consumption: outbound += transaction.QuantityLiters; break;
-                        case "TransferIn": transferIn += transaction.QuantityLiters; break;
-                        case "TransferOut": transferOut += transaction.QuantityLiters; break;
-                        case "Loss": loss += transaction.QuantityLiters; break;
+                        case OilBalanceCalculator.MovementKind.Inbound: inbound += transaction.QuantityLiters; break;
+                        case OilBalanceCalculator.MovementKind.Outbound: outbound += transaction.QuantityLiters; break;
+                        case OilBalanceCalculator.MovementKind.TransferIn: transferIn += transaction.QuantityLiters; break;
+                        case OilBalanceCalculator.MovementKind.TransferOut: transferOut += transaction.QuantityLiters; break;
+                        case OilBalanceCalculator.MovementKind.Loss: loss += transaction.QuantityLiters; break;
                     }
                 }
 
@@ -204,13 +201,13 @@ public sealed class OilLedgerService(
             .ToList();
     }
 
-    private static decimal Apply(decimal opening, string type, decimal quantity) => type switch
+    private static decimal Apply(decimal opening, string type, decimal quantity) => OilBalanceCalculator.Classify(type) switch
     {
-        "Purchase" => OilBalanceCalculator.CalculateClosing(opening, quantity, 0, 0, 0, 0),
-        "TransferIn" => OilBalanceCalculator.CalculateClosing(opening, 0, 0, quantity, 0, 0),
-        "Sale" or OilTransactionTypeCodes.MaintenanceUse or OilTransactionTypeCodes.Consumption => OilBalanceCalculator.CalculateClosing(opening, 0, quantity, 0, 0, 0),
-        "TransferOut" => OilBalanceCalculator.CalculateClosing(opening, 0, 0, 0, quantity, 0),
-        "Loss" => OilBalanceCalculator.CalculateClosing(opening, 0, 0, 0, 0, quantity),
+        OilBalanceCalculator.MovementKind.Inbound => OilBalanceCalculator.CalculateClosing(opening, quantity, 0, 0, 0, 0),
+        OilBalanceCalculator.MovementKind.TransferIn => OilBalanceCalculator.CalculateClosing(opening, 0, 0, quantity, 0, 0),
+        OilBalanceCalculator.MovementKind.Outbound => OilBalanceCalculator.CalculateClosing(opening, 0, quantity, 0, 0, 0),
+        OilBalanceCalculator.MovementKind.TransferOut => OilBalanceCalculator.CalculateClosing(opening, 0, 0, 0, quantity, 0),
+        OilBalanceCalculator.MovementKind.Loss => OilBalanceCalculator.CalculateClosing(opening, 0, 0, 0, 0, quantity),
         _ => opening
     };
 

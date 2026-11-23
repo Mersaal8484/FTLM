@@ -8,4 +8,5 @@ public interface IIdempotencyService
 {
     Task<Result<IdempotencyStartResult>> StartAsync(Guid clientRequestId, string operation, string requestHash, int userId, CancellationToken cancellationToken = default);
     Task CompleteAsync(Guid clientRequestId, int responseStatusCode, string? responsePayload, int userId, CancellationToken cancellationToken = default);
+    Task ReleaseAsync(Guid clientRequestId, int userId, CancellationToken cancellationToken = default);
 }

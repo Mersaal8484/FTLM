@@ -58,6 +58,30 @@ public sealed class OperationalFoundationTests
     }
 
     [Fact]
+    public async Task IdempotencyService_ReleasesFailedProcessingKey_ButRetainsCompletedReplay()
+    {
+        await using var db = CreateDatabase();
+        var service = new IdempotencyService(db);
+        var releasedRequestId = Guid.NewGuid();
+        var completedRequestId = Guid.NewGuid();
+        const string hash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+        var firstAttempt = await service.StartAsync(releasedRequestId, "service-replacement", hash, 12);
+        await service.ReleaseAsync(releasedRequestId, 12);
+        var retryAfterFailure = await service.StartAsync(releasedRequestId, "service-replacement", hash, 12);
+
+        var completed = await service.StartAsync(completedRequestId, "service-replacement", hash, 12);
+        await service.CompleteAsync(completedRequestId, 201, "{\"id\":17}", 12);
+        var completedReplay = await service.StartAsync(completedRequestId, "service-replacement", hash, 12);
+
+        Assert.True(firstAttempt.IsSuccess && firstAttempt.Value!.IsNew);
+        Assert.True(retryAfterFailure.IsSuccess && retryAfterFailure.Value!.IsNew);
+        Assert.True(completed.IsSuccess && completed.Value!.IsNew);
+        Assert.True(completedReplay.IsSuccess && !completedReplay.Value!.IsNew);
+        Assert.Equal(201, completedReplay.Value.ResponseStatusCode);
+    }
+
+    [Fact]
     public async Task IdempotencyService_AllowsTheSameKeyForDifferentTenantOrUserScopes()
     {
         await using var db = CreateDatabase();

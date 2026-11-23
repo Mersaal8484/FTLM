@@ -162,6 +162,35 @@ public sealed class WorkPermitCommercialC6_3Tests : IDisposable
     }
 
     [Fact]
+    public async Task Numbering_CommercialMode_ContinuesAfterLegacyEnterpriseFormatPermit()
+    {
+        EnableCommercialMode();
+        var year = DateTime.UtcNow.Year;
+        _db.WorkPermits.Add(new WorkPermit
+        {
+            PermitNumber = $"WP-{year}-PS01-0009",
+            SubStationId = 1,
+            GeneratorId = 101,
+            MaintenanceTypeLookupId = 10,
+            DepartmentLookupId = 20,
+            PriorityLookupId = 30,
+            StatusLookupId = 40,
+            PermitDate = DateTime.UtcNow,
+            ProblemDescription = "Legacy permit",
+            RequestedById = 1,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+
+        var service = new WorkPermitService(_db, new StubCurrentUserService { UserId = 1, IsAdmin = true }, new StubUserScopeFilterService(), new CommercialStationModeService(_db));
+        var result = await service.CreateAsync(new CreateWorkPermitDto(0, 101, 10, 20, 30, DateTime.UtcNow, "Next"), 1);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("PS01-WP-00010", result.Value!.PermitNumber);
+    }
+
+    [Fact]
     public async Task Numbering_CommercialMode_ConcurrentCreations_ProduceDistinctConsecutiveNumbers()
     {
         EnableCommercialMode();

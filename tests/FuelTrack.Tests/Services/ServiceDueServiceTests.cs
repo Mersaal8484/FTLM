@@ -512,8 +512,11 @@ public sealed class ServiceDueServiceTests : IDisposable
         var service = new ServiceReplacementService(_db, _dueEvaluation, _scopeFilter, _currentUser,
             new IdempotencyService(_db), NullLogger<ServiceReplacementService>.Instance, commercialMode.Object);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RecordReplacementAsync(new RecordReplacementRequestDto(
-            generator.Id, serviceItem.Id, 1000m, DateTime.UtcNow, ClientRequestId: Guid.NewGuid()), 1));
+        var result = await service.RecordReplacementAsync(new RecordReplacementRequestDto(
+            generator.Id, serviceItem.Id, 1000m, DateTime.UtcNow, ClientRequestId: Guid.NewGuid()), 1);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(400, result.StatusCode);
 
         Assert.Empty(_db.ServiceReplacementRecords);
         Assert.Empty(_db.OilTransactions);

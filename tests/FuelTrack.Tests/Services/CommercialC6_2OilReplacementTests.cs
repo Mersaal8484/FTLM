@@ -308,9 +308,35 @@ public sealed class CommercialC6_2OilReplacementTests : IDisposable
         var balanceRestored = await _oilLedger.GetCurrentBalanceAsync(site.Id, oilLookup.Id);
         Assert.Equal(100m, balanceRestored); // Net ledger effect is exactly zero
 
-        // Voiding already voided replacement must throw InvalidOperationException
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _service.VoidAsync(recordId, new VoidReplacementRecordDto("Second try"), 1));
+        var secondVoid = await _service.VoidAsync(recordId, new VoidReplacementRecordDto("Second try"), 1);
+        Assert.False(secondVoid.IsSuccess);
+        Assert.Equal(400, secondVoid.StatusCode);
+        Assert.Equal("This service replacement record has already been voided.", secondVoid.Error);
+    }
+
+    [Fact]
+    public async Task RecordReplacement_InvalidOilConfiguration_ReturnsFailureInsteadOfThrowing()
+    {
+        var (_, gen, item, oilLookup, _, _) = await SeedBasicSetupAsync(initialStock: 100m, configuredLiters: 0m);
+        var oil = await _db.Oils.SingleAsync(x => x.OilLookupId == oilLookup.Id);
+        _db.GeneratorMaintenanceOilConfigurations.Add(new GeneratorMaintenanceOilConfiguration
+        {
+            GeneratorId = gen.Id,
+            ServiceItemId = item.Id,
+            OilId = oil.Id,
+            QuantityLiters = 0m,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = 1,
+            UpdatedAt = DateTime.UtcNow,
+            UpdatedBy = 1
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.RecordReplacementAsync(new RecordReplacementRequestDto(
+            gen.Id, item.Id, 500m, DateTime.UtcNow, ClientRequestId: Guid.NewGuid()), 1);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(400, result.StatusCode);
     }
 
     [Fact]
