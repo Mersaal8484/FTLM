@@ -7,15 +7,27 @@ export const stockSummaryKeys = {
   oil: (from, to) => [...stockSummaryKeys.all, 'oil', from, to],
 };
 
-export const useFuelStockSummary = (from, to) =>
+export const useFuelStockSummary = (from, to, enabled = true) =>
   useQuery({
     queryKey: stockSummaryKeys.fuel(from, to),
     queryFn: () =>
       client
         .get('/api/fuel-movements/fuel-stock-summary', { params: { from, to } })
         .then((r) => r.data),
-    enabled: !!from && !!to,
+    enabled: !!from && !!to && enabled,
     staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+export const useCommercialFuelTankStock = (from, to, enabled = true) =>
+  useQuery({
+    queryKey: [...stockSummaryKeys.all, 'commercial-tanks', from, to],
+    queryFn: () =>
+      client
+        .get('/api/fuel-movements/commercial-tank-stock', { params: { from, to } })
+        .then((r) => r.data),
+    enabled: !!from && !!to && enabled,
+    staleTime: 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 

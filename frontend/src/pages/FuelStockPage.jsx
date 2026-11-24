@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Database, AlertTriangle, RefreshCw, ChevronDown, ChevronRight, MapPin, Package, Droplet } from 'lucide-react';
-import { useFuelStockSummary, stockSummaryKeys } from '../api/stockSummaryApi';
+import { Database, AlertTriangle, RefreshCw, ChevronDown, ChevronRight, MapPin, Package, Droplet, ArrowRightLeft, Zap } from 'lucide-react';
+import { useCommercialFuelTankStock, useFuelStockSummary, stockSummaryKeys } from '../api/stockSummaryApi';
 import connection from '../socket';
 import useCommercialMode from '../hooks/useCommercialMode';
 
@@ -23,6 +23,89 @@ function AlertBadge({ level, ar }) {
   );
 }
 
+function CommercialTankCard({ tank, daily, ar }) {
+  const barPercent = tank.capacityLitres > 0 ? Math.min(100, (tank.currentLitres / tank.capacityLitres) * 100) : 0;
+  const accent = tank.alertLevel === 'danger' ? 'var(--danger)' : 'var(--success)';
+  const pairs = daily
+    ? [
+        { label: ar ? 'المولد المرتبط' : 'Linked generator', value: tank.generatorName || '—' },
+        { label: ar ? 'المحول من الرئيسي' : 'Received from main', value: fmt(tank.transferredInLitres), unit: 'L' },
+        { label: ar ? 'استهلاك المولد' : 'Generator consumption', value: fmt(tank.consumedLitres), unit: 'L' },
+      ]
+    : [
+        { label: ar ? 'الوارد الخارجي' : 'External receipts', value: fmt(tank.externalReceiptLitres), unit: 'L' },
+        { label: ar ? 'المحول إلى اليوميات' : 'Transferred to daily tanks', value: fmt(tank.transferredOutLitres), unit: 'L' },
+        { label: ar ? 'الاستهلاك' : 'Consumption', value: ar ? 'لا يُحسب من الرئيسي' : 'Not calculated from main tank' },
+      ];
+
+  return (
+    <article className="section-card" style={{ marginBottom: 0, borderInlineStart: `4px solid ${accent}`, padding: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 16 }}>{tank.tankName}</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 3 }}>{tank.tankCode} · {tank.fuelLookupName}</div>
+        </div>
+        <span style={{ background: daily ? 'var(--primary-glow)' : 'var(--secondary-subtle)', color: daily ? 'var(--primary)' : 'var(--secondary)', borderRadius: 999, padding: '4px 9px', fontSize: 11, fontWeight: 800 }}>
+          {daily ? (ar ? 'خزان يومي' : 'Daily tank') : (ar ? 'خزان رئيسي' : 'Main tank')}
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 14 }}>
+        <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '10px 12px' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>{ar ? 'الرصيد الفعلي' : 'Actual stock'}</div>
+          <div style={{ fontWeight: 800, fontSize: 20, marginTop: 3 }}>{fmt(tank.currentLitres)} <small style={{ fontSize: 11 }}>L</small></div>
+        </div>
+        <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '10px 12px' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>{ar ? 'المتاح بعد الميت' : 'Usable after dead stock'}</div>
+          <div style={{ fontWeight: 800, fontSize: 20, marginTop: 3, color: 'var(--primary)' }}>{fmt(tank.usableLitres)} <small style={{ fontSize: 11 }}>L</small></div>
+        </div>
+      </div>
+      <div style={{ height: 6, borderRadius: 999, background: 'var(--border)', overflow: 'hidden', marginBottom: 14 }}>
+        <div style={{ height: '100%', width: `${barPercent}%`, background: accent, borderRadius: 999 }} />
+      </div>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {pairs.map(({ label, value, unit }) => (
+          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12 }}>
+            <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+            <strong>{value}{unit && value !== '—' ? ` ${unit}` : ''}</strong>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function CommercialFuelStock({ ar, overview, loading }) {
+  if (loading) return <div style={{ padding: '60px 0', textAlign: 'center' }}><div className="ft-spinner" style={{ width: 36, height: 36, margin: '0 auto' }} /></div>;
+  const mainTanks = overview?.mainTanks || [];
+  const dailyTanks = overview?.dailyTanks || [];
+  const transferred = mainTanks.reduce((sum, tank) => sum + (tank.transferredOutLitres || 0), 0);
+  const consumed = dailyTanks.reduce((sum, tank) => sum + (tank.consumedLitres || 0), 0);
+
+  return (
+    <>
+      <div className="kpi-grid" style={{ marginBottom: 28 }}>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--secondary)', '--kpi-bg': 'var(--secondary-subtle)' }}><div className="kpi-icon"><Database size={22} /></div><div><div className="kpi-value">{fmt(mainTanks.reduce((sum, tank) => sum + (tank.currentLitres || 0), 0))}</div><div className="kpi-label">{ar ? 'رصيد الخزانات الرئيسية (L)' : 'Main-tank stock (L)'}</div></div></div>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--primary)', '--kpi-bg': 'var(--primary-glow)' }}><div className="kpi-icon"><ArrowRightLeft size={22} /></div><div><div className="kpi-value">{fmt(transferred)}</div><div className="kpi-label">{ar ? 'محول إلى اليوميات (L)' : 'Transferred to daily tanks (L)'}</div></div></div>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--success)', '--kpi-bg': 'var(--success-subtle)' }}><div className="kpi-icon"><Droplet size={22} /></div><div><div className="kpi-value">{fmt(dailyTanks.reduce((sum, tank) => sum + (tank.currentLitres || 0), 0))}</div><div className="kpi-label">{ar ? 'رصيد الخزانات اليومية (L)' : 'Daily-tank stock (L)'}</div></div></div>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--warning)', '--kpi-bg': 'var(--warning-subtle)' }}><div className="kpi-icon"><Zap size={22} /></div><div><div className="kpi-value">{fmt(consumed)}</div><div className="kpi-label">{ar ? 'استهلاك المولدات (L)' : 'Generator consumption (L)'}</div></div></div>
+      </div>
+
+      <section style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}><Database size={19} style={{ color: 'var(--secondary)' }} /><h2 style={{ margin: 0, fontSize: 17 }}>{ar ? 'الخزانات الرئيسية' : 'Main tanks'}</h2></div>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 0 }}>{ar ? 'الرئيسي مصدر التوريد والتحويل فقط؛ لا تُنسب إليه كميات استهلاك المولدات.' : 'Main tanks are supply sources only; generator consumption is never attributed to them.'}</p>
+        {mainTanks.length ? <div className="grid-auto">{mainTanks.map(tank => <CommercialTankCard key={tank.tankId} tank={tank} ar={ar} />)}</div> : <p className="capture-empty">{ar ? 'لا يوجد خزان رئيسي مسجل.' : 'No main tank is configured.'}</p>}
+      </section>
+
+      <section>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}><Zap size={19} style={{ color: 'var(--primary)' }} /><h2 style={{ margin: 0, fontSize: 17 }}>{ar ? 'الخزانات اليومية والمولدات' : 'Daily tanks by generator'}</h2></div>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 0 }}>{ar ? 'يُحسب استهلاك كل مولد من فروقات مستوى خزانه اليومي المعتمدة، بعد إضافة التحويلات الواردة.' : 'Each generator is calculated from approved daily-tank levels and inbound transfers.'}</p>
+        {dailyTanks.length ? <div className="grid-auto">{dailyTanks.map(tank => <CommercialTankCard key={tank.tankId} tank={tank} daily ar={ar} />)}</div> : <p className="capture-empty">{ar ? 'لا يوجد خزان يومي مرتبط بمولد حتى الآن.' : 'No daily tank is linked to a generator yet.'}</p>}
+      </section>
+    </>
+  );
+}
+
 function FuelStockPage({ lang }) {
   const ar = lang === 'ar';
   const { isCommercialMode } = useCommercialMode();
@@ -39,18 +122,20 @@ function FuelStockPage({ lang }) {
   const [openBranches, setOpenBranches] = useState({});
   const [openStations, setOpenStations] = useState({});
 
-  const fuelQuery = useFuelStockSummary(dateFrom, dateTo);
+  const fuelQuery = useFuelStockSummary(dateFrom, dateTo, !isCommercialMode);
+  const commercialFuelQuery = useCommercialFuelTankStock(dateFrom, dateTo, isCommercialMode);
   const summaryData = fuelQuery.data || [];
   const summaryLoading = fuelQuery.isLoading;
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: stockSummaryKeys.fuel(dateFrom, dateTo) });
+    queryClient.invalidateQueries({ queryKey: [...stockSummaryKeys.all, 'commercial-tanks', dateFrom, dateTo] });
   }, [queryClient, dateFrom, dateTo]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
   useEffect(() => {
-    const events = ['FuelMovementCreated', 'FuelMovementUpdated', 'FuelMovementApproved', 'FuelMovementRejected'];
+    const events = ['FuelMovementCreated', 'FuelMovementUpdated', 'FuelMovementApproved', 'FuelMovementRejected', 'OperationalSubmissionApproved'];
     const handler = () => { refresh(); };
     events.forEach(e => connection.on(e, handler));
     return () => events.forEach(e => connection.off(e, handler));
@@ -121,6 +206,26 @@ function FuelStockPage({ lang }) {
       </tr>
     );
   };
+
+  if (isCommercialMode) {
+    return (
+      <div style={{ animation: 'fadeIn 0.4s ease' }}>
+        <div className="page-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 20, marginBottom: 30 }}>
+          <div className="page-header-row">
+            <div>
+              <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Database size={24} style={{ color: 'var(--primary)' }} />{ar ? 'مخزون الوقود' : 'Fuel Stock'}</h1>
+              <p style={{ opacity: 0.8, fontSize: '0.9rem' }}>{ar ? 'رصيد الرئيسي منفصل عن خزانات المولدات اليومية واستهلاكها.' : 'Main-tank stock is separated from generator daily tanks and consumption.'}</p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input type="month" className="form-control" style={{ width: 180 }} value={monthStr} onChange={e => setMonthStr(e.target.value)} />
+              <button className="btn btn-ghost" style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={refresh}><RefreshCw size={15} /> {ar ? 'تحديث' : 'Refresh'}</button>
+            </div>
+          </div>
+        </div>
+        <CommercialFuelStock ar={ar} overview={commercialFuelQuery.data} loading={commercialFuelQuery.isLoading} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ animation: 'fadeIn 0.4s ease' }}>

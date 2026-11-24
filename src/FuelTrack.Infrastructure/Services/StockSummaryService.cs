@@ -3,6 +3,7 @@ using FuelTrack.Application;
 using FuelTrack.Application.DTOs.FuelMovements;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Application.Services;
+using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
 using FuelTrack.Domain.Services;
 using Microsoft.AspNetCore.Http;
@@ -37,6 +38,133 @@ public class StockSummaryService : IStockSummaryService
     public async Task<List<OilStockSummaryDto>> GetOilStockSummaryAsync(DateTime fromDate, DateTime toDate, int? userId)
     {
         return await ComputeOilStockAsync(fromDate, toDate, userId);
+    }
+
+    public async Task<CommercialFuelStockOverviewDto> GetCommercialFuelTankStockAsync(DateTime fromDate, DateTime toDate, int? userId)
+    {
+        if (!await _commercialMode.IsCommercialModeAsync())
+            return new([], []);
+
+        var scope = await _commercialMode.GetScopeAsync();
+        if (scope is null)
+            return new([], []);
+
+        var tanks = await _db.FuelTanks
+            .AsNoTracking()
+            .Where(t => t.DeletedAt == null && t.SubStationId == scope.SubStationId)
+            .Select(t => new
+            {
+                t.Id,
+                t.Name,
+                t.Code,
+                t.TankRole,
+                t.FuelLookupId,
+                FuelLookupName = t.FuelLookup.Name,
+                t.GeneratorId,
+                GeneratorName = t.Generator != null ? t.Generator.Name : null,
+                t.ParentTankId,
+                t.CapacityLiters,
+                t.DeadStockLiters,
+                t.ActualStockLiters,
+                t.MinAlertLiters
+            })
+            .ToListAsync();
+
+        var tankIds = tanks.Select(t => t.Id).ToList();
+        var periodStart = fromDate.Date;
+        var periodEnd = toDate.Date.AddDays(1).AddTicks(-1);
+        List<CommercialTankReading> readings;
+        if (tankIds.Count == 0)
+        {
+            readings = [];
+        }
+        else
+        {
+            readings = await _db.TankLevelReadings
+                .AsNoTracking()
+                .Where(r => tankIds.Contains(r.FuelTankId)
+                    && r.CapturedAtUtc <= periodEnd
+                    && (r.Status == OperationalReadingStatus.Recorded || r.Status == OperationalReadingStatus.Approved))
+                .OrderBy(r => r.CapturedAtUtc)
+                .ThenBy(r => r.Id)
+                .Select(r => new CommercialTankReading(
+                    r.FuelTankId,
+                    r.CapturedAtUtc,
+                    r.ComputedLitres,
+                    r.BeforeComputedLitres,
+                    r.DeliveryNoteLitres,
+                    r.EventType))
+                .ToListAsync();
+        }
+
+        var readingsByTank = readings.GroupBy(r => r.FuelTankId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+        var mainTanks = new List<CommercialFuelTankStockDto>();
+        var dailyTanks = new List<CommercialFuelTankStockDto>();
+
+        foreach (var tank in tanks)
+        {
+            var isDaily = tank.TankRole == TankRole.Daily || (!tank.TankRole.HasValue && tank.GeneratorId.HasValue);
+            var history = readingsByTank.GetValueOrDefault(tank.Id, []);
+            decimal current = history.Count > 0 ? history[^1].ComputedLitres : (decimal)(tank.ActualStockLiters ?? 0d);
+            decimal receipts = 0m, transferOut = 0m, transferIn = 0m, consumed = 0m;
+            decimal? previousLevel = history.Where(r => r.CapturedAtUtc < periodStart).Select(r => (decimal?)r.ComputedLitres).LastOrDefault();
+
+            foreach (var reading in history.Where(r => r.CapturedAtUtc >= periodStart))
+            {
+                var before = reading.BeforeComputedLitres ?? previousLevel ?? reading.ComputedLitres;
+                var increase = Math.Max(0m, reading.ComputedLitres - before);
+                var decrease = Math.Max(0m, before - reading.ComputedLitres);
+
+                switch (reading.EventType)
+                {
+                    case TankEventType.Receipt:
+                        receipts += increase > 0m ? increase : Math.Max(0m, reading.DeliveryNoteLitres ?? 0m);
+                        break;
+                    case TankEventType.TransferOut:
+                        transferOut += decrease;
+                        break;
+                    case TankEventType.TransferIn:
+                        transferIn += increase;
+                        break;
+                    case TankEventType.Level when isDaily && previousLevel.HasValue:
+                        consumed += Math.Max(0m, previousLevel.Value - reading.ComputedLitres);
+                        break;
+                }
+
+                previousLevel = reading.ComputedLitres;
+            }
+
+            var deadStock = (decimal)(tank.DeadStockLiters ?? 0d);
+            var usable = Math.Max(0m, current - deadStock);
+            var minimum = (decimal)(tank.MinAlertLiters ?? 0d);
+            var alertLevel = minimum > 0m && current <= minimum ? "danger" : "normal";
+            var dto = new CommercialFuelTankStockDto(
+                tank.Id,
+                tank.Name,
+                tank.Code,
+                isDaily ? "Daily" : "Main",
+                tank.FuelLookupId,
+                tank.FuelLookupName,
+                tank.GeneratorId,
+                tank.GeneratorName,
+                tank.ParentTankId,
+                (decimal)tank.CapacityLiters,
+                deadStock,
+                current,
+                usable,
+                receipts,
+                transferOut,
+                transferIn,
+                isDaily ? consumed : 0m,
+                alertLevel);
+
+            (isDaily ? dailyTanks : mainTanks).Add(dto);
+        }
+
+        return new(
+            mainTanks.OrderBy(t => t.FuelLookupName).ThenBy(t => t.TankName).ToList(),
+            dailyTanks.OrderBy(t => t.GeneratorName).ThenBy(t => t.TankName).ToList());
     }
 
     private async Task<List<FuelStockSummaryDto>> ComputeFuelStockAsync(DateTime fromDate, DateTime toDate, int? userId)
@@ -714,4 +842,12 @@ public class StockSummaryService : IStockSummaryService
         public int OilLookupId { get; set; }
         public double CurrentStock { get; set; }
     }
+
+    private sealed record CommercialTankReading(
+        int FuelTankId,
+        DateTime CapturedAtUtc,
+        decimal ComputedLitres,
+        decimal? BeforeComputedLitres,
+        decimal? DeliveryNoteLitres,
+        TankEventType EventType);
 }

@@ -65,8 +65,10 @@ public sealed record OperationalTankReferenceDto(int Id, string Name, string Cod
 public sealed record OperationalFeederReferenceDto(int Id, string Name, string Code, decimal MeterMultiplier, int? MeterId);
 public sealed record OperationalMeterReferenceDto(int Id, string Name, string? SerialNumber, int? GeneratorId, string? MeterTypeCode = null);
 
-/// <summary>Latest raw and official counter values for a capture site's generators and feeders.</summary>
-public sealed record PreviousMeterReadingsDto(IReadOnlyList<PreviousMeterReadingDto> Readings);
+/// <summary>Latest raw/official counters and the latest official daily tank levels for a capture site.</summary>
+public sealed record PreviousMeterReadingsDto(
+    IReadOnlyList<PreviousMeterReadingDto> Readings,
+    IReadOnlyList<PreviousTankLevelReadingDto>? TankReadings = null);
 
 public sealed record PreviousMeterReadingDto(
     MeterReadingSubjectType SubjectType,
@@ -82,3 +84,9 @@ public sealed record LatestMeterReadingDto(
     MeterReadingKind Kind,
     OperationalReadingStatus Status,
     bool IsMeterReset);
+
+public sealed record PreviousTankLevelReadingDto(
+    int FuelTankId,
+    decimal LiquidLevelCm,
+    decimal ComputedLitres,
+    DateTime CapturedAtUtc);

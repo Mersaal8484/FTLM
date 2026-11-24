@@ -51,6 +51,10 @@ public sealed class OperationalCaptureService(
                         (x.MeterTypeLookup.Code == "SolarProductionMeter" || x.MeterTypeLookup.Code == "SolarMeter"))
             .Select(x => x.Id)
             .ToListAsync(cancellationToken);
+        var tankIds = await db.FuelTanks.AsNoTracking()
+            .Where(x => x.SubStationId == subStationId)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
 
         var candidates = await db.MeterReadings.AsNoTracking()
             .Where(x => x.Status != OperationalReadingStatus.Voided && x.Status != OperationalReadingStatus.Rejected &&
@@ -91,7 +95,24 @@ public sealed class OperationalCaptureService(
                 deltas.Count == 0 ? null : deltas.Average());
         }).ToList();
 
-        return Result<PreviousMeterReadingsDto>.Success(new PreviousMeterReadingsDto(readings));
+        var tankReadings = await db.TankLevelReadings.AsNoTracking()
+            .Where(x => tankIds.Contains(x.FuelTankId) &&
+                        x.EventType == TankEventType.Level &&
+                        (x.Status == OperationalReadingStatus.Recorded || x.Status == OperationalReadingStatus.Approved))
+            .OrderByDescending(x => x.CapturedAtUtc)
+            .ThenByDescending(x => x.Id)
+            .Select(x => new PreviousTankLevelReadingDto(
+                x.FuelTankId,
+                x.LiquidLevelCm,
+                x.ComputedLitres,
+                x.CapturedAtUtc))
+            .ToListAsync(cancellationToken);
+        var latestTankReadings = tankReadings
+            .GroupBy(x => x.FuelTankId)
+            .Select(x => x.First())
+            .ToList();
+
+        return Result<PreviousMeterReadingsDto>.Success(new PreviousMeterReadingsDto(readings, latestTankReadings));
     }
 
     public async Task<Result<OperationalSubmissionDto>> SubmitAsync(SubmitOperationalCaptureDto dto, int userId, CancellationToken cancellationToken = default)

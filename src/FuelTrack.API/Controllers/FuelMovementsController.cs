@@ -158,6 +158,21 @@ public class FuelMovementsController : BaseApiController
         return Ok(result);
     }
 
+    [HttpGet("commercial-tank-stock")]
+    public async Task<IActionResult> GetCommercialTankStock([FromQuery] string from, [FromQuery] string to)
+    {
+        if (!DateTime.TryParseExact(from, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fromDate)
+            || !DateTime.TryParseExact(to, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var toDate)
+            || fromDate > toDate)
+        {
+            return BadRequest(new { message = "Invalid date range. Use yyyy-MM-dd." });
+        }
+
+        var result = await _stockSummaryService.GetCommercialFuelTankStockAsync(fromDate, toDate, GetUserId());
+        Response.Headers.CacheControl = "no-store";
+        return Ok(result);
+    }
+
     [HttpGet("oil-stock-summary")]
     public async Task<IActionResult> GetOilStockSummary([FromQuery] string from, [FromQuery] string to)
     {

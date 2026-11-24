@@ -1,3 +1,4 @@
+using FuelTrack.Application.Constants;
 using FuelTrack.Application.DTOs.Oils;
 using FuelTrack.Application.DTOs.OilTransactions;
 using FuelTrack.Application.DTOs.Operations;
@@ -247,19 +248,18 @@ public class OilService : IOilService
 
         var oilLookupId = oil.OilLookupId;
 
-        var txTypeCategory = await _db.LookupCategories.FirstOrDefaultAsync(c => c.Name == "OilTransactionType", ct);
-        if (txTypeCategory == null)
-            throw new InvalidOperationException("OilTransactionType category not found.");
-
-        var inboundTxType = await _db.Lookups.FirstOrDefaultAsync(l => l.CategoryId == txTypeCategory.Id && l.Name == "وارد", ct);
-        if (inboundTxType == null)
-            throw new InvalidOperationException("وارد transaction type not found.");
+        var consumptionTxType = await _db.Lookups.FirstOrDefaultAsync(l =>
+            l.Code == OilTransactionTypeCodes.Consumption &&
+            l.IsActive &&
+            (l.Category.Name == "OilTransactionType" || l.CategoryId == 100), ct);
+        if (consumptionTxType == null)
+            throw new InvalidOperationException("Consumption transaction type not found.");
 
         var tx = new OilTransaction
         {
             SubStationId = generator.SubStationId,
             OilLookupId = oilLookupId,
-            TransactionTypeLookupId = inboundTxType.Id,
+            TransactionTypeLookupId = consumptionTxType.Id,
             TransactionDate = DateTime.UtcNow,
             QuantityLiters = dto.Quantity,
             Notes = dto.Notes,
@@ -281,7 +281,7 @@ public class OilService : IOilService
             tx.Id,
             tx.SubStationId, generator.SubStationId.ToString(),
             oilLookupId, oil.OilLookup?.Name ?? "",
-            tx.TransactionTypeLookupId, inboundTxType.Name,
+            tx.TransactionTypeLookupId, consumptionTxType.Name,
             tx.TransactionDate, tx.QuantityLiters,
             tx.Reference,
             tx.SupplierCompany,
