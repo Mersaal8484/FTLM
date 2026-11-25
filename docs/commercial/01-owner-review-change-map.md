@@ -236,8 +236,7 @@ C4: Operator and Approval Workflows
 
 C5: Fuel and Oils Tab
     ├── Align commercial fuel/oil pages
-    ├── Monthly daily oil ledger
-    └── Persisted periodic physical stocktake (counted, book, variance, photo, approval)
+    └── Removed from UI by owner decision (covered by the general movement log in Operations and the periodic inventory page); backend endpoints remain unused.
 
 C6: Maintenance
     ├── Generator maintenance card (oil change, filters, nozzles)
