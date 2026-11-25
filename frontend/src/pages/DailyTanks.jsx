@@ -172,10 +172,6 @@ export default function DailyTanks({ lang, currentUser }) {
       setFormError(ar ? 'اسم الخزان اليومي مطلوب.' : 'Daily tank name is required.');
       return false;
     }
-    if (!form.generatorId) {
-      setFormError(ar ? 'يجب ربط الخزان اليومي بمولد محدد.' : 'Daily tank must be associated with a generator.');
-      return false;
-    }
     const msg = validateTankStockInputs({
       ar,
       config: form,
@@ -237,7 +233,7 @@ export default function DailyTanks({ lang, currentUser }) {
 
       const commonFields = {
         fuelLookupId: fuelId,
-        generatorId: Number(form.generatorId),
+        generatorId: form.generatorId ? Number(form.generatorId) : null,
         tankRole: 2, // TankRole.Daily
         shape: 0,    // TankShape.VerticalCylinderWithConicalBottom
         calibrationMode,
@@ -388,7 +384,7 @@ export default function DailyTanks({ lang, currentUser }) {
         <div className="grid-auto">
           {filtered.map(tank => {
             const gen = generators.find(g => g.id === tank.generatorId);
-            const genName = tank.generatorName || gen?.name || (ar ? 'غير محدد' : 'Unassigned');
+            const genName = tank.generatorName || gen?.name || (ar ? '\u063a\u064a\u0631 \u0645\u0631\u062a\u0628\u0637' : 'Unlinked');
             const cap = Number(tank.capacityLiters) || 0;
             const actual = Number(tank.actualStockLiters) || 0;
             const fillPct = cap > 0 ? Math.min(100, Math.round((actual / cap) * 100)) : 0;
@@ -479,33 +475,15 @@ export default function DailyTanks({ lang, currentUser }) {
             <FormField label={ar ? 'كود الخزان' : 'Tank Code'}>
               <Input value={form.code} onChange={e => fld('code', e.target.value)} placeholder="DT-01" />
             </FormField>
-            <FormField label={ar ? 'المولد المرتبط *' : 'Linked Generator *'} required>
-              {generators.length === 0 ? (
-                <div
-                  className="generator-empty-state"
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    background: 'var(--surface-2, rgba(255,255,255,0.04))',
-                    border: '1px dashed var(--border)',
-                    color: 'var(--text-muted, #888)',
-                    fontSize: 13,
-                  }}
-                >
-                  {ar
-                    ? 'لا توجد مولدات معرفة في المحطة. يرجى إضافة مولد أولاً.'
-                    : 'No generators defined in station. Please add a generator first.'}
-                </div>
-              ) : (
-                <select className="form-select" value={form.generatorId} onChange={e => fld('generatorId', e.target.value)} required>
-                  <option value="">— {ar ? 'اختر المولد' : 'Select Generator'} —</option>
-                  {generators
-                    .filter(g => editId ? String(g.id) === String(form.generatorId) || !tanks.some(t => Number(t.generatorId) === Number(g.id)) : !tanks.some(t => Number(t.generatorId) === Number(g.id)))
-                    .map(g => (
-                      <option key={g.id} value={g.id}>{g.name} {g.model ? `(${g.model})` : ''}</option>
-                    ))}
-                </select>
-              )}
+            <FormField label={ar ? '\u0627\u0644\u0645\u0648\u0644\u062f \u0627\u0644\u0645\u0631\u062a\u0628\u0637 (\u0627\u062e\u062a\u064a\u0627\u0631\u064a)' : 'Linked Generator (Optional)'}>
+              <select className="form-select" value={form.generatorId} onChange={e => fld('generatorId', e.target.value)}>
+                <option value="">— {ar ? '\u0628\u062f\u0648\u0646 (\u063a\u064a\u0631 \u0645\u0631\u062a\u0628\u0637)' : 'None (Unlinked)'} —</option>
+                {generators
+                  .filter(g => editId ? String(g.id) === String(form.generatorId) || !tanks.some(t => Number(t.generatorId) === Number(g.id)) : !tanks.some(t => Number(t.generatorId) === Number(g.id)))
+                  .map(g => (
+                    <option key={g.id} value={g.id}>{g.name} {g.model ? `(${g.model})` : ''}</option>
+                  ))}
+              </select>
             </FormField>
           </div>
 

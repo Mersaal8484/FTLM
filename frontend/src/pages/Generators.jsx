@@ -5,9 +5,8 @@ import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 import useCommercialMode from '../hooks/useCommercialMode';
-import TankCalibrationSection from '../components/TankCalibrationSection';
-import TankVolumeField from '../components/TankVolumeField';
-import { TANK_CALIBRATION_MODE, resolveEnteredLitres, validateTankStockInputs } from '../utils/tankCalibration';
+import { Link } from 'react-router-dom';
+import { isDailyTank } from '../utils/tankRoles';
 
 const initialForm = {
   name: '',
@@ -33,13 +32,7 @@ const initialForm = {
   controller: '',
   cumulativeRunningHours: '',
   isActive: true,
-  dailyTankName: '', dailyTankCode: '', dailyTankFuelLookupId: '',
-  capacityLiters: '', capacityHeightCm: '', capacityUnit: 'litres',
-  minAlertLiters: '', minAlertHeightCm: '', minAlertUnit: 'litres',
-  deadStockLiters: '', deadStockHeightCm: '', deadStockUnit: 'litres',
-  actualStockLiters: '', actualStockHeightCm: '', actualStockUnit: 'litres',
-  calibrationMode: TANK_CALIBRATION_MODE.GEOMETRY, litresPerCm: '',
-  diameterCm: '', cylinderHeightCm: '', coneHeightCm: '', multiplicationFactor: '1',
+  dailyTankId: '',
 };
 
 const statusConfig = {
@@ -104,7 +97,11 @@ function Generators({ t, lang, currentUser }) {
   const [ownershipTypes, setOwnershipTypes] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [fuelTypes, setFuelTypes] = useState([]);
+  const [dailyTanks, setDailyTanks] = useState([]);
+
+  const availableDailyTanks = useMemo(() => {
+    return dailyTanks.filter(t => isDailyTank(t) && t.isActive !== false && (!t.generatorId || (editId && Number(t.generatorId) === Number(editId))));
+  }, [dailyTanks, editId]);
 
   const load = async () => {
     setLoading(true); setError(null);
@@ -119,7 +116,7 @@ function Generators({ t, lang, currentUser }) {
         client.get('/api/lookups/by-category/OwnershipType', { params: { _t: Date.now() } }),
         client.get('/api/lookups/by-category/GeneratorStatus', { params: { _t: Date.now() } }),
         isCommercialMode ? Promise.resolve({ data: [] }) : client.get('/api/branches', { params: { _t: Date.now() } }),
-        isCommercialMode ? client.get('/api/lookups/by-category/FuelType', { params: { _t: Date.now() } }) : Promise.resolve({ data: [] }),
+        isCommercialMode ? client.get('/api/fuel-tanks', { params: { _t: Date.now() } }) : Promise.resolve({ data: [] }),
       ];
 
       if (canAdd || canEdit) {
@@ -139,7 +136,7 @@ function Generators({ t, lang, currentUser }) {
       setOwnershipTypes(ownRes.status === 'fulfilled' && Array.isArray(ownRes.value.data) ? ownRes.value.data : []);
       setStatuses(statRes.status === 'fulfilled' && Array.isArray(statRes.value.data) ? statRes.value.data : []);
       setBranches(brRes.status === 'fulfilled' && Array.isArray(brRes.value.data) ? brRes.value.data : []);
-      setFuelTypes(fuelRes.status === 'fulfilled' && Array.isArray(fuelRes.value.data) ? fuelRes.value.data : []);
+      setDailyTanks(fuelRes.status === 'fulfilled' && Array.isArray(fuelRes.value.data) ? fuelRes.value.data.filter(isDailyTank) : []);
       const ctrlData = ctrlRes?.status === 'fulfilled' ? ctrlRes.value.data : [];
       setControllers(Array.isArray(ctrlData) ? ctrlData : (ctrlData.controllers || []));
     } catch { setError(t.noData); }
@@ -207,20 +204,10 @@ function Generators({ t, lang, currentUser }) {
   };
 
   const handleSubmit = async () => {
-    const tankError = !editId && isCommercialMode ? validateTankStockInputs({
-      ar, config: form,
-      fields: [
-        { key: 'capacity', label: ar ? 'سعة الخزان اليومي' : 'Daily tank capacity', unit: form.capacityUnit, heightValue: form.capacityHeightCm, resolvedLitres: resolveEnteredLitres(form, form.capacityUnit, form.capacityLiters, form.capacityHeightCm) },
-        { key: 'minAlert', label: ar ? 'حد التنبيه' : 'Minimum alert', unit: form.minAlertUnit, heightValue: form.minAlertHeightCm, resolvedLitres: resolveEnteredLitres(form, form.minAlertUnit, form.minAlertLiters, form.minAlertHeightCm) },
-        { key: 'deadStock', label: ar ? 'المخزون الميت' : 'Dead stock', unit: form.deadStockUnit, heightValue: form.deadStockHeightCm, resolvedLitres: resolveEnteredLitres(form, form.deadStockUnit, form.deadStockLiters, form.deadStockHeightCm) },
-        { key: 'actualStock', label: ar ? 'الرصيد الفعلي' : 'Actual stock', unit: form.actualStockUnit, heightValue: form.actualStockHeightCm, resolvedLitres: resolveEnteredLitres(form, form.actualStockUnit, form.actualStockLiters, form.actualStockHeightCm) },
-      ],
-    }) : '';
     const err = isCommercialMode
-      ? fieldError('name') || (!editId && (!form.dailyTankName || !form.dailyTankCode || !form.dailyTankFuelLookupId) ? (ar ? 'بيانات الخزان اليومي مطلوبة.' : 'Daily-tank details are required.') : '') || tankError
+      ? fieldError('name') || (!form.dailyTankId ? (ar ? '\u0627\u0644\u062e\u0632\u0627\u0646 \u0627\u0644\u064a\u0648\u0645\u064a \u0645\u0637\u0644\u0648\u0628.' : 'Daily tank is required.') : '')
       : fieldError('name') || fieldError('subStation') || fieldError('ratedCapacityKw') || fieldError('fuelConsumptionRatePerHour');
     if (err) { setError(err); return; }
-
     if (isCommercialMode && form.cumulativeRunningHours !== '' && form.cumulativeRunningHours !== null) {
       const hrs = Number(form.cumulativeRunningHours);
       if (isNaN(hrs) || hrs < 0) {
@@ -277,22 +264,9 @@ function Generators({ t, lang, currentUser }) {
           OwnershipTypeLookupId: isCommercialMode ? null : (form.ownershipType ? Number(form.ownershipType) : null),
           StatusLookupId: form.status ? Number(form.status) : null,
           IsActive: form.isActive,
-          DailyTank: isCommercialMode ? {
-            FuelLookupId: Number(form.dailyTankFuelLookupId), Name: form.dailyTankName, Code: form.dailyTankCode,
-            CapacityLiters: form.capacityUnit === 'cm' ? 0 : Number(form.capacityLiters),
-            CapacityHeightCm: form.capacityUnit === 'cm' && form.capacityHeightCm !== '' ? Number(form.capacityHeightCm) : null,
-            MinAlertLiters: form.minAlertUnit === 'cm' || form.minAlertLiters === '' ? null : Number(form.minAlertLiters),
-            MinAlertHeightCm: form.minAlertUnit === 'cm' && form.minAlertHeightCm !== '' ? Number(form.minAlertHeightCm) : null,
-            DeadStockLiters: form.deadStockUnit === 'cm' || form.deadStockLiters === '' ? null : Number(form.deadStockLiters),
-            DeadStockHeightCm: form.deadStockUnit === 'cm' && form.deadStockHeightCm !== '' ? Number(form.deadStockHeightCm) : null,
-            ActualStockLiters: form.actualStockUnit === 'cm' || form.actualStockLiters === '' ? null : Number(form.actualStockLiters),
-            ActualStockHeightCm: form.actualStockUnit === 'cm' && form.actualStockHeightCm !== '' ? Number(form.actualStockHeightCm) : null,
-            CalibrationMode: Number(form.calibrationMode), LitresPerCm: form.litresPerCm === '' ? null : Number(form.litresPerCm),
-            DiameterCm: form.diameterCm === '' ? null : Number(form.diameterCm), CylinderHeightCm: form.cylinderHeightCm === '' ? null : Number(form.cylinderHeightCm),
-            ConeHeightCm: form.coneHeightCm === '' ? null : Number(form.coneHeightCm), MultiplicationFactor: form.multiplicationFactor === '' ? null : Number(form.multiplicationFactor),
-          } : null,
+          DailyTankId: isCommercialMode ? (form.dailyTankId ? Number(form.dailyTankId) : null) : null,
         };
-        const res = await client.post('/api/generators', payload);
+                const res = await client.post('/api/generators', payload);
         generatorId = res.data?.id || res.data?.data?.id;
       }
 
@@ -564,7 +538,7 @@ function Generators({ t, lang, currentUser }) {
           footer={
             <>
               <Button variant="ghost" onClick={closeModal}>{ar ? 'إلغاء' : 'Cancel'}</Button>
-              <Button variant="primary" onClick={handleSubmit} disabled={saving} icon={Save}>
+              <Button variant="primary" onClick={handleSubmit} disabled={saving || (isCommercialMode && (!form.dailyTankId || availableDailyTanks.length === 0))} icon={Save}>
                 {saving
                   ? ar ? 'جاري الحفظ...' : 'Saving...'
                   : editId ? (ar ? 'تحديث المولد' : 'Update Generator') : (ar ? 'إضافة مولد' : 'Add Generator')}
@@ -636,34 +610,38 @@ function Generators({ t, lang, currentUser }) {
             </div>
           )}
 
-          {isCommercialMode && !editId && <>
-            <div className="form-section-header">{ar ? 'الخزان اليومي الإلزامي' : 'Required Daily Tank'}</div>
-            <div className="form-row">
-              <FormField label={ar ? 'اسم الخزان اليومي *' : 'Daily Tank Name *'}>
-                <Input value={form.dailyTankName} onChange={e => fld('dailyTankName', e.target.value)} />
-              </FormField>
-              <FormField label={ar ? 'كود الخزان *' : 'Tank Code *'}>
-                <Input value={form.dailyTankCode} onChange={e => fld('dailyTankCode', e.target.value)} />
-              </FormField>
-            </div>
-            <div className="form-row">
-              <FormField label={ar ? 'نوع الوقود *' : 'Fuel Type *'}>
-                <select className="form-select" value={form.dailyTankFuelLookupId} onChange={e => fld('dailyTankFuelLookupId', e.target.value)}>
-                  <option value="">— {ar ? 'اختر نوع الوقود' : 'Select fuel type'} —</option>
-                  {fuelTypes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </select>
-              </FormField>
-              <TankVolumeField ar={ar} label={ar ? 'سعة الخزان' : 'Tank Capacity'} required
-                unit={form.capacityUnit} onUnitChange={v => fld('capacityUnit', v)} litresValue={form.capacityLiters} onLitresChange={v => fld('capacityLiters', v)}
-                heightValue={form.capacityHeightCm} onHeightChange={v => fld('capacityHeightCm', v)} calibrationConfig={form} />
-            </div>
-            <TankCalibrationSection ar={ar} value={form} onChange={next => setForm(f => ({ ...f, ...next }))} />
-            <div className="form-row">
-              <TankVolumeField ar={ar} label={ar ? 'الرصيد الفعلي' : 'Actual Stock'} unit={form.actualStockUnit} onUnitChange={v => fld('actualStockUnit', v)} litresValue={form.actualStockLiters} onLitresChange={v => fld('actualStockLiters', v)} heightValue={form.actualStockHeightCm} onHeightChange={v => fld('actualStockHeightCm', v)} calibrationConfig={form} />
-              <TankVolumeField ar={ar} label={ar ? 'المخزون الميت' : 'Dead Stock'} unit={form.deadStockUnit} onUnitChange={v => fld('deadStockUnit', v)} litresValue={form.deadStockLiters} onLitresChange={v => fld('deadStockLiters', v)} heightValue={form.deadStockHeightCm} onHeightChange={v => fld('deadStockHeightCm', v)} calibrationConfig={form} />
-            </div>
-            <TankVolumeField ar={ar} label={ar ? 'حد التنبيه الأدنى' : 'Minimum Alert'} unit={form.minAlertUnit} onUnitChange={v => fld('minAlertUnit', v)} litresValue={form.minAlertLiters} onLitresChange={v => fld('minAlertLiters', v)} heightValue={form.minAlertHeightCm} onHeightChange={v => fld('minAlertHeightCm', v)} calibrationConfig={form} />
-          </>}
+          {isCommercialMode && (
+            <>
+              <div className="form-section-header">{ar ? '\u0627\u0644\u062e\u0632\u0627\u0646 \u0627\u0644\u064a\u0648\u0645\u064a *' : 'Daily Tank *'}</div>
+              <div className="form-row">
+                <FormField label={ar ? '\u0627\u0644\u062e\u0632\u0627\u0646 \u0627\u0644\u064a\u0648\u0645\u064a *' : 'Daily Tank *'}>
+                  <select
+                    className="form-select"
+                    value={form.dailyTankId}
+                    onChange={e => fld('dailyTankId', e.target.value)}
+                    disabled={availableDailyTanks.length === 0}
+                  >
+                    <option value="">— {ar ? '\u0627\u062e\u062a\u0631 \u0627\u0644\u062e\u0632\u0627\u0646 \u0627\u0644\u064a\u0648\u0645\u064a' : 'Select Daily Tank'} —</option>
+                    {availableDailyTanks.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.code || `TK-${t.id}`})
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+              </div>
+              {availableDailyTanks.length === 0 && (
+                <div className="alert-inline alert-inline-warning" style={{ margin: '8px 0', padding: '10px 14px', borderRadius: '6px', fontSize: '13px' }}>
+                  {ar
+                    ? '\u0644\u0627 \u064a\u0648\u062c\u062f \u062e\u0632\u0627\u0646 \u064a\u0648\u0645\u064a \u0645\u062a\u0627\u062d. \u0642\u0645 \u0628\u0625\u0646\u0634\u0627\u0621 \u062e\u0632\u0627\u0646 \u0641\u064a '
+                    : 'No available daily tank. Create one in '}
+                  <Link to="/commercial/daily-tanks" style={{ textDecoration: 'underline', fontWeight: 600 }}>
+                    {ar ? '\u0625\u0639\u062f\u0627\u062f\u0627\u062a \u0627\u0644\u062e\u0632\u0627\u0646\u0627\u062a \u0627\u0644\u064a\u0648\u0645\u064a\u0629' : 'Daily Tanks settings'}
+                  </Link>.
+                </div>
+              )}
+            </>
+          )}
 
           <div className="form-section-header">{ar ? 'بيانات شاشة التحكم' : 'Controller Data'}</div>
           <div className="form-row">
