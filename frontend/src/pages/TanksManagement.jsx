@@ -7,10 +7,23 @@ import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 import TankSetup from './TankSetup';
 import useCommercialMode from '../hooks/useCommercialMode';
 import { isDailyTank } from '../utils/tankRoles';
+import TankVolumeField from '../components/TankVolumeField';
+import TankCalibrationSection from '../components/TankCalibrationSection';
+import {
+  TANK_CALIBRATION_MODE,
+  resolveEnteredLitres,
+  validateTankStockInputs,
+} from '../utils/tankCalibration';
 
 const emptyForm = {
   code: '', name: '',
-  capacityLiters: '', minAlertLiters: '', deadStockLiters: '', actualStockLiters: '',
+  capacityLiters: '', capacityHeightCm: '', capacityUnit: 'litres',
+  minAlertLiters: '', minAlertHeightCm: '', minAlertUnit: 'litres',
+  deadStockLiters: '', deadStockHeightCm: '', deadStockUnit: 'litres',
+  actualStockLiters: '', actualStockHeightCm: '', actualStockUnit: 'litres',
+  calibrationMode: TANK_CALIBRATION_MODE.GEOMETRY,
+  litresPerCm: '',
+  diameterCm: '', cylinderHeightCm: '', coneHeightCm: '', multiplicationFactor: '1.0',
   fuelLookupId: '',
   branchId: '', stationId: '', subStation: '',
   isActive: true,
@@ -122,9 +135,50 @@ function TanksManagement({ lang, currentUser }) {
   };
 
   const validateForm = () => {
-    const capacity = Number(form.capacityLiters);
-    if (isNaN(capacity) || capacity <= 0) {
-      setFormError(ar ? 'سعة الخزان يجب أن تكون أكبر من صفر.' : 'Tank capacity must be greater than zero.');
+    const calibrationConfig = {
+      calibrationMode: form.calibrationMode,
+      litresPerCm: form.litresPerCm,
+      diameterCm: form.diameterCm,
+      cylinderHeightCm: form.cylinderHeightCm,
+      coneHeightCm: form.coneHeightCm,
+      multiplicationFactor: form.multiplicationFactor,
+    };
+    const msg = validateTankStockInputs({
+      ar,
+      config: calibrationConfig,
+      fields: [
+        {
+          key: 'capacity',
+          label: ar ? 'سعة الخزان' : 'Capacity',
+          unit: form.capacityUnit,
+          heightValue: form.capacityHeightCm,
+          resolvedLitres: resolveEnteredLitres(calibrationConfig, form.capacityUnit, form.capacityLiters, form.capacityHeightCm),
+        },
+        {
+          key: 'minAlert',
+          label: ar ? 'الحد الأدنى للمخزون' : 'Min Stock',
+          unit: form.minAlertUnit,
+          heightValue: form.minAlertHeightCm,
+          resolvedLitres: resolveEnteredLitres(calibrationConfig, form.minAlertUnit, form.minAlertLiters, form.minAlertHeightCm),
+        },
+        {
+          key: 'deadStock',
+          label: ar ? 'النقطة الميتة' : 'Dead Stock',
+          unit: form.deadStockUnit,
+          heightValue: form.deadStockHeightCm,
+          resolvedLitres: resolveEnteredLitres(calibrationConfig, form.deadStockUnit, form.deadStockLiters, form.deadStockHeightCm),
+        },
+        {
+          key: 'actualStock',
+          label: ar ? 'المخزون الفعلي' : 'Actual Stock',
+          unit: form.actualStockUnit,
+          heightValue: form.actualStockHeightCm,
+          resolvedLitres: resolveEnteredLitres(calibrationConfig, form.actualStockUnit, form.actualStockLiters, form.actualStockHeightCm),
+        },
+      ],
+    });
+    if (msg) {
+      setFormError(msg);
       return false;
     }
     if (!isCommercialMode && !form.subStation) {
@@ -143,9 +197,23 @@ function TanksManagement({ lang, currentUser }) {
     setForm({
       code: tank.code || '', name: tank.name || '',
       capacityLiters: tank.capacityLiters ?? '',
+      capacityHeightCm: tank.capacityHeightCm ?? '',
+      capacityUnit: tank.capacityInputUnit === 'cm' || tank.capacityHeightCm != null ? 'cm' : 'litres',
       minAlertLiters: tank.minAlertLiters ?? '',
+      minAlertHeightCm: tank.minAlertHeightCm ?? '',
+      minAlertUnit: tank.minAlertInputUnit === 'cm' || tank.minAlertHeightCm != null ? 'cm' : 'litres',
       deadStockLiters: tank.deadStockLiters ?? '',
+      deadStockHeightCm: tank.deadStockLevelCm ?? '',
+      deadStockUnit: tank.deadStockInputUnit === 'cm' || tank.deadStockLevelCm != null ? 'cm' : 'litres',
       actualStockLiters: tank.actualStockLiters ?? '',
+      actualStockHeightCm: tank.actualStockHeightCm ?? '',
+      actualStockUnit: tank.actualStockInputUnit === 'cm' || tank.actualStockHeightCm != null ? 'cm' : 'litres',
+      calibrationMode: tank.calibrationMode ?? TANK_CALIBRATION_MODE.GEOMETRY,
+      litresPerCm: tank.litresPerCm ?? '',
+      diameterCm: tank.diameterCm ?? '',
+      cylinderHeightCm: tank.cylinderHeightCm ?? '',
+      coneHeightCm: tank.coneHeightCm ?? '',
+      multiplicationFactor: tank.multiplicationFactor ?? '1.0',
       fuelLookupId: String(tank.fuelLookupId || tank.fuelLookup?.id || ''),
       branchId: String(sta?.branchId ?? sta?.branch_id ?? ''),
       stationId: String(staId ?? ''),
@@ -166,10 +234,20 @@ function TanksManagement({ lang, currentUser }) {
       const payload = {
         name: form.name,
         code: form.code,
-        capacityLiters: Number(form.capacityLiters),
-        minAlertLiters: form.minAlertLiters === '' ? null : Number(form.minAlertLiters),
-        deadStockLiters: form.deadStockLiters === '' ? null : Number(form.deadStockLiters),
-        actualStockLiters: form.actualStockLiters === '' ? null : Number(form.actualStockLiters),
+        calibrationMode: Number(form.calibrationMode ?? TANK_CALIBRATION_MODE.GEOMETRY),
+        litresPerCm: Number(form.calibrationMode) === TANK_CALIBRATION_MODE.LITRES_PER_CM && form.litresPerCm !== '' ? Number(form.litresPerCm) : null,
+        diameterCm: form.diameterCm !== '' ? Number(form.diameterCm) : null,
+        cylinderHeightCm: form.cylinderHeightCm !== '' ? Number(form.cylinderHeightCm) : null,
+        coneHeightCm: form.coneHeightCm !== '' ? Number(form.coneHeightCm) : null,
+        multiplicationFactor: form.multiplicationFactor !== '' ? Number(form.multiplicationFactor) : null,
+        capacityLiters: form.capacityUnit === 'cm' ? 0 : Number(form.capacityLiters),
+        capacityHeightCm: form.capacityUnit === 'cm' && form.capacityHeightCm !== '' ? Number(form.capacityHeightCm) : null,
+        minAlertLiters: form.minAlertUnit === 'cm' || form.minAlertLiters === '' ? null : Number(form.minAlertLiters),
+        minAlertHeightCm: form.minAlertUnit === 'cm' && form.minAlertHeightCm !== '' ? Number(form.minAlertHeightCm) : null,
+        deadStockLiters: form.deadStockUnit === 'cm' || form.deadStockLiters === '' ? null : Number(form.deadStockLiters),
+        deadStockHeightCm: form.deadStockUnit === 'cm' && form.deadStockHeightCm !== '' ? Number(form.deadStockHeightCm) : null,
+        actualStockLiters: form.actualStockUnit === 'cm' || form.actualStockLiters === '' ? null : Number(form.actualStockLiters),
+        actualStockHeightCm: form.actualStockUnit === 'cm' && form.actualStockHeightCm !== '' ? Number(form.actualStockHeightCm) : null,
         fuelLookupId: Number(form.fuelLookupId) || 0,
         isActive: form.isActive,
         notes: form.notes || null,
@@ -455,22 +533,64 @@ function TanksManagement({ lang, currentUser }) {
                 {fuelTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </FormField>
-            <FormField label={ar ? 'سعة الخزان (لتر)' : 'Capacity (L)'}>
-              <Input type="number" value={form.capacityLiters} onChange={e => setForm(f => ({ ...f, capacityLiters: e.target.value }))} placeholder="0" />
-            </FormField>
+            <TankVolumeField
+              ar={ar}
+              label={ar ? 'سعة الخزان' : 'Capacity'}
+              unit={form.capacityUnit}
+              onUnitChange={(u) => setForm(f => ({ ...f, capacityUnit: u }))}
+              litresValue={form.capacityLiters}
+              onLitresChange={(v) => setForm(f => ({ ...f, capacityLiters: v }))}
+              heightValue={form.capacityHeightCm}
+              onHeightChange={(v) => setForm(f => ({ ...f, capacityHeightCm: v }))}
+              calibrationConfig={form}
+              placeholder="0"
+            />
+          </div>
+          <TankCalibrationSection
+            ar={ar}
+            value={form}
+            onChange={(next) => setForm(f => ({ ...f, ...next }))}
+            showGeometry
+          />
+          <div className="form-row">
+            <TankVolumeField
+              ar={ar}
+              label={ar ? 'الحد الأدنى للمخزون' : 'Minimum Stock Level'}
+              unit={form.minAlertUnit}
+              onUnitChange={(u) => setForm(f => ({ ...f, minAlertUnit: u }))}
+              litresValue={form.minAlertLiters}
+              onLitresChange={(v) => setForm(f => ({ ...f, minAlertLiters: v }))}
+              heightValue={form.minAlertHeightCm}
+              onHeightChange={(v) => setForm(f => ({ ...f, minAlertHeightCm: v }))}
+              calibrationConfig={form}
+              placeholder="0"
+            />
+            <TankVolumeField
+              ar={ar}
+              label={ar ? 'النقطة الميتة' : 'Dead Stock'}
+              unit={form.deadStockUnit}
+              onUnitChange={(u) => setForm(f => ({ ...f, deadStockUnit: u }))}
+              litresValue={form.deadStockLiters}
+              onLitresChange={(v) => setForm(f => ({ ...f, deadStockLiters: v }))}
+              heightValue={form.deadStockHeightCm}
+              onHeightChange={(v) => setForm(f => ({ ...f, deadStockHeightCm: v }))}
+              calibrationConfig={form}
+              placeholder="0"
+            />
           </div>
           <div className="form-row">
-            <FormField label={ar ? 'الحد الأدنى للمخزون (لتر)' : 'Minimum Stock Level (L)'}>
-              <Input type="number" value={form.minAlertLiters} onChange={e => setForm(f => ({ ...f, minAlertLiters: e.target.value }))} placeholder="0" />
-            </FormField>
-            <FormField label={ar ? 'النقطة الميتة (لتر)' : 'Dead Stock (L)'}>
-              <Input type="number" value={form.deadStockLiters} onChange={e => setForm(f => ({ ...f, deadStockLiters: e.target.value }))} placeholder="0" />
-            </FormField>
-          </div>
-          <div className="form-row">
-            <FormField label={ar ? 'المخزون الفعلي (لتر)' : 'Actual Stock (L)'}>
-              <Input type="number" value={form.actualStockLiters} onChange={e => setForm(f => ({ ...f, actualStockLiters: e.target.value }))} placeholder="0" />
-            </FormField>
+            <TankVolumeField
+              ar={ar}
+              label={ar ? 'المخزون الفعلي' : 'Actual Stock'}
+              unit={form.actualStockUnit}
+              onUnitChange={(u) => setForm(f => ({ ...f, actualStockUnit: u }))}
+              litresValue={form.actualStockLiters}
+              onLitresChange={(v) => setForm(f => ({ ...f, actualStockLiters: v }))}
+              heightValue={form.actualStockHeightCm}
+              onHeightChange={(v) => setForm(f => ({ ...f, actualStockHeightCm: v }))}
+              calibrationConfig={form}
+              placeholder="0"
+            />
           </div>
 
           {!isCommercialMode && (

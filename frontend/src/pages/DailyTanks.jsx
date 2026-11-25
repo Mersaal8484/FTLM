@@ -5,6 +5,13 @@ import ConfirmModal from '../components/ConfirmModal';
 import { PageHeader, Button, Modal, FormField, Input } from '../components/ui';
 import useCommercialMode from '../hooks/useCommercialMode';
 import { isDailyTank } from '../utils/tankRoles';
+import TankVolumeField from '../components/TankVolumeField';
+import TankCalibrationSection from '../components/TankCalibrationSection';
+import {
+  TANK_CALIBRATION_MODE,
+  resolveEnteredLitres,
+  validateTankStockInputs,
+} from '../utils/tankCalibration';
 
 const initialDailyTankForm = {
   name: '',
@@ -12,13 +19,23 @@ const initialDailyTankForm = {
   generatorId: '',
   fuelLookupId: '',
   capacityLiters: '',
+  capacityHeightCm: '',
+  capacityUnit: 'litres',
+  calibrationMode: TANK_CALIBRATION_MODE.GEOMETRY,
+  litresPerCm: '',
   diameterCm: '',
   cylinderHeightCm: '',
   coneHeightCm: '',
   multiplicationFactor: '1.0',
   minAlertLiters: '',
+  minAlertHeightCm: '',
+  minAlertUnit: 'litres',
   deadStockLiters: '',
+  deadStockHeightCm: '',
+  deadStockUnit: 'litres',
   actualStockLiters: '',
+  actualStockHeightCm: '',
+  actualStockUnit: 'litres',
   notes: '',
   isActive: true,
 };
@@ -123,13 +140,23 @@ export default function DailyTanks({ lang, currentUser }) {
       generatorId: tank.generatorId != null ? String(tank.generatorId) : (tank.generator?.id != null ? String(tank.generator.id) : ''),
       fuelLookupId: tank.fuelLookupId ? String(tank.fuelLookupId) : '',
       capacityLiters: tank.capacityLiters ?? '',
+      capacityHeightCm: tank.capacityHeightCm ?? '',
+      capacityUnit: tank.capacityInputUnit === 'cm' || tank.capacityHeightCm != null ? 'cm' : 'litres',
+      calibrationMode: tank.calibrationMode ?? TANK_CALIBRATION_MODE.GEOMETRY,
+      litresPerCm: tank.litresPerCm != null ? String(tank.litresPerCm) : '',
       diameterCm: tank.diameterCm != null ? String(tank.diameterCm) : '',
       cylinderHeightCm: tank.cylinderHeightCm != null ? String(tank.cylinderHeightCm) : '',
       coneHeightCm: tank.coneHeightCm != null ? String(tank.coneHeightCm) : '',
       multiplicationFactor: tank.multiplicationFactor != null ? String(tank.multiplicationFactor) : '1.0',
       minAlertLiters: tank.minAlertLiters ?? '',
+      minAlertHeightCm: tank.minAlertHeightCm ?? '',
+      minAlertUnit: tank.minAlertInputUnit === 'cm' || tank.minAlertHeightCm != null ? 'cm' : 'litres',
       deadStockLiters: tank.deadStockLiters ?? '',
+      deadStockHeightCm: tank.deadStockLevelCm ?? '',
+      deadStockUnit: tank.deadStockInputUnit === 'cm' || tank.deadStockLevelCm != null ? 'cm' : 'litres',
       actualStockLiters: tank.actualStockLiters ?? '',
+      actualStockHeightCm: tank.actualStockHeightCm ?? '',
+      actualStockUnit: tank.actualStockInputUnit === 'cm' || tank.actualStockHeightCm != null ? 'cm' : 'litres',
       notes: tank.notes || '',
       isActive: tank.isActive !== false,
     });
@@ -149,9 +176,42 @@ export default function DailyTanks({ lang, currentUser }) {
       setFormError(ar ? 'يجب ربط الخزان اليومي بمولد محدد.' : 'Daily tank must be associated with a generator.');
       return false;
     }
-    const cap = Number(form.capacityLiters);
-    if (isNaN(cap) || cap <= 0) {
-      setFormError(ar ? 'سعة الخزان يجب أن تكون أكبر من صفر.' : 'Tank capacity must be greater than zero.');
+    const msg = validateTankStockInputs({
+      ar,
+      config: form,
+      fields: [
+        {
+          key: 'capacity',
+          label: ar ? 'السعة الكلية' : 'Capacity',
+          unit: form.capacityUnit,
+          heightValue: form.capacityHeightCm,
+          resolvedLitres: resolveEnteredLitres(form, form.capacityUnit, form.capacityLiters, form.capacityHeightCm),
+        },
+        {
+          key: 'minAlert',
+          label: ar ? 'حد التنبيه الأدنى' : 'Min Alert',
+          unit: form.minAlertUnit,
+          heightValue: form.minAlertHeightCm,
+          resolvedLitres: resolveEnteredLitres(form, form.minAlertUnit, form.minAlertLiters, form.minAlertHeightCm),
+        },
+        {
+          key: 'deadStock',
+          label: ar ? 'المخزون الميت' : 'Dead Stock',
+          unit: form.deadStockUnit,
+          heightValue: form.deadStockHeightCm,
+          resolvedLitres: resolveEnteredLitres(form, form.deadStockUnit, form.deadStockLiters, form.deadStockHeightCm),
+        },
+        {
+          key: 'actualStock',
+          label: ar ? 'الرصيد الفعلي' : 'Current Stock',
+          unit: form.actualStockUnit,
+          heightValue: form.actualStockHeightCm,
+          resolvedLitres: resolveEnteredLitres(form, form.actualStockUnit, form.actualStockLiters, form.actualStockHeightCm),
+        },
+      ],
+    });
+    if (msg) {
+      setFormError(msg);
       return false;
     }
     setFormError('');
@@ -168,50 +228,49 @@ export default function DailyTanks({ lang, currentUser }) {
     try {
       const fuelId = form.fuelLookupId ? Number(form.fuelLookupId) : (fuelTypes[0]?.id || 1);
 
+      const calibrationMode = Number(form.calibrationMode ?? TANK_CALIBRATION_MODE.GEOMETRY);
+      const litresPerCm = calibrationMode === TANK_CALIBRATION_MODE.LITRES_PER_CM && form.litresPerCm !== '' ? parseFloat(form.litresPerCm) : null;
       const dCm = form.diameterCm ? parseFloat(form.diameterCm) : null;
       const cylCm = form.cylinderHeightCm ? parseFloat(form.cylinderHeightCm) : null;
       const coneCm = form.coneHeightCm ? parseFloat(form.coneHeightCm) : null;
       const factor = form.multiplicationFactor ? parseFloat(form.multiplicationFactor) : 1.0;
 
+      const commonFields = {
+        fuelLookupId: fuelId,
+        generatorId: Number(form.generatorId),
+        tankRole: 2, // TankRole.Daily
+        shape: 0,    // TankShape.VerticalCylinderWithConicalBottom
+        calibrationMode,
+        litresPerCm,
+        diameterCm: dCm,
+        cylinderHeightCm: cylCm,
+        coneHeightCm: coneCm,
+        multiplicationFactor: factor,
+        capacityLiters: form.capacityUnit === 'cm' ? 0 : parseFloat(form.capacityLiters),
+        capacityHeightCm: form.capacityUnit === 'cm' && form.capacityHeightCm !== '' ? parseFloat(form.capacityHeightCm) : null,
+        minAlertLiters: form.minAlertUnit === 'cm' || !form.minAlertLiters ? null : parseFloat(form.minAlertLiters),
+        minAlertHeightCm: form.minAlertUnit === 'cm' && form.minAlertHeightCm !== '' ? parseFloat(form.minAlertHeightCm) : null,
+        deadStockLiters: form.deadStockUnit === 'cm' || !form.deadStockLiters ? null : parseFloat(form.deadStockLiters),
+        deadStockHeightCm: form.deadStockUnit === 'cm' && form.deadStockHeightCm !== '' ? parseFloat(form.deadStockHeightCm) : null,
+        actualStockLiters: form.actualStockUnit === 'cm' || !form.actualStockLiters ? null : parseFloat(form.actualStockLiters),
+        actualStockHeightCm: form.actualStockUnit === 'cm' && form.actualStockHeightCm !== '' ? parseFloat(form.actualStockHeightCm) : null,
+        notes: form.notes || null,
+        isActive: form.isActive,
+      };
+
       let savedId = editId;
       if (editId) {
         await client.put(`/api/fuel-tanks/${editId}`, {
+          ...commonFields,
           name: form.name.trim(),
           code: form.code.trim() || null,
-          capacityLiters: parseFloat(form.capacityLiters),
-          minAlertLiters: form.minAlertLiters ? parseFloat(form.minAlertLiters) : null,
-          deadStockLiters: form.deadStockLiters ? parseFloat(form.deadStockLiters) : null,
-          actualStockLiters: form.actualStockLiters ? parseFloat(form.actualStockLiters) : null,
-          fuelLookupId: fuelId,
-          generatorId: Number(form.generatorId),
-          tankRole: 2, // TankRole.Daily
-          shape: 0,    // TankShape.VerticalCylinderWithConicalBottom
-          diameterCm: dCm,
-          cylinderHeightCm: cylCm,
-          coneHeightCm: coneCm,
-          multiplicationFactor: factor,
-          notes: form.notes || null,
-          isActive: form.isActive,
         });
       } else {
         const autoCode = form.code.trim() || `DT-${Date.now().toString(36).toUpperCase().slice(-4)}`;
         const payload = {
-          fuelLookupId: fuelId,
+          ...commonFields,
           name: form.name.trim(),
           code: autoCode,
-          capacityLiters: parseFloat(form.capacityLiters),
-          minAlertLiters: form.minAlertLiters ? parseFloat(form.minAlertLiters) : null,
-          deadStockLiters: form.deadStockLiters ? parseFloat(form.deadStockLiters) : null,
-          actualStockLiters: form.actualStockLiters ? parseFloat(form.actualStockLiters) : null,
-          generatorId: Number(form.generatorId),
-          tankRole: 2, // TankRole.Daily
-          shape: 0,    // TankShape.VerticalCylinderWithConicalBottom
-          diameterCm: dCm,
-          cylinderHeightCm: cylCm,
-          coneHeightCm: coneCm,
-          multiplicationFactor: factor,
-          notes: form.notes || null,
-          isActive: form.isActive,
           hasMeter: false,
         };
         if (!isCommercialMode) {
@@ -222,14 +281,16 @@ export default function DailyTanks({ lang, currentUser }) {
       }
 
       let calWarning = '';
-      if (savedId && dCm && coneCm) {
+      if (savedId && calibrationMode === TANK_CALIBRATION_MODE.GEOMETRY && dCm && coneCm) {
         try {
           await client.put(`/api/fuel-tanks/${savedId}/calibration`, {
             diameterCm: dCm,
             cylinderHeightCm: cylCm ?? 0,
             coneHeightCm: coneCm,
             multiplicationFactor: factor,
-            deadStockLitres: form.deadStockLiters ? parseFloat(form.deadStockLiters) : null,
+            ...(form.deadStockUnit === 'cm' && form.deadStockHeightCm !== ''
+              ? { deadStockLevelCm: parseFloat(form.deadStockHeightCm) }
+              : { deadStockLitres: form.deadStockLiters ? parseFloat(form.deadStockLiters) : null }),
             shape: 0,
           });
         } catch (calErr) {
@@ -438,9 +499,11 @@ export default function DailyTanks({ lang, currentUser }) {
               ) : (
                 <select className="form-select" value={form.generatorId} onChange={e => fld('generatorId', e.target.value)} required>
                   <option value="">— {ar ? 'اختر المولد' : 'Select Generator'} —</option>
-                  {generators.map(g => (
-                    <option key={g.id} value={g.id}>{g.name} {g.model ? `(${g.model})` : ''}</option>
-                  ))}
+                  {generators
+                    .filter(g => editId ? String(g.id) === String(form.generatorId) || !tanks.some(t => Number(t.generatorId) === Number(g.id)) : !tanks.some(t => Number(t.generatorId) === Number(g.id)))
+                    .map(g => (
+                      <option key={g.id} value={g.id}>{g.name} {g.model ? `(${g.model})` : ''}</option>
+                    ))}
                 </select>
               )}
             </FormField>
@@ -455,50 +518,68 @@ export default function DailyTanks({ lang, currentUser }) {
                 ))}
               </select>
             </FormField>
-            <FormField label={ar ? 'السعة الكلية (لتر) *' : 'Capacity (Litres) *'} required>
-              <Input type="number" step="1" value={form.capacityLiters} onChange={e => fld('capacityLiters', e.target.value)} placeholder="1000" />
-            </FormField>
+            <TankVolumeField
+              ar={ar}
+              label={ar ? 'السعة الكلية' : 'Capacity'}
+              unit={form.capacityUnit}
+              onUnitChange={(u) => fld('capacityUnit', u)}
+              litresValue={form.capacityLiters}
+              onLitresChange={(v) => fld('capacityLiters', v)}
+              heightValue={form.capacityHeightCm}
+              onHeightChange={(v) => fld('capacityHeightCm', v)}
+              calibrationConfig={form}
+              placeholder="1000"
+              required
+            />
           </div>
 
-          {/* Vertical Tank Calibration Fields (Reused from TankSetup) */}
-          <div style={{
-            margin: '12px 0', padding: 12, borderRadius: 8,
-            background: 'var(--surface-2, rgba(255,255,255,0.03))', border: '1px solid var(--border)'
-          }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: 'var(--primary)' }}>
-              {ar ? 'أبعاد ومعايرة الخزان الرأسي (قاعدة قمعية)' : 'Vertical Conical Tank Calibration'}
-            </div>
-            <div className="form-row">
-              <FormField label={ar ? 'القطر (سم)' : 'Diameter (cm)'}>
-                <Input type="number" step="0.1" value={form.diameterCm} onChange={e => fld('diameterCm', e.target.value)} placeholder="200" />
-              </FormField>
-              <FormField label={ar ? 'ارتفاع الأسطوانة (سم)' : 'Cylinder Height (cm)'}>
-                <Input type="number" step="0.1" value={form.cylinderHeightCm} onChange={e => fld('cylinderHeightCm', e.target.value)} placeholder="150" />
-              </FormField>
-            </div>
-            <div className="form-row">
-              <FormField label={ar ? 'ارتفاع القمع (سم)' : 'Cone Height (cm)'}>
-                <Input type="number" step="0.1" value={form.coneHeightCm} onChange={e => fld('coneHeightCm', e.target.value)} placeholder="50" />
-              </FormField>
-              <FormField label={ar ? 'معامل الضرب' : 'Multiplication Factor'}>
-                <Input type="number" step="0.0001" value={form.multiplicationFactor} onChange={e => fld('multiplicationFactor', e.target.value)} placeholder="1.0" />
-              </FormField>
-            </div>
+          <TankCalibrationSection
+            ar={ar}
+            value={form}
+            onChange={(next) => setForm(f => ({ ...f, ...next }))}
+            showGeometry
+          />
+
+          <div className="form-row">
+            <TankVolumeField
+              ar={ar}
+              label={ar ? 'الرصيد الفعلي الحالي' : 'Current Stock'}
+              unit={form.actualStockUnit}
+              onUnitChange={(u) => fld('actualStockUnit', u)}
+              litresValue={form.actualStockLiters}
+              onLitresChange={(v) => fld('actualStockLiters', v)}
+              heightValue={form.actualStockHeightCm}
+              onHeightChange={(v) => fld('actualStockHeightCm', v)}
+              calibrationConfig={form}
+              placeholder="0"
+            />
+            <TankVolumeField
+              ar={ar}
+              label={ar ? 'المخزون الميت' : 'Dead Stock'}
+              unit={form.deadStockUnit}
+              onUnitChange={(u) => fld('deadStockUnit', u)}
+              litresValue={form.deadStockLiters}
+              onLitresChange={(v) => fld('deadStockLiters', v)}
+              heightValue={form.deadStockHeightCm}
+              onHeightChange={(v) => fld('deadStockHeightCm', v)}
+              calibrationConfig={form}
+              placeholder="0"
+            />
           </div>
 
           <div className="form-row">
-            <FormField label={ar ? 'الرصيد الفعلي الحالي (لتر)' : 'Current Stock (L)'}>
-              <Input type="number" step="1" value={form.actualStockLiters} onChange={e => fld('actualStockLiters', e.target.value)} placeholder="0" />
-            </FormField>
-            <FormField label={ar ? 'المخزون الميت (لتر)' : 'Dead Stock (L)'}>
-              <Input type="number" step="0.1" value={form.deadStockLiters} onChange={e => fld('deadStockLiters', e.target.value)} placeholder="0" />
-            </FormField>
-          </div>
-
-          <div className="form-row">
-            <FormField label={ar ? 'حد التنبيه الأدنى (لتر)' : 'Min Alert (L)'}>
-              <Input type="number" step="1" value={form.minAlertLiters} onChange={e => fld('minAlertLiters', e.target.value)} placeholder="100" />
-            </FormField>
+            <TankVolumeField
+              ar={ar}
+              label={ar ? 'حد التنبيه الأدنى' : 'Min Alert'}
+              unit={form.minAlertUnit}
+              onUnitChange={(u) => fld('minAlertUnit', u)}
+              litresValue={form.minAlertLiters}
+              onLitresChange={(v) => fld('minAlertLiters', v)}
+              heightValue={form.minAlertHeightCm}
+              onHeightChange={(v) => fld('minAlertHeightCm', v)}
+              calibrationConfig={form}
+              placeholder="100"
+            />
           </div>
 
           <FormField label={ar ? 'ملاحظات' : 'Notes'}>
