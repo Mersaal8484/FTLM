@@ -29,31 +29,49 @@ describe('DailyTanks', () => {
     vi.resetAllMocks();
   });
 
-  test('shows generator empty state when no generators exist in commercial mode', async () => {
+  test('generator is optional when creating daily tank in commercial mode', async () => {
     client.get.mockImplementation(async (url) => {
       if (url === '/api/fuel-tanks') return { data: [] };
       if (url === '/api/generators') return { data: [] };
       if (url.startsWith('/api/lookups')) return { data: [{ id: 1, name: 'ديزل' }] };
       return { data: [] };
     });
+    client.post.mockResolvedValue({ data: { id: 101, name: 'Unlinked Daily Tank' } });
 
-    render(<DailyTanks lang="ar" currentUser={{ role: 'admin' }} />);
+    render(<DailyTanks lang="en" currentUser={{ role: 'admin' }} />);
 
     // Click Add Daily Tank button
-    const addBtn = await screen.findByRole('button', { name: /إضافة خزان يومي/i });
+    const addBtn = await screen.findByRole('button', { name: /Add Daily Tank/i });
     fireEvent.click(addBtn);
 
-    // Generator empty state should be rendered
+    // Fill form without selecting a generator
+    const nameInput = screen.getByPlaceholderText('e.g. Gen 1 Daily Tank');
+    fireEvent.change(nameInput, { target: { value: 'Unlinked Daily Tank' } });
+
+    const capInput = screen.getByPlaceholderText('1000');
+    fireEvent.change(capInput, { target: { value: '1500' } });
+
+    // Submit form
+    const saveBtn = screen.getByRole('button', { name: /Save Daily Tank/i });
+    fireEvent.click(saveBtn);
+
     await waitFor(() => {
-      expect(screen.getByText(/لا توجد مولدات معرفة في المحطة/i)).toBeInTheDocument();
+      expect(client.post).toHaveBeenCalledTimes(1);
     });
+
+    const [postUrl, payload] = client.post.mock.calls[0];
+    expect(postUrl).toBe('/api/fuel-tanks');
+    expect(payload.name).toBe('Unlinked Daily Tank');
+    expect(payload.generatorId).toBeNull();
+    expect(payload.tankRole).toBe(2);
   });
 
-  test('lists only daily tanks in commercial mode', async () => {
+  test('lists only daily tanks in commercial mode and shows Unlinked for unassigned tanks', async () => {
     client.get.mockImplementation(async (url) => {
       if (url === '/api/fuel-tanks') return { data: [
         { id: 1, name: 'Main Tank', tankRole: 1, capacityLiters: 5000 },
         { id: 2, name: 'Daily Tank', tankRole: 2, generatorId: 10, capacityLiters: 1000 },
+        { id: 3, name: 'Unlinked Daily Tank', tankRole: 2, generatorId: null, capacityLiters: 800 },
       ] };
       if (url === '/api/generators') return { data: [{ id: 10, name: 'Gen-01' }] };
       if (url.startsWith('/api/lookups')) return { data: [] };
@@ -63,7 +81,9 @@ describe('DailyTanks', () => {
     render(<DailyTanks lang="en" currentUser={{ role: 'admin' }} />);
 
     expect(await screen.findByText('Daily Tank')).toBeInTheDocument();
+    expect(await screen.findByText('Unlinked Daily Tank')).toBeInTheDocument();
     expect(screen.queryByText('Main Tank')).not.toBeInTheDocument();
+    expect(screen.getByText('Unlinked')).toBeInTheDocument();
   });
 
   test('submitting new daily tank in commercial mode omits subStationId in POST payload', async () => {

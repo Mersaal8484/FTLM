@@ -148,6 +148,21 @@ public sealed class CommercialC3_2Tests : IDisposable
         var activation = await commercialMode.ActivateAsync(new("Commercial Station", "CS-01"), 1);
         Assert.True(activation.IsSuccess);
 
+        var technicalSite = Assert.Single(await _db.SubStations.ToListAsync());
+        var tank = new FuelTank
+        {
+            SubStationId = technicalSite.Id,
+            FuelLookupId = 500,
+            Name = "Scoped daily tank",
+            Code = "DT-SCOPED",
+            CapacityLiters = 1000,
+            ActualStockLiters = 500,
+            TankRole = TankRole.Daily,
+            IsActive = true
+        };
+        _db.FuelTanks.Add(tank);
+        await _db.SaveChangesAsync();
+
         var service = new GeneratorService(_db, _scopeFilter, _currentUser, commercialMode);
         var result = await service.CreateAsync(new CreateGeneratorDto(
             SubStationId: 999,
@@ -156,18 +171,12 @@ public sealed class CommercialC3_2Tests : IDisposable
             Model: "Model",
             Manufacturer: "Manufacturer",
             ActualPowerKW: 100,
-            DailyTank: new CreateGeneratorDailyTankDto(
-                FuelLookupId: 500,
-                Name: "Scoped daily tank",
-                Code: "DT-SCOPED",
-                CapacityLiters: 1000,
-                ActualStockLiters: 500)), 1);
+            DailyTankId: tank.Id), 1);
 
         Assert.True(result.IsSuccess);
-        var technicalSite = Assert.Single(await _db.SubStations.ToListAsync());
         var saved = Assert.Single(await _db.Generators.Where(generator => generator.SerialNumber == "SCOPED-001").ToListAsync());
         Assert.Equal(technicalSite.Id, saved.SubStationId);
-        Assert.Single(await _db.FuelTanks.Where(tank => tank.GeneratorId == saved.Id && tank.TankRole == TankRole.Daily).ToListAsync());
+        Assert.Single(await _db.FuelTanks.Where(t => t.GeneratorId == saved.Id && t.TankRole == TankRole.Daily).ToListAsync());
     }
 
     [Fact]
@@ -402,6 +411,18 @@ public sealed class CommercialC3_2Tests : IDisposable
         Assert.Contains("ALTER TABLE \"TankLevelReadings\"", upgrade.Sql);
         Assert.Contains("ADD COLUMN IF NOT EXISTS \"CalibrationModeSnapshot\" integer NOT NULL DEFAULT 0", upgrade.Sql);
         Assert.Contains("ADD COLUMN IF NOT EXISTS \"LitresPerCmSnapshot\" numeric(18,6)", upgrade.Sql);
+    }
+
+    [Fact]
+    public async Task TenantUpgrade017_RegisteredInCatalog_FixesMainTankIndexFilter()
+    {
+        var upgrade = (await TenantSchemaUpgradeCatalog.GetCurrentAsync()).Single(x => x.Version == 17);
+
+        Assert.NotNull(upgrade);
+        Assert.Equal(17, upgrade.Version);
+        Assert.Contains("DROP INDEX IF EXISTS \"IX_FuelTanks_SubStationId_FuelLookupId\"", upgrade.Sql);
+        Assert.Contains("CREATE UNIQUE INDEX IF NOT EXISTS \"IX_FuelTanks_SubStationId_FuelLookupId\"", upgrade.Sql);
+        Assert.Contains("\"TankRole\" = 1 AND \"DeletedAt\" IS NULL", upgrade.Sql);
     }
 
     private sealed class RestrictedScopeFilter : IUserScopeFilterService

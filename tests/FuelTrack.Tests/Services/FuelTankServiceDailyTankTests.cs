@@ -147,7 +147,7 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateAsync_DailyWithoutGenerator_ThrowsArgumentException()
+    public async Task CreateAsync_DailyWithoutGenerator_Succeeds()
     {
         await EnableCommercialModeAsync();
 
@@ -160,8 +160,39 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
             TankRole: TankRole.Daily,
             GeneratorId: null);
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => _tankService.CreateAsync(dto, 1));
-        Assert.Contains("Daily tank must be associated with a generator", ex.Message);
+        var result = await _tankService.CreateAsync(dto, 1);
+        Assert.NotNull(result);
+        Assert.Null(result.GeneratorId);
+        Assert.Equal(TankRole.Daily, result.TankRole);
+    }
+
+    [Fact]
+    public async Task CreateAsync_UnlinkedDailyTank_NextToExistingMainTank_Succeeds()
+    {
+        await EnableCommercialModeAsync();
+
+        var mainDto = new CreateFuelTankDto(
+            SubStationId: 0,
+            FuelLookupId: 1,
+            Name: "Main Tank",
+            Code: "MT-01",
+            CapacityLiters: 5000,
+            TankRole: TankRole.Main);
+        var mainTank = await _tankService.CreateAsync(mainDto, 1);
+        Assert.NotNull(mainTank);
+
+        var dailyDto = new CreateFuelTankDto(
+            SubStationId: 0,
+            FuelLookupId: 1,
+            Name: "Daily Tank Unlinked",
+            Code: "DT-Unlinked",
+            CapacityLiters: 1000,
+            TankRole: TankRole.Daily,
+            GeneratorId: null);
+        var dailyTank = await _tankService.CreateAsync(dailyDto, 1);
+        Assert.NotNull(dailyTank);
+        Assert.Equal(TankRole.Daily, dailyTank.TankRole);
+        Assert.Null(dailyTank.GeneratorId);
     }
 
     [Fact]
@@ -193,7 +224,7 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateAsync_DailyWithoutGenerator_ThrowsArgumentException()
+    public async Task UpdateAsync_DailyWithoutGenerator_Succeeds()
     {
         await EnableCommercialModeAsync();
 
@@ -206,11 +237,6 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
             TankRole: TankRole.Daily,
             GeneratorId: 1);
         var created = await _tankService.CreateAsync(dto1, 1);
-
-        // Update tank trying to remove generator
-        var tank = await _db.FuelTanks.FindAsync(created.Id);
-        tank!.GeneratorId = null;
-        await _db.SaveChangesAsync();
 
         var updateDto = new UpdateFuelTankDto(
             SubStationId: null,
@@ -229,8 +255,9 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
             TankRole: TankRole.Daily,
             GeneratorId: null);
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => _tankService.UpdateAsync(created.Id, updateDto, 1));
-        Assert.Contains("Daily tank must be associated with a generator", ex.Message);
+        var updated = await _tankService.UpdateAsync(created.Id, updateDto, 1);
+        Assert.NotNull(updated);
+        Assert.Equal("Updated Tank", updated.Name);
     }
 
     [Fact]
