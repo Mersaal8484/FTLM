@@ -333,6 +333,7 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
             Name: "Daily Bad Parent",
             Code: "DT-BadP",
             CapacityLiters: 1000,
+            TankRole: TankRole.Daily,
             ParentTankId: 9999);
         await Assert.ThrowsAsync<KeyNotFoundException>(() => _tankService.CreateAsync(badParentDto, 1));
 

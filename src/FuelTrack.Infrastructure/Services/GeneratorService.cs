@@ -336,7 +336,7 @@ public class GeneratorService : IGeneratorService
                         g.Controller != null ? g.Controller.Code : null,
                          g.CreatedAt,
                          g.UpdatedAt,
-                         (int?)_db.FuelTanks.Where(t => t.GeneratorId == g.Id && t.DeletedAt == null && t.TankRole == TankRole.Daily).Select(t => t.Id).FirstOrDefault(),
+                         _db.FuelTanks.Where(t => t.GeneratorId == g.Id && t.DeletedAt == null && t.TankRole == TankRole.Daily).Select(t => (int?)t.Id).FirstOrDefault(),
                          _db.FuelTanks.Where(t => t.GeneratorId == g.Id && t.DeletedAt == null && t.TankRole == TankRole.Daily).Select(t => t.Name).FirstOrDefault()))
                     .FirstOrDefaultAsync(ct);
             }
@@ -882,7 +882,7 @@ public class GeneratorService : IGeneratorService
                 g.Controller != null ? g.Controller.Code : null,
                 g.CreatedAt,
                 g.UpdatedAt,
-                (int?)_db.FuelTanks.Where(t => t.GeneratorId == g.Id && t.DeletedAt == null && t.TankRole == TankRole.Daily).Select(t => t.Id).FirstOrDefault(),
+                _db.FuelTanks.Where(t => t.GeneratorId == g.Id && t.DeletedAt == null && t.TankRole == TankRole.Daily).Select(t => (int?)t.Id).FirstOrDefault(),
                 _db.FuelTanks.Where(t => t.GeneratorId == g.Id && t.DeletedAt == null && t.TankRole == TankRole.Daily).Select(t => t.Name).FirstOrDefault()))
             .FirstOrDefaultAsync(ct);
     }
