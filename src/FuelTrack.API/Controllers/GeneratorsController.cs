@@ -35,8 +35,10 @@ public class GeneratorsController : BaseApiController
     {
         var userId = GetUserId();
         var result = await _generatorService.UpdateAsync(id, dto, userId);
+        if (!result.IsSuccess)
+            return StatusCode(result.StatusCode, new { message = result.Error });
         await _notifier.NotifyAllAsync("GeneratorUpdated", new { id });
-        return Ok(result);
+        return Ok(result.Value);
     }
 
     [Authorize(Roles = "Admin")]
@@ -44,11 +46,12 @@ public class GeneratorsController : BaseApiController
     public async Task<IActionResult> Delete(int id)
     {
         var userId = GetUserId();
-        await _generatorService.DeleteAsync(id, userId);
+        var result = await _generatorService.DeleteAsync(id, userId);
+        if (!result.IsSuccess)
+            return StatusCode(result.StatusCode, new { message = result.Error });
         await _notifier.NotifyAllAsync("GeneratorDeleted", new { id });
         return NoContent();
     }
-
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {

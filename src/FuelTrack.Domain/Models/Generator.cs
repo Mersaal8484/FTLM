@@ -38,6 +38,7 @@ namespace FuelTrack.Domain.Models
         public Lookup? OwnershipTypeLookup { get; set; }
         public Lookup? StatusLookup { get; set; }
         
+        public ICollection<FuelTank> FuelTanks { get; set; } = new List<FuelTank>();
         public ICollection<DailyReading> DailyReadings { get; set; } = new List<DailyReading>();
         public ICollection<ServiceReplacementRecord> ServiceReplacementRecords { get; set; } = new List<ServiceReplacementRecord>();
         public ICollection<ServiceDueState> ServiceDueStates { get; set; } = new List<ServiceDueState>();

@@ -32,7 +32,7 @@ public class GeneratorService : IGeneratorService
         if (isCommercial && commercialScope is null)
             return Result<GeneratorListDto>.Failure("Commercial mode has no active technical station scope.");
 
-        if (isCommercial && dto.DailyTank is null)
+        if (isCommercial && !dto.DailyTankId.HasValue)
             return Result<GeneratorListDto>.Failure("A daily tank is required when creating a commercial generator.");
 
         var subStationId = commercialScope?.SubStationId ?? dto.SubStationId;
@@ -84,17 +84,20 @@ public class GeneratorService : IGeneratorService
         if (generator.StatusLookupId == null && !string.IsNullOrWhiteSpace(dto.StatusLookupName))
             generator.StatusLookupId = await ResolveLookupIdAsync("GeneratorStatus", dto.StatusLookupName, ct);
 
-        FuelTank? requiredDailyTank = null;
-        if (isCommercial)
+        // Validate the daily tank link before writing (commercial mode)
+        FuelTank? linkedTank = null;
+        if (isCommercial && dto.DailyTankId.HasValue)
         {
-            var tankRequest = dto.DailyTank!;
-            var fuelExists = await _db.Lookups.AnyAsync(x => x.Id == tankRequest.FuelLookupId && x.IsActive, ct);
-            if (!fuelExists)
-                return Result<GeneratorListDto>.NotFound($"Fuel lookup {tankRequest.FuelLookupId} not found.");
-
-            requiredDailyTank = BuildDailyTank(tankRequest, subStationId, userId);
-            RecomputeDailyTankVolumes(requiredDailyTank);
-            ValidateDailyTankBounds(requiredDailyTank);
+            var tankId = dto.DailyTankId.Value;
+            linkedTank = await _db.FuelTanks.FindAsync(new object[] { tankId }, ct);
+            if (linkedTank is null || linkedTank.DeletedAt is not null)
+                return Result<GeneratorListDto>.NotFound($"Daily tank {tankId} not found.");
+            if (linkedTank.TankRole != TankRole.Daily)
+                return Result<GeneratorListDto>.Failure($"Tank {tankId} is not a daily tank.");
+            if (linkedTank.SubStationId != subStationId)
+                return Result<GeneratorListDto>.Failure("Daily tank does not belong to this station.");
+            if (linkedTank.GeneratorId.HasValue)
+                return Result<GeneratorListDto>.Failure("This tank is already linked to another generator.");
         }
 
         await DbTransactionRunner.RunAsync(_db, async transactionCt =>
@@ -102,10 +105,9 @@ public class GeneratorService : IGeneratorService
             _db.Generators.Add(generator);
             await _db.SaveChangesAsync(transactionCt);
 
-            if (requiredDailyTank is not null)
+            if (linkedTank is not null)
             {
-                requiredDailyTank.GeneratorId = generator.Id;
-                _db.FuelTanks.Add(requiredDailyTank);
+                linkedTank.GeneratorId = generator.Id;
                 await _db.SaveChangesAsync(transactionCt);
             }
         }, ct);
@@ -118,63 +120,11 @@ public class GeneratorService : IGeneratorService
             .Include(g => g.OwnershipTypeLookup)
             .Include(g => g.StatusLookup)
             .Include(g => g.Controller)
+            .Include(g => g.FuelTanks)
             .FirstAsync(g => g.Id == generator.Id, ct);
         return Result<GeneratorListDto>.Success(MapToList(saved));
     }
 
-    private static FuelTank BuildDailyTank(CreateGeneratorDailyTankDto request, int subStationId, int userId) => new()
-    {
-        SubStationId = subStationId,
-        FuelLookupId = request.FuelLookupId,
-        TankRole = TankRole.Daily,
-        Name = request.Name,
-        Code = request.Code,
-        CapacityLiters = request.CapacityLiters,
-        MinAlertLiters = request.MinAlertLiters,
-        DeadStockLiters = request.DeadStockLiters,
-        ActualStockLiters = request.ActualStockLiters,
-        Notes = request.Notes,
-        IsActive = true,
-        CalibrationMode = request.CalibrationMode,
-        LitresPerCm = request.LitresPerCm,
-        CapacityHeightCm = request.CapacityHeightCm,
-        MinAlertHeightCm = request.MinAlertHeightCm,
-        DeadStockLevelCm = request.DeadStockHeightCm,
-        ActualStockHeightCm = request.ActualStockHeightCm,
-        CapacityInputUnit = request.CapacityHeightCm.HasValue ? "cm" : "litres",
-        MinAlertInputUnit = request.MinAlertHeightCm.HasValue ? "cm" : "litres",
-        DeadStockInputUnit = request.DeadStockHeightCm.HasValue ? "cm" : "litres",
-        ActualStockInputUnit = request.ActualStockHeightCm.HasValue ? "cm" : "litres",
-        Shape = TankShape.VerticalCylinderWithConicalBottom,
-        DiameterCm = request.DiameterCm,
-        CylinderHeightCm = request.CylinderHeightCm,
-        ConeHeightCm = request.ConeHeightCm,
-        MultiplicationFactor = request.MultiplicationFactor,
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = DateTime.UtcNow,
-        CreatedBy = userId,
-        UpdatedBy = userId,
-    };
-
-    private static void RecomputeDailyTankVolumes(FuelTank tank)
-    {
-        if (tank.CalibrationMode == TankCalibrationMode.LitresPerCm && tank.LitresPerCm is not > 0)
-            throw new ArgumentException("LitresPerCm must be greater than zero for linear calibration.");
-        if (tank.CapacityHeightCm.HasValue) tank.CapacityLiters = (double)TankLevelConverter.LitresFromLevel(tank, tank.CapacityHeightCm.Value);
-        if (tank.MinAlertHeightCm.HasValue) tank.MinAlertLiters = (double)TankLevelConverter.LitresFromLevel(tank, tank.MinAlertHeightCm.Value);
-        if (tank.DeadStockLevelCm.HasValue) tank.DeadStockLiters = (double)TankLevelConverter.LitresFromLevel(tank, tank.DeadStockLevelCm.Value);
-        if (tank.ActualStockHeightCm.HasValue) tank.ActualStockLiters = (double)TankLevelConverter.LitresFromLevel(tank, tank.ActualStockHeightCm.Value);
-    }
-
-    private static void ValidateDailyTankBounds(FuelTank tank)
-    {
-        var capacity = (decimal)tank.CapacityLiters;
-        var minimum = (decimal)(tank.MinAlertLiters ?? 0d);
-        var actual = (decimal)(tank.ActualStockLiters ?? 0d);
-        var deadStock = TankVolumeService.DeadStockLitres(tank);
-        if (capacity <= 0m || minimum < 0m || minimum > capacity || actual < 0m || actual > capacity || deadStock < 0m || deadStock > (minimum > 0m ? minimum : capacity))
-            throw new ArgumentException("Daily tank stock values must be within its capacity.");
-    }
 
     public async Task<Result<GeneratorDetailDto>> UpdateAsync(int id, UpdateGeneratorDto dto, int userId, CancellationToken ct = default)
     {
@@ -233,7 +183,34 @@ public class GeneratorService : IGeneratorService
         generator.UpdatedAt = DateTime.UtcNow;
         generator.UpdatedBy = userId;
 
-        await _db.SaveChangesAsync(ct);
+        // Handle daily tank re-link in commercial mode
+        if (dto.DailyTankId.HasValue)
+        {
+            var newTankId = dto.DailyTankId.Value;
+            var newTank = await _db.FuelTanks.FindAsync(new object[] { newTankId }, ct);
+            if (newTank is null || newTank.DeletedAt is not null)
+                return Result<GeneratorDetailDto>.NotFound($"Daily tank {newTankId} not found.");
+            if (newTank.TankRole != TankRole.Daily)
+                return Result<GeneratorDetailDto>.Failure($"Tank {newTankId} is not a daily tank.");
+            if (newTank.SubStationId != generator.SubStationId)
+                return Result<GeneratorDetailDto>.Failure("Daily tank does not belong to this station.");
+            if (newTank.GeneratorId.HasValue && newTank.GeneratorId.Value != generator.Id)
+                return Result<GeneratorDetailDto>.Failure("This tank is already linked to another generator.");
+
+            await DbTransactionRunner.RunAsync(_db, async transactionCt =>
+            {
+                var oldTank = await _db.FuelTanks
+                    .FirstOrDefaultAsync(t => t.GeneratorId == generator.Id && t.DeletedAt == null, transactionCt);
+                if (oldTank is not null && oldTank.Id != newTankId)
+                    oldTank.GeneratorId = null;
+                newTank.GeneratorId = generator.Id;
+                await _db.SaveChangesAsync(transactionCt);
+            }, ct);
+        }
+        else
+        {
+            await _db.SaveChangesAsync(ct);
+        }
 
         var detail = (await MapToDetailAsync(generator.Id, ct))!;
         return Result<GeneratorDetailDto>.Success(detail);
@@ -254,6 +231,13 @@ public class GeneratorService : IGeneratorService
         generator.DeletedAt = DateTime.UtcNow;
         generator.UpdatedAt = DateTime.UtcNow;
         generator.UpdatedBy = userId;
+
+        // Release the linked daily tank when generator is deleted
+        var releasedTank = await _db.FuelTanks
+            .FirstOrDefaultAsync(t => t.GeneratorId == generator.Id && t.DeletedAt == null, ct);
+        if (releasedTank is not null)
+            releasedTank.GeneratorId = null;
+
         await _db.SaveChangesAsync(ct);
         return Result.Success();
     }
@@ -314,8 +298,10 @@ public class GeneratorService : IGeneratorService
                         g.IsActive,
                         g.Controller != null ? g.Controller.Name : null,
                         g.Controller != null ? g.Controller.Code : null,
-                        g.CreatedAt,
-                        g.UpdatedAt))
+                         g.CreatedAt,
+                         g.UpdatedAt,
+                         (int?)_db.FuelTanks.Where(t => t.GeneratorId == g.Id && t.DeletedAt == null && t.TankRole == TankRole.Daily).Select(t => t.Id).FirstOrDefault(),
+                         _db.FuelTanks.Where(t => t.GeneratorId == g.Id && t.DeletedAt == null && t.TankRole == TankRole.Daily).Select(t => t.Name).FirstOrDefault()))
                     .FirstOrDefaultAsync(ct);
             }
         }
@@ -338,6 +324,7 @@ public class GeneratorService : IGeneratorService
                 .Include(g => g.OwnershipTypeLookup)
                 .Include(g => g.StatusLookup)
                 .Include(g => g.Controller)
+                .Include(g => g.FuelTanks)
                 .Where(g => g.DeletedAt == null && g.SubStationId == commercialScope.SubStationId)
                 .OrderBy(g => g.Name)
                 .Select(g => MapToList(g))
@@ -360,6 +347,7 @@ public class GeneratorService : IGeneratorService
                     .Include(g => g.OwnershipTypeLookup)
                     .Include(g => g.StatusLookup)
                     .Include(g => g.Controller)
+                .Include(g => g.FuelTanks)
                     .Where(g => g.DeletedAt == null && accessibleIds.Contains(g.SubStationId))
                     .OrderBy(g => g.SubStation.Name)
                     .ThenBy(g => g.Name)
@@ -377,6 +365,7 @@ public class GeneratorService : IGeneratorService
             .Include(g => g.OwnershipTypeLookup)
             .Include(g => g.StatusLookup)
             .Include(g => g.Controller)
+                .Include(g => g.FuelTanks)
             .Where(g => g.DeletedAt == null)
             .OrderBy(g => g.SubStation.Name)
             .ThenBy(g => g.Name)
@@ -856,7 +845,9 @@ public class GeneratorService : IGeneratorService
                 g.Controller != null ? g.Controller.Name : null,
                 g.Controller != null ? g.Controller.Code : null,
                 g.CreatedAt,
-                g.UpdatedAt))
+                g.UpdatedAt,
+                (int?)_db.FuelTanks.Where(t => t.GeneratorId == g.Id && t.DeletedAt == null && t.TankRole == TankRole.Daily).Select(t => t.Id).FirstOrDefault(),
+                _db.FuelTanks.Where(t => t.GeneratorId == g.Id && t.DeletedAt == null && t.TankRole == TankRole.Daily).Select(t => t.Name).FirstOrDefault()))
             .FirstOrDefaultAsync(ct);
     }
 
@@ -867,6 +858,7 @@ public class GeneratorService : IGeneratorService
 
     private static GeneratorListDto MapToList(Generator g)
     {
+        var dailyTank = g.FuelTanks.FirstOrDefault(t => t.TankRole == TankRole.Daily && t.DeletedAt == null);
         return new GeneratorListDto(
             g.Id,
             g.SubStationId,
@@ -891,7 +883,9 @@ public class GeneratorService : IGeneratorService
             g.StatusLookup?.Name,
             g.IsActive,
             g.Controller?.Name,
-            g.Controller?.Code);
+            g.Controller?.Code,
+            dailyTank?.Id,
+            dailyTank?.Name);
     }
 
     private async Task EnsureLookupsExistAsync(CreateGeneratorDto dto, CancellationToken ct)

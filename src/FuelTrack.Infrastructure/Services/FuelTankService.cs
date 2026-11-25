@@ -40,11 +40,6 @@ public class FuelTankService : IFuelTankService
 
         var tankRole = isCommercial && dto.TankRole is null ? TankRole.Main : dto.TankRole;
 
-        if (tankRole == TankRole.Daily && !dto.GeneratorId.HasValue)
-        {
-            throw new ArgumentException("Daily tank must be associated with a generator.");
-        }
-
         if (dto.GeneratorId.HasValue)
         {
             var generator = await _db.Generators
@@ -70,12 +65,12 @@ public class FuelTankService : IFuelTankService
                 throw new ArgumentException($"Parent tank {dto.ParentTankId.Value} does not belong to substation {subStationId}.");
         }
 
-        if (!dto.GeneratorId.HasValue)
+        if (tankRole == TankRole.Main)
         {
             var duplicateMainTank = await _db.FuelTanks.AnyAsync(t =>
                 t.SubStationId == subStationId &&
                 t.FuelLookupId == dto.FuelLookupId &&
-                t.GeneratorId == null &&
+                t.TankRole == TankRole.Main &&
                 t.DeletedAt == null);
             if (duplicateMainTank)
                 throw new InvalidOperationException("A main tank for this fuel type already exists.");
@@ -163,18 +158,13 @@ public class FuelTankService : IFuelTankService
         var targetGeneratorId = dto.GeneratorId ?? tank.GeneratorId;
         var targetFuelLookupId = dto.FuelLookupId ?? tank.FuelLookupId;
 
-        if (targetRole == TankRole.Daily && !targetGeneratorId.HasValue)
-        {
-            throw new ArgumentException("Daily tank must be associated with a generator.");
-        }
-
-        if (!targetGeneratorId.HasValue)
+        if (targetRole == TankRole.Main)
         {
             var duplicateMainTank = await _db.FuelTanks.AnyAsync(t =>
                 t.Id != id &&
                 t.SubStationId == targetSubStationId &&
                 t.FuelLookupId == targetFuelLookupId &&
-                t.GeneratorId == null &&
+                t.TankRole == TankRole.Main &&
                 t.DeletedAt == null);
             if (duplicateMainTank)
                 throw new InvalidOperationException("A main tank for this fuel type already exists.");

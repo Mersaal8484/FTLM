@@ -1,7 +1,6 @@
 using FluentValidation;
 using FuelTrack.Application.DTOs.Generators;
 using FuelTrack.Application.Interfaces;
-using FuelTrack.Domain.Enums;
 
 namespace FuelTrack.Application.Validators.Generators;
 
@@ -22,16 +21,8 @@ public class CreateGeneratorDtoValidator : AbstractValidator<CreateGeneratorDto>
         When(x => x.FuelConsumptionRatePerHour.HasValue, () => RuleFor(x => x.FuelConsumptionRatePerHour!.Value)
             .GreaterThanOrEqualTo(0)
             .OverridePropertyName(nameof(CreateGeneratorDto.FuelConsumptionRatePerHour)));
-        When(x => x.DailyTank is not null, () =>
-        {
-            RuleFor(x => x.DailyTank!.Name).NotEmpty().MaximumLength(200);
-            RuleFor(x => x.DailyTank!.Code).NotEmpty().MaximumLength(50);
-            RuleFor(x => x.DailyTank!.FuelLookupId).GreaterThan(0);
-            RuleFor(x => x.DailyTank!.CapacityLiters).GreaterThan(0).When(x => !x.DailyTank!.CapacityHeightCm.HasValue);
-            RuleFor(x => x.DailyTank!.CapacityHeightCm!.Value).GreaterThan(0).When(x => x.DailyTank!.CapacityHeightCm.HasValue);
-            RuleFor(x => x.DailyTank!.LitresPerCm).NotNull().GreaterThan(0)
-                .When(x => x.DailyTank!.CalibrationMode == TankCalibrationMode.LitresPerCm);
-        });
+        RuleFor(x => x.DailyTankId).MustAsync(RequireDailyTankInCommercialModeAsync)
+            .WithMessage("A daily tank is required when creating a generator in commercial mode.");
     }
 
     private async Task<bool> HasTechnicalSiteOrCommercialModeAsync(CreateGeneratorDto _, int subStationId, CancellationToken cancellationToken)
@@ -39,5 +30,15 @@ public class CreateGeneratorDtoValidator : AbstractValidator<CreateGeneratorDto>
         if (_commercialMode is not null && await _commercialMode.IsCommercialModeAsync(cancellationToken))
             return true;
         return subStationId > 0;
+    }
+
+    private async Task<bool> RequireDailyTankInCommercialModeAsync(CreateGeneratorDto _, int? dailyTankId, CancellationToken cancellationToken)
+    {
+        if (_commercialMode is null)
+            return true;
+        bool isCommercial = await _commercialMode.IsCommercialModeAsync(cancellationToken);
+        if (isCommercial && !dailyTankId.HasValue)
+            return false;
+        return true;
     }
 }

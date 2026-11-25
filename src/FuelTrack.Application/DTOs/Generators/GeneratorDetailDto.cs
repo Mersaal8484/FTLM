@@ -31,4 +31,6 @@ public record GeneratorDetailDto(
     string? ControllerName,
     string? ControllerCode,
     DateTime CreatedAt,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    int? DailyTankId = null,
+    string? DailyTankName = null);

@@ -24,4 +24,6 @@ public record GeneratorListDto(
     string? StatusLookupName,
     bool IsActive,
     string? ControllerName,
-    string? ControllerCode);
+    string? ControllerCode,
+    int? DailyTankId = null,
+    string? DailyTankName = null);

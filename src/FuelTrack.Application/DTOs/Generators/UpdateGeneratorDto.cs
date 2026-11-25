@@ -24,7 +24,8 @@ public record UpdateGeneratorDto(
     string? FrequencyLookupName,
     string? OwnershipTypeLookupName,
     string? StatusLookupName,
-    bool? IsActive);
+    bool? IsActive,
+    int? DailyTankId = null);
 
 public record UpdateGeneratorRequest(
     int? SubStationId,
