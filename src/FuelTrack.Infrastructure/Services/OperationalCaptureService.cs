@@ -166,6 +166,12 @@ public sealed class OperationalCaptureService(
             var isCommercial = await _commercialMode.IsCommercialModeAsync(cancellationToken);
             var tier1RequiresApproval = !isCommercial && (settings?.Tier1RequiresApproval ?? false);
             var isDailyClosing = dto.MeterReadings.Any(x => x.Kind == MeterReadingKind.DailyClosing);
+            var dailyTankCoverageError = await ValidateCommercialDailyTankCoverageAsync(dto, isCommercial, cancellationToken);
+            if (dailyTankCoverageError is not null)
+            {
+                await idempotency.CompleteAsync(dto.ClientRequestId, 400, null, userId, cancellationToken);
+                return Result<OperationalSubmissionDto>.Failure(dailyTankCoverageError);
+            }
             var (newDto, duplicateLines) = await ExcludeKnownClientLinesAsync(dto, cancellationToken);
             var (captureDto, duplicateTimeLines) = await ExcludeDuplicateTimesAsync(newDto, now, cancellationToken);
             duplicateLines = duplicateLines.Concat(duplicateTimeLines).ToList();
@@ -461,21 +467,12 @@ public sealed class OperationalCaptureService(
         if (tanksById.Values.Any(x => !TankLevelConverter.IsConfigured(x)))
             return "Each selected tank must be calibrated before a level capture is submitted.";
 
-        if (await _commercialMode.IsCommercialModeAsync(cancellationToken) && dto.MeterReadings.Any(x => x.Kind == MeterReadingKind.DailyClosing))
-        {
-            var dailyGeneratorIds = dto.GeneratorReadings.Select(x => x.GeneratorId)
-                .Concat(dto.MeterReadings.Where(x => x.SubjectType is MeterReadingSubjectType.GeneratorEnergyProduced or MeterReadingSubjectType.GeneratorRunningHours).Select(x => x.SubjectId))
-                .Distinct().ToList();
-            var covered = await db.FuelTanks.AsNoTracking()
-                .Where(x => x.IsActive && x.DeletedAt == null && x.TankRole == TankRole.Daily && x.GeneratorId.HasValue && dailyGeneratorIds.Contains(x.GeneratorId.Value))
-                .Select(x => x.GeneratorId!.Value).Distinct().ToListAsync(cancellationToken);
-            var missing = dailyGeneratorIds.Except(covered).ToList();
-            if (missing.Count > 0)
-            {
-                var names = await db.Generators.AsNoTracking().Where(x => missing.Contains(x.Id)).Select(x => x.Name).ToListAsync(cancellationToken);
-                return $"GENERATOR_NO_DAILY_TANK: {string.Join(", ", names)}";
-            }
-        }
+        var dailyTankCoverageError = await ValidateCommercialDailyTankCoverageAsync(
+            dto,
+            await _commercialMode.IsCommercialModeAsync(cancellationToken),
+            cancellationToken);
+        if (dailyTankCoverageError is not null)
+            return dailyTankCoverageError;
 
         if (dto.GeneratorReadings.GroupBy(x => new { x.GeneratorId, At = NormalizeUtc(x.CapturedAtOverrideUtc ?? x.CapturedAtUtc) }).Any(x => x.Count() > 1) || dto.TankLevelReadings.GroupBy(x => new { x.FuelTankId, At = NormalizeUtc(x.CapturedAtOverrideUtc ?? x.CapturedAtUtc) }).Any(x => x.Count() > 1) || dto.FeederLoadReadings.GroupBy(x => new { x.FeederId, At = NormalizeUtc(x.CapturedAtOverrideUtc ?? x.CapturedAtUtc) }).Any(x => x.Count() > 1) || dto.MeterReadings.GroupBy(x => new { x.SubjectType, x.SubjectId, At = NormalizeUtc(x.CapturedAtOverrideUtc ?? x.CapturedAtUtc) }).Any(x => x.Count() > 1))
             return "A subject may appear only once at the same capture time.";
@@ -502,6 +499,40 @@ public sealed class OperationalCaptureService(
             await db.Feeders.CountAsync(x => meterFeederIds.Contains(x.Id) && x.SubStationId == siteId, cancellationToken) != meterFeederIds.Count)
             return "Every meter-reading subject must belong to the selected site.";
         return null;
+    }
+
+    private async Task<string?> ValidateCommercialDailyTankCoverageAsync(
+        SubmitOperationalCaptureDto dto,
+        bool isCommercial,
+        CancellationToken cancellationToken)
+    {
+        if (!isCommercial || !dto.MeterReadings.Any(x => x.Kind == MeterReadingKind.DailyClosing))
+            return null;
+
+        var dailyGeneratorIds = dto.GeneratorReadings.Select(x => x.GeneratorId)
+            .Concat(dto.MeterReadings
+                .Where(x => x.SubjectType is MeterReadingSubjectType.GeneratorEnergyProduced or MeterReadingSubjectType.GeneratorRunningHours)
+                .Select(x => x.SubjectId))
+            .Distinct()
+            .ToList();
+        if (dailyGeneratorIds.Count == 0)
+            return null;
+
+        var covered = await db.FuelTanks.AsNoTracking()
+            .Where(x => x.IsActive && x.DeletedAt == null && x.TankRole == TankRole.Daily &&
+                        x.GeneratorId.HasValue && dailyGeneratorIds.Contains(x.GeneratorId.Value))
+            .Select(x => x.GeneratorId!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var missing = dailyGeneratorIds.Except(covered).ToList();
+        if (missing.Count == 0)
+            return null;
+
+        var names = await db.Generators.AsNoTracking()
+            .Where(x => missing.Contains(x.Id))
+            .Select(x => x.Name)
+            .ToListAsync(cancellationToken);
+        return $"GENERATOR_NO_DAILY_TANK: {string.Join(", ", names)}";
     }
 
     private async Task<(SubmitOperationalCaptureDto Dto, IReadOnlyList<OperationalLineResultDto> Duplicates)> ExcludeKnownClientLinesAsync(SubmitOperationalCaptureDto dto, CancellationToken cancellationToken)

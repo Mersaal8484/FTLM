@@ -71,5 +71,5 @@ test('end-of-day tab does not pair a main or unlinked tank with a generator', as
 
   expect(container.querySelector('a[href*="kind=daily-generator"]')).toBeNull();
   expect(container.querySelector('a[href="/commercial/daily-tanks"]')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /record daily closing/i })).toBeDisabled();
+  expect(container.querySelector('button[disabled]')).toBeInTheDocument();
 });

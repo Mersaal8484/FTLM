@@ -52,7 +52,7 @@ function FormField({ label, required = false, error, hint, children, htmlFor, st
 }
 
 FormField.propTypes = {
-  label: PropTypes.string,
+  label: PropTypes.node,
   required: PropTypes.bool,
   error: PropTypes.string,
   hint: PropTypes.string,
