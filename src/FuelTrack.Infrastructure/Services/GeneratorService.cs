@@ -92,6 +92,8 @@ public class GeneratorService : IGeneratorService
             linkedTank = await _db.FuelTanks.FindAsync(new object[] { tankId }, ct);
             if (linkedTank is null || linkedTank.DeletedAt is not null)
                 return Result<GeneratorListDto>.NotFound($"Daily tank {tankId} not found.");
+            if (!linkedTank.IsActive)
+                return Result<GeneratorListDto>.Failure($"Daily tank {tankId} is inactive.");
             if (linkedTank.TankRole != TankRole.Daily)
                 return Result<GeneratorListDto>.Failure($"Tank {tankId} is not a daily tank.");
             if (linkedTank.SubStationId != subStationId)
@@ -184,12 +186,41 @@ public class GeneratorService : IGeneratorService
         generator.UpdatedBy = userId;
 
         // Handle daily tank re-link in commercial mode
+        var isCommercial = await _commercialMode.IsCommercialModeAsync(ct);
+
+        if (!generator.IsActive)
+        {
+            await DbTransactionRunner.RunAsync(_db, async transactionCt =>
+            {
+                var linkedTanks = await _db.FuelTanks
+                    .Where(t => t.GeneratorId == generator.Id && t.DeletedAt == null)
+                    .ToListAsync(transactionCt);
+                foreach (var linked in linkedTanks)
+                    linked.GeneratorId = null;
+
+                await _db.SaveChangesAsync(transactionCt);
+            }, ct);
+
+            return Result<GeneratorDetailDto>.Success((await MapToDetailAsync(generator.Id, ct))!);
+        }
+
+        if (isCommercial && !dto.DailyTankId.HasValue)
+        {
+            var hasActiveDailyTank = await _db.FuelTanks.AnyAsync(
+                t => t.GeneratorId == generator.Id && t.TankRole == TankRole.Daily && t.IsActive && t.DeletedAt == null,
+                ct);
+            if (!hasActiveDailyTank)
+                return Result<GeneratorDetailDto>.Failure("A commercial generator must remain linked to a daily tank.");
+        }
+
         if (dto.DailyTankId.HasValue)
         {
             var newTankId = dto.DailyTankId.Value;
             var newTank = await _db.FuelTanks.FindAsync(new object[] { newTankId }, ct);
             if (newTank is null || newTank.DeletedAt is not null)
                 return Result<GeneratorDetailDto>.NotFound($"Daily tank {newTankId} not found.");
+            if (!newTank.IsActive)
+                return Result<GeneratorDetailDto>.Failure($"Daily tank {newTankId} is inactive.");
             if (newTank.TankRole != TankRole.Daily)
                 return Result<GeneratorDetailDto>.Failure($"Tank {newTankId} is not a daily tank.");
             if (newTank.SubStationId != generator.SubStationId)
@@ -199,9 +230,10 @@ public class GeneratorService : IGeneratorService
 
             await DbTransactionRunner.RunAsync(_db, async transactionCt =>
             {
-                var oldTank = await _db.FuelTanks
-                    .FirstOrDefaultAsync(t => t.GeneratorId == generator.Id && t.DeletedAt == null, transactionCt);
-                if (oldTank is not null && oldTank.Id != newTankId)
+                var oldTanks = await _db.FuelTanks
+                    .Where(t => t.GeneratorId == generator.Id && t.DeletedAt == null && t.Id != newTankId)
+                    .ToListAsync(transactionCt);
+                foreach (var oldTank in oldTanks)
                     oldTank.GeneratorId = null;
                 newTank.GeneratorId = generator.Id;
                 await _db.SaveChangesAsync(transactionCt);
@@ -232,13 +264,17 @@ public class GeneratorService : IGeneratorService
         generator.UpdatedAt = DateTime.UtcNow;
         generator.UpdatedBy = userId;
 
-        // Release the linked daily tank when generator is deleted
-        var releasedTank = await _db.FuelTanks
-            .FirstOrDefaultAsync(t => t.GeneratorId == generator.Id && t.DeletedAt == null, ct);
-        if (releasedTank is not null)
-            releasedTank.GeneratorId = null;
+        // Release all linked daily tanks when generator is deleted
+        await DbTransactionRunner.RunAsync(_db, async transactionCt =>
+        {
+            var releasedTanks = await _db.FuelTanks
+                .Where(t => t.GeneratorId == generator.Id && t.DeletedAt == null)
+                .ToListAsync(transactionCt);
+            foreach (var releasedTank in releasedTanks)
+                releasedTank.GeneratorId = null;
 
-        await _db.SaveChangesAsync(ct);
+            await _db.SaveChangesAsync(transactionCt);
+        }, ct);
         return Result.Success();
     }
 

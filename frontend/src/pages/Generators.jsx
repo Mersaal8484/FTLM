@@ -189,6 +189,11 @@ function Generators({ t, lang, currentUser }) {
       controller: linkedCtrl?.id ? String(linkedCtrl.id) : (gen.controllerName ? controllers.find(c => c.name === gen.controllerName)?.id || '' : ''),
       cumulativeRunningHours: linkedCtrl?.operatingHours != null ? String(linkedCtrl.operatingHours) : '',
       isActive: gen.isActive !== false,
+      dailyTankId: gen.dailyTankId != null
+        ? String(gen.dailyTankId)
+        : (dailyTanks.find(t => Number(t.generatorId) === Number(getId(gen)))?.id
+          ? String(dailyTanks.find(t => Number(t.generatorId) === Number(getId(gen))).id)
+          : ''),
     });
     setEditId(getId(gen)); setShowModal(true); setError(null);
   };
@@ -205,7 +210,7 @@ function Generators({ t, lang, currentUser }) {
 
   const handleSubmit = async () => {
     const err = isCommercialMode
-      ? fieldError('name') || (!form.dailyTankId ? (ar ? '\u0627\u0644\u062e\u0632\u0627\u0646 \u0627\u0644\u064a\u0648\u0645\u064a \u0645\u0637\u0644\u0648\u0628.' : 'Daily tank is required.') : '')
+      ? fieldError('name') || (form.isActive !== false && !form.dailyTankId ? (ar ? '\u0627\u0644\u062e\u0632\u0627\u0646 \u0627\u0644\u064a\u0648\u0645\u064a \u0645\u0637\u0644\u0648\u0628.' : 'Daily tank is required.') : '')
       : fieldError('name') || fieldError('subStation') || fieldError('ratedCapacityKw') || fieldError('fuelConsumptionRatePerHour');
     if (err) { setError(err); return; }
     if (isCommercialMode && form.cumulativeRunningHours !== '' && form.cumulativeRunningHours !== null) {
@@ -241,6 +246,7 @@ function Generators({ t, lang, currentUser }) {
           StatusLookupId: form.status ? Number(form.status) : null,
           IsActive: form.isActive,
         };
+        payload.DailyTankId = isCommercialMode ? (form.dailyTankId ? Number(form.dailyTankId) : null) : null;
         await client.put(`/api/generators/${editId}`, payload);
         generatorId = editId;
       } else {
@@ -296,7 +302,7 @@ function Generators({ t, lang, currentUser }) {
 
       closeModal(); await load();
     } catch (err) {
-      const msg = err.response?.data?.message || err.response?.data?.title || err.message;
+      const msg = err.response?.data?.error || err.response?.data?.message || err.response?.data?.detail || err.response?.data?.title || err.message;
       setError(msg || t.noData);
     }
     finally { setSaving(false); }
@@ -489,8 +495,8 @@ function Generators({ t, lang, currentUser }) {
                                    <div className="gen-stat-value">{(gen.actualPowerKW || gen.actualPowerKw) ? `${gen.actualPowerKW || gen.actualPowerKw} KW` : '—'}</div>
                                  </div>
                                  <div className="gen-stat-item">
-                                   <div className="gen-stat-label">{ar ? 'نوع المولد' : 'Type'}</div>
-                                   <div className="gen-stat-value">{gen.generatorTypeLookupName || gen.genType || '—'}</div>
+                                   <div className="gen-stat-label">{isCommercialMode ? (ar ? '\u0627\u0644\u062e\u0632\u0627\u0646 \u0627\u0644\u064a\u0648\u0645\u064a' : 'Daily Tank') : (ar ? 'نوع المولد' : 'Type')}</div>
+                                   <div className="gen-stat-value">{isCommercialMode ? (gen.dailyTankName || dailyTanks.find(t => Number(t.generatorId) === Number(getId(gen)))?.name || '—') : (gen.generatorTypeLookupName || gen.genType || '—')}</div>
                                  </div>
                                  <div className="gen-stat-item">
                                    <div className="gen-stat-label">{ar ? 'الشاشة المرتبطة' : 'Associated Screen'}</div>
@@ -538,7 +544,7 @@ function Generators({ t, lang, currentUser }) {
           footer={
             <>
               <Button variant="ghost" onClick={closeModal}>{ar ? 'إلغاء' : 'Cancel'}</Button>
-              <Button variant="primary" onClick={handleSubmit} disabled={saving || (isCommercialMode && (!form.dailyTankId || availableDailyTanks.length === 0))} icon={Save}>
+              <Button variant="primary" onClick={handleSubmit} disabled={saving || (isCommercialMode && form.isActive !== false && (!form.dailyTankId || availableDailyTanks.length === 0))} icon={Save}>
                 {saving
                   ? ar ? 'جاري الحفظ...' : 'Saving...'
                   : editId ? (ar ? 'تحديث المولد' : 'Update Generator') : (ar ? 'إضافة مولد' : 'Add Generator')}

@@ -18,6 +18,7 @@ const initialDailyTankForm = {
   code: '',
   generatorId: '',
   fuelLookupId: '',
+  parentTankId: '',
   capacityLiters: '',
   capacityHeightCm: '',
   capacityUnit: 'litres',
@@ -68,6 +69,7 @@ export default function DailyTanks({ lang, currentUser }) {
   const { isCommercialMode, modeResolved } = useCommercialMode();
 
   const [tanks, setTanks] = useState([]);
+  const [mainTanks, setMainTanks] = useState([]);
   const [generators, setGenerators] = useState([]);
   const [fuelTypes, setFuelTypes] = useState([]);
   const [subStations, setSubStations] = useState([]);
@@ -103,7 +105,9 @@ export default function DailyTanks({ lang, currentUser }) {
 
       const allTanks = Array.isArray(tRes.data?.items) ? tRes.data.items : Array.isArray(tRes.data) ? tRes.data : [];
       const dailyTanks = allTanks.filter(isDailyTank);
+      const activeMainTanks = allTanks.filter(t => !isDailyTank(t) && t.isActive !== false && (t.tankRole === 1 || t.tankRole === 'Main' || t.tankRole == null));
       setTanks(dailyTanks);
+      setMainTanks(activeMainTanks);
 
       const gens = Array.isArray(gRes.data?.data) ? gRes.data.data : Array.isArray(gRes.data) ? gRes.data : [];
       setGenerators(gens);
@@ -139,6 +143,7 @@ export default function DailyTanks({ lang, currentUser }) {
       code: tank.code || '',
       generatorId: tank.generatorId != null ? String(tank.generatorId) : (tank.generator?.id != null ? String(tank.generator.id) : ''),
       fuelLookupId: tank.fuelLookupId ? String(tank.fuelLookupId) : '',
+      parentTankId: tank.parentTankId != null ? String(tank.parentTankId) : '',
       capacityLiters: tank.capacityLiters ?? '',
       capacityHeightCm: tank.capacityHeightCm ?? '',
       capacityUnit: tank.capacityInputUnit === 'cm' || tank.capacityHeightCm != null ? 'cm' : 'litres',
@@ -167,9 +172,34 @@ export default function DailyTanks({ lang, currentUser }) {
 
   const fld = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  const effectiveFuelLookupId = form.fuelLookupId
+    ? Number(form.fuelLookupId)
+    : (fuelTypes.length === 1 ? Number(fuelTypes[0].id) : null);
+
+  const matchingMainTanks = useMemo(() => {
+    if (!effectiveFuelLookupId) return [];
+    return mainTanks.filter(m => Number(m.fuelLookupId) === effectiveFuelLookupId);
+  }, [mainTanks, effectiveFuelLookupId]);
+
+  useEffect(() => {
+    if (!showModal) return;
+    if (matchingMainTanks.length === 1) {
+      const onlyId = String(matchingMainTanks[0].id);
+      if (form.parentTankId !== onlyId) {
+        setForm(f => ({ ...f, parentTankId: onlyId }));
+      }
+    } else if (form.parentTankId && !matchingMainTanks.some(m => String(m.id) === String(form.parentTankId))) {
+      setForm(f => ({ ...f, parentTankId: '' }));
+    }
+  }, [showModal, matchingMainTanks, form.parentTankId]);
+
   const validateForm = () => {
     if (!form.name.trim()) {
       setFormError(ar ? 'اسم الخزان اليومي مطلوب.' : 'Daily tank name is required.');
+      return false;
+    }
+    if (matchingMainTanks.length > 0 && !form.parentTankId) {
+      setFormError(ar ? '\u0627\u0644\u062e\u0632\u0627\u0646 \u0627\u0644\u0631\u0626\u064a\u0633\u064a (\u0627\u0644\u0645\u0635\u062f\u0631) \u0645\u0637\u0644\u0648\u0628.' : 'Main tank (source) is required.');
       return false;
     }
     const msg = validateTankStockInputs({
@@ -233,6 +263,7 @@ export default function DailyTanks({ lang, currentUser }) {
 
       const commonFields = {
         fuelLookupId: fuelId,
+        parentTankId: form.parentTankId ? Number(form.parentTankId) : null,
         generatorId: form.generatorId ? Number(form.generatorId) : null,
         tankRole: 2, // TankRole.Daily
         shape: 0,    // TankShape.VerticalCylinderWithConicalBottom
@@ -326,9 +357,10 @@ export default function DailyTanks({ lang, currentUser }) {
       !search ||
       t.name?.toLowerCase().includes(q) ||
       t.code?.toLowerCase().includes(q) ||
-      t.generatorName?.toLowerCase().includes(q)
+      t.generatorName?.toLowerCase().includes(q) ||
+      (t.parentTankName || mainTanks.find(m => Number(m.id) === Number(t.parentTankId))?.name)?.toLowerCase().includes(q)
     );
-  }, [tanks, search]);
+  }, [tanks, mainTanks, search]);
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px' }}>
@@ -385,6 +417,8 @@ export default function DailyTanks({ lang, currentUser }) {
           {filtered.map(tank => {
             const gen = generators.find(g => g.id === tank.generatorId);
             const genName = tank.generatorName || gen?.name || (ar ? '\u063a\u064a\u0631 \u0645\u0631\u062a\u0628\u0637' : 'Unlinked');
+            const mainTank = mainTanks.find(m => Number(m.id) === Number(tank.parentTankId));
+            const mainTankName = tank.parentTankName || mainTank?.name || (ar ? '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f' : 'Not set');
             const cap = Number(tank.capacityLiters) || 0;
             const actual = Number(tank.actualStockLiters) || 0;
             const fillPct = cap > 0 ? Math.min(100, Math.round((actual / cap) * 100)) : 0;
@@ -410,6 +444,16 @@ export default function DailyTanks({ lang, currentUser }) {
                   <Zap size={14} style={{ color: 'var(--warning)' }} />
                   <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{ar ? 'المولد:' : 'Generator:'}</span>
                   <span style={{ color: 'var(--text)' }}>{genName}</span>
+                </div>
+
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
+                  borderRadius: 6, background: 'var(--card-2)', border: '1px solid var(--border)',
+                  marginBottom: 14, fontSize: 13, fontWeight: 600,
+                }}>
+                  <Database size={14} style={{ color: 'var(--primary)' }} />
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{ar ? '\u0627\u0644\u062e\u0632\u0627\u0646 \u0627\u0644\u0631\u0626\u064a\u0633\u064a:' : 'Main Tank:'}</span>
+                  <span style={{ color: 'var(--text)' }}>{mainTankName}</span>
                 </div>
 
                 {/* Stock Stats */}
@@ -510,6 +554,27 @@ export default function DailyTanks({ lang, currentUser }) {
               required
             />
           </div>
+
+          <FormField label={ar ? ('\u0627\u0644\u062e\u0632\u0627\u0646 \u0627\u0644\u0631\u0626\u064a\u0633\u064a (\u0627\u0644\u0645\u0635\u062f\u0631)' + (matchingMainTanks.length > 0 ? ' *' : '')) : ('Main Tank (Source)' + (matchingMainTanks.length > 0 ? ' *' : ''))} required={matchingMainTanks.length > 0}>
+            <select
+              className="form-select"
+              value={form.parentTankId}
+              onChange={e => fld('parentTankId', e.target.value)}
+              required={matchingMainTanks.length > 0}
+              disabled={matchingMainTanks.length === 0}
+            >
+              <option value="">
+                {matchingMainTanks.length === 0
+                  ? `\u2014 ${ar ? '\u0644\u0627 \u064a\u0648\u062c\u062f \u062e\u0632\u0627\u0646 \u0631\u0626\u064a\u0633\u064a \u0645\u0637\u0627\u0628\u0642' : 'No matching main tank'} \u2014`
+                  : `\u2014 ${ar ? '\u0627\u062e\u062a\u0631 \u0627\u0644\u062e\u0632\u0627\u0646 \u0627\u0644\u0631\u0626\u064a\u0633\u064a' : 'Select Main Tank'} \u2014`}
+              </option>
+              {matchingMainTanks.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.name} {m.code ? `(${m.code})` : ''}
+                </option>
+              ))}
+            </select>
+          </FormField>
 
           <TankCalibrationSection
             ar={ar}

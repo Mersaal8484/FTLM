@@ -457,8 +457,17 @@ public sealed class OperationalCaptureService(
                 var paired = dto.TankLevelReadings.SingleOrDefault(x => x.ClientLineId == line.LinkedClientLineId);
                 if (paired is null || (line.EventType == TankEventType.TransferOut && paired.EventType != TankEventType.TransferIn) || (line.EventType == TankEventType.TransferIn && paired.EventType != TankEventType.TransferOut))
                     return "Each tank transfer must contain linked outgoing and incoming lines.";
-                if (line.EventType == TankEventType.TransferIn && tanksById[line.FuelTankId].ParentTankId != paired.FuelTankId && tanksById[line.FuelTankId].TankRole != TankRole.Daily)
-                    return "The incoming transfer tank must be a daily tank of the outgoing main tank.";
+                if (line.EventType == TankEventType.TransferIn)
+                {
+                    var dest = tanksById[line.FuelTankId];
+                    var source = tanksById[paired.FuelTankId];
+                    var destIsDaily = dest.TankRole == TankRole.Daily || (dest.TankRole != TankRole.Main && dest.ParentTankId is not null);
+                    var sourceIsMain = source.TankRole == TankRole.Main || (source.TankRole != TankRole.Daily && source.ParentTankId is null);
+                    if (!destIsDaily || !sourceIsMain || dest.ParentTankId != paired.FuelTankId)
+                        return "The incoming transfer tank must be a daily tank of the outgoing main tank.";
+                }
+
+
             }
         }
         var feederIds = dto.FeederLoadReadings.Select(x => x.FeederId).Distinct().ToList();

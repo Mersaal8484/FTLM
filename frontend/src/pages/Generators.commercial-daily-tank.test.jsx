@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import Generators from './Generators';
@@ -41,7 +41,7 @@ describe('Generators Commercial Daily Tank', () => {
 
     render(
       <MemoryRouter>
-        <Generators lang="en" t={{ generators: 'Generators', manageGenerators: 'Manage', noData: 'No data' }} currentUser={{ role: 'admin' }} />
+        <Generators lang="en" t={{ generators: 'Generators', manageGenerators: 'Manage', addGenerator: 'Add Generator', noData: 'No data' }} currentUser={{ role: 'admin' }} />
       </MemoryRouter>
     );
 
@@ -50,7 +50,8 @@ describe('Generators Commercial Daily Tank', () => {
     fireEvent.click(addBtn);
 
     // Modal opens
-    expect(await screen.findByText('Daily Tank *')).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getAllByText('Daily Tank *').length).toBeGreaterThan(0);
 
     // Verify calibration and shape fields are NOT shown
     expect(screen.queryByText(/Calibration Mode/i)).not.toBeInTheDocument();
@@ -58,7 +59,7 @@ describe('Generators Commercial Daily Tank', () => {
     expect(screen.queryByText(/Cone Height/i)).not.toBeInTheDocument();
 
     // Verify only the unlinked daily tank is in the dropdown
-    const select = screen.getByRole('combobox');
+    const select = within(dialog).getAllByRole('combobox')[0];
     expect(select).toBeInTheDocument();
     expect(screen.getByText(/Available DT \(DT-201\)/i)).toBeInTheDocument();
     expect(screen.queryByText(/Taken DT \(DT-202\)/i)).not.toBeInTheDocument();
@@ -73,7 +74,7 @@ describe('Generators Commercial Daily Tank', () => {
 
     render(
       <MemoryRouter>
-        <Generators lang="en" t={{ generators: 'Generators', manageGenerators: 'Manage', noData: 'No data' }} currentUser={{ role: 'admin' }} />
+        <Generators lang="en" t={{ generators: 'Generators', manageGenerators: 'Manage', addGenerator: 'Add Generator', noData: 'No data' }} currentUser={{ role: 'admin' }} />
       </MemoryRouter>
     );
 
@@ -85,7 +86,7 @@ describe('Generators Commercial Daily Tank', () => {
     expect(screen.getByRole('link', { name: /Daily Tanks settings/i })).toHaveAttribute('href', '/commercial/daily-tanks');
 
     // Submit button is disabled
-    const saveBtn = screen.getByRole('button', { name: /Add Generator/i });
+    const saveBtn = within(screen.getByRole('dialog')).getByRole('button', { name: /Add Generator/i });
     expect(saveBtn).toBeDisabled();
   });
 
@@ -105,7 +106,7 @@ describe('Generators Commercial Daily Tank', () => {
 
     render(
       <MemoryRouter>
-        <Generators lang="en" t={{ generators: 'Generators', manageGenerators: 'Manage', noData: 'No data' }} currentUser={{ role: 'admin' }} />
+        <Generators lang="en" t={{ generators: 'Generators', manageGenerators: 'Manage', addGenerator: 'Add Generator', noData: 'No data' }} currentUser={{ role: 'admin' }} />
       </MemoryRouter>
     );
 
@@ -113,15 +114,16 @@ describe('Generators Commercial Daily Tank', () => {
     fireEvent.click(addBtn);
 
     // Fill Generator Name
-    const nameInput = screen.getAllByRole('textbox')[0];
+    const dialog = await screen.findByRole('dialog');
+    const nameInput = within(dialog).getAllByRole('textbox')[0];
     fireEvent.change(nameInput, { target: { value: 'Generator 1' } });
 
     // Select Daily Tank
-    const tankSelect = screen.getByRole('combobox');
+    const tankSelect = within(dialog).getAllByRole('combobox')[0];
     fireEvent.change(tankSelect, { target: { value: '201' } });
 
     // Submit form
-    const saveBtn = screen.getByRole('button', { name: /Add Generator/i });
+    const saveBtn = within(dialog).getByRole('button', { name: /Add Generator/i });
     expect(saveBtn).not.toBeDisabled();
     fireEvent.click(saveBtn);
 
@@ -134,5 +136,48 @@ describe('Generators Commercial Daily Tank', () => {
     expect(payload.Name).toBe('Generator 1');
     expect(payload.DailyTankId).toBe(201);
     expect(payload).not.toHaveProperty('DailyTank');
+  });
+
+  test('editing commercial generator pre-fills dailyTankId and sends DailyTankId on PUT', async () => {
+    client.get.mockImplementation(async (url) => {
+      if (url === '/api/generators') {
+        return {
+          data: [
+            { id: 10, name: 'Generator 1', serialNumber: 'GEN-01', actualPowerKW: 500, isActive: true, dailyTankId: 201, dailyTankName: 'DT-01' },
+          ],
+        };
+      }
+      if (url === '/api/fuel-tanks') {
+        return {
+          data: [
+            { id: 201, name: 'DT-01', code: 'DT-01', tankRole: 2, isActive: true, generatorId: 10 },
+            { id: 202, name: 'DT-02', code: 'DT-02', tankRole: 2, isActive: true, generatorId: null },
+          ],
+        };
+      }
+      return { data: [] };
+    });
+    client.put.mockResolvedValue({ data: { id: 10, name: 'Generator 1', dailyTankId: 202 } });
+
+    render(
+      <MemoryRouter>
+        <Generators lang="en" t={{ generators: 'Generators', manageGenerators: 'Manage', addGenerator: 'Add Generator', edit: 'Edit', delete: 'Delete', noData: 'No data' }} currentUser={{ role: 'admin' }} />
+      </MemoryRouter>
+    );
+
+    const editBtn = await screen.findByRole('button', { name: /Edit/i });
+    fireEvent.click(editBtn);
+
+    const dialog = await screen.findByRole('dialog');
+    const tankSelect = within(dialog).getAllByRole('combobox')[0];
+    expect(tankSelect.value).toBe('201');
+
+    fireEvent.change(tankSelect, { target: { value: '202' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: /Update Generator/i }));
+
+    await waitFor(() => expect(client.put).toHaveBeenCalledTimes(1));
+    const [putUrl, putPayload] = client.put.mock.calls[0];
+    expect(putUrl).toBe('/api/generators/10');
+    expect(putPayload.DailyTankId).toBe(202);
   });
 });

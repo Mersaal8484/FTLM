@@ -40,6 +40,12 @@ public class FuelTankService : IFuelTankService
 
         var tankRole = isCommercial && dto.TankRole is null ? TankRole.Main : dto.TankRole;
 
+        if (tankRole == TankRole.Main && dto.GeneratorId.HasValue)
+            throw new ArgumentException("A main tank cannot be assigned to a generator.");
+
+        if (tankRole == TankRole.Main && dto.ParentTankId.HasValue)
+            throw new ArgumentException("A main tank cannot have a parent tank.");
+
         if (dto.GeneratorId.HasValue)
         {
             var generator = await _db.Generators
@@ -63,6 +69,12 @@ public class FuelTankService : IFuelTankService
 
             if (parentTank.SubStationId != subStationId)
                 throw new ArgumentException($"Parent tank {dto.ParentTankId.Value} does not belong to substation {subStationId}.");
+
+            if (parentTank.TankRole != TankRole.Main)
+                throw new ArgumentException($"Parent tank {dto.ParentTankId.Value} must be a main tank.");
+
+            if (parentTank.FuelLookupId != dto.FuelLookupId)
+                throw new ArgumentException("Parent main tank must have the same fuel type.");
         }
 
         if (tankRole == TankRole.Main)
@@ -155,8 +167,20 @@ public class FuelTankService : IFuelTankService
             throw new ArgumentException("Tank role cannot be changed through the generic update.");
 
         var targetRole = dto.TankRole ?? tank.TankRole;
-        var targetGeneratorId = dto.GeneratorId ?? tank.GeneratorId;
         var targetFuelLookupId = dto.FuelLookupId ?? tank.FuelLookupId;
+        var targetParentTankId = dto.ParentTankId ?? tank.ParentTankId;
+
+        if (targetRole == TankRole.Main)
+        {
+            if (dto.GeneratorId.HasValue)
+                throw new ArgumentException("A main tank cannot be assigned to a generator.");
+
+            if (targetParentTankId.HasValue)
+                throw new ArgumentException("A main tank cannot have a parent tank.");
+        }
+
+        var shouldValidateParentTank = dto.ParentTankId.HasValue ||
+            (targetParentTankId.HasValue && (dto.FuelLookupId.HasValue || dto.SubStationId.HasValue || dto.TankRole.HasValue));
 
         if (targetRole == TankRole.Main)
         {
@@ -196,19 +220,27 @@ public class FuelTankService : IFuelTankService
                 throw new ArgumentException($"Generator {tank.GeneratorId.Value} does not belong to substation {targetSubStationId}.");
         }
 
-        if (dto.ParentTankId.HasValue)
+        if (shouldValidateParentTank)
         {
-            if (dto.ParentTankId.Value == id)
+            var parentTankId = targetParentTankId!.Value;
+            if (parentTankId == id)
                 throw new ArgumentException("A tank cannot be its own parent tank.");
 
             var parentTank = await _db.FuelTanks
-                .FirstOrDefaultAsync(t => t.Id == dto.ParentTankId.Value && t.DeletedAt == null)
-                ?? throw new KeyNotFoundException($"Parent tank {dto.ParentTankId.Value} not found.");
+                .FirstOrDefaultAsync(t => t.Id == parentTankId && t.DeletedAt == null)
+                ?? throw new KeyNotFoundException($"Parent tank {parentTankId} not found.");
 
             if (parentTank.SubStationId != targetSubStationId)
-                throw new ArgumentException($"Parent tank {dto.ParentTankId.Value} does not belong to substation {targetSubStationId}.");
+                throw new ArgumentException($"Parent tank {parentTankId} does not belong to substation {targetSubStationId}.");
 
-            tank.ParentTankId = dto.ParentTankId.Value;
+            if (parentTank.TankRole != TankRole.Main)
+                throw new ArgumentException($"Parent tank {parentTankId} must be a main tank.");
+
+            if (parentTank.FuelLookupId != targetFuelLookupId)
+                throw new ArgumentException("Parent main tank must have the same fuel type.");
+
+            if (dto.ParentTankId.HasValue)
+                tank.ParentTankId = dto.ParentTankId.Value;
         }
 
         if (dto.Name is not null) tank.Name = dto.Name;
@@ -430,6 +462,14 @@ public class FuelTankService : IFuelTankService
                 throw new InvalidOperationException("The daily tank of an active generator cannot be deleted or unlinked.");
         }
 
+        if (tank.TankRole == TankRole.Main)
+        {
+            var hasActiveDailyTanks = await _db.FuelTanks
+                .AnyAsync(x => x.ParentTankId == tank.Id && x.IsActive && x.DeletedAt == null);
+            if (hasActiveDailyTanks)
+                throw new InvalidOperationException("Cannot delete a main tank that still has active daily tanks.");
+        }
+
         tank.IsActive = false;
         tank.DeletedAt = DateTime.UtcNow;
         tank.UpdatedAt = DateTime.UtcNow;
@@ -481,7 +521,7 @@ public class FuelTankService : IFuelTankService
                 ft.DiameterCm, ft.CylinderHeightCm, ft.ConeHeightCm, ft.MultiplicationFactor,
                 ft.TankRole, ft.GeneratorId, ft.Generator?.Name, ft.ParentTankId, ft.Shape,
                 ft.CalibrationMode, ft.LitresPerCm, ft.CapacityHeightCm, ft.MinAlertHeightCm, ft.ActualStockHeightCm,
-                ft.CapacityInputUnit, ft.MinAlertInputUnit, ft.ActualStockInputUnit);
+                ft.CapacityInputUnit, ft.MinAlertInputUnit, ft.ActualStockInputUnit, ft.ParentTank?.Name);
         }).ToList();
     }
 

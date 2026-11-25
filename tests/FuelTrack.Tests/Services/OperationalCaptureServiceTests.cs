@@ -195,6 +195,134 @@ public sealed class OperationalCaptureServiceTests
         Assert.Equal(404, result.StatusCode);
     }
 
+    [Fact]
+    public async Task SubmitAsync_TransferInFromParentMainTank_Succeeds()
+    {
+        await using var db = CreateDatabase();
+        var fixture = await SeedAsync(db);
+        var mainTank = new FuelTank
+        {
+            SubStationId = fixture.SiteId, FuelLookupId = 1, Name = "Main 1", Code = "MT-1",
+            CapacityLiters = 5000, TankRole = FuelTrack.Domain.Enums.TankRole.Main,
+            CalibrationMode = FuelTrack.Domain.Enums.TankCalibrationMode.LitresPerCm, LitresPerCm = 10m, IsActive = true,
+        };
+        db.FuelTanks.Add(mainTank);
+        await db.SaveChangesAsync();
+
+        var dailyTank = new FuelTank
+        {
+            SubStationId = fixture.SiteId, FuelLookupId = 1, Name = "Daily 1", Code = "DT-1",
+            CapacityLiters = 1000, TankRole = FuelTrack.Domain.Enums.TankRole.Daily,
+            ParentTankId = mainTank.Id,
+            CalibrationMode = FuelTrack.Domain.Enums.TankCalibrationMode.LitresPerCm, LitresPerCm = 10m, IsActive = true,
+        };
+        db.FuelTanks.Add(dailyTank);
+        await db.SaveChangesAsync();
+
+        var outLineId = Guid.NewGuid();
+        var inLineId = Guid.NewGuid();
+        var now = DateTime.UtcNow.AddMinutes(-2);
+        var dto = new SubmitOperationalCaptureDto(
+            Guid.NewGuid(), fixture.SiteId, [],
+            [
+                new TankLevelCaptureLineDto(mainTank.Id, now, [fixture.AttachmentId], 90m, outLineId, FuelTrack.Domain.Enums.TankEventType.TransferOut, inLineId, 100m, [fixture.AttachmentId]),
+                new TankLevelCaptureLineDto(dailyTank.Id, now, [fixture.AttachmentId], 30m, inLineId, FuelTrack.Domain.Enums.TankEventType.TransferIn, outLineId, 20m, [fixture.AttachmentId]),
+            ],
+            [], []);
+
+        var result = await CreateService(db).SubmitAsync(dto, fixture.UserId);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value!.TankLevelReadingCount);
+    }
+
+    [Fact]
+    public async Task SubmitAsync_TransferInFromWrongMainTank_RejectsTransfer()
+    {
+        await using var db = CreateDatabase();
+        var fixture = await SeedAsync(db);
+        var parentMain = new FuelTank
+        {
+            SubStationId = fixture.SiteId, FuelLookupId = 1, Name = "Parent Main", Code = "MT-1",
+            CapacityLiters = 5000, TankRole = FuelTrack.Domain.Enums.TankRole.Main,
+            CalibrationMode = FuelTrack.Domain.Enums.TankCalibrationMode.LitresPerCm, LitresPerCm = 10m, IsActive = true,
+        };
+        var otherMain = new FuelTank
+        {
+            SubStationId = fixture.SiteId, FuelLookupId = 1, Name = "Other Main", Code = "MT-2",
+            CapacityLiters = 5000, TankRole = FuelTrack.Domain.Enums.TankRole.Main,
+            CalibrationMode = FuelTrack.Domain.Enums.TankCalibrationMode.LitresPerCm, LitresPerCm = 10m, IsActive = true,
+        };
+        db.FuelTanks.AddRange(parentMain, otherMain);
+        await db.SaveChangesAsync();
+
+        var dailyTank = new FuelTank
+        {
+            SubStationId = fixture.SiteId, FuelLookupId = 1, Name = "Daily 1", Code = "DT-1",
+            CapacityLiters = 1000, TankRole = FuelTrack.Domain.Enums.TankRole.Daily,
+            ParentTankId = parentMain.Id,
+            CalibrationMode = FuelTrack.Domain.Enums.TankCalibrationMode.LitresPerCm, LitresPerCm = 10m, IsActive = true,
+        };
+        db.FuelTanks.Add(dailyTank);
+        await db.SaveChangesAsync();
+
+        var outLineId = Guid.NewGuid();
+        var inLineId = Guid.NewGuid();
+        var now = DateTime.UtcNow.AddMinutes(-2);
+        var dto = new SubmitOperationalCaptureDto(
+            Guid.NewGuid(), fixture.SiteId, [],
+            [
+                new TankLevelCaptureLineDto(otherMain.Id, now, [fixture.AttachmentId], 90m, outLineId, FuelTrack.Domain.Enums.TankEventType.TransferOut, inLineId, 100m, [fixture.AttachmentId]),
+                new TankLevelCaptureLineDto(dailyTank.Id, now, [fixture.AttachmentId], 30m, inLineId, FuelTrack.Domain.Enums.TankEventType.TransferIn, outLineId, 20m, [fixture.AttachmentId]),
+            ],
+            [], []);
+
+        var result = await CreateService(db).SubmitAsync(dto, fixture.UserId);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.Value!.TankLevelReadingCount);
+        Assert.Contains(result.Value.Lines!, x => x.Outcome == "rejected" && x.Reason!.Contains("daily tank of the outgoing main tank", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task SubmitAsync_TransferInToUnparentedDailyTank_RejectsTransfer()
+    {
+        await using var db = CreateDatabase();
+        var fixture = await SeedAsync(db);
+        var mainTank = new FuelTank
+        {
+            SubStationId = fixture.SiteId, FuelLookupId = 1, Name = "Main 1", Code = "MT-1",
+            CapacityLiters = 5000, TankRole = FuelTrack.Domain.Enums.TankRole.Main,
+            CalibrationMode = FuelTrack.Domain.Enums.TankCalibrationMode.LitresPerCm, LitresPerCm = 10m, IsActive = true,
+        };
+        var dailyTank = new FuelTank
+        {
+            SubStationId = fixture.SiteId, FuelLookupId = 1, Name = "Unparented Daily", Code = "DT-U",
+            CapacityLiters = 1000, TankRole = FuelTrack.Domain.Enums.TankRole.Daily,
+            ParentTankId = null,
+            CalibrationMode = FuelTrack.Domain.Enums.TankCalibrationMode.LitresPerCm, LitresPerCm = 10m, IsActive = true,
+        };
+        db.FuelTanks.AddRange(mainTank, dailyTank);
+        await db.SaveChangesAsync();
+
+        var outLineId = Guid.NewGuid();
+        var inLineId = Guid.NewGuid();
+        var now = DateTime.UtcNow.AddMinutes(-2);
+        var dto = new SubmitOperationalCaptureDto(
+            Guid.NewGuid(), fixture.SiteId, [],
+            [
+                new TankLevelCaptureLineDto(mainTank.Id, now, [fixture.AttachmentId], 90m, outLineId, FuelTrack.Domain.Enums.TankEventType.TransferOut, inLineId, 100m, [fixture.AttachmentId]),
+                new TankLevelCaptureLineDto(dailyTank.Id, now, [fixture.AttachmentId], 30m, inLineId, FuelTrack.Domain.Enums.TankEventType.TransferIn, outLineId, 20m, [fixture.AttachmentId]),
+            ],
+            [], []);
+
+        var result = await CreateService(db).SubmitAsync(dto, fixture.UserId);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.Value!.TankLevelReadingCount);
+        Assert.Contains(result.Value.Lines!, x => x.Outcome == "rejected" && x.Reason!.Contains("daily tank of the outgoing main tank", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static OperationalCaptureService CreateService(FuelTrackDbContext db) =>
         new(db, new SiteScope(), new CurrentUser(), new IdempotencyService(db), Mock.Of<IFuelLoadSafetyService>());
 

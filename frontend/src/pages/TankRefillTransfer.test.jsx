@@ -91,4 +91,42 @@ describe('TankRefillTransfer with Oil Refill and Log', () => {
     const [, payload] = client.post.mock.calls.find(([url]) => url === '/api/oil-transactions');
     expect(payload).not.toHaveProperty('subStationId');
   });
+
+  test('commercial TransferIn filters source to main tanks and destination to daily tanks of selected main tank', async () => {
+    client.get.mockImplementation(async (url) => {
+      if (url === '/api/fuel-tanks') {
+        return {
+          data: [
+            { id: 1, name: 'Main Tank A', subStationId: 10, tankRole: 1 },
+            { id: 2, name: 'Main Tank B', subStationId: 10, tankRole: 1 },
+            { id: 11, name: 'Daily Tank A1', subStationId: 10, tankRole: 2, parentTankId: 1 },
+            { id: 12, name: 'Daily Tank B1', subStationId: 10, tankRole: 2, parentTankId: 2 },
+          ],
+        };
+      }
+      if (url === '/api/oils') return { data: [] };
+      return { data: [] };
+    });
+
+    render(<TankRefillTransfer />, { wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter> });
+    await screen.findByText(i18n.t('operational.tanks.commercialRefillTitle'));
+
+    fireEvent.click(screen.getByLabelText(i18n.t('operational.tanks.transferMainToDaily')));
+
+    const comboboxes = screen.getAllByRole('combobox');
+    const sourceSelect = comboboxes[0];
+    const destSelect = comboboxes[1];
+
+    // Source dropdown only contains Main tanks, not Daily tanks
+    expect(Array.from(sourceSelect.options).map(o => o.textContent)).toEqual(
+      expect.arrayContaining(['Main Tank A', 'Main Tank B'])
+    );
+    expect(Array.from(sourceSelect.options).map(o => o.textContent)).not.toContain('Daily Tank A1');
+
+    // Selecting Main Tank A filters destination dropdown to Daily Tank A1 only
+    fireEvent.change(sourceSelect, { target: { value: '1' } });
+    const destOptions = Array.from(destSelect.options).map(o => o.textContent);
+    expect(destOptions).toContain('Daily Tank A1');
+    expect(destOptions).not.toContain('Daily Tank B1');
+  });
 });

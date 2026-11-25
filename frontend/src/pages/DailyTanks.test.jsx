@@ -211,4 +211,78 @@ describe('DailyTanks', () => {
       expect(screen.getByText(/Tank saved, calibration failed: Calibration geometry error/i)).toBeInTheDocument();
     });
   });
+
+  test('auto-selects single matching main tank and displays main tank name on card', async () => {
+    client.get.mockImplementation(async (url) => {
+      if (url === '/api/fuel-tanks') {
+        return {
+          data: [
+            { id: 10, name: 'Main Diesel Tank', code: 'MT-01', tankRole: 1, fuelLookupId: 1, isActive: true, capacityLiters: 10000 },
+            { id: 20, name: 'Daily 1', code: 'DT-01', tankRole: 2, fuelLookupId: 1, parentTankId: 10, parentTankName: 'Main Diesel Tank', generatorId: null, capacityLiters: 1000 },
+          ],
+        };
+      }
+      if (url === '/api/generators') return { data: [] };
+      if (url.startsWith('/api/lookups')) return { data: [{ id: 1, name: 'Diesel' }] };
+      return { data: [] };
+    });
+    client.post.mockResolvedValue({ data: { id: 21, name: 'Daily 2' } });
+
+    render(<DailyTanks lang="en" currentUser={{ role: 'admin' }} />);
+
+    expect(await screen.findByText('Daily 1')).toBeInTheDocument();
+    expect(screen.getByText('Main Diesel Tank')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Add Daily Tank/i }));
+    fireEvent.change(screen.getByPlaceholderText('e.g. Gen 1 Daily Tank'), { target: { value: 'Daily 2' } });
+    fireEvent.change(screen.getByPlaceholderText('1000'), { target: { value: '1200' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save Daily Tank/i }));
+
+    await waitFor(() => expect(client.post).toHaveBeenCalledTimes(1));
+    const [, payload] = client.post.mock.calls[0];
+    expect(payload.parentTankId).toBe(10);
+  });
+
+  test('requires selecting main tank when multiple main tanks match the selected fuel type', async () => {
+    client.get.mockImplementation(async (url) => {
+      if (url === '/api/fuel-tanks') {
+        return {
+          data: [
+            { id: 10, name: 'Main Diesel A', code: 'MT-A', tankRole: 1, fuelLookupId: 1, isActive: true, capacityLiters: 10000 },
+            { id: 11, name: 'Main Diesel B', code: 'MT-B', tankRole: 1, fuelLookupId: 1, isActive: true, capacityLiters: 10000 },
+            { id: 12, name: 'Main Petrol', code: 'MT-P', tankRole: 1, fuelLookupId: 2, isActive: true, capacityLiters: 5000 },
+          ],
+        };
+      }
+      if (url === '/api/generators') return { data: [] };
+      if (url.startsWith('/api/lookups')) return { data: [{ id: 1, name: 'Diesel' }, { id: 2, name: 'Petrol' }] };
+      return { data: [] };
+    });
+    client.post.mockResolvedValue({ data: { id: 22, name: 'Daily 3' } });
+
+    render(<DailyTanks lang="en" currentUser={{ role: 'admin' }} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Add Daily Tank/i }));
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. Gen 1 Daily Tank'), { target: { value: 'Daily 3' } });
+    fireEvent.change(screen.getByPlaceholderText('1000'), { target: { value: '1200' } });
+
+    const comboboxes = screen.getAllByRole('combobox');
+    // Fuel Type is index 1, Main Tank (Source) is index 2
+    fireEvent.change(comboboxes[1], { target: { value: '1' } });
+    expect(screen.getByText(/Main Diesel A/i)).toBeInTheDocument();
+    expect(screen.getByText(/Main Diesel B/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Main Petrol/i)).not.toBeInTheDocument();
+
+    // Submitting without choosing one shows validation error
+    fireEvent.click(screen.getByRole('button', { name: /Save Daily Tank/i }));
+    expect(await screen.findByText(/Main tank \(source\) is required/i)).toBeInTheDocument();
+    expect(client.post).not.toHaveBeenCalled();
+
+    // Choose Main Diesel B and submit
+    fireEvent.change(comboboxes[2], { target: { value: '11' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save Daily Tank/i }));
+
+    await waitFor(() => expect(client.post).toHaveBeenCalledTimes(1));
+    expect(client.post.mock.calls[0][1].parentTankId).toBe(11);
+  });
 });

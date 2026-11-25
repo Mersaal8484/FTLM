@@ -37,8 +37,9 @@ public class GeneratorDailyTankLinkingTests : IDisposable
         _db.SaveChanges();
 
         _commercialMode = new CommercialStationModeService(_db);
-        _generatorService = new GeneratorService(_db, new ScopeFilterService(), _currentUser, _commercialMode);
-        _tankService = new FuelTankService(_db, _commercialMode);
+        var scopeFilter = new ScopeFilterService();
+        _generatorService = new GeneratorService(_db, scopeFilter, _currentUser, _commercialMode);
+        _tankService = new FuelTankService(_db, scopeFilter, _currentUser, _commercialMode);
     }
 
     private async Task EnableCommercialModeAsync()
@@ -160,7 +161,7 @@ public class GeneratorDailyTankLinkingTests : IDisposable
     {
         await EnableCommercialModeAsync();
 
-        var otherSubStation = new SubStation { Id = 99, StationId = 1, Name = "Other Site" };
+        var otherSubStation = new SubStation { Id = 99, StationId = 1, Name = "Other Site", IsActive = false };
         _db.SubStations.Add(otherSubStation);
 
         var tank = new FuelTank
@@ -200,7 +201,7 @@ public class GeneratorDailyTankLinkingTests : IDisposable
         {
             SubStationId = scope!.SubStationId,
             Name = "Existing Gen",
-            SerialNumber: "EXIST-01",
+            SerialNumber = "EXIST-01",
             IsActive = true
         };
         _db.Generators.Add(existingGen);
@@ -336,6 +337,8 @@ public class GeneratorDailyTankLinkingTests : IDisposable
             SubStationId: 0,
             Name: "Generator to Delete",
             SerialNumber: "GEN-DEL",
+            Model: "M1",
+            Manufacturer: "Man1",
             DailyTankId: tank.Id);
         var created = await _generatorService.CreateAsync(createDto, 1);
         Assert.True(created.IsSuccess);
@@ -357,7 +360,7 @@ public class GeneratorDailyTankLinkingTests : IDisposable
         {
             SubStationId = scope!.SubStationId,
             Name = "Active Gen",
-            SerialNumber: "ACT-01",
+            SerialNumber = "ACT-01",
             IsActive = true
         };
         _db.Generators.Add(generator);
@@ -378,7 +381,98 @@ public class GeneratorDailyTankLinkingTests : IDisposable
         await _db.SaveChangesAsync();
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => _tankService.DeleteAsync(tank.Id));
-        Assert.Contains("Cannot delete a daily tank that is assigned to an active generator", ex.Message);
+        Assert.Contains("daily tank of an active generator cannot be deleted", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CreateAsync_Commercial_WithInactiveDailyTank_Fails()
+    {
+        await EnableCommercialModeAsync();
+        var scope = await _commercialMode.GetScopeAsync();
+
+        var inactiveTank = new FuelTank
+        {
+            SubStationId = scope!.SubStationId,
+            FuelLookupId = 1,
+            Name = "Inactive DT",
+            Code = "DT-INACT",
+            CapacityLiters = 1000,
+            TankRole = TankRole.Daily,
+            IsActive = false
+        };
+        _db.FuelTanks.Add(inactiveTank);
+        await _db.SaveChangesAsync();
+
+        var dto = new CreateGeneratorDto(0, "Gen 1", "G-01", "M1", "Man1", DailyTankId: inactiveTank.Id);
+        var result = await _generatorService.CreateAsync(dto, 1);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("inactive", result.Error!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_Commercial_DeactivatingGenerator_ReleasesDailyTank()
+    {
+        await EnableCommercialModeAsync();
+        var scope = await _commercialMode.GetScopeAsync();
+
+        var tank = new FuelTank
+        {
+            SubStationId = scope!.SubStationId,
+            FuelLookupId = 1,
+            Name = "DT Active",
+            Code = "DT-ACT",
+            CapacityLiters = 1000,
+            TankRole = TankRole.Daily,
+            IsActive = true
+        };
+        _db.FuelTanks.Add(tank);
+        await _db.SaveChangesAsync();
+
+        var created = await _generatorService.CreateAsync(
+            new CreateGeneratorDto(0, "Gen Deactivate", "G-DEACT", "M1", "Man1", DailyTankId: tank.Id), 1);
+        Assert.True(created.IsSuccess);
+
+        var updateDto = new UpdateGeneratorDto(
+            null, "Gen Deactivate", null, null, null, null, null, null, null, null,
+            null, null, null, null, null, null, null, null, null, null, null, null, null,
+            IsActive: false,
+            DailyTankId: tank.Id);
+        var updated = await _generatorService.UpdateAsync(created.Value!.Id, updateDto, 1);
+
+        Assert.True(updated.IsSuccess);
+        Assert.False(updated.Value!.IsActive);
+        Assert.Null(updated.Value.DailyTankId);
+
+        var reloadedTank = await _db.FuelTanks.FindAsync(tank.Id);
+        Assert.Null(reloadedTank!.GeneratorId);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_Commercial_ActiveGeneratorWithoutDailyTank_Fails()
+    {
+        await EnableCommercialModeAsync();
+        var scope = await _commercialMode.GetScopeAsync();
+
+        var unlinkedGen = new Generator
+        {
+            SubStationId = scope!.SubStationId,
+            Name = "Legacy Unlinked Gen",
+            SerialNumber = "G-LEG",
+            IsActive = true
+        };
+        _db.Generators.Add(unlinkedGen);
+        await _db.SaveChangesAsync();
+
+        var updateDto = new UpdateGeneratorDto(
+            null, "Renamed", null, null, null, null, null, null, null, null,
+            null, null, null, null, null, null, null, null, null, null, null, null, null,
+            IsActive: true,
+            DailyTankId: null);
+        var result = await _generatorService.UpdateAsync(unlinkedGen.Id, updateDto, 1);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("daily tank", result.Error!, StringComparison.OrdinalIgnoreCase);
     }
 
     public void Dispose()
@@ -402,9 +496,10 @@ public class GeneratorDailyTankLinkingTests : IDisposable
         public TestCurrentUser(int? userId, string? role) { UserId = userId; Role = role; }
         public int? UserId { get; }
         public string? Role { get; }
-        public string? Username => "test";
-        public bool HasRole(string role) => Role == role;
-        public bool HasAnyAdminRole => Role == "Admin";
-        public bool IsStationScopeRestricted => false;
+        public string? UserName => "test";
+        public bool IsAuthenticated => UserId.HasValue;
+        public bool IsAdmin => Role == "Admin";
+        public bool IsSystemOwner => Role == "SystemOwner";
+        public bool HasAnyAdminRole => Role == "Admin" || Role == "SystemOwner";
     }
 }

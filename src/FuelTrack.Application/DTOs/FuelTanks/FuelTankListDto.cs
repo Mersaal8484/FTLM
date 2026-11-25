@@ -36,4 +36,5 @@ public record FuelTankListDto(
     decimal? ActualStockHeightCm = null,
     string? CapacityInputUnit = null,
     string? MinAlertInputUnit = null,
-    string? ActualStockInputUnit = null);
+    string? ActualStockInputUnit = null,
+    string? ParentTankName = null);

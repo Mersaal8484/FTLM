@@ -405,12 +405,21 @@ export default function TankRefillTransfer() {
                 <FormField label={isCommercial && eventType === 'TransferIn' ? (t('operational.tanks.sourceMainTank', 'الخزان الرئيسي (المصدر)')) : t('operational.tanks.tank')}>
                   <select
                     value={tankId}
-                    onChange={e => setTankId(e.target.value)}
+                    onChange={e => {
+                      const nextId = e.target.value;
+                      setTankId(nextId);
+                      if (isCommercial && eventType === 'TransferIn' && destTankId) {
+                        const dest = dailyTanks.find(d => String(d.id) === String(destTankId));
+                        if (!nextId || (dest && Number(dest.parentTankId) !== Number(nextId))) {
+                          setDestTankId('');
+                        }
+                      }
+                    }}
                     style={{ width: '100%', padding: '10px 14px', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }}
                     required
                   >
                     <option value="">-- {t('operational.tanks.selectTank')} --</option>
-                    {(isCommercial && eventType === 'Receipt' ? mainTanks : tanks).map(t => (
+                    {(isCommercial && (eventType === 'Receipt' || eventType === 'TransferIn') ? mainTanks : tanks).map(t => (
                       <option key={t.id} value={t.id}>
                         {t.name}{isCommercial ? '' : ` (${t.subStationName || `Site ${t.subStationId}`})`}
                       </option>
@@ -427,7 +436,7 @@ export default function TankRefillTransfer() {
                       required
                     >
                       <option value="">-- {t('operational.tanks.selectDailyTank', 'اختر الخزان اليومي')} --</option>
-                      {dailyTanks.map(t => (
+                      {(tankId ? dailyTanks.filter(t => Number(t.parentTankId) === Number(tankId)) : dailyTanks).map(t => (
                         <option key={t.id} value={t.id}>{t.name}</option>
                       ))}
                     </select>

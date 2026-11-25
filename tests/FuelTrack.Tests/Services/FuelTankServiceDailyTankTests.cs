@@ -384,6 +384,8 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
         Assert.Null(result.GeneratorId);
     }
 
+
+
     [Fact]
     public async Task CreateAsync_ActiveDuplicateMainFuelType_ThrowsButSoftDeletedTankDoesNotBlock()
     {
@@ -447,6 +449,81 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
 
         Assert.Equal(TankRole.Main, result.TankRole);
         Assert.Null(result.GeneratorId);
+    }
+
+
+
+    [Fact]
+    public async Task CreateAsync_MainTankWithGeneratorOrParent_ThrowsArgumentException()
+    {
+        await EnableCommercialModeAsync();
+
+        var withGen = new CreateFuelTankDto(0, 1, "Main With Gen", "MT-G", 5000, TankRole: TankRole.Main, GeneratorId: 1);
+        var ex1 = await Assert.ThrowsAsync<ArgumentException>(() => _tankService.CreateAsync(withGen, 1));
+        Assert.Contains("cannot be assigned to a generator", ex1.Message, StringComparison.OrdinalIgnoreCase);
+
+        var main = await _tankService.CreateAsync(new CreateFuelTankDto(0, 1, "Main 1", "MT-1", 5000, TankRole: TankRole.Main), 1);
+        var withParent = new CreateFuelTankDto(0, 1, "Main With Parent", "MT-P", 5000, TankRole: TankRole.Main, ParentTankId: main.Id);
+        var ex2 = await Assert.ThrowsAsync<ArgumentException>(() => _tankService.CreateAsync(withParent, 1));
+        Assert.Contains("cannot have a parent tank", ex2.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CreateAsync_DailyTankParentValidation_EnforcesMainRoleAndSameFuelType()
+    {
+        await EnableCommercialModeAsync();
+        _db.Lookups.Add(new Lookup { Id = 2, CategoryId = 1, Code = "GASOLINE", Name = "Gasoline", IsActive = true });
+        await _db.SaveChangesAsync();
+
+        var dieselMain = await _tankService.CreateAsync(new CreateFuelTankDto(0, 1, "Diesel Main", "MT-D", 5000, TankRole: TankRole.Main), 1);
+        var otherDaily = await _tankService.CreateAsync(new CreateFuelTankDto(0, 1, "Other Daily", "DT-O", 1000, TankRole: TankRole.Daily), 1);
+
+        var wrongFuel = new CreateFuelTankDto(0, 2, "Gasoline Daily", "DT-G", 1000, TankRole: TankRole.Daily, ParentTankId: dieselMain.Id);
+        var exFuel = await Assert.ThrowsAsync<ArgumentException>(() => _tankService.CreateAsync(wrongFuel, 1));
+        Assert.Contains("same fuel type", exFuel.Message, StringComparison.OrdinalIgnoreCase);
+
+        var nonMainParent = new CreateFuelTankDto(0, 1, "Nested Daily", "DT-N", 1000, TankRole: TankRole.Daily, ParentTankId: otherDaily.Id);
+        var exRole = await Assert.ThrowsAsync<ArgumentException>(() => _tankService.CreateAsync(nonMainParent, 1));
+        Assert.Contains("must be a main tank", exRole.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ChangingFuelLookupWithMismatchedParent_ThrowsArgumentException()
+    {
+        await EnableCommercialModeAsync();
+        _db.Lookups.Add(new Lookup { Id = 2, CategoryId = 1, Code = "GASOLINE", Name = "Gasoline", IsActive = true });
+        await _db.SaveChangesAsync();
+
+        var dieselMain = await _tankService.CreateAsync(new CreateFuelTankDto(0, 1, "Diesel Main", "MT-D", 5000, TankRole: TankRole.Main), 1);
+        var daily = await _tankService.CreateAsync(new CreateFuelTankDto(0, 1, "Daily 1", "DT-1", 1000, TankRole: TankRole.Daily, ParentTankId: dieselMain.Id), 1);
+
+        var update = new UpdateFuelTankDto(null, FuelLookupId: 2, null, null, null, null, null, null, null, null, null, null, null);
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => _tankService.UpdateAsync(daily.Id, update, 1));
+        Assert.Contains("same fuel type", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_MainTankWithActiveDailyChildren_ThrowsInvalidOperationException()
+    {
+        await EnableCommercialModeAsync();
+        var main = await _tankService.CreateAsync(new CreateFuelTankDto(0, 1, "Main 1", "MT-1", 5000, TankRole: TankRole.Main), 1);
+        await _tankService.CreateAsync(new CreateFuelTankDto(0, 1, "Daily 1", "DT-1", 1000, TankRole: TankRole.Daily, ParentTankId: main.Id), 1);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => _tankService.DeleteAsync(main.Id));
+        Assert.Contains("still has active daily tanks", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True((await _db.FuelTanks.FindAsync(main.Id))!.IsActive);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_IncludesParentTankNameOnDailyTanks()
+    {
+        await EnableCommercialModeAsync();
+        var main = await _tankService.CreateAsync(new CreateFuelTankDto(0, 1, "Main Reservoir", "MT-R", 5000, TankRole: TankRole.Main), 1);
+        var daily = await _tankService.CreateAsync(new CreateFuelTankDto(0, 1, "Daily 1", "DT-1", 1000, TankRole: TankRole.Daily, ParentTankId: main.Id), 1);
+
+        var list = await _tankService.GetAllAsync();
+        var listedDaily = Assert.Single(list, t => t.Id == daily.Id);
+        Assert.Equal("Main Reservoir", listedDaily.ParentTankName);
     }
 
     public void Dispose()
