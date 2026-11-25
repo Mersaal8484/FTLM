@@ -23,7 +23,8 @@ public static class TenantSchemaUpgradeCatalog
             new TenantSchemaUpgrade(13, await ReadUpgradeAsync("013_commercial_tank_main_daily_index", cancellationToken)),
             new TenantSchemaUpgrade(14, await ReadUpgradeAsync("014_commercial_service_replacement_oil_tx", cancellationToken)),
             new TenantSchemaUpgrade(15, await ReadUpgradeAsync("015_commercial_work_permit_number_unique", cancellationToken)),
-            new TenantSchemaUpgrade(16, await ReadUpgradeAsync("016_tank_calibration_mode_and_heights", cancellationToken))
+            new TenantSchemaUpgrade(16, await ReadUpgradeAsync("016_tank_calibration_mode_and_heights", cancellationToken)),
+            new TenantSchemaUpgrade(17, await ReadUpgradeAsync("017_fix_main_tank_index_filter", cancellationToken))
         ];
     }
 

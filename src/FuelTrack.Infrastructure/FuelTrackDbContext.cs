@@ -260,7 +260,7 @@ namespace FuelTrack.Infrastructure
                 .HasOne(x => x.OperationalSubmission).WithMany(x => x.GeneratorReadings)
                 .HasForeignKey(x => x.OperationalSubmissionId).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<OperationalGeneratorReading>()
-                .HasOne(x => x.Generator).WithMany().HasForeignKey(x => x.GeneratorId)
+                .HasOne(x => x.Generator).WithMany(g => g.FuelTanks).HasForeignKey(x => x.GeneratorId)
                 .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<TankLevelReading>()
                 .HasOne(x => x.OperationalSubmission).WithMany(x => x.TankLevelReadings)
@@ -297,13 +297,13 @@ namespace FuelTrack.Infrastructure
                 .HasOne(x => x.ParentTank).WithMany(x => x.DailyTanks).HasForeignKey(x => x.ParentTankId)
                 .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<FuelTank>()
-                .HasOne(x => x.Generator).WithMany().HasForeignKey(x => x.GeneratorId)
+                .HasOne(x => x.Generator).WithMany(g => g.FuelTanks).HasForeignKey(x => x.GeneratorId)
                 .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<GeneratorOperatingLimit>()
-                .HasOne(x => x.Generator).WithMany().HasForeignKey(x => x.GeneratorId)
+                .HasOne(x => x.Generator).WithMany(g => g.FuelTanks).HasForeignKey(x => x.GeneratorId)
                 .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<OverloadEvent>()
-                .HasOne(x => x.Generator).WithMany().HasForeignKey(x => x.GeneratorId)
+                .HasOne(x => x.Generator).WithMany(g => g.FuelTanks).HasForeignKey(x => x.GeneratorId)
                 .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<OverloadEvent>()
                 .HasOne(x => x.TriggerReading).WithMany().HasForeignKey(x => x.TriggerReadingId)
@@ -480,8 +480,8 @@ namespace FuelTrack.Infrastructure
                 .IsUnique()
                 .HasDatabaseName("IX_FuelTanks_SubStationId_FuelLookupId")
                 .HasFilter(Database.IsNpgsql()
-                    ? "\"DeletedAt\" IS NULL AND \"GeneratorId\" IS NULL"
-                    : "[DeletedAt] IS NULL AND [GeneratorId] IS NULL");
+                    ? "\"TankRole\" = 1 AND \"DeletedAt\" IS NULL"
+                    : "[TankRole] = 1 AND [DeletedAt] IS NULL");
 
             // === Ledger: DailyReading ===
             modelBuilder.Entity<DailyReading>()
