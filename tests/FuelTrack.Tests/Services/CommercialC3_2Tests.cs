@@ -425,6 +425,27 @@ public sealed class CommercialC3_2Tests : IDisposable
         Assert.Contains("\"TankRole\" = 1 AND \"DeletedAt\" IS NULL", upgrade.Sql);
     }
 
+    [Fact]
+    public async Task TenantUpgrade018_AndEfModel_ScopeFuelTankUniqueIndexToNonDailyTanks()
+    {
+        var upgrade = (await TenantSchemaUpgradeCatalog.GetCurrentAsync()).Single(x => x.Version == 18);
+
+        Assert.NotNull(upgrade);
+        Assert.Equal(18, upgrade.Version);
+        Assert.Contains("DROP INDEX IF EXISTS \"IX_FuelTanks_SubStationId_FuelLookupId\"", upgrade.Sql);
+        Assert.Contains("CREATE UNIQUE INDEX IF NOT EXISTS \"IX_FuelTanks_SubStationId_FuelLookupId\"", upgrade.Sql);
+        Assert.Contains("\"DeletedAt\" IS NULL AND (\"TankRole\" IS NULL OR \"TankRole\" <> 2)", upgrade.Sql);
+
+        var entityType = _db.Model.FindEntityType(typeof(FuelTank))!;
+        var fuelTypeIndex = entityType.GetIndexes().Single(i => i.GetDatabaseName() == "IX_FuelTanks_SubStationId_FuelLookupId");
+        Assert.True(fuelTypeIndex.IsUnique);
+        Assert.Equal("[DeletedAt] IS NULL AND ([TankRole] IS NULL OR [TankRole] <> 2)", fuelTypeIndex.GetFilter());
+
+        var dailyGenIndex = entityType.GetIndexes().Single(i => i.GetDatabaseName() == "UX_FuelTanks_ActiveDailyGenerator");
+        Assert.True(dailyGenIndex.IsUnique);
+        Assert.Equal("[DeletedAt] IS NULL AND [GeneratorId] IS NOT NULL", dailyGenIndex.GetFilter());
+    }
+
     private sealed class RestrictedScopeFilter : IUserScopeFilterService
     {
         private readonly List<int> _accessible;

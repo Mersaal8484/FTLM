@@ -1082,7 +1082,7 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.HasIndex("SubStationId", "FuelLookupId")
                         .IsUnique()
                         .HasDatabaseName("IX_FuelTanks_SubStationId_FuelLookupId")
-                        .HasFilter("[TankRole] = 1 AND [DeletedAt] IS NULL");
+                        .HasFilter("[DeletedAt] IS NULL AND ([TankRole] IS NULL OR [TankRole] <> 2)");
 
                     b.ToTable("FuelTanks");
                 });

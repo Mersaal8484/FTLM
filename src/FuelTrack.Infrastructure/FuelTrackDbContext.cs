@@ -260,7 +260,7 @@ namespace FuelTrack.Infrastructure
                 .HasOne(x => x.OperationalSubmission).WithMany(x => x.GeneratorReadings)
                 .HasForeignKey(x => x.OperationalSubmissionId).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<OperationalGeneratorReading>()
-                .HasOne(x => x.Generator).WithMany(g => g.FuelTanks).HasForeignKey(x => x.GeneratorId)
+                .HasOne(x => x.Generator).WithMany().HasForeignKey(x => x.GeneratorId)
                 .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<TankLevelReading>()
                 .HasOne(x => x.OperationalSubmission).WithMany(x => x.TankLevelReadings)
@@ -300,10 +300,10 @@ namespace FuelTrack.Infrastructure
                 .HasOne(x => x.Generator).WithMany(g => g.FuelTanks).HasForeignKey(x => x.GeneratorId)
                 .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<GeneratorOperatingLimit>()
-                .HasOne(x => x.Generator).WithMany(g => g.FuelTanks).HasForeignKey(x => x.GeneratorId)
+                .HasOne(x => x.Generator).WithMany().HasForeignKey(x => x.GeneratorId)
                 .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<OverloadEvent>()
-                .HasOne(x => x.Generator).WithMany(g => g.FuelTanks).HasForeignKey(x => x.GeneratorId)
+                .HasOne(x => x.Generator).WithMany().HasForeignKey(x => x.GeneratorId)
                 .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<OverloadEvent>()
                 .HasOne(x => x.TriggerReading).WithMany().HasForeignKey(x => x.TriggerReadingId)
@@ -480,8 +480,8 @@ namespace FuelTrack.Infrastructure
                 .IsUnique()
                 .HasDatabaseName("IX_FuelTanks_SubStationId_FuelLookupId")
                 .HasFilter(Database.IsNpgsql()
-                    ? "\"TankRole\" = 1 AND \"DeletedAt\" IS NULL"
-                    : "[TankRole] = 1 AND [DeletedAt] IS NULL");
+                    ? "\"DeletedAt\" IS NULL AND (\"TankRole\" IS NULL OR \"TankRole\" <> 2)"
+                    : "[DeletedAt] IS NULL AND ([TankRole] IS NULL OR [TankRole] <> 2)");
 
             // === Ledger: DailyReading ===
             modelBuilder.Entity<DailyReading>()
