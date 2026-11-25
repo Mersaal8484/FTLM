@@ -47,6 +47,9 @@ public sealed class CommercialC3_2Tests : IDisposable
         _db.Branches.Add(branch);
         _db.Stations.Add(station);
         _db.SubStations.Add(subStation);
+        var fuelCategory = new LookupCategory { Id = 50, Name = "FuelType", DisplayName = "Fuel type" };
+        _db.LookupCategories.Add(fuelCategory);
+        _db.Lookups.Add(new Lookup { Id = 500, CategoryId = fuelCategory.Id, Name = "Diesel", Code = "Diesel", IsActive = true });
         _db.SaveChanges();
     }
 
@@ -152,12 +155,33 @@ public sealed class CommercialC3_2Tests : IDisposable
             SerialNumber: "SCOPED-001",
             Model: "Model",
             Manufacturer: "Manufacturer",
-            ActualPowerKW: 100), 1);
+            ActualPowerKW: 100,
+            DailyTank: new CreateGeneratorDailyTankDto(
+                FuelLookupId: 500,
+                Name: "Scoped daily tank",
+                Code: "DT-SCOPED",
+                CapacityLiters: 1000,
+                ActualStockLiters: 500)), 1);
 
         Assert.True(result.IsSuccess);
         var technicalSite = Assert.Single(await _db.SubStations.ToListAsync());
         var saved = Assert.Single(await _db.Generators.Where(generator => generator.SerialNumber == "SCOPED-001").ToListAsync());
         Assert.Equal(technicalSite.Id, saved.SubStationId);
+        Assert.Single(await _db.FuelTanks.Where(tank => tank.GeneratorId == saved.Id && tank.TankRole == TankRole.Daily).ToListAsync());
+    }
+
+    [Fact]
+    public async Task Commercial_GeneratorCreate_WithoutDailyTank_IsRejected()
+    {
+        var commercialMode = new CommercialStationModeService(_db);
+        Assert.True((await commercialMode.ActivateAsync(new("Commercial Station", "CS-01"), 1)).IsSuccess);
+        var service = new GeneratorService(_db, _scopeFilter, _currentUser, commercialMode);
+
+        var result = await service.CreateAsync(new CreateGeneratorDto(999, "No tank", "NO-TANK", null, null), 1);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("daily tank", result.Error!, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(_db.Generators, generator => generator.SerialNumber == "NO-TANK");
     }
 
     [Fact]

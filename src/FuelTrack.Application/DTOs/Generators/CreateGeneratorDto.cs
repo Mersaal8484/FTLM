@@ -1,3 +1,5 @@
+using FuelTrack.Domain.Enums;
+
 namespace FuelTrack.Application.DTOs.Generators;
 
 public record CreateGeneratorDto(
@@ -24,7 +26,29 @@ public record CreateGeneratorDto(
     string? FrequencyLookupName = null,
     string? OwnershipTypeLookupName = null,
     string? StatusLookupName = null,
-    bool IsActive = true);
+    bool IsActive = true,
+    CreateGeneratorDailyTankDto? DailyTank = null);
+
+/// <summary>Required commercial daily-tank data submitted with a new generator.</summary>
+public record CreateGeneratorDailyTankDto(
+    int FuelLookupId,
+    string Name,
+    string Code,
+    double CapacityLiters,
+    double? MinAlertLiters = null,
+    double? DeadStockLiters = null,
+    double? ActualStockLiters = null,
+    string? Notes = null,
+    TankCalibrationMode CalibrationMode = TankCalibrationMode.Geometry,
+    decimal? LitresPerCm = null,
+    decimal? CapacityHeightCm = null,
+    decimal? MinAlertHeightCm = null,
+    decimal? DeadStockHeightCm = null,
+    decimal? ActualStockHeightCm = null,
+    decimal? DiameterCm = null,
+    decimal? CylinderHeightCm = null,
+    decimal? ConeHeightCm = null,
+    decimal? MultiplicationFactor = null);
 
 public record CreateGeneratorRequest(
     int? SubStationId,

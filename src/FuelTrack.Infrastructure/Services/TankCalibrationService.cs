@@ -2,6 +2,7 @@ using FuelTrack.Application.Common;
 using FuelTrack.Application.DTOs.Operations;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Enums;
+using FuelTrack.Domain.Models;
 using FuelTrack.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,18 +18,19 @@ public sealed class TankCalibrationService(
     {
         if (!IsValid(dto))
             throw new ArgumentOutOfRangeException(nameof(dto), "Tank calibration values are invalid.");
-        var shape = dto.Shape ?? TankShape.VerticalCylinderWithConicalBottom;
+        var tank = CreateGeometryTank(dto, dto.Shape ?? TankShape.VerticalCylinderWithConicalBottom);
+        var shape = tank.Shape!.Value;
         var fullHeight = dto.ConeHeightCm + dto.CylinderHeightCm;
         var points = new[] { 0m, 25m, 50m, 75m, 100m }
             .Select(percent => new TankCalibrationPreviewPointDto(percent, fullHeight * percent / 100m,
-                TankGeometry.CalculateLitres(shape, dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor, fullHeight * percent / 100m)))
+                TankLevelConverter.LitresFromLevel(tank, fullHeight * percent / 100m)))
             .ToList();
-        var deadStockLitres = ResolveDeadStockLitres(dto, shape);
+        var deadStockLitres = ResolveDeadStockLitres(dto, tank);
         return new TankCalibrationPreviewDto(
-            TankGeometry.CalculateCapacityLitres(shape, dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor),
+            TankLevelConverter.LitresFromLevel(tank, fullHeight),
             points,
             deadStockLitres,
-            deadStockLitres.HasValue ? TankGeometry.CalculateLiquidLevelCm(shape, dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor, deadStockLitres.Value) : null);
+            deadStockLitres.HasValue ? TankLevelConverter.LevelFromLitres(tank, deadStockLitres.Value) : null);
     }
 
     public async Task<Result<TankCalibrationDto>> UpsertAsync(int fuelTankId, UpdateTankCalibrationDto dto, int userId, CancellationToken cancellationToken = default)
@@ -47,7 +49,7 @@ public sealed class TankCalibrationService(
         tank.CylinderHeightCm = dto.CylinderHeightCm;
         tank.ConeHeightCm = dto.ConeHeightCm;
         tank.MultiplicationFactor = dto.MultiplicationFactor;
-        tank.ComputedCapacityLitres = TankGeometry.CalculateCapacityLitres(shape, dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor);
+        tank.ComputedCapacityLitres = TankLevelConverter.LitresFromLevel(tank, dto.CylinderHeightCm + dto.ConeHeightCm);
         if (dto.DeadStockLitres.HasValue)
         {
             tank.DeadStockLiters = (double)dto.DeadStockLitres.Value;
@@ -85,8 +87,18 @@ public sealed class TankCalibrationService(
             (!dto.DeadStockLevelCm.HasValue || (dto.DeadStockLevelCm.Value >= 0 && dto.DeadStockLevelCm.Value <= maxLevel));
     }
 
-    private static decimal? ResolveDeadStockLitres(UpdateTankCalibrationDto dto, TankShape shape) =>
+    private static FuelTank CreateGeometryTank(UpdateTankCalibrationDto dto, TankShape shape) => new()
+    {
+        CalibrationMode = TankCalibrationMode.Geometry,
+        Shape = shape,
+        DiameterCm = dto.DiameterCm,
+        CylinderHeightCm = dto.CylinderHeightCm,
+        ConeHeightCm = dto.ConeHeightCm,
+        MultiplicationFactor = dto.MultiplicationFactor,
+    };
+
+    private static decimal? ResolveDeadStockLitres(UpdateTankCalibrationDto dto, FuelTank tank) =>
         dto.DeadStockLitres ?? (dto.DeadStockLevelCm.HasValue
-            ? TankGeometry.CalculateLitres(shape, dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor, dto.DeadStockLevelCm.Value)
+            ? TankLevelConverter.LitresFromLevel(tank, dto.DeadStockLevelCm.Value)
             : null);
 }

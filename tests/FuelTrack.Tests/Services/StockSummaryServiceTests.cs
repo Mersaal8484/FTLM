@@ -1,5 +1,7 @@
 using FuelTrack.Application.DTOs.FuelMovements;
+using FuelTrack.Application.DTOs.Operations;
 using FuelTrack.Application.Interfaces;
+using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
 using FuelTrack.Infrastructure;
 using FuelTrack.Infrastructure.Services;
@@ -410,6 +412,44 @@ public class StockSummaryServiceTests : IDisposable
         Assert.Equal(50, row.Inbound);
         Assert.Equal(20, row.Outbound);
         Assert.Equal(630, row.RemainingStock);
+    }
+
+    [Fact]
+    public async Task CommercialFuelStock_DailyTankConsumption_UsesOpeningPlusTransferInMinusClosing()
+    {
+        var branch = new Branch { Name = "B", Code = "B" };
+        _db.Branches.Add(branch);
+        await _db.SaveChangesAsync();
+        var station = new Station { BranchId = branch.Id, Name = "S", Code = "S" };
+        _db.Stations.Add(station);
+        await _db.SaveChangesAsync();
+        var site = new SubStation { StationId = station.Id, Name = "Site", Code = "SITE" };
+        _db.SubStations.Add(site);
+        _db.StationOperationalSettings.Add(new StationOperationalSettings { StationId = station.Id, TimeZone = "UTC" });
+        var category = new LookupCategory { Name = "FuelType", DisplayName = "Fuel" };
+        _db.LookupCategories.Add(category);
+        await _db.SaveChangesAsync();
+        var fuel = new Lookup { CategoryId = category.Id, Name = "Diesel", Code = "Diesel", IsActive = true };
+        _db.Lookups.Add(fuel);
+        var generator = new Generator { SubStationId = site.Id, Name = "G1", SerialNumber = "G1" };
+        _db.Generators.Add(generator);
+        await _db.SaveChangesAsync();
+        var tank = new FuelTank { SubStationId = site.Id, FuelLookupId = fuel.Id, GeneratorId = generator.Id, TankRole = TankRole.Daily, Name = "D1", Code = "D1", CapacityLiters = 1000, ActualStockLiters = 550 };
+        _db.FuelTanks.Add(tank);
+        await _db.SaveChangesAsync();
+        _db.TankLevelReadings.AddRange(
+            new TankLevelReading { FuelTankId = tank.Id, CapturedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), ReceivedAtUtc = DateTime.UtcNow, BusinessDate = new DateOnly(2026, 1, 1), Status = OperationalReadingStatus.Recorded, EventType = TankEventType.Level, ComputedLitres = 500m },
+            new TankLevelReading { FuelTankId = tank.Id, CapturedAtUtc = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc), ReceivedAtUtc = DateTime.UtcNow, BusinessDate = new DateOnly(2026, 1, 2), Status = OperationalReadingStatus.Recorded, EventType = TankEventType.TransferIn, BeforeComputedLitres = 500m, ComputedLitres = 700m },
+            new TankLevelReading { FuelTankId = tank.Id, CapturedAtUtc = new DateTime(2026, 1, 3, 0, 0, 0, DateTimeKind.Utc), ReceivedAtUtc = DateTime.UtcNow, BusinessDate = new DateOnly(2026, 1, 3), Status = OperationalReadingStatus.Recorded, EventType = TankEventType.Level, BeforeComputedLitres = 700m, ComputedLitres = 550m });
+        await _db.SaveChangesAsync();
+        var commercial = new Mock<ICommercialStationModeService>();
+        commercial.Setup(x => x.IsCommercialModeAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        commercial.Setup(x => x.GetScopeAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new CommercialStationScope(branch.Id, station.Id, site.Id));
+        var service = new StockSummaryService(_db, _scopeFilterMock.Object, _currentUser, commercial.Object);
+
+        var result = await service.GetCommercialFuelTankStockAsync(new DateTime(2026, 1, 2), new DateTime(2026, 1, 3), 1);
+
+        Assert.Equal(150m, Assert.Single(result.DailyTanks).ConsumedLitres);
     }
 
     public void Dispose()

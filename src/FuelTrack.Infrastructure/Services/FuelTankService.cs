@@ -432,6 +432,14 @@ public class FuelTankService : IFuelTankService
         if (commercialScope is not null && tank.SubStationId != commercialScope.SubStationId)
             throw new KeyNotFoundException($"FuelTank {id} not found.");
 
+        if (tank.TankRole == TankRole.Daily && tank.GeneratorId.HasValue)
+        {
+            var generatorIsActive = await _db.Generators
+                .AnyAsync(x => x.Id == tank.GeneratorId.Value && x.IsActive && x.DeletedAt == null);
+            if (generatorIsActive)
+                throw new InvalidOperationException("The daily tank of an active generator cannot be deleted or unlinked.");
+        }
+
         tank.IsActive = false;
         tank.DeletedAt = DateTime.UtcNow;
         tank.UpdatedAt = DateTime.UtcNow;

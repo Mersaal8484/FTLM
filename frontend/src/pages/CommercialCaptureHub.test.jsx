@@ -55,3 +55,21 @@ test('end-of-day tab pairs a generator with its daily tank and exposes feeder cl
   expect(container.querySelector('a[href="/operations/capture?kind=daily-feeders"]')).toBeInTheDocument();
   expect(container.querySelector('a[href="/generators/11/add-oil"]')).toBeInTheDocument();
 });
+
+test('end-of-day tab does not pair a main or unlinked tank with a generator', async () => {
+  useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
+  client.get.mockImplementation(async (url) => {
+    if (url === '/api/operational-captures/references') return { data: [commercialSite] };
+    if (url === '/api/generators/my') return { data: [{ id: 11, lastPowerRecord: 70 }] };
+    if (url === '/api/fuel-tanks') return { data: [{ id: 31, name: 'Main Tank', tankRole: 1, actualStockLiters: 200 }] };
+    return { data: [] };
+  });
+  const { container } = render(<MemoryRouter><CommercialCaptureHub /></MemoryRouter>);
+
+  await screen.findByText('Generator 1');
+  fireEvent.click(screen.getAllByRole('button')[1]);
+
+  expect(container.querySelector('a[href*="kind=daily-generator"]')).toBeNull();
+  expect(container.querySelector('a[href="/commercial/daily-tanks"]')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /record daily closing/i })).toBeDisabled();
+});

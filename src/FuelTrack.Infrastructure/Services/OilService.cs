@@ -248,28 +248,33 @@ public class OilService : IOilService
 
         var oilLookupId = oil.OilLookupId;
 
-        var consumptionTxType = await _db.Lookups.FirstOrDefaultAsync(l =>
-            l.Code == OilTransactionTypeCodes.Consumption &&
-            l.IsActive &&
-            (l.Category.Name == "OilTransactionType" || l.CategoryId == 100), ct);
-        if (consumptionTxType == null)
-            throw new InvalidOperationException("Consumption transaction type not found.");
-
-        var tx = new OilTransaction
+        var isCommercial = await _commercialMode.IsCommercialModeAsync(ct);
+        OilTransaction? tx = null;
+        Lookup? consumptionTxType = null;
+        if (isCommercial)
         {
-            SubStationId = generator.SubStationId,
-            OilLookupId = oilLookupId,
-            TransactionTypeLookupId = consumptionTxType.Id,
-            TransactionDate = DateTime.UtcNow,
-            QuantityLiters = dto.Quantity,
-            Notes = dto.Notes,
-            CreatedAt = DateTime.UtcNow,
-            CreatedBy = userId,
-            UpdatedAt = DateTime.UtcNow,
-            UpdatedBy = userId,
-        };
+            consumptionTxType = await _db.Lookups.FirstOrDefaultAsync(l =>
+                l.Code == OilTransactionTypeCodes.Consumption &&
+                l.IsActive &&
+                (l.Category.Name == "OilTransactionType" || l.CategoryId == 100), ct);
+            if (consumptionTxType == null)
+                throw new InvalidOperationException("Consumption transaction type not found.");
 
-        _db.OilTransactions.Add(tx);
+            tx = new OilTransaction
+            {
+                SubStationId = generator.SubStationId,
+                OilLookupId = oilLookupId,
+                TransactionTypeLookupId = consumptionTxType.Id,
+                TransactionDate = DateTime.UtcNow,
+                QuantityLiters = dto.Quantity,
+                Notes = dto.Notes,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = userId,
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = userId,
+            };
+            _db.OilTransactions.Add(tx);
+        }
 
         oil.CurrentStock -= (decimal)dto.Quantity;
         oil.UpdatedAt = DateTime.UtcNow;
@@ -278,22 +283,22 @@ public class OilService : IOilService
         await _db.SaveChangesAsync(ct);
 
         return new OilTransactionDetailDto(
-            tx.Id,
-            tx.SubStationId, generator.SubStationId.ToString(),
+            tx?.Id ?? 0,
+            generator.SubStationId, generator.SubStationId.ToString(),
             oilLookupId, oil.OilLookup?.Name ?? "",
-            tx.TransactionTypeLookupId, consumptionTxType.Name,
-            tx.TransactionDate, tx.QuantityLiters,
-            tx.Reference,
-            tx.SupplierCompany,
+            tx?.TransactionTypeLookupId ?? 0, consumptionTxType?.Name ?? "",
+            tx?.TransactionDate ?? DateTime.UtcNow, tx?.QuantityLiters ?? dto.Quantity,
+            tx?.Reference,
+            tx?.SupplierCompany,
             null, null, null, null,
             false,
             null, null,
             null,
-            tx.Notes,
-            tx.CorrectedFromId,
-            tx.CorrectionReason,
-            tx.CreatedBy, tx.UpdatedBy,
-            tx.CreatedAt, tx.UpdatedAt);
+            tx?.Notes ?? dto.Notes,
+            tx?.CorrectedFromId,
+            tx?.CorrectionReason,
+            tx?.CreatedBy ?? userId, tx?.UpdatedBy ?? userId,
+            tx?.CreatedAt ?? DateTime.UtcNow, tx?.UpdatedAt ?? DateTime.UtcNow);
     }
 
     public async Task<OilListDto> CreateAsync(CreateOilDto dto, int userId, CancellationToken ct = default)

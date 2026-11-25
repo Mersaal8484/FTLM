@@ -7,7 +7,7 @@ import useCommercialMode from '../hooks/useCommercialMode';
 import usePermissions from '../permissions/usePermissions';
 
 const isSolarMeter = (meter) => meter.meterTypeCode === 'SolarProductionMeter' || meter.meterTypeCode === 'SolarMeter';
-const isDailyTank = (tank) => tank.tankRole === 2 || tank.tankRole === 'Daily' || tank.generatorId != null;
+const isDailyTank = (tank) => tank.tankRole === 2 || tank.tankRole === 'Daily';
 
 function GeneratorCard({ source, details, dailyTank, mode }) {
   const { t } = useTranslation();
@@ -53,9 +53,14 @@ function GeneratorCard({ source, details, dailyTank, mode }) {
           )}
         </>
       ) : (
-        <Link to="/commercial/daily-tanks" className="btn btn-sm">
-          <Droplets size={14} />{t('operational.commercialCapture.configureDailyTank')}
-        </Link>
+        <>
+          <button type="button" className="btn btn-primary btn-sm" disabled aria-disabled="true">
+            <Activity size={14} />{t('operational.commercialCapture.recordDailyClosing')}
+          </button>
+          <Link to="/commercial/daily-tanks" className="btn btn-sm">
+            <Droplets size={14} />{t('operational.commercialCapture.configureDailyTank')}
+          </Link>
+        </>
       )}
     </div>
   </article>;
@@ -106,19 +111,8 @@ export default function CommercialCaptureHub() {
         map.set(Number(tank.generatorId), tank);
       }
     }
-    if (site?.tanks?.length) {
-      const generators = site?.generators || [];
-      for (const tank of site.tanks) {
-        if (tank.generatorId != null && !map.has(Number(tank.generatorId))) {
-          map.set(Number(tank.generatorId), tank);
-        }
-      }
-      if (generators.length === 1 && site.tanks.length === 1 && !map.has(Number(generators[0].id))) {
-        map.set(Number(generators[0].id), site.tanks[0]);
-      }
-    }
     return map;
-  }, [fuelTanks, site]);
+  }, [fuelTanks]);
 
   if (!(isCommercial || isCommercialMode)) return null;
   if (loading) return <div className="spinner-wrap"><div className="ft-spinner" /></div>;

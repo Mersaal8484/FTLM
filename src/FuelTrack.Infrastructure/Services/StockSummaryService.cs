@@ -71,8 +71,9 @@ public class StockSummaryService : IStockSummaryService
             .ToListAsync();
 
         var tankIds = tanks.Select(t => t.Id).ToList();
-        var periodStart = fromDate.Date;
-        var periodEnd = toDate.Date.AddDays(1).AddTicks(-1);
+        var timeZone = await GetStationTimeZoneAsync(scope.StationId);
+        var periodStart = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(fromDate.Date, DateTimeKind.Unspecified), timeZone);
+        var periodEndExclusive = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(toDate.Date.AddDays(1), DateTimeKind.Unspecified), timeZone);
         List<CommercialTankReading> readings;
         if (tankIds.Count == 0)
         {
@@ -83,7 +84,7 @@ public class StockSummaryService : IStockSummaryService
             readings = await _db.TankLevelReadings
                 .AsNoTracking()
                 .Where(r => tankIds.Contains(r.FuelTankId)
-                    && r.CapturedAtUtc <= periodEnd
+                    && r.CapturedAtUtc < periodEndExclusive
                     && (r.Status == OperationalReadingStatus.Recorded || r.Status == OperationalReadingStatus.Approved))
                 .OrderBy(r => r.CapturedAtUtc)
                 .ThenBy(r => r.Id)
@@ -107,10 +108,13 @@ public class StockSummaryService : IStockSummaryService
             var isDaily = tank.TankRole == TankRole.Daily || (!tank.TankRole.HasValue && tank.GeneratorId.HasValue);
             var history = readingsByTank.GetValueOrDefault(tank.Id, []);
             decimal current = history.Count > 0 ? history[^1].ComputedLitres : (decimal)(tank.ActualStockLiters ?? 0d);
-            decimal receipts = 0m, transferOut = 0m, transferIn = 0m, consumed = 0m;
-            decimal? previousLevel = history.Where(r => r.CapturedAtUtc < periodStart).Select(r => (decimal?)r.ComputedLitres).LastOrDefault();
+            decimal receipts = 0m, transferOut = 0m, transferIn = 0m;
+            var periodReadings = history.Where(r => r.CapturedAtUtc >= periodStart && r.CapturedAtUtc < periodEndExclusive).ToList();
+            decimal? opening = history.Where(r => r.CapturedAtUtc < periodStart).Select(r => (decimal?)r.ComputedLitres).LastOrDefault()
+                ?? periodReadings.FirstOrDefault()?.BeforeComputedLitres;
+            decimal? previousLevel = opening;
 
-            foreach (var reading in history.Where(r => r.CapturedAtUtc >= periodStart))
+            foreach (var reading in periodReadings)
             {
                 var before = reading.BeforeComputedLitres ?? previousLevel ?? reading.ComputedLitres;
                 var increase = Math.Max(0m, reading.ComputedLitres - before);
@@ -127,14 +131,15 @@ public class StockSummaryService : IStockSummaryService
                     case TankEventType.TransferIn:
                         transferIn += increase;
                         break;
-                    case TankEventType.Level when isDaily && previousLevel.HasValue:
-                        consumed += Math.Max(0m, previousLevel.Value - reading.ComputedLitres);
-                        break;
                 }
 
                 previousLevel = reading.ComputedLitres;
             }
 
+            var closing = periodReadings.LastOrDefault()?.ComputedLitres ?? opening ?? current;
+            var consumed = isDaily && opening.HasValue
+                ? Math.Max(0m, opening.Value + transferIn - closing)
+                : 0m;
             var deadStock = (decimal)(tank.DeadStockLiters ?? 0d);
             var usable = Math.Max(0m, current - deadStock);
             var minimum = (decimal)(tank.MinAlertLiters ?? 0d);
@@ -165,6 +170,17 @@ public class StockSummaryService : IStockSummaryService
         return new(
             mainTanks.OrderBy(t => t.FuelLookupName).ThenBy(t => t.TankName).ToList(),
             dailyTanks.OrderBy(t => t.GeneratorName).ThenBy(t => t.TankName).ToList());
+    }
+
+    private async Task<TimeZoneInfo> GetStationTimeZoneAsync(int stationId)
+    {
+        var zoneId = await _db.StationOperationalSettings.AsNoTracking()
+            .Where(x => x.StationId == stationId)
+            .Select(x => x.TimeZone)
+            .SingleOrDefaultAsync() ?? StationOperationalSettings.DefaultTimeZone;
+        try { return TimeZoneInfo.FindSystemTimeZoneById(zoneId); }
+        catch (TimeZoneNotFoundException) { return TimeZoneInfo.Utc; }
+        catch (InvalidTimeZoneException) { return TimeZoneInfo.Utc; }
     }
 
     private async Task<List<FuelStockSummaryDto>> ComputeFuelStockAsync(DateTime fromDate, DateTime toDate, int? userId)

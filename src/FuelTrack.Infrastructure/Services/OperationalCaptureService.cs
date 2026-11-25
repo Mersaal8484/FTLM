@@ -233,17 +233,18 @@ public sealed class OperationalCaptureService(
             {
                 var tank = tankCalibration[line.FuelTankId];
                 var captured = ResolveCapturedAt(line.CapturedAtOverrideUtc ?? line.CapturedAtUtc, dto.SubmissionCapturedAtUtc, now);
-                var litres = TankGeometry.CalculateLitres(tank.DiameterCm!.Value, tank.CylinderHeightCm!.Value, tank.ConeHeightCm!.Value, tank.MultiplicationFactor!.Value, line.LiquidLevelCm);
-                var beforeLitres = line.BeforeLiquidLevelCm is null ? (decimal?)null : TankGeometry.CalculateLitres(tank.DiameterCm!.Value, tank.CylinderHeightCm!.Value, tank.ConeHeightCm!.Value, tank.MultiplicationFactor!.Value, line.BeforeLiquidLevelCm.Value);
+                var litres = TankLevelConverter.LitresFromLevel(tank, line.LiquidLevelCm);
+                var beforeLitres = line.BeforeLiquidLevelCm is null ? (decimal?)null : TankLevelConverter.LitresFromLevel(tank, line.BeforeLiquidLevelCm.Value);
                 var awaitingPhoto = dto.IsOfflineQueue && line.PhotoAttachmentIds.Count == 0;
                 var requiresApproval = isDailyClosing || ReadingApprovalPolicy.RequiresApproval(OperationalSubjectType.Tank, eventType: line.EventType, tier1RequiresApproval: tier1RequiresApproval);
                 var entity = new TankLevelReading
                 {
                     OperationalSubmission = submission, FuelTankId = tank.Id, CapturedAtUtc = captured, ReceivedAtUtc = now,
                     ClientLineId = line.ClientLineId ?? Guid.NewGuid(), BusinessDate = BusinessDate(captured, timeZone), Status = ReadingApprovalPolicy.InitialStatus(requiresApproval, awaitingPhoto), LiquidLevelCm = line.LiquidLevelCm,
-                    ComputedLitres = litres, ShapeSnapshot = tank.Shape!.Value, DiameterCmSnapshot = tank.DiameterCm.Value,
-                    CylinderHeightCmSnapshot = tank.CylinderHeightCm.Value, ConeHeightCmSnapshot = tank.ConeHeightCm.Value,
-                    MultiplicationFactorSnapshot = tank.MultiplicationFactor.Value, EventType = line.EventType, BeforeLiquidLevelCm = line.BeforeLiquidLevelCm,
+                    ComputedLitres = litres, ShapeSnapshot = tank.Shape ?? TankShape.VerticalCylinderWithConicalBottom, DiameterCmSnapshot = tank.DiameterCm ?? 0m,
+                    CylinderHeightCmSnapshot = tank.CylinderHeightCm ?? 0m, ConeHeightCmSnapshot = tank.ConeHeightCm ?? 0m,
+                    MultiplicationFactorSnapshot = tank.MultiplicationFactor ?? 1m, CalibrationModeSnapshot = tank.CalibrationMode, LitresPerCmSnapshot = tank.LitresPerCm,
+                    EventType = line.EventType, BeforeLiquidLevelCm = line.BeforeLiquidLevelCm,
                     BeforeComputedLitres = beforeLitres, DeliveryNoteLitres = line.DeliveryNoteLitres, DeadStockLitresSnapshot = TankVolumeService.DeadStockLitres(tank),
                     WarningsJson = WarningJson(captured, now, dto.ClientSentAtUtc,
                         line.PhotoAttachmentIds.Any(reusedPhotoIds.Contains) || (line.BeforePhotoAttachmentIds ?? []).Any(reusedPhotoIds.Contains),
@@ -439,7 +440,7 @@ public sealed class OperationalCaptureService(
         var tankIds = dto.TankLevelReadings.Select(x => x.FuelTankId).Distinct().ToList();
         if (await db.FuelTanks.CountAsync(x => tankIds.Contains(x.Id) && x.SubStationId == siteId, cancellationToken) != tankIds.Count)
             return "Every tank must belong to the selected site.";
-        var tanksById = await db.FuelTanks.Where(x => tankIds.Contains(x.Id)).Select(x => new { x.Id, x.ParentTankId, x.TankRole }).ToDictionaryAsync(x => x.Id, cancellationToken);
+        var tanksById = await db.FuelTanks.AsNoTracking().Where(x => tankIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
         foreach (var line in dto.TankLevelReadings)
         {
             if (line.EventType == TankEventType.Receipt && (tanksById[line.FuelTankId].ParentTankId is not null || tanksById[line.FuelTankId].TankRole == TankRole.Daily))
@@ -457,8 +458,24 @@ public sealed class OperationalCaptureService(
         var feederIds = dto.FeederLoadReadings.Select(x => x.FeederId).Distinct().ToList();
         if (await db.Feeders.CountAsync(x => feederIds.Contains(x.Id) && x.SubStationId == siteId, cancellationToken) != feederIds.Count)
             return "Every feeder must belong to the selected site.";
-        if (await db.FuelTanks.AnyAsync(x => tankIds.Contains(x.Id) && (x.Shape == null || x.DiameterCm == null || x.CylinderHeightCm == null || x.ConeHeightCm == null || x.MultiplicationFactor == null), cancellationToken))
+        if (tanksById.Values.Any(x => !TankLevelConverter.IsConfigured(x)))
             return "Each selected tank must be calibrated before a level capture is submitted.";
+
+        if (await _commercialMode.IsCommercialModeAsync(cancellationToken) && dto.MeterReadings.Any(x => x.Kind == MeterReadingKind.DailyClosing))
+        {
+            var dailyGeneratorIds = dto.GeneratorReadings.Select(x => x.GeneratorId)
+                .Concat(dto.MeterReadings.Where(x => x.SubjectType is MeterReadingSubjectType.GeneratorEnergyProduced or MeterReadingSubjectType.GeneratorRunningHours).Select(x => x.SubjectId))
+                .Distinct().ToList();
+            var covered = await db.FuelTanks.AsNoTracking()
+                .Where(x => x.IsActive && x.DeletedAt == null && x.TankRole == TankRole.Daily && x.GeneratorId.HasValue && dailyGeneratorIds.Contains(x.GeneratorId.Value))
+                .Select(x => x.GeneratorId!.Value).Distinct().ToListAsync(cancellationToken);
+            var missing = dailyGeneratorIds.Except(covered).ToList();
+            if (missing.Count > 0)
+            {
+                var names = await db.Generators.AsNoTracking().Where(x => missing.Contains(x.Id)).Select(x => x.Name).ToListAsync(cancellationToken);
+                return $"GENERATOR_NO_DAILY_TANK: {string.Join(", ", names)}";
+            }
+        }
 
         if (dto.GeneratorReadings.GroupBy(x => new { x.GeneratorId, At = NormalizeUtc(x.CapturedAtOverrideUtc ?? x.CapturedAtUtc) }).Any(x => x.Count() > 1) || dto.TankLevelReadings.GroupBy(x => new { x.FuelTankId, At = NormalizeUtc(x.CapturedAtOverrideUtc ?? x.CapturedAtUtc) }).Any(x => x.Count() > 1) || dto.FeederLoadReadings.GroupBy(x => new { x.FeederId, At = NormalizeUtc(x.CapturedAtOverrideUtc ?? x.CapturedAtUtc) }).Any(x => x.Count() > 1) || dto.MeterReadings.GroupBy(x => new { x.SubjectType, x.SubjectId, At = NormalizeUtc(x.CapturedAtOverrideUtc ?? x.CapturedAtUtc) }).Any(x => x.Count() > 1))
             return "A subject may appear only once at the same capture time.";
