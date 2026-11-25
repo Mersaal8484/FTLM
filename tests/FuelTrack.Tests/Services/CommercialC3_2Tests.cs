@@ -363,6 +363,23 @@ public sealed class CommercialC3_2Tests : IDisposable
         Assert.Contains("CREATE INDEX IF NOT EXISTS \"IX_ServiceReplacementRecords_OilTransactionId\"", upgrade.Sql);
     }
 
+    [Fact]
+    public async Task TenantUpgrade016_RegisteredInCatalog_AddsCalibrationModeAndHeightColumns()
+    {
+        var upgrade = (await TenantSchemaUpgradeCatalog.GetCurrentAsync()).Single(x => x.Version == 16);
+
+        Assert.NotNull(upgrade);
+        Assert.Equal(16, upgrade.Version);
+        Assert.Contains("ALTER TABLE \"FuelTanks\"", upgrade.Sql);
+        Assert.Contains("ADD COLUMN IF NOT EXISTS \"CalibrationMode\" integer NOT NULL DEFAULT 0", upgrade.Sql);
+        Assert.Contains("ADD COLUMN IF NOT EXISTS \"LitresPerCm\" numeric(18,6)", upgrade.Sql);
+        Assert.Contains("ADD COLUMN IF NOT EXISTS \"CapacityHeightCm\" numeric(18,4)", upgrade.Sql);
+        Assert.Contains("ADD COLUMN IF NOT EXISTS \"CapacityInputUnit\" varchar(16) NOT NULL DEFAULT 'litres'", upgrade.Sql);
+        Assert.Contains("ALTER TABLE \"TankLevelReadings\"", upgrade.Sql);
+        Assert.Contains("ADD COLUMN IF NOT EXISTS \"CalibrationModeSnapshot\" integer NOT NULL DEFAULT 0", upgrade.Sql);
+        Assert.Contains("ADD COLUMN IF NOT EXISTS \"LitresPerCmSnapshot\" numeric(18,6)", upgrade.Sql);
+    }
+
     private sealed class RestrictedScopeFilter : IUserScopeFilterService
     {
         private readonly List<int> _accessible;

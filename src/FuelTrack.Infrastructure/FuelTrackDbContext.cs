@@ -2749,6 +2749,7 @@ namespace FuelTrack.Infrastructure
                 entity.Property(x => x.CylinderHeightCmSnapshot).HasPrecision(18, 4);
                 entity.Property(x => x.ConeHeightCmSnapshot).HasPrecision(18, 4);
                 entity.Property(x => x.MultiplicationFactorSnapshot).HasPrecision(18, 6);
+                entity.Property(x => x.LitresPerCmSnapshot).HasPrecision(18, 6);
                 entity.Property(x => x.BeforeLiquidLevelCm).HasPrecision(18, 4);
                 entity.Property(x => x.BeforeComputedLitres).HasPrecision(18, 4);
                 entity.Property(x => x.DeliveryNoteLitres).HasPrecision(18, 4);
@@ -2808,6 +2809,13 @@ namespace FuelTrack.Infrastructure
                 entity.Property(x => x.ConeHeightCm).HasPrecision(18, 4);
                 entity.Property(x => x.MultiplicationFactor).HasPrecision(18, 6);
                 entity.Property(x => x.ComputedCapacityLitres).HasPrecision(18, 4);
+                entity.Property(x => x.LitresPerCm).HasPrecision(18, 6);
+                entity.Property(x => x.CapacityHeightCm).HasPrecision(18, 4);
+                entity.Property(x => x.MinAlertHeightCm).HasPrecision(18, 4);
+                entity.Property(x => x.ActualStockHeightCm).HasPrecision(18, 4);
+                entity.Property(x => x.CapacityInputUnit).HasMaxLength(16);
+                entity.Property(x => x.MinAlertInputUnit).HasMaxLength(16);
+                entity.Property(x => x.ActualStockInputUnit).HasMaxLength(16);
                 entity.HasIndex(x => x.GeneratorId).IsUnique().HasDatabaseName("UX_FuelTanks_ActiveDailyGenerator")
                     .HasFilter(Database.IsNpgsql() ? "\"DeletedAt\" IS NULL AND \"GeneratorId\" IS NOT NULL" : "[DeletedAt] IS NULL AND [GeneratorId] IS NOT NULL");
             });

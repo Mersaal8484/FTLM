@@ -946,8 +946,29 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<decimal?>("ActualStockHeightCm")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("ActualStockInputUnit")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
                     b.Property<double?>("ActualStockLiters")
                         .HasColumnType("float");
+
+                    b.Property<int>("CalibrationMode")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("CapacityHeightCm")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("CapacityInputUnit")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<double>("CapacityLiters")
                         .HasColumnType("float");
@@ -1001,6 +1022,19 @@ namespace FuelTrack.Infrastructure.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
+
+                    b.Property<decimal?>("LitresPerCm")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal?>("MinAlertHeightCm")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("MinAlertInputUnit")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<double?>("MinAlertLiters")
                         .HasColumnType("float");
@@ -5496,6 +5530,9 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<DateTime>("CapturedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("CalibrationModeSnapshot")
+                        .HasColumnType("int");
+
                     b.Property<Guid>("ClientLineId")
                         .HasColumnType("uniqueidentifier");
 
@@ -5547,6 +5584,10 @@ namespace FuelTrack.Infrastructure.Migrations
                     b.Property<decimal>("LiquidLevelCm")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("LitresPerCmSnapshot")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("MultiplicationFactorSnapshot")
                         .HasPrecision(18, 6)
