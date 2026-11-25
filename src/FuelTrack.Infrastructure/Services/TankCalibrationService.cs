@@ -42,6 +42,7 @@ public sealed class TankCalibrationService(
         var shape = dto.Shape ?? tank.Shape ?? TankShape.VerticalCylinderWithConicalBottom;
 
         tank.Shape = shape;
+        tank.CalibrationMode = TankCalibrationMode.Geometry;
         tank.DiameterCm = dto.DiameterCm;
         tank.CylinderHeightCm = dto.CylinderHeightCm;
         tank.ConeHeightCm = dto.ConeHeightCm;
@@ -67,7 +68,7 @@ public sealed class TankCalibrationService(
             tank.ComputedCapacityLitres.Value, TankVolumeService.DeadStockLitres(tank),
             string.Equals(tank.DeadStockInputUnit, "cm", StringComparison.OrdinalIgnoreCase)
                 ? tank.DeadStockLevelCm
-                : TankGeometry.CalculateLiquidLevelCm(shape, dto.DiameterCm, dto.CylinderHeightCm, dto.ConeHeightCm, dto.MultiplicationFactor, TankVolumeService.DeadStockLitres(tank)),
+                : TankLevelConverter.LevelFromLitres(tank, TankVolumeService.DeadStockLitres(tank)),
             tank.DeadStockInputUnit,
             shape));
     }

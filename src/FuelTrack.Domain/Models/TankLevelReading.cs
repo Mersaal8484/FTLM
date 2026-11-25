@@ -27,6 +27,8 @@ public sealed class TankLevelReading : BaseEntity
     public decimal CylinderHeightCmSnapshot { get; set; }
     public decimal ConeHeightCmSnapshot { get; set; }
     public decimal MultiplicationFactorSnapshot { get; set; }
+    public TankCalibrationMode CalibrationModeSnapshot { get; set; } = TankCalibrationMode.Geometry;
+    public decimal? LitresPerCmSnapshot { get; set; }
     public string? WarningsJson { get; set; }
 
     // Phase 3 approval fields

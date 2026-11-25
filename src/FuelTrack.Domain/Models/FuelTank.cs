@@ -22,6 +22,16 @@ namespace FuelTrack.Domain.Models
         /// <summary>Preserves whether the operator entered the dead-stock setting in litres or centimetres.</summary>
         public string DeadStockInputUnit { get; set; } = "litres";
         public double? ActualStockLiters { get; set; }
+        /// <summary>Stored conversion method. Existing rows default to geometry.</summary>
+        public TankCalibrationMode CalibrationMode { get; set; } = TankCalibrationMode.Geometry;
+        /// <summary>Linear calibration factor when <see cref="CalibrationMode"/> is LitresPerCm.</summary>
+        public decimal? LitresPerCm { get; set; }
+        public decimal? CapacityHeightCm { get; set; }
+        public decimal? MinAlertHeightCm { get; set; }
+        public decimal? ActualStockHeightCm { get; set; }
+        public string CapacityInputUnit { get; set; } = "litres";
+        public string MinAlertInputUnit { get; set; } = "litres";
+        public string ActualStockInputUnit { get; set; } = "litres";
         public string? Notes { get; set; }
 
         // Calibration is additive. Historical observations retain an immutable

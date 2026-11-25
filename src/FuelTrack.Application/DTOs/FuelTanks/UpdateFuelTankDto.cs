@@ -23,4 +23,10 @@ public record UpdateFuelTankDto(
     decimal? DiameterCm = null,
     decimal? CylinderHeightCm = null,
     decimal? ConeHeightCm = null,
-    decimal? MultiplicationFactor = null);
+    decimal? MultiplicationFactor = null,
+    TankCalibrationMode? CalibrationMode = null,
+    decimal? LitresPerCm = null,
+    decimal? CapacityHeightCm = null,
+    decimal? MinAlertHeightCm = null,
+    decimal? DeadStockHeightCm = null,
+    decimal? ActualStockHeightCm = null);

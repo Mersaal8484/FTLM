@@ -106,9 +106,22 @@ public class FuelTankService : IFuelTankService
             CylinderHeightCm = dto.CylinderHeightCm,
             ConeHeightCm = dto.ConeHeightCm,
             MultiplicationFactor = dto.MultiplicationFactor,
+            CalibrationMode = dto.CalibrationMode ?? TankCalibrationMode.Geometry,
+            LitresPerCm = dto.LitresPerCm,
+            CapacityHeightCm = dto.CapacityHeightCm,
+            MinAlertHeightCm = dto.MinAlertHeightCm,
+            DeadStockLevelCm = dto.DeadStockHeightCm,
+            ActualStockHeightCm = dto.ActualStockHeightCm,
+            CapacityInputUnit = dto.CapacityHeightCm.HasValue ? "cm" : "litres",
+            MinAlertInputUnit = dto.MinAlertHeightCm.HasValue ? "cm" : "litres",
+            DeadStockInputUnit = dto.DeadStockHeightCm.HasValue ? "cm" : "litres",
+            ActualStockInputUnit = dto.ActualStockHeightCm.HasValue ? "cm" : "litres",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
+
+        RecomputeEnteredVolumes(tank, dto.CapacityHeightCm, dto.MinAlertHeightCm, dto.DeadStockHeightCm, dto.ActualStockHeightCm);
+        ValidateTankStockBounds(tank);
 
         _db.FuelTanks.Add(tank);
         await _db.SaveChangesAsync();
@@ -236,6 +249,17 @@ public class FuelTankService : IFuelTankService
         if (dto.CylinderHeightCm.HasValue) tank.CylinderHeightCm = dto.CylinderHeightCm.Value;
         if (dto.ConeHeightCm.HasValue) tank.ConeHeightCm = dto.ConeHeightCm.Value;
         if (dto.MultiplicationFactor.HasValue) tank.MultiplicationFactor = dto.MultiplicationFactor.Value;
+        if (dto.CalibrationMode.HasValue) tank.CalibrationMode = dto.CalibrationMode.Value;
+        if (dto.LitresPerCm.HasValue) tank.LitresPerCm = dto.LitresPerCm.Value;
+        if (dto.CapacityHeightCm.HasValue) { tank.CapacityHeightCm = dto.CapacityHeightCm; tank.CapacityInputUnit = "cm"; }
+        else if (dto.CapacityLiters.HasValue) { tank.CapacityHeightCm = null; tank.CapacityInputUnit = "litres"; }
+        if (dto.MinAlertHeightCm.HasValue) { tank.MinAlertHeightCm = dto.MinAlertHeightCm; tank.MinAlertInputUnit = "cm"; }
+        else if (dto.MinAlertLiters.HasValue) { tank.MinAlertHeightCm = null; tank.MinAlertInputUnit = "litres"; }
+        if (dto.DeadStockHeightCm.HasValue) { tank.DeadStockLevelCm = dto.DeadStockHeightCm; tank.DeadStockInputUnit = "cm"; }
+        if (dto.ActualStockHeightCm.HasValue) { tank.ActualStockHeightCm = dto.ActualStockHeightCm; tank.ActualStockInputUnit = "cm"; }
+        else if (dto.ActualStockLiters.HasValue) { tank.ActualStockHeightCm = null; tank.ActualStockInputUnit = "litres"; }
+        RecomputeEnteredVolumes(tank, dto.CapacityHeightCm, dto.MinAlertHeightCm, dto.DeadStockHeightCm, dto.ActualStockHeightCm);
+        ValidateTankStockBounds(tank);
         tank.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
@@ -429,7 +453,9 @@ public class FuelTankService : IFuelTankService
             tank.CreatedAt, tank.UpdatedAt,
             tank.DeadStockLevelCm, tank.DeadStockInputUnit,
             tank.DiameterCm, tank.CylinderHeightCm, tank.ConeHeightCm, tank.MultiplicationFactor,
-            tank.TankRole, tank.GeneratorId, tank.Generator?.Name, tank.ParentTankId, tank.ParentTank?.Name, tank.Shape);
+            tank.TankRole, tank.GeneratorId, tank.Generator?.Name, tank.ParentTankId, tank.ParentTank?.Name, tank.Shape,
+            tank.CalibrationMode, tank.LitresPerCm, tank.CapacityHeightCm, tank.MinAlertHeightCm, tank.ActualStockHeightCm,
+            tank.CapacityInputUnit, tank.MinAlertInputUnit, tank.ActualStockInputUnit);
     }
 
     private async Task<CommercialStationScope?> GetCommercialScopeAsync()
@@ -455,8 +481,33 @@ public class FuelTankService : IFuelTankService
                 meterInfo.HasMeter, meterInfo.MeterReading, meterInfo.MeterReadingActual,
                 ft.IsActive, ft.DeadStockLevelCm, ft.DeadStockInputUnit,
                 ft.DiameterCm, ft.CylinderHeightCm, ft.ConeHeightCm, ft.MultiplicationFactor,
-                ft.TankRole, ft.GeneratorId, ft.Generator?.Name, ft.ParentTankId, ft.Shape);
+                ft.TankRole, ft.GeneratorId, ft.Generator?.Name, ft.ParentTankId, ft.Shape,
+                ft.CalibrationMode, ft.LitresPerCm, ft.CapacityHeightCm, ft.MinAlertHeightCm, ft.ActualStockHeightCm,
+                ft.CapacityInputUnit, ft.MinAlertInputUnit, ft.ActualStockInputUnit);
         }).ToList();
+    }
+
+    private static void RecomputeEnteredVolumes(FuelTank tank, decimal? capacityHeightCm, decimal? minAlertHeightCm, decimal? deadStockHeightCm, decimal? actualStockHeightCm)
+    {
+        if ((tank.CalibrationMode == TankCalibrationMode.LitresPerCm) && tank.LitresPerCm is not > 0)
+            throw new ArgumentException("LitresPerCm must be greater than zero for linear calibration.");
+        if (capacityHeightCm.HasValue) tank.CapacityLiters = (double)TankLevelConverter.LitresFromLevel(tank, capacityHeightCm.Value);
+        if (minAlertHeightCm.HasValue) tank.MinAlertLiters = (double)TankLevelConverter.LitresFromLevel(tank, minAlertHeightCm.Value);
+        if (deadStockHeightCm.HasValue) tank.DeadStockLiters = (double)TankLevelConverter.LitresFromLevel(tank, deadStockHeightCm.Value);
+        if (actualStockHeightCm.HasValue) tank.ActualStockLiters = (double)TankLevelConverter.LitresFromLevel(tank, actualStockHeightCm.Value);
+    }
+
+    private static void ValidateTankStockBounds(FuelTank tank)
+    {
+        var capacity = (decimal)tank.CapacityLiters;
+        var minimum = (decimal)(tank.MinAlertLiters ?? 0d);
+        var deadStock = TankVolumeService.DeadStockLitres(tank);
+        var actual = (decimal)(tank.ActualStockLiters ?? 0d);
+        if (capacity <= 0m) throw new ArgumentException("Tank capacity must be greater than zero.");
+        if (minimum < 0m || minimum > capacity) throw new ArgumentException("Minimum alert must be between zero and capacity.");
+        if (actual < 0m || actual > capacity) throw new ArgumentException("Actual stock must be between zero and capacity.");
+        if (deadStock < 0m || deadStock > (minimum > 0m ? minimum : capacity))
+            throw new ArgumentException("Dead stock must not exceed the minimum alert level or capacity.");
     }
 
     private async Task<Dictionary<int, (bool HasMeter, double? MeterReading, double? MeterReadingActual)>> GetLatestMeterReadingsAsync(int[] tankIds)

@@ -32,4 +32,12 @@ public record FuelTankDetailDto(
     string? GeneratorName = null,
     int? ParentTankId = null,
     string? ParentTankName = null,
-    TankShape? Shape = null);
+    TankShape? Shape = null,
+    TankCalibrationMode CalibrationMode = TankCalibrationMode.Geometry,
+    decimal? LitresPerCm = null,
+    decimal? CapacityHeightCm = null,
+    decimal? MinAlertHeightCm = null,
+    decimal? ActualStockHeightCm = null,
+    string? CapacityInputUnit = null,
+    string? MinAlertInputUnit = null,
+    string? ActualStockInputUnit = null);

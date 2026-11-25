@@ -48,7 +48,7 @@ public sealed class StationStocktakeService(
         var tankIds = dto.FuelLines.Select(x => x.FuelTankId).ToList();
         var oilIds = dto.OilLines.Select(x => x.OilId).ToList();
         var tanks = await db.FuelTanks.Where(x => tankIds.Contains(x.Id) && x.SubStationId == scope.SubStationId)
-            .Select(x => new { x.Id, x.Name, x.ActualStockLiters, x.DeadStockLiters, x.Shape, x.DiameterCm, x.CylinderHeightCm, x.ConeHeightCm, x.MultiplicationFactor }).ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken);
         var oils = await db.Oils.Where(x => oilIds.Contains(x.Id) && x.SubStationId == scope.SubStationId)
             .Select(x => new { x.Id, x.OilLookupId, x.CurrentStock, OilName = x.OilLookup.Name }).ToListAsync(cancellationToken);
         if (tanks.Count != tankIds.Count || oils.Count != oilIds.Count)
@@ -80,11 +80,11 @@ public sealed class StationStocktakeService(
         foreach (var line in dto.FuelLines)
         {
             var tank = tanks.Single(x => x.Id == line.FuelTankId);
-            var counted = line.DipLevelCm.HasValue && tank.DiameterCm.HasValue && tank.CylinderHeightCm.HasValue && tank.ConeHeightCm.HasValue && tank.MultiplicationFactor.HasValue
-                ? Round(TankGeometry.CalculateLitres(tank.Shape ?? TankShape.VerticalCylinderWithConicalBottom, tank.DiameterCm.Value, tank.CylinderHeightCm.Value, tank.ConeHeightCm.Value, tank.MultiplicationFactor.Value, line.DipLevelCm.Value))
+            var counted = line.DipLevelCm.HasValue && TankLevelConverter.IsConfigured(tank)
+                ? Round(TankLevelConverter.LitresFromLevel(tank, line.DipLevelCm.Value))
                 : Round(line.CountedLiters);
             var book = Round((decimal)(tank.ActualStockLiters ?? 0));
-            var dead = Round((decimal)(tank.DeadStockLiters ?? 0));
+            var dead = Round(TankVolumeService.DeadStockLitres(tank));
             stocktake.FuelLines.Add(new StationStocktakeFuelLine
             {
                 FuelTankId = tank.Id, CountedLiters = counted, BookLiters = book, DeadStockLiters = dead,
