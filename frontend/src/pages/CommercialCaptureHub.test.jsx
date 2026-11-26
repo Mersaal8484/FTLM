@@ -21,8 +21,18 @@ const commercialSite = {
 function mockRequests() {
   client.get.mockImplementation(async (url) => {
     if (url === '/api/operational-captures/references') return { data: [commercialSite] };
-    if (url === '/api/generators/my') return { data: [{ id: 11, lastPowerRecord: 70 }] };
+    if (url === '/api/generators/my') return { data: [{ id: 11, status: 'Running', lastPowerRecord: 40000, lastHoursRecord: 999 }] };
     if (url === '/api/fuel-tanks') return { data: [{ id: 31, name: 'Daily Tank 1', tankRole: 2, generatorId: 11, actualStockLiters: 200 }] };
+    if (url === '/api/operational-captures/previous-readings') {
+      return {
+        data: {
+          readings: [
+            { subjectType: 0, subjectId: 11, latestAny: { rawValue: 5000, source: 'Controller' } },
+            { subjectType: 1, subjectId: 11, latestAny: { rawValue: 500, source: 'Controller' } },
+          ],
+        },
+      };
+    }
     return { data: [] };
   });
 }
@@ -116,4 +126,16 @@ test('falls back to hourly tab when query param tab has an unknown value', async
   expect(await screen.findByText('Generator 1')).toBeInTheDocument();
   expect(container.querySelector('a[href*="kind=hourly-generator"]')).toBeInTheDocument();
   expect(container.querySelector('a[href*="daily-feeders"]')).toBeNull();
+});
+
+test('generator cards display baseline values from previous-readings rather than stale /generators/my records and localize status', async () => {
+  useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
+  mockRequests();
+  render(<MemoryRouter><CommercialCaptureHub /></MemoryRouter>);
+
+  expect(await screen.findByText('5,000')).toBeInTheDocument();
+  expect(screen.getByText('500')).toBeInTheDocument();
+  expect(screen.queryByText('40,000')).not.toBeInTheDocument();
+  expect(screen.queryByText('40000')).not.toBeInTheDocument();
+  expect(screen.getByText(/يعمل|Running/)).toBeInTheDocument();
 });

@@ -38,15 +38,16 @@ public sealed class OperationalCaptureService(
             return Result<PreviousMeterReadingsDto>.NotFound("Site not found or outside your scope.");
 
         var generatorIds = await db.Generators.AsNoTracking()
-            .Where(x => x.SubStationId == subStationId)
+            .Where(x => x.SubStationId == subStationId && x.DeletedAt == null)
             .Select(x => x.Id)
             .ToListAsync(cancellationToken);
-        var feederIds = await db.Feeders.AsNoTracking()
-            .Where(x => x.SubStationId == subStationId)
-            .Select(x => x.Id)
+        var feeders = await db.Feeders.AsNoTracking()
+            .Where(x => x.SubStationId == subStationId && x.DeletedAt == null)
+            .Select(x => new PreviousReadingBaselineResolver.FeederBaselineInfo(x.Id, x.MeterId, x.MeterMultiplier))
             .ToListAsync(cancellationToken);
+        var feederIds = feeders.Select(x => x.Id).ToList();
         var solarMeterIds = await db.Meters.AsNoTracking()
-            .Where(x => x.SubStationId == subStationId && x.IsActive &&
+            .Where(x => x.SubStationId == subStationId && x.IsActive && x.DeletedAt == null &&
                         x.MeterTypeLookup != null &&
                         (x.MeterTypeLookup.Code == "SolarProductionMeter" || x.MeterTypeLookup.Code == "SolarMeter"))
             .Select(x => x.Id)
@@ -66,8 +67,8 @@ public sealed class OperationalCaptureService(
             .OrderByDescending(x => x.CapturedAtUtc).ThenByDescending(x => x.Id)
             .ToListAsync(cancellationToken);
 
-        LatestMeterReadingDto ToDto(MeterReading reading) => new(
-            reading.RawValue, reading.MultiplierSnapshot, reading.CapturedAtUtc, reading.Kind, reading.Status, reading.IsMeterReset);
+        var baselineResolver = new PreviousReadingBaselineResolver();
+        var baselines = await baselineResolver.LoadAsync(db, subStationId, generatorIds, feeders, solarMeterIds, cancellationToken);
 
         var requiredSubjects = generatorIds.SelectMany(id => new[]
         {
@@ -80,20 +81,7 @@ public sealed class OperationalCaptureService(
         var readings = requiredSubjects.Select(subject =>
         {
             var subjectReadings = candidates.Where(x => x.SubjectType == subject.SubjectType && x.SubjectId == subject.SubjectId).ToList();
-            var any = subjectReadings.FirstOrDefault();
-            var official = subjectReadings.FirstOrDefault(x => x.Kind == MeterReadingKind.DailyClosing && ReadingApprovalPolicy.IsOfficial(x.Status));
-            var chronological = subjectReadings.OrderBy(x => x.CapturedAtUtc).ThenBy(x => x.Id).ToList();
-            var deltas = chronological.Zip(chronological.Skip(1), (previous, current) => new { previous, current })
-                .Where(pair => !pair.current.IsMeterReset && pair.current.RawValue >= pair.previous.RawValue)
-                .Select(pair => (pair.current.RawValue - pair.previous.RawValue) * pair.current.MultiplierSnapshot)
-                .TakeLast(6)
-                .ToList();
-            return new PreviousMeterReadingDto(
-                subject.SubjectType,
-                subject.SubjectId,
-                any is null ? null : ToDto(any),
-                official is null ? null : ToDto(official),
-                deltas.Count == 0 ? null : deltas.Average());
+            return baselineResolver.ResolveSubject(subject.SubjectType, subject.SubjectId, subjectReadings, baselines);
         }).ToList();
 
         var stationId = await db.SubStations.AsNoTracking()

@@ -9,13 +9,29 @@ import usePermissions from '../permissions/usePermissions';
 const isSolarMeter = (meter) => meter.meterTypeCode === 'SolarProductionMeter' || meter.meterTypeCode === 'SolarMeter';
 const isDailyTank = (tank) => tank.tankRole === 2 || tank.tankRole === 'Daily';
 
-function GeneratorCard({ source, details, dailyTank, mode }) {
+function GeneratorCard({ source, details, dailyTank, prevEnergy, prevHours, mode }) {
   const { t } = useTranslation();
   const { can } = usePermissions();
   const generatorName = source?.name || details?.name || '';
   const generatorCode = source?.code || source?.model || details?.serialNumber || '';
   const oilLow = details?.assignedOilTypes?.some((oil) => oil.currentStock <= oil.minStock);
   const isDaily = mode === 'daily';
+  const statusClass = details?.status === 'Running'
+    ? 'badge-success'
+    : details?.status === 'Idle'
+      ? 'badge-warning'
+      : details?.status === 'Maintenance'
+        ? 'badge-danger'
+        : 'badge-muted';
+  const statusLabel = details?.status === 'Running'
+    ? t('operational.commercialCapture.statusRunning')
+    : details?.status === 'Idle'
+      ? t('operational.commercialCapture.statusIdle')
+      : details?.status === 'Maintenance'
+        ? t('operational.commercialCapture.statusMaintenance')
+        : details?.status === 'Offline'
+          ? t('operational.commercialCapture.statusOffline')
+          : details?.status;
 
   return <article className="gen-card">
     <div className="gen-card-header">
@@ -23,17 +39,17 @@ function GeneratorCard({ source, details, dailyTank, mode }) {
         <div className="gen-name">{generatorName}</div>
         {generatorCode && <div className="gen-model">{generatorCode}</div>}
       </div>
-      {details?.status && <span className="badge badge-muted">{details.status}</span>}
+      {details?.status && <span className={`badge ${statusClass}`}>{statusLabel}</span>}
     </div>
     {isDaily && <div className="gen-stats">
       <div className="gen-stat-item"><div className="gen-stat-label">{t('operational.commercialCapture.dailyTank')}</div><div className="gen-stat-value">{dailyTank?.name || t('operational.commercialCapture.noDailyTank')}</div></div>
       {dailyTank?.actualStockLiters != null && <div className="gen-stat-item"><div className="gen-stat-label">{t('operational.commercialCapture.currentTankStock')}</div><div className="gen-stat-value">{dailyTank.actualStockLiters}</div></div>}
     </div>}
-    {!isDaily && details && <div className="gen-stats">
-      <div className="gen-stat-item"><div className="gen-stat-label">{t('operational.commercialCapture.lastPower')}</div><div className="gen-stat-value">{details.lastPowerRecord ?? '—'}</div></div>
-      <div className="gen-stat-item"><div className="gen-stat-label">{t('operational.commercialCapture.lastHours')}</div><div className="gen-stat-value">{details.lastHoursRecord ?? '—'}</div></div>
-      <div className="gen-stat-item"><div className="gen-stat-label">{t('operational.commercialCapture.capacity')}</div><div className="gen-stat-value">{details.actualPowerKW ?? '—'}</div></div>
-      <div className="gen-stat-item"><div className="gen-stat-label">{t('operational.commercialCapture.oilType')}</div><div className="gen-stat-value">{details.assignedOilTypes?.map((oil) => oil.name).join(', ') || '—'}</div></div>
+    {!isDaily && (details || prevEnergy || prevHours) && <div className="gen-stats">
+      <div className="gen-stat-item"><div className="gen-stat-label">{t('operational.commercialCapture.lastPower')}</div><div className="gen-stat-value">{prevEnergy?.rawValue != null ? Number(prevEnergy.rawValue).toLocaleString('en-US') : '—'}</div></div>
+      <div className="gen-stat-item"><div className="gen-stat-label">{t('operational.commercialCapture.lastHours')}</div><div className="gen-stat-value">{prevHours?.rawValue != null ? Number(prevHours.rawValue).toLocaleString('en-US') : '—'}</div></div>
+      <div className="gen-stat-item"><div className="gen-stat-label">{t('operational.commercialCapture.capacity')}</div><div className="gen-stat-value">{details?.actualPowerKW ?? '—'}</div></div>
+      <div className="gen-stat-item"><div className="gen-stat-label">{t('operational.commercialCapture.oilType')}</div><div className="gen-stat-value">{details?.assignedOilTypes?.map((oil) => oil.name).join(', ') || '—'}</div></div>
     </div>}
     {oilLow && <div className="form-error"><AlertCircle size={15} />{t('operational.commercialCapture.lowOil')}</div>}
     <div className="gen-card-actions">
@@ -72,6 +88,7 @@ export default function CommercialCaptureHub() {
   const [site, setSite] = useState(null);
   const [generatorDetails, setGeneratorDetails] = useState([]);
   const [fuelTanks, setFuelTanks] = useState([]);
+  const [previousReadings, setPreviousReadings] = useState([]);
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') === 'daily' ? 'daily' : 'hourly';
   const setActiveTab = (tab) => setSearchParams({ tab: tab === 'daily' ? 'daily' : 'hourly' }, { replace: true });
@@ -85,16 +102,18 @@ export default function CommercialCaptureHub() {
       setLoading(true);
       setError(false);
       try {
-        const [references, generatorResponse, tankResponse] = await Promise.all([
+        const [references, generatorResponse, tankResponse, prevResponse] = await Promise.all([
           client.get('/api/operational-captures/references'),
           client.get('/api/generators/my').catch(() => ({ data: [] })),
           client.get('/api/fuel-tanks').catch(() => ({ data: [] })),
+          client.get('/api/operational-captures/previous-readings').catch(() => ({ data: { readings: [] } })),
         ]);
         if (!active) return;
         const tankData = tankResponse.data;
         setSite((references.data || [])[0] || null);
         setGeneratorDetails(Array.isArray(generatorResponse.data) ? generatorResponse.data : []);
         setFuelTanks(Array.isArray(tankData) ? tankData : (tankData?.items || []));
+        setPreviousReadings(Array.isArray(prevResponse.data?.readings) ? prevResponse.data.readings : []);
       } catch {
         if (active) setError(true);
       } finally {
@@ -106,6 +125,8 @@ export default function CommercialCaptureHub() {
   }, [isCommercial, isCommercialMode]);
 
   const detailsById = useMemo(() => new Map(generatorDetails.map((generator) => [generator.id, generator])), [generatorDetails]);
+  const prevReading = (generatorId, numericType, namedType) =>
+    previousReadings.find((r) => r.subjectId === generatorId && (r.subjectType === numericType || r.subjectType === namedType))?.latestAny ?? null;
   const dailyTankByGeneratorId = useMemo(() => {
     const map = new Map();
     for (const tank of fuelTanks) {
@@ -140,7 +161,7 @@ export default function CommercialCaptureHub() {
     <section>
       <h2 className="operational-section-title"><Zap size={18} />{t(isDaily ? 'operational.commercialCapture.dailyGeneratorsTitle' : 'operational.commercialCapture.hourlyGeneratorsTitle')}</h2>
       {generators.length > 0
-        ? <div className="grid-auto">{generators.map((generator) => <GeneratorCard key={generator.id} source={generator} details={detailsById.get(generator.id)} dailyTank={dailyTankByGeneratorId.get(Number(generator.id))} mode={activeTab} />)}</div>
+        ? <div className="grid-auto">{generators.map((generator) => <GeneratorCard key={generator.id} source={generator} details={detailsById.get(generator.id)} dailyTank={dailyTankByGeneratorId.get(Number(generator.id))} prevEnergy={prevReading(generator.id, 0, 'GeneratorEnergyProduced')} prevHours={prevReading(generator.id, 1, 'GeneratorRunningHours')} mode={activeTab} />)}</div>
         : <p className="capture-empty">{t('operational.commercialCapture.noGenerators')} <Link to="/generators">{t('operational.commercialCapture.configureGenerators')}</Link></p>}
     </section>
 

@@ -304,12 +304,22 @@ export default function OperationalCapture() {
   };
   const counterHint = (subjectType, subjectId, official = false) => {
     const previous = previousFor(subjectType, subjectId, official);
-    return previous ? `${t('operational.capture.lastReading')}: ${previous.rawValue} · ${new Date(previous.capturedAtUtc).toLocaleString()}` : t('operational.capture.noPreviousReading');
+    if (!previous) return t('operational.capture.noPreviousReading');
+    const formattedValue = Number(previous.rawValue).toLocaleString('en-US');
+    const sourceLabel = previous.source === 'Controller'
+      ? t('operational.capture.sourceController')
+      : previous.source === 'MeterInitial'
+        ? t('operational.capture.sourceMeterInitial')
+        : null;
+    if (sourceLabel) {
+      return `${t('operational.capture.lastReading')}: ${formattedValue} (${sourceLabel})`;
+    }
+    return `${t('operational.capture.lastReading')}: ${formattedValue} · ${new Date(previous.capturedAtUtc).toLocaleString('en-US')}`;
   };
   const closingDifference = (subjectType, subjectId, rawValue, multiplier = 1) => {
     const previous = previousFor(subjectType, subjectId, true);
     if (!previous || rawValue === '' || rawValue == null) return t('operational.capture.noPreviousReading');
-    return `${t('operational.capture.liveDifference')}: ${((Number(rawValue) - Number(previous.rawValue)) * Number(multiplier || 1)).toLocaleString()}`;
+    return `${t('operational.capture.liveDifference')}: ${((Number(rawValue) - Number(previous.rawValue)) * Number(multiplier || 1)).toLocaleString('en-US')}`;
   };
   const dailyPreview = useMemo(() => {
     if (captureKind !== 'dailyClosing') return null;

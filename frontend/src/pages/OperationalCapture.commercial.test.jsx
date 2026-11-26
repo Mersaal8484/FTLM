@@ -134,3 +134,99 @@ test('surfaces readable InvalidOperationException and ArgumentOutOfRangeExceptio
   fireEvent.change(levelInput, { target: { value: '120' } });
   expect(await screen.findByText('Liquid level must be between 0 and 100 cm.')).toBeInTheDocument();
 });
+
+test('uses controller and meter baselines for hint, lower-value reset warning, and first daily closing difference', async () => {
+  useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
+  client.get.mockImplementation(async (url) => {
+    if (url === '/api/operational-captures/references') return { data: [site] };
+    if (url === '/api/operational-captures/previous-readings') {
+      return {
+        data: {
+          readings: [
+            {
+              subjectType: 0,
+              subjectId: 11,
+              latestAny: { rawValue: 5000, multiplierSnapshot: 1, capturedAtUtc: '2026-01-01T00:00:00Z', kind: 0, status: 2, isMeterReset: false, source: 'Controller' },
+              latestOfficialDailyClosing: { rawValue: 5000, multiplierSnapshot: 1, capturedAtUtc: '2026-01-01T00:00:00Z', kind: 0, status: 2, isMeterReset: false, source: 'Controller' },
+              recentAverageDelta: null,
+            },
+            {
+              subjectType: 1,
+              subjectId: 11,
+              latestAny: null,
+              latestOfficialDailyClosing: null,
+              recentAverageDelta: null,
+            },
+            {
+              subjectType: 2,
+              subjectId: 21,
+              latestAny: { rawValue: 400, multiplierSnapshot: 1, capturedAtUtc: '2026-01-01T00:00:00Z', kind: 0, status: 2, isMeterReset: false, source: 'MeterInitial' },
+              latestOfficialDailyClosing: { rawValue: 400, multiplierSnapshot: 1, capturedAtUtc: '2026-01-01T00:00:00Z', kind: 0, status: 2, isMeterReset: false, source: 'MeterInitial' },
+              recentAverageDelta: null,
+            },
+          ],
+          tankReadings: [],
+          tankBalances: [],
+        },
+      };
+    }
+    if (url === '/api/fuel-tanks') return { data: [{ id: 31, name: 'Daily tank', tankRole: 2, generatorId: 11, maxLevelCm: 100 }] };
+    return { data: [] };
+  });
+
+  render(<MemoryRouter initialEntries={['/operations/capture?kind=daily-generator&generatorId=11&tankId=31']}><OperationalCapture /></MemoryRouter>);
+
+  expect(await screen.findByText(/5,000 \((من شاشة المولد|from generator screen)\)/)).toBeInTheDocument();
+
+  const spinbuttons = screen.getAllByRole('spinbutton');
+  // spinbuttons[0] = energyRaw; enter closing 5250 -> difference 250; then lower 4900 -> triggers reset warning
+  fireEvent.change(spinbuttons[0], { target: { value: '5250' } });
+  expect(screen.getByText(/250/)).toBeInTheDocument();
+
+  fireEvent.change(spinbuttons[0], { target: { value: '4900' } });
+  expect(await screen.findByRole('checkbox', { name: /إعادة ضبط العداد|Meter reset/i })).toBeInTheDocument();
+});
+
+test('shows meter setup source label on feeder baseline and fallback when no baseline exists', async () => {
+  useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
+  client.get.mockImplementation(async (url) => {
+    if (url === '/api/operational-captures/references') {
+      return {
+        data: [{
+          ...site,
+          feeders: [{ id: 21, name: 'Feeder 1', meterMultiplier: 1 }, { id: 22, name: 'Feeder 2', meterMultiplier: 1 }],
+        }],
+      };
+    }
+    if (url === '/api/operational-captures/previous-readings') {
+      return {
+        data: {
+          readings: [
+            {
+              subjectType: 2,
+              subjectId: 21,
+              latestAny: { rawValue: 400, multiplierSnapshot: 1, capturedAtUtc: '2026-01-01T00:00:00Z', kind: 0, status: 2, isMeterReset: false, source: 'MeterInitial' },
+              latestOfficialDailyClosing: { rawValue: 400, multiplierSnapshot: 1, capturedAtUtc: '2026-01-01T00:00:00Z', kind: 0, status: 2, isMeterReset: false, source: 'MeterInitial' },
+              recentAverageDelta: null,
+            },
+            {
+              subjectType: 2,
+              subjectId: 22,
+              latestAny: null,
+              latestOfficialDailyClosing: null,
+              recentAverageDelta: null,
+            },
+          ],
+          tankReadings: [],
+          tankBalances: [],
+        },
+      };
+    }
+    return { data: [] };
+  });
+
+  render(<MemoryRouter initialEntries={['/operations/capture?kind=daily-feeders']}><OperationalCapture /></MemoryRouter>);
+
+  expect(await screen.findByText(/400 \((من تهيئة العداد|from meter setup)\)/)).toBeInTheDocument();
+  expect(screen.getAllByText(/لا توجد قراءة سابقة|No previous reading/i).length).toBeGreaterThanOrEqual(1);
+});

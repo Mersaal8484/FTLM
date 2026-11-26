@@ -100,7 +100,8 @@ public sealed record LatestMeterReadingDto(
     DateTime CapturedAtUtc,
     MeterReadingKind Kind,
     OperationalReadingStatus Status,
-    bool IsMeterReset);
+    bool IsMeterReset,
+    string Source = "Submitted");
 
 public sealed record PreviousTankLevelReadingDto(
     int FuelTankId,
