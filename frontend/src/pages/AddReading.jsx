@@ -6,8 +6,11 @@ import {
 } from 'lucide-react';
 import client from '../api/client';
 import { PageHeader, Button, FormField, Input } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 function AddReading({ lang, currentUser }) {
+  const { isCommercial, isCommercialMode } = useCommercialMode();
+  const backTarget = (isCommercial || isCommercialMode) ? '/operations/capture' : '/my-generators';
   const ar = lang === 'ar';
   const canEditSchedule = true;
   const getCurrentShiftType = () => {
@@ -130,7 +133,7 @@ function AddReading({ lang, currentUser }) {
         notes: form.notes,
       });
       setStatus({ type: 'success', msg: ar ? 'تم إرسال القراءة بنجاح وهي بانتظار الموافقة ✓' : 'Reading submitted successfully, pending approval ✓' });
-      setTimeout(() => navigate('/my-generators'), 400);
+      setTimeout(() => navigate(backTarget), 400);
     } catch (err) {
       const detail = err.response?.data?.detail || err.response?.data?.msg || err.response?.data?.title;
       setStatus({ type: 'error', msg: detail || (ar ? 'حدث خطأ' : 'Error occurred') });
@@ -169,7 +172,7 @@ function AddReading({ lang, currentUser }) {
       <PageHeader
         title={
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Button variant="ghost" size="sm" icon={ChevronLeft} onClick={() => navigate('/my-generators')} style={{ transform: ar ? 'rotate(180deg)' : 'none' }} />
+            <Button variant="ghost" size="sm" icon={ChevronLeft} onClick={() => navigate(backTarget)} style={{ transform: ar ? 'rotate(180deg)' : 'none' }} />
             <Activity size={22} style={{ color: 'var(--primary)' }} />
             {ar ? 'إدخال قراءة جديدة' : 'New Reading Entry'}
           </span>
@@ -181,7 +184,7 @@ function AddReading({ lang, currentUser }) {
           </span>
         }
         actions={
-          <Button variant="ghost" size="sm" icon={RefreshCw} onClick={() => navigate('/my-generators')} />
+          <Button variant="ghost" size="sm" icon={RefreshCw} onClick={() => navigate(backTarget)} />
         }
       />
 
