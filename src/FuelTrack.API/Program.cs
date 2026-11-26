@@ -555,6 +555,7 @@ using (var scope = app.Services.CreateScope())
     {
         startupLogger.LogInformation("Ensuring SQLite database schema is created...");
         await dbContext.Database.EnsureCreatedAsync();
+        await SqliteFuelTankSchemaRepair.ApplyAsync(dbContext);
         startupLogger.LogInformation("SQLite database schema verified");
     }
     else if (dbContext.Database.IsRelational())
