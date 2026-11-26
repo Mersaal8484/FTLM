@@ -10,6 +10,21 @@ import CommercialCaptureHub from './CommercialCaptureHub';
 
 const isoNow = () => new Date().toISOString().slice(0, 16);
 const decimal = (value) => (value === '' || value == null ? null : Number(value));
+const readApiError = (err, fallback) => {
+  const data = err?.response?.data;
+  const raw = (typeof data === 'string' && data.trim())
+    || data?.detail
+    || data?.Detail
+    || data?.error
+    || data?.Error
+    || data?.message
+    || data?.Message
+    || data?.title;
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw.replace(/\s*\(Parameter '[^']+'\)\.?$/, '').trim();
+  }
+  return fallback;
+};
 
 export async function compressPhoto(file, stamp) {
   const source = await createImageBitmap(file);
@@ -181,7 +196,7 @@ export default function OperationalCapture() {
             })
             .catch((err) => {
               if (cancelled) return;
-              const msg = err?.response?.data?.detail || err?.response?.data?.error || t('operational.commercialCapture.tankLevelOutOfRange', { max: metaMax ?? '—' });
+              const msg = readApiError(err, t('operational.commercialCapture.tankLevelOutOfRange', { max: metaMax ?? '—' }));
               setTankConversions((prev) => ({
                 ...prev,
                 [tankId]: {
@@ -408,7 +423,7 @@ export default function OperationalCapture() {
       window.alert(t('operational.capture.success'));
       if (isFocusedCommercial) navigate('/operations/capture');
     }
-    catch (error) { window.alert(error.response?.data?.error || t('operational.capture.failed')); }
+    catch (error) { window.alert(readApiError(error, t('operational.capture.failed'))); }
     finally { setSubmitting(false); }
   };
   const sourceName = (line) => {

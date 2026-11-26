@@ -4,6 +4,7 @@ using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
 using FuelTrack.Infrastructure;
 using FuelTrack.Infrastructure.Services;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -473,6 +474,152 @@ public class GeneratorDailyTankLinkingTests : IDisposable
 
         Assert.False(result.IsSuccess);
         Assert.Contains("daily tank", result.Error!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Sqlite_UpdateAsync_RelinkDailyTank_TwoPhaseSaveChanges_RespectsFilteredUniqueIndex()
+    {
+        var (connection, db, subStationId, fuelLookupId) = await CreateSqliteCommercialAsync();
+        await using (connection)
+        await using (db)
+        {
+            var tank1 = new FuelTank
+            {
+                SubStationId = subStationId,
+                FuelLookupId = fuelLookupId,
+                Name = "SQLite Daily 1",
+                Code = "SD-1",
+                CapacityLiters = 1000,
+                TankRole = TankRole.Daily,
+                IsActive = true
+            };
+            var tank2 = new FuelTank
+            {
+                SubStationId = subStationId,
+                FuelLookupId = fuelLookupId,
+                Name = "SQLite Daily 2",
+                Code = "SD-2",
+                CapacityLiters = 1000,
+                TankRole = TankRole.Daily,
+                IsActive = true
+            };
+            db.FuelTanks.AddRange(tank1, tank2);
+            await db.SaveChangesAsync();
+
+            var service = new GeneratorService(db, new ScopeFilterService(), _currentUser, new CommercialStationModeService(db));
+            var created = await service.CreateAsync(new CreateGeneratorDto(
+                SubStationId: 0,
+                Name: "SQLite Gen",
+                SerialNumber: "SQL-GEN-1",
+                Model: "M1",
+                Manufacturer: "Man1",
+                DailyTankId: tank1.Id), 1);
+
+            Assert.True(created.IsSuccess);
+
+            var relinked = await service.UpdateAsync(created.Value!.Id, new UpdateGeneratorDto(
+                null, "SQLite Gen", null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null,
+                IsActive: true,
+                DailyTankId: tank2.Id), 1);
+
+            Assert.True(relinked.IsSuccess);
+            Assert.Equal(tank2.Id, relinked.Value!.DailyTankId);
+
+            var reloadedTank1 = await db.FuelTanks.AsNoTracking().SingleAsync(t => t.Id == tank1.Id);
+            var reloadedTank2 = await db.FuelTanks.AsNoTracking().SingleAsync(t => t.Id == tank2.Id);
+            Assert.Null(reloadedTank1.GeneratorId);
+            Assert.Equal(created.Value.Id, reloadedTank2.GeneratorId);
+
+            // Confirm the SQLite filtered unique index (UX_FuelTanks_ActiveDailyGenerator) is active
+            db.FuelTanks.Add(new FuelTank
+            {
+                SubStationId = subStationId,
+                FuelLookupId = fuelLookupId,
+                Name = "Duplicate Claim",
+                Code = "SD-DUP",
+                CapacityLiters = 1000,
+                TankRole = TankRole.Daily,
+                GeneratorId = created.Value.Id,
+                IsActive = true
+            });
+            await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        }
+    }
+
+    [Fact]
+    public async Task Sqlite_TwoGeneratorsClaimingSameTank_SecondFailsAndRollsBack()
+    {
+        var (connection, db1, subStationId, fuelLookupId) = await CreateSqliteCommercialAsync();
+        await using (connection)
+        await using (db1)
+        {
+            var tank = new FuelTank
+            {
+                SubStationId = subStationId,
+                FuelLookupId = fuelLookupId,
+                Name = "Contested Daily Tank",
+                Code = "SD-CONT",
+                CapacityLiters = 1000,
+                TankRole = TankRole.Daily,
+                IsActive = true
+            };
+            db1.FuelTanks.Add(tank);
+            await db1.SaveChangesAsync();
+
+            var options2 = new DbContextOptionsBuilder<FuelTrackDbContext>().UseSqlite(connection).Options;
+            await using var db2 = new FuelTrackDbContext(options2);
+
+            // Pre-load tank into db2's change tracker before generator 1 claims it so the
+            // inside-transaction reload + re-check is genuinely exercised.
+            var trackedBeforeClaim = await db2.FuelTanks.FindAsync(tank.Id);
+            Assert.NotNull(trackedBeforeClaim);
+            Assert.Null(trackedBeforeClaim!.GeneratorId);
+
+            var service1 = new GeneratorService(db1, new ScopeFilterService(), _currentUser, new CommercialStationModeService(db1));
+            var service2 = new GeneratorService(db2, new ScopeFilterService(), _currentUser, new CommercialStationModeService(db2));
+
+            var first = await service1.CreateAsync(new CreateGeneratorDto(
+                SubStationId: 0, Name: "Gen 1", SerialNumber: "G-C1", Model: "M1", Manufacturer: "Man1", DailyTankId: tank.Id), 1);
+            Assert.True(first.IsSuccess);
+
+            var second = await service2.CreateAsync(new CreateGeneratorDto(
+                SubStationId: 0, Name: "Gen 2", SerialNumber: "G-C2", Model: "M1", Manufacturer: "Man1", DailyTankId: tank.Id), 1);
+
+            Assert.False(second.IsSuccess);
+            Assert.Contains("already linked", second.Error!, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(1, await db1.Generators.CountAsync());
+            var finalTank = await db1.FuelTanks.AsNoTracking().SingleAsync(t => t.Id == tank.Id);
+            Assert.Equal(first.Value!.Id, finalTank.GeneratorId);
+        }
+    }
+
+    private static async Task<(SqliteConnection Connection, FuelTrackDbContext Db, int SubStationId, int FuelLookupId)> CreateSqliteCommercialAsync()
+    {
+        var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<FuelTrackDbContext>().UseSqlite(connection).Options;
+        var db = new FuelTrackDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        var commercialMode = new CommercialStationModeService(db);
+        var activated = await commercialMode.ActivateAsync(new("SQLite Commercial", "SQL-01"), 1);
+        Assert.True(activated.IsSuccess);
+        var scope = await commercialMode.GetScopeAsync();
+        Assert.NotNull(scope);
+
+        var fuelLookup = await db.Lookups.FirstOrDefaultAsync(l => l.IsActive);
+        if (fuelLookup is null)
+        {
+            var cat = new LookupCategory { Name = "FuelType", DisplayName = "FuelType", IsActive = true };
+            db.LookupCategories.Add(cat);
+            await db.SaveChangesAsync();
+            fuelLookup = new Lookup { CategoryId = cat.Id, Name = "Diesel", Code = "DIESEL", IsActive = true };
+            db.Lookups.Add(fuelLookup);
+            await db.SaveChangesAsync();
+        }
+
+        return (connection, db, scope!.SubStationId, fuelLookup.Id);
     }
 
     public void Dispose()

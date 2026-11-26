@@ -102,17 +102,37 @@ public class GeneratorService : IGeneratorService
                 return Result<GeneratorListDto>.Failure("This tank is already linked to another generator.");
         }
 
-        await DbTransactionRunner.RunAsync(_db, async transactionCt =>
+        try
         {
-            _db.Generators.Add(generator);
-            await _db.SaveChangesAsync(transactionCt);
-
-            if (linkedTank is not null)
+            await DbTransactionRunner.RunAsync(_db, async transactionCt =>
             {
-                linkedTank.GeneratorId = generator.Id;
+                if (linkedTank is not null)
+                {
+                    await _db.Entry(linkedTank).ReloadAsync(transactionCt);
+                    if (linkedTank.DeletedAt is not null || !linkedTank.IsActive || linkedTank.TankRole != TankRole.Daily || linkedTank.SubStationId != subStationId)
+                        throw new DailyTankLinkConflictException($"Daily tank {linkedTank.Id} is unavailable.");
+                    if (linkedTank.GeneratorId.HasValue)
+                        throw new DailyTankLinkConflictException("This tank is already linked to another generator.");
+                }
+
+                _db.Generators.Add(generator);
                 await _db.SaveChangesAsync(transactionCt);
-            }
-        }, ct);
+
+                if (linkedTank is not null)
+                {
+                    linkedTank.GeneratorId = generator.Id;
+                    await _db.SaveChangesAsync(transactionCt);
+                }
+            }, ct);
+        }
+        catch (DailyTankLinkConflictException ex)
+        {
+            return Result<GeneratorListDto>.Failure(ex.Message);
+        }
+        catch (DbUpdateException ex) when (IsDailyTankUniqueViolation(ex))
+        {
+            return Result<GeneratorListDto>.Failure("This tank is already linked to another generator.");
+        }
 
         var saved = await _db.Generators
             .Include(g => g.SubStation)
@@ -228,16 +248,35 @@ public class GeneratorService : IGeneratorService
             if (newTank.GeneratorId.HasValue && newTank.GeneratorId.Value != generator.Id)
                 return Result<GeneratorDetailDto>.Failure("This tank is already linked to another generator.");
 
-            await DbTransactionRunner.RunAsync(_db, async transactionCt =>
+            try
             {
-                var oldTanks = await _db.FuelTanks
-                    .Where(t => t.GeneratorId == generator.Id && t.DeletedAt == null && t.Id != newTankId)
-                    .ToListAsync(transactionCt);
-                foreach (var oldTank in oldTanks)
-                    oldTank.GeneratorId = null;
-                newTank.GeneratorId = generator.Id;
-                await _db.SaveChangesAsync(transactionCt);
-            }, ct);
+                await DbTransactionRunner.RunAsync(_db, async transactionCt =>
+                {
+                    var oldTanks = await _db.FuelTanks
+                        .Where(t => t.GeneratorId == generator.Id && t.DeletedAt == null && t.Id != newTankId)
+                        .ToListAsync(transactionCt);
+                    foreach (var oldTank in oldTanks)
+                        oldTank.GeneratorId = null;
+                    await _db.SaveChangesAsync(transactionCt);
+
+                    await _db.Entry(newTank).ReloadAsync(transactionCt);
+                    if (newTank.DeletedAt is not null || !newTank.IsActive || newTank.TankRole != TankRole.Daily || newTank.SubStationId != generator.SubStationId)
+                        throw new DailyTankLinkConflictException($"Daily tank {newTankId} is unavailable.");
+                    if (newTank.GeneratorId.HasValue && newTank.GeneratorId.Value != generator.Id)
+                        throw new DailyTankLinkConflictException("This tank is already linked to another generator.");
+
+                    newTank.GeneratorId = generator.Id;
+                    await _db.SaveChangesAsync(transactionCt);
+                }, ct);
+            }
+            catch (DailyTankLinkConflictException ex)
+            {
+                return Result<GeneratorDetailDto>.Failure(ex.Message);
+            }
+            catch (DbUpdateException ex) when (IsDailyTankUniqueViolation(ex))
+            {
+                return Result<GeneratorDetailDto>.Failure("This tank is already linked to another generator.");
+            }
         }
         else
         {
@@ -1003,4 +1042,13 @@ public class GeneratorService : IGeneratorService
             await _db.SaveChangesAsync(ct);
         }
     }
+
+    private static bool IsDailyTankUniqueViolation(DbUpdateException ex)
+    {
+        var msg = $"{ex.Message} {ex.InnerException?.Message}".ToLowerInvariant();
+        return msg.Contains("ux_fueltanks_activedailygenerator")
+            || ((msg.Contains("unique") || msg.Contains("2601") || msg.Contains("2627") || msg.Contains("23505")) && msg.Contains("generatorid"));
+    }
+
+    private sealed class DailyTankLinkConflictException(string message) : Exception(message);
 }

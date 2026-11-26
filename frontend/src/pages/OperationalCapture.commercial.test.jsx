@@ -108,3 +108,29 @@ test('daily tank cm input calls backend conversion endpoint, shows litres + diff
   expect(alertMock).toHaveBeenCalled();
   vi.unstubAllGlobals();
 });
+
+test('surfaces readable InvalidOperationException and ArgumentOutOfRangeException messages from level-to-litres in UI', async () => {
+  useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
+  client.get.mockImplementation(async (url, config) => {
+    if (url === '/api/operational-captures/references') return { data: [site] };
+    if (url === '/api/operational-captures/previous-readings') return { data: { readings: [], tankReadings: [], tankBalances: [] } };
+    if (url === '/api/fuel-tanks') return { data: [{ id: 31, name: 'Daily tank', tankRole: 2, generatorId: 11 }] };
+    if (url === '/api/fuel-tanks/31/level-to-litres') {
+      const cm = Number(config?.params?.cm);
+      if (cm === 15) {
+        throw { response: { status: 400, data: { title: 'Bad Request', detail: 'Tank must be calibrated before converting levels.' } } };
+      }
+      throw { response: { status: 400, data: { title: 'Bad Request', detail: "Liquid level must be between 0 and 100 cm. (Parameter 'cm')" } } };
+    }
+    return { data: [] };
+  });
+
+  render(<MemoryRouter initialEntries={['/operations/capture?kind=daily-generator&generatorId=11&tankId=31']}><OperationalCapture /></MemoryRouter>);
+
+  const levelInput = await screen.findByLabelText(/Daily tank level \(cm\)|مستوى الخزان اليومي \(سم\)/i);
+  fireEvent.change(levelInput, { target: { value: '15' } });
+  expect(await screen.findByText('Tank must be calibrated before converting levels.')).toBeInTheDocument();
+
+  fireEvent.change(levelInput, { target: { value: '120' } });
+  expect(await screen.findByText('Liquid level must be between 0 and 100 cm.')).toBeInTheDocument();
+});

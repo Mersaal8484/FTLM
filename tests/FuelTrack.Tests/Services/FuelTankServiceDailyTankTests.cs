@@ -588,6 +588,76 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
         await Assert.ThrowsAsync<KeyNotFoundException>(() => _tankService.ConvertLevelToLitresAsync(otherSiteTank.Id, 10m));
     }
 
+    [Fact]
+    public async Task UpdateAsync_Enterprise_AllowsRenamingTankWithActualStockAboveCapacity()
+    {
+        // Commercial mode is NOT enabled (Enterprise behaviour unchanged).
+        var enterpriseTank = new FuelTank
+        {
+            SubStationId = 1,
+            FuelLookupId = 1,
+            Name = "Legacy Overfilled Tank",
+            Code = "ENT-01",
+            CapacityLiters = 1000,
+            ActualStockLiters = 1500,
+            IsActive = true,
+        };
+        _db.FuelTanks.Add(enterpriseTank);
+        await _db.SaveChangesAsync();
+
+        var update = new UpdateFuelTankDto(
+            Name: "Renamed Enterprise Tank",
+            Code: null,
+            CapacityLiters: null,
+            MinAlertLiters: null,
+            DeadStockLiters: null,
+            ActualStockLiters: null,
+            FuelLookupId: null,
+            SubStationId: null,
+            HasMeter: null,
+            MeterReading: null,
+            MeterReadingActual: null,
+            Notes: null,
+            IsActive: null);
+
+        var updated = await _tankService.UpdateAsync(enterpriseTank.Id, update, 1);
+
+        Assert.Equal("Renamed Enterprise Tank", updated.Name);
+        Assert.Equal(1500, updated.ActualStockLiters);
+    }
+
+    [Fact]
+    public async Task CreateAsync_Commercial_AllowsDeadStockAboveMinAlert_WithinCapacity()
+    {
+        await EnableCommercialModeAsync();
+
+        var created = await _tankService.CreateAsync(new CreateFuelTankDto(
+            SubStationId: 0,
+            FuelLookupId: 1,
+            Name: "Dead Above Alert",
+            Code: "DT-DA",
+            CapacityLiters: 1000,
+            MinAlertLiters: 100,
+            DeadStockLiters: 250,
+            ActualStockLiters: 500,
+            TankRole: TankRole.Daily,
+            GeneratorId: 1), 1);
+
+        Assert.Equal(250, created.DeadStockLiters);
+        Assert.Equal(100, created.MinAlertLiters);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _tankService.CreateAsync(new CreateFuelTankDto(
+            SubStationId: 0,
+            FuelLookupId: 1,
+            Name: "Dead Above Cap",
+            Code: "DT-DC",
+            CapacityLiters: 1000,
+            MinAlertLiters: 100,
+            DeadStockLiters: 1100,
+            TankRole: TankRole.Daily,
+            GeneratorId: 4), 1));
+    }
+
     public void Dispose()
     {
         _db.Dispose();

@@ -97,11 +97,10 @@ export function validateTankStockInputs({ ar, config, fields }) {
   if (actual != null && (actual < 0 || actual > cap)) {
     return ar ? 'المخزون الفعلي يجب أن يكون بين 0 وسعة الخزان.' : 'Actual stock must be between 0 and tank capacity.';
   }
-  const deadMax = minAlert != null && minAlert > 0 ? minAlert : cap;
-  if (deadStock != null && (deadStock < 0 || deadStock > deadMax)) {
+  if (deadStock != null && (deadStock < 0 || deadStock > cap)) {
     return ar
-      ? 'النقطة الميتة يجب ألا تتجاوز الحد الأدنى للمخزون أو السعة.'
-      : 'Dead stock must not exceed the minimum alert level or capacity.';
+      ? 'النقطة الميتة يجب أن تكون بين 0 وسعة الخزان.'
+      : 'Dead stock must be between 0 and tank capacity.';
   }
 
   return '';

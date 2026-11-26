@@ -128,7 +128,8 @@ public class FuelTankService : IFuelTankService
         };
 
         RecomputeEnteredVolumes(tank, dto.CapacityHeightCm, dto.MinAlertHeightCm, dto.DeadStockHeightCm, dto.ActualStockHeightCm);
-        ValidateTankStockBounds(tank);
+        if (isCommercial)
+            ValidateTankStockBounds(tank);
 
         _db.FuelTanks.Add(tank);
         await _db.SaveChangesAsync();
@@ -281,7 +282,8 @@ public class FuelTankService : IFuelTankService
         if (dto.ActualStockHeightCm.HasValue) { tank.ActualStockHeightCm = dto.ActualStockHeightCm; tank.ActualStockInputUnit = "cm"; }
         else if (dto.ActualStockLiters.HasValue) { tank.ActualStockHeightCm = null; tank.ActualStockInputUnit = "litres"; }
         RecomputeEnteredVolumes(tank, dto.CapacityHeightCm, dto.MinAlertHeightCm, dto.DeadStockHeightCm, dto.ActualStockHeightCm);
-        ValidateTankStockBounds(tank);
+        if (isCommercial)
+            ValidateTankStockBounds(tank);
         tank.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
@@ -586,8 +588,8 @@ public class FuelTankService : IFuelTankService
         if (capacity <= 0m) throw new ArgumentException("Tank capacity must be greater than zero.");
         if (minimum < 0m || minimum > capacity) throw new ArgumentException("Minimum alert must be between zero and capacity.");
         if (actual < 0m || actual > capacity) throw new ArgumentException("Actual stock must be between zero and capacity.");
-        if (deadStock < 0m || deadStock > (minimum > 0m ? minimum : capacity))
-            throw new ArgumentException("Dead stock must not exceed the minimum alert level or capacity.");
+        if (deadStock < 0m || deadStock > capacity)
+            throw new ArgumentException("Dead stock must be between zero and capacity.");
     }
 
     private async Task<Dictionary<int, (bool HasMeter, double? MeterReading, double? MeterReadingActual)>> GetLatestMeterReadingsAsync(int[] tankIds)
