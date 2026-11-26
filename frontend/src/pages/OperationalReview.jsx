@@ -253,14 +253,14 @@ function SubmissionDetail({ id, onBack }) {
                 {line.values.fuelTankName && <strong>{line.values.fuelTankName}: </strong>}
                 {line.values.beforeLiquidLevelCm != null && (
                   <>
-                    <span>{Number(line.values.beforeLiquidLevelCm).toLocaleString()} cm</span>
-                    {line.values.beforeComputedLitres != null && <> · <span>{Number(line.values.beforeComputedLitres).toLocaleString()} L</span></>}
+                    <span>{Number(line.values.beforeLiquidLevelCm).toLocaleString('en-US')} cm</span>
+                    {line.values.beforeComputedLitres != null && <> · <span>{Number(line.values.beforeComputedLitres).toLocaleString('en-US')} L</span></>}
                     &nbsp;→&nbsp;
                   </>
                 )}
-                <strong>{Number(line.values.liquidLevelCm).toLocaleString()} cm</strong>
+                <strong>{Number(line.values.liquidLevelCm).toLocaleString('en-US')} cm</strong>
                 {line.values.computedLitres != null && (
-                  <> · <strong>{Number(line.values.computedLitres).toLocaleString()} L</strong></>
+                  <> · <strong>{Number(line.values.computedLitres).toLocaleString('en-US')} L</strong></>
                 )}
               </div>
             )}

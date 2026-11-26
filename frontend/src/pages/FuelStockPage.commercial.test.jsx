@@ -31,6 +31,6 @@ test('commercial fuel stock separates main-tank transfers from daily-tank genera
   expect(screen.getByText('لا يُحسب من الرئيسي')).toBeInTheDocument();
   expect(screen.getByText('مولد 1')).toBeInTheDocument();
   expect(screen.getByText('30 L')).toBeInTheDocument();
-  expect(screen.getByText('22.00 cm')).toBeInTheDocument();
-  expect(screen.getByText('90.00 cm')).toBeInTheDocument();
+  expect(screen.getByText('22 cm')).toBeInTheDocument();
+  expect(screen.getByText('90 cm')).toBeInTheDocument();
 });

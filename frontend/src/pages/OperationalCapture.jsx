@@ -431,8 +431,8 @@ export default function OperationalCapture() {
   const tankLevelHint = (tankId) => {
     const previous = previousTankFor(tankId);
     if (!previous) return t('operational.capture.noPreviousReading');
-    const litresText = previous.computedLitres != null ? ` · ${Number(previous.computedLitres).toLocaleString()} L` : '';
-    return `${t('operational.capture.lastReading')}: ${Number(previous.liquidLevelCm).toLocaleString()} cm${litresText} · ${new Date(previous.capturedAtUtc).toLocaleString()}`;
+    const litresText = previous.computedLitres != null ? ` · ${Number(previous.computedLitres).toLocaleString('en-US')} L` : '';
+    return `${t('operational.capture.lastReading')}: ${Number(previous.liquidLevelCm).toLocaleString('en-US')} cm${litresText} · ${new Date(previous.capturedAtUtc).toLocaleString('en-US')}`;
   };
   const tankLevelDifference = (tankId, value) => {
     const previous = previousTankFor(tankId);
@@ -442,7 +442,7 @@ export default function OperationalCapture() {
     const diffLitres = conv?.litres != null && previous.computedLitres != null
       ? Number(conv.litres) - Number(previous.computedLitres)
       : null;
-    return `${t('operational.capture.liveDifference')}: ${diffCm.toLocaleString()} cm${diffLitres != null ? ` · ${diffLitres.toLocaleString()} L` : ''}`;
+    return `${t('operational.capture.liveDifference')}: ${diffCm.toLocaleString('en-US')} cm${diffLitres != null ? ` · ${diffLitres.toLocaleString('en-US')} L` : ''}`;
   };
   const number = (line, key, label, required = false) => <label>{label}{required && ' *'}<input type="number" step="any" required={required} value={line.values[key] ?? ''} onChange={(e) => updateValues(line.id, { [key]: e.target.value })} /></label>;
   const dailyTankLine = isDailyGeneratorCommercial ? lines.find((line) => line.kind === 'tank') : null;
@@ -506,7 +506,7 @@ export default function OperationalCapture() {
                   {conv?.error && <span className="form-error">{conv.error}</span>}
                   {!conv?.error && conv?.litres != null && (
                     <small>
-                      {t('operational.commercialCapture.approxLitres', { litres: Number(conv.litres).toLocaleString() })}
+                      {t('operational.commercialCapture.approxLitres', { litres: Number(conv.litres).toLocaleString('en-US') })}
                       {hasRate ? ` (${t('operational.commercialCapture.calibrationRateDisplay', { rate: conv.litresPerCm })})` : ''}
                     </small>
                   )}
@@ -518,7 +518,7 @@ export default function OperationalCapture() {
           })()}
         </>}
         {line.kind === 'tank' && <div className="capture-grid">
-          <label>{t('operational.capture.levelCm')} *<input type="number" min="0" max={tankConversions[line.subjectId]?.maxLevelCm ?? (fuelTanks || []).find((ft) => ft.id === line.subjectId)?.maxLevelCm ?? undefined} step="any" required value={line.values.level ?? ''} onChange={(e) => updateValues(line.id, { level: e.target.value })} />{isCommercial && tankConversions[line.subjectId]?.error && <span className="form-error">{tankConversions[line.subjectId].error}</span>}{isCommercial && !tankConversions[line.subjectId]?.error && tankConversions[line.subjectId]?.litres != null && <small>{t('operational.commercialCapture.approxLitres', { litres: Number(tankConversions[line.subjectId].litres).toLocaleString() })}</small>}<small>{tankLevelHint(line.subjectId)}</small><small>{tankLevelDifference(line.subjectId, line.values.level)}</small></label>
+          <label>{t('operational.capture.levelCm')} *<input type="number" min="0" max={tankConversions[line.subjectId]?.maxLevelCm ?? (fuelTanks || []).find((ft) => ft.id === line.subjectId)?.maxLevelCm ?? undefined} step="any" required value={line.values.level ?? ''} onChange={(e) => updateValues(line.id, { level: e.target.value })} />{isCommercial && tankConversions[line.subjectId]?.error && <span className="form-error">{tankConversions[line.subjectId].error}</span>}{isCommercial && !tankConversions[line.subjectId]?.error && tankConversions[line.subjectId]?.litres != null && <small>{t('operational.commercialCapture.approxLitres', { litres: Number(tankConversions[line.subjectId].litres).toLocaleString('en-US') })}</small>}<small>{tankLevelHint(line.subjectId)}</small><small>{tankLevelDifference(line.subjectId, line.values.level)}</small></label>
           {!isDailyGeneratorCommercial && <>
             <label>{t('operational.capture.tankEventType')}<select value={line.values.eventType || '0'} onChange={(e) => updateValues(line.id, { eventType: e.target.value })}><option value="0">{t('operational.capture.tankEventLevel')}</option><option value="1">{t('operational.capture.tankEventDelivery')}</option><option value="2">{t('operational.capture.tankEventTransferOut')}</option><option value="3">{t('operational.capture.tankEventTransferIn')}</option></select></label>
             {Number(line.values.eventType || 0) > 0 && <>{number(line, 'beforeLevel', t('operational.capture.beforeLevelCm'), true)}{Number(line.values.eventType) === 1 && number(line, 'deliveryNoteLitres', t('operational.capture.rawValue'), true)}<label>{t('operational.capture.linkedTank')}<select value={line.values.linkedClientLineId || ''} onChange={(e) => updateValues(line.id, { linkedClientLineId: e.target.value || null })}><option value="">—</option>{lines.filter((candidate) => candidate.kind === 'tank' && candidate.id !== line.id).map((candidate) => <option key={candidate.id} value={candidate.clientLineId}>{sourceName(candidate)}</option>)}</select></label><div className="capture-photo-row"><PhotoInput disabled={submitting || (line.beforePhotoAttachmentIds?.length || 0) > 0} onUploaded={(photoId) => update(line.id, { beforePhotoAttachmentIds: [photoId] })} stamp={{ capturedAt: line.capturedAt || submissionTime, subjectCode: sourceCode(line), locale: document.documentElement.lang, timeZone: site.timeZone || 'Asia/Aden' }} />{(line.beforePhotoAttachmentIds?.length || 0) > 0 && <span className="capture-photo-ok"><CheckCircle2 size={17} /> {t('operational.capture.photoReady')}</span>}</div></>}
@@ -532,13 +532,13 @@ export default function OperationalCapture() {
         <span>{t('operational.capture.producedEnergy')}: {dailyPreview.produced.toLocaleString()}{dailyPreview.producedSolar > 0 ? ` (${t('operational.capture.generator')}: ${dailyPreview.producedGen.toLocaleString()} + ☀️: ${dailyPreview.producedSolar.toLocaleString()})` : ''}</span>
         <span>{t('operational.capture.sentEnergy')}: {dailyPreview.sent.toLocaleString()}</span>
         <span>{t('operational.balance.unexplained', 'الفاقد والاستهلاك المساعد للمحطة')}: {dailyPreview.unexplained.toLocaleString()}</span>
-        {dailyPreview.tankSummaries?.map((ts) => (
+        {dailyPreview.tankSummaries?.filter((ts) => ts.closingLitres != null).map((ts) => (
           <div key={ts.tankId} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span>{ts.name}: {t('operational.commercialCapture.closingStock')}: {ts.closingLitres != null ? `${ts.closingLitres.toLocaleString()} L` : '—'}</span>
+            <span>{ts.name}: {t('operational.commercialCapture.closingStock')}: {`${ts.closingLitres.toLocaleString('en-US')} L`}</span>
             {ts.openingLitres != null && (
               <small>
-                {t('operational.commercialCapture.openingStock')}: {ts.openingLitres.toLocaleString()} L · {t('operational.commercialCapture.transferInToday')}: {ts.transferInLitres.toLocaleString()} L
-                {ts.consumedLitres != null && ` · ${t('operational.commercialCapture.dailyFuelConsumed')}: ${ts.consumedLitres.toLocaleString()} L`}
+                {t('operational.commercialCapture.openingStock')}: {ts.openingLitres.toLocaleString('en-US')} L · {t('operational.commercialCapture.transferInToday')}: {ts.transferInLitres.toLocaleString('en-US')} L
+                {ts.consumedLitres != null && ` · ${t('operational.commercialCapture.dailyFuelConsumed')}: ${ts.consumedLitres.toLocaleString('en-US')} L`}
               </small>
             )}
           </div>
