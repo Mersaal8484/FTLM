@@ -840,6 +840,12 @@ Object.assign(appTranslations.en.translation, {
     replacementRecordedSuccess: 'Replacement recorded successfully.',
   },
 });
+Object.assign(appTranslations.en.translation.operational.commercialCapture, {
+  oilTopUpLitres: 'Oil top-up (L)',
+  selectAssignedOil: 'Select configured oil',
+  oilSelectionRequired: 'Select a configured oil type and enter a positive oil quantity together.',
+  oilTopUpApprovalNote: 'This optional top-up is deducted from oil stock only after approval.'
+});
 Object.assign(appTranslations.ar.translation, {
   generatorMaintenance: {
     oilNotConfiguredWarning: 'لم يُضبط زيت لهذا البند — لن يتغير المخزون',
@@ -892,6 +898,12 @@ Object.assign(appTranslations.ar.translation, {
       statusRunning: '\u064a\u0639\u0645\u0644', statusIdle: '\u062e\u0627\u0645\u0644', statusMaintenance: '\u0635\u064a\u0627\u0646\u0629', statusOffline: '\u0645\u062a\u0648\u0642\u0641',
     },
   },
+});
+Object.assign(appTranslations.ar.translation.operational.commercialCapture, {
+  oilTopUpLitres: 'إضافة زيت للمولد (لتر)',
+  selectAssignedOil: 'اختر نوع الزيت المضبوط للمولد',
+  oilSelectionRequired: 'اختر نوع زيت مضبوطاً للمولد وأدخل كمية زيت موجبة معاً.',
+  oilTopUpApprovalNote: 'هذه الإضافة اختيارية، ويُخصم مخزون الزيت فقط بعد الاعتماد.'
 });
 
 i18n

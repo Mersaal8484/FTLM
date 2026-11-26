@@ -100,7 +100,7 @@ function SubmissionDetail({ id, onBack }) {
   });
 
   if (isLoading) return <p style={{ padding: 24 }}>…</p>;
-  if (error || !data) return <p style={{ padding: 24, color: 'var(--danger)' }}>{error?.message}</p>;
+  if (error || !data) return <p style={{ padding: 24, color: 'var(--danger)' }}>{error?.response?.data?.error || error?.response?.data?.detail || error?.message}</p>;
 
   const allLines = [
     ...data.generatorLines.map((l) => ({ ...l, _type: 'generator' })),
@@ -218,6 +218,7 @@ function SubmissionDetail({ id, onBack }) {
                                   ? (document.documentElement.lang === 'ar' ? '📡 فيدر' : '📡 Feeder')
                                   : 'meter'))))
                   : line._type} · {dateStr(line.capturedAtUtc)}
+                {line._type === 'meter' && line.subjectName ? ` — ${line.subjectName}` : ''}
               </span>
               {line.hasSkewWarning && (
                 <span style={{ color: 'var(--warning)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -248,6 +249,14 @@ function SubmissionDetail({ id, onBack }) {
             )}
 
             {/* Tank level reading (cm & stored computed litres) */}
+            {line._type === 'generator' && line.values && (
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <strong style={{ color: 'var(--text)' }}>{line.values.generatorName}</strong>
+                <span>{line.values.isRunning ? '●' : '○'} {line.values.isRunning ? t('operational.capture.running') : '—'}</span>
+                {line.values.activeLoadKw != null && <span>{t('operational.capture.activeKw')}: <strong>{line.values.activeLoadKw}</strong></span>}
+                {line.values.oilAddedLitres > 0 && <span>{t('operational.commercialCapture.oilTopUpLitres')}: <strong>{line.values.oilAddedLitres} L</strong>{line.values.oilName ? ` — ${line.values.oilName}` : ''}</span>}
+              </div>
+            )}
             {line._type === 'tank' && line.values && (
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
                 {line.values.fuelTankName && <strong>{line.values.fuelTankName}: </strong>}
@@ -262,6 +271,13 @@ function SubmissionDetail({ id, onBack }) {
                 {line.values.computedLitres != null && (
                   <> · <strong>{Number(line.values.computedLitres).toLocaleString('en-US')} L</strong></>
                 )}
+              </div>
+            )}
+
+            {line._type === 'feeder' && line.values && (
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
+                <strong style={{ color: 'var(--text)' }}>{line.values.feederName}</strong>
+                {line.values.activeLoadKw != null && <> · {t('operational.capture.activeKw')}: <strong>{line.values.activeLoadKw}</strong></>}
               </div>
             )}
 

@@ -393,11 +393,21 @@ export default function OperationalCapture() {
       window.alert(msg);
       return;
     }
+    const invalidOilTopUp = lines.find((line) => {
+      if (line.kind !== 'generator') return false;
+      const hasQuantity = line.values.oilAdded !== '' && line.values.oilAdded != null;
+      const hasOil = line.values.oilId !== '' && line.values.oilId != null;
+      return (hasQuantity !== hasOil) || (hasQuantity && Number(line.values.oilAdded) <= 0);
+    });
+    if (invalidOilTopUp) {
+      window.alert(t('operational.commercialCapture.oilSelectionRequired'));
+      return;
+    }
     const payload = { clientRequestId: crypto.randomUUID(), subStationId: site.subStationId, submissionCapturedAtUtc: new Date(submissionTime).toISOString(), clientSentAtUtc: clientSentAt, isOfflineQueue: false, generatorReadings: [], tankLevelReadings: [], feederLoadReadings: [], meterReadings: [] };
     for (const line of lines) {
       const capturedAtUtc = line.capturedAt ? new Date(line.capturedAt).toISOString() : new Date(submissionTime).toISOString();
       if (line.kind === 'generator') {
-        payload.generatorReadings.push({ generatorId: line.subjectId, clientLineId: line.clientLineId, capturedAtUtc, photoAttachmentIds: line.photoAttachmentIds, isRunning: line.isRunning, lineVoltageVolts: decimal(line.values.voltage), currentAmps: decimal(line.values.current), waterTemperatureCelsius: decimal(line.values.waterTemp), oilPressure: decimal(line.values.oilPressure), oilTemperatureCelsius: decimal(line.values.oilTemp), activeLoadKw: decimal(line.values.activeKw), apparentLoadKva: decimal(line.values.apparentKva), reactiveLoadKvar: decimal(line.values.reactiveKvar), frequencyHz: decimal(line.values.frequency), oilAddedLitres: decimal(line.values.oilAdded), powerFactor: decimal(line.values.powerFactor), peakLoadKw: decimal(line.values.peakKw), airPressureBar: decimal(line.values.airPressure) });
+        payload.generatorReadings.push({ generatorId: line.subjectId, clientLineId: line.clientLineId, capturedAtUtc, photoAttachmentIds: line.photoAttachmentIds, isRunning: line.isRunning, lineVoltageVolts: decimal(line.values.voltage), currentAmps: decimal(line.values.current), waterTemperatureCelsius: decimal(line.values.waterTemp), oilPressure: decimal(line.values.oilPressure), oilTemperatureCelsius: decimal(line.values.oilTemp), activeLoadKw: decimal(line.values.activeKw), apparentLoadKva: decimal(line.values.apparentKva), reactiveLoadKvar: decimal(line.values.reactiveKvar), frequencyHz: decimal(line.values.frequency), oilAddedLitres: decimal(line.values.oilAdded), oilId: line.values.oilId ? Number(line.values.oilId) : null, powerFactor: decimal(line.values.powerFactor), peakLoadKw: decimal(line.values.peakKw), airPressureBar: decimal(line.values.airPressure) });
         for (const counter of [{ key: 'energyRaw', subjectType: 0 }, { key: 'hoursRaw', subjectType: 1 }]) {
           if (line.values[counter.key] !== '' && line.values[counter.key] != null) payload.meterReadings.push({ subjectType: counter.subjectType, subjectId: line.subjectId, meterId: site.generators.find(generator => generator.id === line.subjectId)?.meterId || null, kind: captureKind === 'dailyClosing' ? 1 : 0, clientLineId: crypto.randomUUID(), businessDate: captureKind === 'dailyClosing' ? businessDate : null, capturedAtUtc, photoAttachmentIds: line.photoAttachmentIds, rawValue: decimal(line.values[counter.key]), multiplierSnapshot: 1, isMeterReset: Boolean(line.values[`${counter.key}Reset`]), resetNote: line.values[`${counter.key}ResetNote`] || null });
         }
@@ -509,6 +519,25 @@ export default function OperationalCapture() {
             <label>{t('operational.capture.energyCounter')}<input type="number" step="any" value={line.values.energyRaw ?? ''} onChange={(event) => updateValues(line.id, { energyRaw: event.target.value })} /><small>{counterHint(0, line.subjectId, captureKind === 'dailyClosing')}</small>{captureKind === 'dailyClosing' && <small>{closingDifference(0, line.subjectId, line.values.energyRaw)}</small>}{counterWarning(0, line.subjectId, line.values.energyRaw, captureKind === 'dailyClosing') && <><span className="form-error">{counterWarning(0, line.subjectId, line.values.energyRaw, captureKind === 'dailyClosing')}</span><label className="capture-switch"><input type="checkbox" checked={Boolean(line.values.energyRawReset)} onChange={(event) => updateValues(line.id, { energyRawReset: event.target.checked })}/>{t('operational.capture.meterReset')}</label>{line.values.energyRawReset && <input value={line.values.energyRawResetNote || ''} placeholder={t('operational.capture.resetNote')} onChange={(event) => updateValues(line.id, { energyRawResetNote: event.target.value })}/>}</>}</label>
             <label>{t('operational.capture.runningHoursCounter')}<input type="number" step="any" value={line.values.hoursRaw ?? ''} onChange={(event) => updateValues(line.id, { hoursRaw: event.target.value })} /><small>{counterHint(1, line.subjectId, captureKind === 'dailyClosing')}</small>{captureKind === 'dailyClosing' && <small>{closingDifference(1, line.subjectId, line.values.hoursRaw)}</small>}{counterWarning(1, line.subjectId, line.values.hoursRaw, captureKind === 'dailyClosing') && <><span className="form-error">{counterWarning(1, line.subjectId, line.values.hoursRaw, captureKind === 'dailyClosing')}</span><label className="capture-switch"><input type="checkbox" checked={Boolean(line.values.hoursRawReset)} onChange={(event) => updateValues(line.id, { hoursRawReset: event.target.checked })}/>{t('operational.capture.meterReset')}</label>{line.values.hoursRawReset && <input value={line.values.hoursRawResetNote || ''} placeholder={t('operational.capture.resetNote')} onChange={(event) => updateValues(line.id, { hoursRawResetNote: event.target.value })}/>}</>}</label>
           </div>}
+          {isDailyGeneratorCommercial && (() => {
+            const generator = site?.generators?.find((item) => item.id === line.subjectId);
+            const options = [...new Map((generator?.oilOptions || []).map((oil) => [oil.oilId, oil])).values()];
+            if (options.length === 0) return null;
+            return <div className="capture-grid">
+              <label>
+                {t('operational.commercialCapture.oilType')}
+                <select value={line.values.oilId || ''} onChange={(event) => updateValues(line.id, { oilId: event.target.value || null })}>
+                  <option value="">{t('operational.commercialCapture.selectAssignedOil')}</option>
+                  {options.map((oil) => <option key={oil.oilId} value={oil.oilId}>{oil.oilName} — {Number(oil.currentStock).toLocaleString('en-US')} L</option>)}
+                </select>
+              </label>
+              <label>
+                {t('operational.commercialCapture.oilTopUpLitres')}
+                <input type="number" min="0" step="any" value={line.values.oilAdded ?? ''} onChange={(event) => updateValues(line.id, { oilAdded: event.target.value })} />
+                <small>{t('operational.commercialCapture.oilTopUpApprovalNote')}</small>
+              </label>
+            </div>;
+          })()}
           {isDailyGeneratorCommercial && dailyTankLine && (() => {
             const tid = dailyTankLine.subjectId;
             const conv = tankConversions[tid];

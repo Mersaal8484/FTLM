@@ -22,6 +22,11 @@ public sealed class OperationalGeneratorReading : BaseEntity
     public decimal? ReactiveLoadKvar { get; set; }
     public decimal? FrequencyHz { get; set; }
     public decimal? OilAddedLitres { get; set; }
+    // End-of-day top-up only. The selected configured oil and the consumption
+    // transaction are deliberately retained for review/audit without changing
+    // stock until the enclosing submission is approved.
+    public int? OilId { get; set; }
+    public int? OilTransactionId { get; set; }
     public decimal? PowerFactor { get; set; }
     public decimal? PeakLoadKw { get; set; }
     public decimal? AirPressureBar { get; set; }

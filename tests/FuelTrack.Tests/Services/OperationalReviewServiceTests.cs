@@ -22,13 +22,15 @@ public sealed class OperationalReviewServiceTests
             .Options);
 
     private static OperationalReviewService CreateService(
-        FuelTrackDbContext db, bool sameUserAllowed = false)
+        FuelTrackDbContext db, bool sameUserAllowed = false, bool commercialMode = false)
     {
         var scope = new SiteScope();
         var notif = new StubNotificationService();
         var delta = new MeterDeltaService(db);
         var safety = new FuelLoadSafetyService(db, scope, notif);
-        return new OperationalReviewService(db, scope, notif, delta, safety);
+        return new OperationalReviewService(
+            db, scope, notif, delta, safety,
+            commercialMode: commercialMode ? new CommercialStationModeService(db) : null);
     }
 
     private static async Task<(int SubmissionId, int SubmitterId, int ReviewerId, int SubStationId, int MeterReadingId)>
@@ -108,6 +110,48 @@ public sealed class OperationalReviewServiceTests
         Assert.Equal(reviewerId, genLine.ApprovedByUserId);
         var submission = await db.OperationalSubmissions.FindAsync(submissionId);
         Assert.Equal(OperationalReadingStatus.Approved, submission!.Status);
+    }
+
+    [Fact]
+    public async Task ApproveSubmission_CommercialOilTopUp_DeductsSelectedOilAndWritesApprovedConsumption()
+    {
+        await using var db = CreateDb();
+        var (submissionId, _, reviewerId, subStationId, _) = await SeedPendingSubmissionAsync(db);
+        var now = DateTime.UtcNow;
+
+        var oilCategory = new LookupCategory { Id = 20, Name = "OilType", DisplayName = "Oil", CreatedAt = now, UpdatedAt = now };
+        var transactionCategory = new LookupCategory { Id = 100, Name = "OilTransactionType", DisplayName = "Oil transactions", CreatedAt = now, UpdatedAt = now };
+        var oilLookup = new Lookup { Id = 21, CategoryId = oilCategory.Id, Category = oilCategory, Name = "15W-40", CreatedAt = now, UpdatedAt = now };
+        var consumptionType = new Lookup { Id = 22, CategoryId = transactionCategory.Id, Category = transactionCategory, Name = "Consumption", Code = "Consumption", IsActive = true, CreatedAt = now, UpdatedAt = now };
+        var oil = new Oil { Id = 23, OilLookupId = oilLookup.Id, OilLookup = oilLookup, SubStationId = subStationId, CurrentStock = 10m, MinStock = 1m, CreatedAt = now, UpdatedAt = now };
+        var serviceItem = new ServiceItem { Id = 24, Code = "OIL", NameAr = "زيت", NameEn = "Oil", CreatedAt = now, UpdatedAt = now };
+        var generatorOil = new GeneratorMaintenanceOilConfiguration { GeneratorId = 1, ServiceItemId = serviceItem.Id, OilId = oil.Id, QuantityLiters = 1m, CreatedAt = now, UpdatedAt = now };
+        db.AddRange(
+            oilCategory, transactionCategory, oilLookup, consumptionType, oil, serviceItem, generatorOil,
+            new CustomerFeatureSetting
+            {
+                Key = CommercialStationModeService.FeatureKey,
+                IsEnabled = true,
+                Value = CommercialStationModeService.CommercialModeValue,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+
+        var reading = await db.OperationalGeneratorReadings.SingleAsync();
+        reading.OilId = oil.Id;
+        reading.OilAddedLitres = 2.5m;
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db, commercialMode: true).ApproveSubmissionAsync(submissionId, reviewerId);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(7.5m, (await db.Oils.SingleAsync(x => x.Id == oil.Id)).CurrentStock);
+        var transaction = Assert.Single(await db.OilTransactions.ToListAsync());
+        Assert.Equal(oilLookup.Id, transaction.OilLookupId);
+        Assert.Equal(consumptionType.Id, transaction.TransactionTypeLookupId);
+        Assert.Equal(2.5d, transaction.QuantityLiters);
+        Assert.True(transaction.IsApproved);
+        Assert.NotNull((await db.OperationalGeneratorReadings.SingleAsync()).OilTransactionId);
     }
 
     [Fact]

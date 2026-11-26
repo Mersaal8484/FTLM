@@ -2728,6 +2728,8 @@ namespace FuelTrack.Infrastructure
                 entity.Property(x => x.ReactiveLoadKvar).HasPrecision(18, 4);
                 entity.Property(x => x.FrequencyHz).HasPrecision(18, 4);
                 entity.Property(x => x.OilAddedLitres).HasPrecision(18, 4);
+                entity.HasIndex(x => x.OilId).HasDatabaseName("IX_OperationalGeneratorReadings_OilId");
+                entity.HasIndex(x => x.OilTransactionId).HasDatabaseName("IX_OperationalGeneratorReadings_OilTransactionId");
                 entity.Property(x => x.PowerFactor).HasPrecision(9, 6);
                 entity.Property(x => x.PeakLoadKw).HasPrecision(18, 4);
                 entity.Property(x => x.AirPressureBar).HasPrecision(18, 4);

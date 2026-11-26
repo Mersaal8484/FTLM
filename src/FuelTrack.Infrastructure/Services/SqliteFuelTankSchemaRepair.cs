@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace FuelTrack.Infrastructure.Services;
 
@@ -22,5 +23,55 @@ public static class SqliteFuelTankSchemaRepair
             "ON \"FuelTanks\" (\"SubStationId\", \"FuelLookupId\") " +
             "WHERE \"DeletedAt\" IS NULL AND (\"TankRole\" IS NULL OR \"TankRole\" <> 2);",
             cancellationToken);
+
+        // Local development SQLite databases are created with EnsureCreated and
+        // therefore need an additive repair when a later application model adds
+        // fields. This preserves the existing database (and the SUPER user).
+        if (!await HasColumnAsync(dbContext, "OperationalGeneratorReadings", "OilId", cancellationToken))
+            await dbContext.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"OperationalGeneratorReadings\" ADD COLUMN \"OilId\" INTEGER NULL;",
+                cancellationToken);
+        if (!await HasColumnAsync(dbContext, "OperationalGeneratorReadings", "OilTransactionId", cancellationToken))
+            await dbContext.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"OperationalGeneratorReadings\" ADD COLUMN \"OilTransactionId\" INTEGER NULL;",
+                cancellationToken);
+
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS \"IX_OperationalGeneratorReadings_OilId\" ON \"OperationalGeneratorReadings\" (\"OilId\");",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS \"IX_OperationalGeneratorReadings_OilTransactionId\" ON \"OperationalGeneratorReadings\" (\"OilTransactionId\");",
+            cancellationToken);
+    }
+
+    private static async Task<bool> HasColumnAsync(
+        FuelTrackDbContext dbContext,
+        string tableName,
+        string columnName,
+        CancellationToken cancellationToken)
+    {
+        var connection = dbContext.Database.GetDbConnection();
+        var openedHere = connection.State != ConnectionState.Open;
+        if (openedHere)
+            await connection.OpenAsync(cancellationToken);
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"PRAGMA table_info(\"{tableName}\");";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+        finally
+        {
+            if (openedHere)
+                await connection.CloseAsync();
+        }
     }
 }

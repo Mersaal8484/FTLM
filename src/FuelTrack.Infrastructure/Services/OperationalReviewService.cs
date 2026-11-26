@@ -1,4 +1,5 @@
 using FuelTrack.Application.Common;
+using FuelTrack.Application.Constants;
 using FuelTrack.Application.DTOs.Notifications;
 using FuelTrack.Application.DTOs.Operations;
 using FuelTrack.Application.Interfaces;
@@ -22,7 +23,8 @@ public sealed class OperationalReviewService(
     IMeterDeltaService meterDelta,
     IFuelLoadSafetyService fuelLoadSafety,
     IServiceDueEvaluationService? serviceDueEvaluation = null,
-    ILogger<OperationalReviewService>? logger = null) : IOperationalReviewService
+    ILogger<OperationalReviewService>? logger = null,
+    ICommercialStationModeService? commercialMode = null) : IOperationalReviewService
 {
     private sealed class ReviewTransactionResultException(Result result) : Exception
     {
@@ -129,9 +131,11 @@ public sealed class OperationalReviewService(
             .Select(r => new
             {
                 r.Id, r.Status, r.CapturedAtUtc, r.ReceivedAtUtc, r.WarningsJson,
-                r.RejectionReason, r.IsRunning,
+                r.RejectionReason, r.IsRunning, r.GeneratorId, GeneratorName = r.Generator.Name,
                 r.ActiveLoadKw, r.ApparentLoadKva, r.FrequencyHz, r.PowerFactor,
                 r.OilPressure, r.WaterTemperatureCelsius, r.PeakLoadKw,
+                r.OilAddedLitres, r.OilId,
+                OilName = db.Oils.Where(o => o.Id == r.OilId).Select(o => o.OilLookup.Name).FirstOrDefault(),
             })
             .ToListAsync(cancellationToken);
 
@@ -148,7 +152,7 @@ public sealed class OperationalReviewService(
             r.WarningsJson,
             r.RejectionReason,
             genPhotoIds.GetValueOrDefault(r.Id, []).Any(pid => genReuseWarnings.Contains(pid)),
-            new { r.IsRunning, r.ActiveLoadKw, r.ApparentLoadKva, r.FrequencyHz, r.PowerFactor, r.OilPressure, r.WaterTemperatureCelsius, r.PeakLoadKw }
+            new { r.GeneratorId, r.GeneratorName, r.IsRunning, r.ActiveLoadKw, r.ApparentLoadKva, r.FrequencyHz, r.PowerFactor, r.OilPressure, r.WaterTemperatureCelsius, r.PeakLoadKw, r.OilAddedLitres, r.OilId, r.OilName }
         )).ToList();
 
         // Tank lines
@@ -186,6 +190,7 @@ public sealed class OperationalReviewService(
             .Select(r => new
             {
                 r.Id, r.Status, r.CapturedAtUtc, r.ReceivedAtUtc,
+                FeederName = r.Feeder.Name,
                 r.ActiveLoadKw, r.ApparentLoadKva,
                 r.WarningsJson, r.RejectionReason,
             })
@@ -202,7 +207,7 @@ public sealed class OperationalReviewService(
             feederPhotoIds.GetValueOrDefault(r.Id, []),
             r.WarningsJson, r.RejectionReason,
             feederPhotoIds.GetValueOrDefault(r.Id, []).Any(pid => feederReuseWarnings.Contains(pid)),
-            new { r.ActiveLoadKw, r.ApparentLoadKva }
+            new { r.FeederName, r.ActiveLoadKw, r.ApparentLoadKva }
         )).ToList();
 
         // Meter lines with delta preview
@@ -214,6 +219,22 @@ public sealed class OperationalReviewService(
         var meterPhotoIds = await GetLinePhotoIdsAsync("MeterReading",
             meterLines.Select(m => m.Id).ToList(), cancellationToken);
         var meterReuseWarnings = await GetReuseWarningSetAsync(meterPhotoIds, submissionId, cancellationToken);
+
+        var generatorMeterSubjectIds = meterLines
+            .Where(r => r.SubjectType is MeterReadingSubjectType.GeneratorEnergyProduced or MeterReadingSubjectType.GeneratorRunningHours)
+            .Select(r => r.SubjectId).Distinct().ToList();
+        var feederMeterSubjectIds = meterLines
+            .Where(r => r.SubjectType == MeterReadingSubjectType.FeederEnergySent)
+            .Select(r => r.SubjectId).Distinct().ToList();
+        var solarMeterSubjectIds = meterLines
+            .Where(r => r.SubjectType == MeterReadingSubjectType.SolarEnergyProduced)
+            .Select(r => r.SubjectId).Distinct().ToList();
+        var generatorNames = await db.Generators.AsNoTracking().Where(g => generatorMeterSubjectIds.Contains(g.Id))
+            .ToDictionaryAsync(g => g.Id, g => g.Name, cancellationToken);
+        var feederNames = await db.Feeders.AsNoTracking().Where(f => feederMeterSubjectIds.Contains(f.Id))
+            .ToDictionaryAsync(f => f.Id, f => f.Name, cancellationToken);
+        var solarMeterNames = await db.Meters.AsNoTracking().Where(m => solarMeterSubjectIds.Contains(m.Id))
+            .ToDictionaryAsync(m => m.Id, m => m.Name, cancellationToken);
 
         var meterDtos = new List<ReviewMeterLineDto>();
         foreach (var r in meterLines)
@@ -231,7 +252,14 @@ public sealed class OperationalReviewService(
                 r.WarningsJson, r.RejectionReason,
                 delta?.PreviousValue,
                 delta?.Delta,
-                delta?.SpanDays));
+                delta?.SpanDays,
+                r.SubjectType switch
+                {
+                    MeterReadingSubjectType.GeneratorEnergyProduced or MeterReadingSubjectType.GeneratorRunningHours => generatorNames.GetValueOrDefault(r.SubjectId),
+                    MeterReadingSubjectType.FeederEnergySent => feederNames.GetValueOrDefault(r.SubjectId),
+                    MeterReadingSubjectType.SolarEnergyProduced => solarMeterNames.GetValueOrDefault(r.SubjectId),
+                    _ => null
+                }));
         }
 
         List<DailyGeneratorFuelConsumptionDto>? dailyConsumptions = null;
@@ -313,6 +341,70 @@ public sealed class OperationalReviewService(
                         && r.Status == OperationalReadingStatus.Pending)
             .ToListAsync(cancellationToken);
 
+        // A submitted end-of-day oil top-up is commercial reviewable data, not
+        // an immediate stock mutation. Only this approval transaction creates
+        // its official consumption movement and deducts the selected balance.
+        // Enterprise keeps its pre-commercial approval behaviour unchanged.
+        var isCommercialMode = commercialMode is not null
+            && await commercialMode.IsCommercialModeAsync(cancellationToken);
+        var oilTopUps = isCommercialMode
+            ? genLines.Where(r => r.OilAddedLitres.GetValueOrDefault() > 0m).ToList()
+            : [];
+        var oilTransactionsByReading = new Dictionary<OperationalGeneratorReading, OilTransaction>();
+        if (oilTopUps.Count > 0)
+        {
+            if (oilTopUps.Any(r => !r.OilId.HasValue))
+                throw new ReviewTransactionResultException(Result.Failure("An approved oil top-up requires a selected oil type.", 422));
+
+            var selectedOilIds = oilTopUps.Select(r => r.OilId!.Value).Distinct().ToList();
+            var oilsById = await db.Oils
+                .Where(o => selectedOilIds.Contains(o.Id) && o.SubStationId == submission.SubStationId)
+                .ToDictionaryAsync(o => o.Id, cancellationToken);
+            if (oilsById.Count != selectedOilIds.Count)
+                throw new ReviewTransactionResultException(Result.Failure("One or more selected oils are unavailable at this station.", 422));
+
+            var consumptionTypeId = await db.Lookups
+                .Where(l => l.Code == OilTransactionTypeCodes.Consumption
+                    && l.IsActive
+                    && (l.Category.Name == "OilTransactionType" || l.CategoryId == 100))
+                .Select(l => (int?)l.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (!consumptionTypeId.HasValue)
+                throw new ReviewTransactionResultException(Result.Failure("Oil consumption transaction type is not configured.", 422));
+
+            foreach (var reading in oilTopUps)
+            {
+                var quantity = reading.OilAddedLitres!.Value;
+                var oil = oilsById[reading.OilId!.Value];
+                if (oil.CurrentStock < quantity)
+                    throw new ReviewTransactionResultException(Result.Failure($"Insufficient stock for oil '{oil.OilLookup?.Name ?? oil.Id.ToString()}'.", 422));
+
+                oil.CurrentStock -= quantity;
+                oil.UpdatedAt = now;
+                oil.UpdatedBy = userId;
+
+                var transaction = new OilTransaction
+                {
+                    SubStationId = submission.SubStationId,
+                    OilLookupId = oil.OilLookupId,
+                    TransactionTypeLookupId = consumptionTypeId.Value,
+                    TransactionDate = reading.CapturedAtUtc,
+                    QuantityLiters = (double)quantity,
+                    Reference = $"EOD-{submission.Id}-G{reading.GeneratorId}-{reading.ClientLineId:N}",
+                    Notes = $"End-of-day generator oil top-up: {reading.GeneratorId}",
+                    IsApproved = true,
+                    ApprovedById = userId,
+                    ApprovedAt = now,
+                    CreatedAt = now,
+                    UpdatedAt = now,
+                    CreatedBy = userId,
+                    UpdatedBy = userId
+                };
+                db.OilTransactions.Add(transaction);
+                oilTransactionsByReading.Add(reading, transaction);
+            }
+        }
+
         foreach (var r in genLines)
         {
             r.Status = OperationalReadingStatus.Approved;
@@ -381,6 +473,10 @@ public sealed class OperationalReviewService(
         submission.UpdatedBy = userId;
 
         await db.SaveChangesAsync(cancellationToken);
+        foreach (var (reading, transaction) in oilTransactionsByReading)
+            reading.OilTransactionId = transaction.Id;
+        if (oilTransactionsByReading.Count > 0)
+            await db.SaveChangesAsync(cancellationToken);
         return new ApprovalCommit(submission, submittedBy, tankLines, meterLines);
             }, cancellationToken);
         }

@@ -267,7 +267,8 @@ public sealed class OperationalCaptureService(
                     LineVoltageVolts = line.LineVoltageVolts, CurrentAmps = line.CurrentAmps, WaterTemperatureCelsius = line.WaterTemperatureCelsius,
                     OilPressure = line.OilPressure, OilTemperatureCelsius = line.OilTemperatureCelsius, ActiveLoadKw = line.ActiveLoadKw,
                     ApparentLoadKva = line.ApparentLoadKva, ReactiveLoadKvar = line.ReactiveLoadKvar, FrequencyHz = line.FrequencyHz,
-                    OilAddedLitres = line.OilAddedLitres, PowerFactor = line.PowerFactor, PeakLoadKw = line.PeakLoadKw, AirPressureBar = line.AirPressureBar,
+                    OilAddedLitres = line.OilAddedLitres, OilId = line.OilId,
+                    PowerFactor = line.PowerFactor, PeakLoadKw = line.PeakLoadKw, AirPressureBar = line.AirPressureBar,
                     WarningsJson = WarningJson(captured, now, dto.ClientSentAtUtc, line.PhotoAttachmentIds.Any(reusedPhotoIds.Contains)), CreatedAt = now, UpdatedAt = now, CreatedBy = userId, UpdatedBy = userId,
                 };
                 db.OperationalGeneratorReadings.Add(entity);
@@ -419,7 +420,15 @@ public sealed class OperationalCaptureService(
         var sites = db.SubStations.AsNoTracking().Where(x => siteIds == null || siteIds.Contains(x.Id));
         return await sites.OrderBy(x => x.Name).Select(x => new OperationalCaptureReferenceDto(
             x.Id, x.Name, x.Code, db.StationOperationalSettings.Where(s => s.StationId == x.StationId).Select(s => s.TimeZone).FirstOrDefault() ?? StationOperationalSettings.DefaultTimeZone,
-            x.Generators.OrderBy(g => g.Name).Select(g => new OperationalGeneratorReferenceDto(g.Id, g.Name, g.Model, db.Meters.Where(m => m.GeneratorId == g.Id).Select(m => (int?)m.Id).FirstOrDefault())).ToList(),
+            x.Generators.OrderBy(g => g.Name).Select(g => new OperationalGeneratorReferenceDto(
+                g.Id,
+                g.Name,
+                g.Model,
+                db.Meters.Where(m => m.GeneratorId == g.Id).Select(m => (int?)m.Id).FirstOrDefault(),
+                db.GeneratorMaintenanceOilConfigurations
+                    .Where(c => c.GeneratorId == g.Id && c.Oil.SubStationId == x.Id)
+                    .Select(c => new OperationalGeneratorOilOptionDto(c.OilId, c.Oil.OilLookup.Name, c.Oil.CurrentStock))
+                    .ToList())).ToList(),
             x.FuelTanks.OrderBy(t => t.Name).Select(t => new OperationalTankReferenceDto(t.Id, t.Name, t.Code, t.Shape != null && t.DiameterCm != null && t.CylinderHeightCm != null && t.ConeHeightCm != null && t.MultiplicationFactor != null)).ToList(),
             x.Feeders.OrderBy(f => f.Name).Select(f => new OperationalFeederReferenceDto(f.Id, f.Name, f.Code, f.MeterMultiplier, f.MeterId)).ToList(),
             x.Meters.OrderBy(m => m.Name).Select(m => new OperationalMeterReferenceDto(m.Id, m.Name, m.SerialNumber, m.GeneratorId, m.MeterTypeLookup != null ? m.MeterTypeLookup.Code : null)).ToList()))
@@ -474,6 +483,9 @@ public sealed class OperationalCaptureService(
             return "Running generator lines require voltage, current, water temperature, oil pressure, oil temperature, and active load.";
         if (dto.GeneratorReadings.Any(x => x.PowerFactor is < 0 or > 1) || dto.GeneratorReadings.Any(x => x.OilAddedLitres < 0) || dto.FeederLoadReadings.Any(x => x.ActiveLoadKw < 0 || x.ApparentLoadKva < 0) || dto.MeterReadings.Any(x => x.RawValue < 0 || x.MultiplierSnapshot <= 0))
             return "Reading values are outside the permitted range.";
+        if (dto.GeneratorReadings.Any(x => x.OilAddedLitres.GetValueOrDefault() > 0m && !x.OilId.HasValue)
+            || dto.GeneratorReadings.Any(x => x.OilId.HasValue && x.OilAddedLitres.GetValueOrDefault() <= 0m))
+            return "An oil type and a positive oil quantity must be supplied together.";
         if (dto.MeterReadings.Any(x => x.IsMeterReset && string.IsNullOrWhiteSpace(x.ResetNote))) return "A meter-reset note is required when reset is selected.";
 
         var allPhotoIds = dto.GeneratorReadings.SelectMany(x => x.PhotoAttachmentIds).Concat(dto.TankLevelReadings.SelectMany(x => x.PhotoAttachmentIds).Concat(dto.TankLevelReadings.SelectMany(x => x.BeforePhotoAttachmentIds ?? []))).Concat(dto.FeederLoadReadings.SelectMany(x => x.PhotoAttachmentIds)).Concat(dto.MeterReadings.SelectMany(x => x.PhotoAttachmentIds)).Distinct().ToList();
@@ -491,6 +503,20 @@ public sealed class OperationalCaptureService(
         var generatorIds = dto.GeneratorReadings.Select(x => x.GeneratorId).Distinct().ToList();
         if (await db.Generators.CountAsync(x => generatorIds.Contains(x.Id) && x.SubStationId == siteId, cancellationToken) != generatorIds.Count)
             return "Every generator must belong to the selected site.";
+        var oilSelections = dto.GeneratorReadings.Where(x => x.OilId.HasValue).ToList();
+        if (oilSelections.Count > 0)
+        {
+            var selectedPairs = oilSelections.Select(x => new { x.GeneratorId, OilId = x.OilId!.Value }).Distinct().ToList();
+            var configuredPairs = await db.GeneratorMaintenanceOilConfigurations.AsNoTracking()
+                .Where(c => selectedPairs.Select(p => p.GeneratorId).Contains(c.GeneratorId)
+                    && selectedPairs.Select(p => p.OilId).Contains(c.OilId)
+                    && c.Oil.SubStationId == siteId)
+                .Select(c => new { c.GeneratorId, c.OilId })
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            if (selectedPairs.Any(p => !configuredPairs.Any(c => c.GeneratorId == p.GeneratorId && c.OilId == p.OilId)))
+                return "The selected oil is not configured for this generator.";
+        }
         var tankIds = dto.TankLevelReadings.Select(x => x.FuelTankId).Distinct().ToList();
         if (await db.FuelTanks.CountAsync(x => tankIds.Contains(x.Id) && x.SubStationId == siteId, cancellationToken) != tankIds.Count)
             return "Every tank must belong to the selected site.";

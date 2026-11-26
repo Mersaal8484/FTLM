@@ -63,7 +63,8 @@ public sealed record ReviewMeterLineDto(
     string? RejectionReason,
     decimal? PreviousApprovedValue,
     decimal? DeltaPreview,
-    int? DeltaSpanDays);
+    int? DeltaSpanDays,
+    string? SubjectName = null);
 
 // ── Reject action ─────────────────────────────────────────────────────────────
 

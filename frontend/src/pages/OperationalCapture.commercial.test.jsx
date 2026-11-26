@@ -64,6 +64,35 @@ test('daily generator capture contains energy, running-hours, and daily-tank inp
   expect(document.querySelector('.capture-adds')).toBeNull();
 });
 
+test('offers only the oils configured for the selected generator on end-of-day capture', async () => {
+  useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
+  const references = {
+    ...site,
+    generators: [{
+      ...site.generators[0],
+      oilOptions: [
+        { oilId: 41, oilName: '15W-40', currentStock: 75 },
+        { oilId: 42, oilName: '20W-50', currentStock: 30 },
+      ],
+    }, site.generators[1]],
+  };
+  client.get.mockImplementation(async (url, config) => {
+    if (url === '/api/operational-captures/references') return { data: [references] };
+    if (url === '/api/operational-captures/previous-readings') return { data: { readings: [], tankReadings: [], tankBalances: [] } };
+    if (url === '/api/fuel-tanks') return { data: [{ id: 31, name: 'Daily tank', tankRole: 2, generatorId: 11, maxLevelCm: 100, calibrationMode: 1, litresPerCm: 10 }] };
+    if (url === '/api/fuel-tanks/31/level-to-litres') return { data: { tankId: 31, liquidLevelCm: Number(config?.params?.cm), litres: 0, maxLevelCm: 100, calibrationMode: 1, litresPerCm: 10 } };
+    return { data: [] };
+  });
+
+  render(<MemoryRouter initialEntries={['/operations/capture?kind=daily-generator&generatorId=11&tankId=31']}><OperationalCapture /></MemoryRouter>);
+
+  const oilType = await screen.findByLabelText(/Oil type|نوع الزيت/i);
+  expect(screen.getByRole('option', { name: /15W-40/ })).toBeInTheDocument();
+  expect(screen.getByRole('option', { name: /20W-50/ })).toBeInTheDocument();
+  fireEvent.change(oilType, { target: { value: '42' } });
+  expect(oilType).toHaveValue('42');
+});
+
 test('shows clear message and back link when hourly generatorId is unknown or non-numeric', async () => {
   useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
   mockRequests();

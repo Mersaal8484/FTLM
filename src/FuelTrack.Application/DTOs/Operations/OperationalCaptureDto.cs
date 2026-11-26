@@ -20,7 +20,7 @@ public sealed record GeneratorCaptureLineDto(
     decimal? ApparentLoadKva, decimal? ReactiveLoadKvar, decimal? FrequencyHz,
     decimal? OilAddedLitres, decimal? PowerFactor,
     Guid? ClientLineId = null, decimal? PeakLoadKw = null, decimal? AirPressureBar = null,
-    DateTime? CapturedAtOverrideUtc = null);
+    DateTime? CapturedAtOverrideUtc = null, int? OilId = null);
 
 public sealed record TankLevelCaptureLineDto(
     int FuelTankId, DateTime CapturedAtUtc, IReadOnlyList<int> PhotoAttachmentIds, decimal LiquidLevelCm,
@@ -76,7 +76,13 @@ public sealed record OperationalCaptureReferenceDto(
     IReadOnlyList<OperationalFeederReferenceDto> Feeders,
     IReadOnlyList<OperationalMeterReferenceDto> Meters);
 
-public sealed record OperationalGeneratorReferenceDto(int Id, string Name, string? Model, int? MeterId);
+public sealed record OperationalGeneratorReferenceDto(
+    int Id,
+    string Name,
+    string? Model,
+    int? MeterId,
+    IReadOnlyList<OperationalGeneratorOilOptionDto>? OilOptions = null);
+public sealed record OperationalGeneratorOilOptionDto(int OilId, string OilName, decimal CurrentStock);
 public sealed record OperationalTankReferenceDto(int Id, string Name, string Code, bool IsCalibrated);
 public sealed record OperationalFeederReferenceDto(int Id, string Name, string Code, decimal MeterMultiplier, int? MeterId);
 public sealed record OperationalMeterReferenceDto(int Id, string Name, string? SerialNumber, int? GeneratorId, string? MeterTypeCode = null);
