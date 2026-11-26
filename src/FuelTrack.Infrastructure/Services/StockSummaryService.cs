@@ -66,6 +66,7 @@ public class StockSummaryService : IStockSummaryService
                 t.CapacityLiters,
                 t.DeadStockLiters,
                 t.ActualStockLiters,
+                t.ActualStockHeightCm,
                 t.MinAlertLiters
             })
             .ToListAsync();
@@ -91,6 +92,7 @@ public class StockSummaryService : IStockSummaryService
                 .Select(r => new CommercialTankReading(
                     r.FuelTankId,
                     r.CapturedAtUtc,
+                    r.LiquidLevelCm,
                     r.ComputedLitres,
                     r.BeforeComputedLitres,
                     r.DeliveryNoteLitres,
@@ -108,6 +110,7 @@ public class StockSummaryService : IStockSummaryService
             var isDaily = tank.TankRole == TankRole.Daily || (!tank.TankRole.HasValue && tank.GeneratorId.HasValue);
             var history = readingsByTank.GetValueOrDefault(tank.Id, []);
             decimal current = history.Count > 0 ? history[^1].ComputedLitres : (decimal)(tank.ActualStockLiters ?? 0d);
+            decimal? currentLevelCm = history.Count > 0 ? history[^1].LiquidLevelCm : tank.ActualStockHeightCm;
             decimal receipts = 0m, transferOut = 0m, transferIn = 0m;
             var periodReadings = history.Where(r => r.CapturedAtUtc >= periodStart && r.CapturedAtUtc < periodEndExclusive).ToList();
             decimal? opening = history.Where(r => r.CapturedAtUtc < periodStart).Select(r => (decimal?)r.ComputedLitres).LastOrDefault()
@@ -162,7 +165,8 @@ public class StockSummaryService : IStockSummaryService
                 transferOut,
                 transferIn,
                 isDaily ? consumed : 0m,
-                alertLevel);
+                alertLevel,
+                currentLevelCm);
 
             (isDaily ? dailyTanks : mainTanks).Add(dto);
         }
@@ -862,6 +866,7 @@ public class StockSummaryService : IStockSummaryService
     private sealed record CommercialTankReading(
         int FuelTankId,
         DateTime CapturedAtUtc,
+        decimal? LiquidLevelCm,
         decimal ComputedLitres,
         decimal? BeforeComputedLitres,
         decimal? DeliveryNoteLitres,

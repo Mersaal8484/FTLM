@@ -438,9 +438,9 @@ public class StockSummaryServiceTests : IDisposable
         _db.FuelTanks.Add(tank);
         await _db.SaveChangesAsync();
         _db.TankLevelReadings.AddRange(
-            new TankLevelReading { FuelTankId = tank.Id, CapturedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), ReceivedAtUtc = DateTime.UtcNow, BusinessDate = new DateOnly(2026, 1, 1), Status = OperationalReadingStatus.Recorded, EventType = TankEventType.Level, ComputedLitres = 500m },
-            new TankLevelReading { FuelTankId = tank.Id, CapturedAtUtc = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc), ReceivedAtUtc = DateTime.UtcNow, BusinessDate = new DateOnly(2026, 1, 2), Status = OperationalReadingStatus.Recorded, EventType = TankEventType.TransferIn, BeforeComputedLitres = 500m, ComputedLitres = 700m },
-            new TankLevelReading { FuelTankId = tank.Id, CapturedAtUtc = new DateTime(2026, 1, 3, 0, 0, 0, DateTimeKind.Utc), ReceivedAtUtc = DateTime.UtcNow, BusinessDate = new DateOnly(2026, 1, 3), Status = OperationalReadingStatus.Recorded, EventType = TankEventType.Level, BeforeComputedLitres = 700m, ComputedLitres = 550m });
+            new TankLevelReading { FuelTankId = tank.Id, CapturedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), ReceivedAtUtc = DateTime.UtcNow, BusinessDate = new DateOnly(2026, 1, 1), Status = OperationalReadingStatus.Recorded, EventType = TankEventType.Level, LiquidLevelCm = 50m, ComputedLitres = 500m },
+            new TankLevelReading { FuelTankId = tank.Id, CapturedAtUtc = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc), ReceivedAtUtc = DateTime.UtcNow, BusinessDate = new DateOnly(2026, 1, 2), Status = OperationalReadingStatus.Recorded, EventType = TankEventType.TransferIn, BeforeComputedLitres = 500m, LiquidLevelCm = 70m, ComputedLitres = 700m },
+            new TankLevelReading { FuelTankId = tank.Id, CapturedAtUtc = new DateTime(2026, 1, 3, 0, 0, 0, DateTimeKind.Utc), ReceivedAtUtc = DateTime.UtcNow, BusinessDate = new DateOnly(2026, 1, 3), Status = OperationalReadingStatus.Recorded, EventType = TankEventType.Level, BeforeComputedLitres = 700m, LiquidLevelCm = 55m, ComputedLitres = 550m });
         await _db.SaveChangesAsync();
         var commercial = new Mock<ICommercialStationModeService>();
         commercial.Setup(x => x.IsCommercialModeAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
@@ -449,7 +449,10 @@ public class StockSummaryServiceTests : IDisposable
 
         var result = await service.GetCommercialFuelTankStockAsync(new DateTime(2026, 1, 2), new DateTime(2026, 1, 3), 1);
 
-        Assert.Equal(150m, Assert.Single(result.DailyTanks).ConsumedLitres);
+        var dailyTank = Assert.Single(result.DailyTanks);
+        Assert.Equal(150m, dailyTank.ConsumedLitres);
+        Assert.Equal(550m, dailyTank.CurrentLitres);
+        Assert.Equal(55m, dailyTank.CurrentLevelCm);
     }
 
     public void Dispose()

@@ -521,8 +521,50 @@ public class FuelTankService : IFuelTankService
                 ft.DiameterCm, ft.CylinderHeightCm, ft.ConeHeightCm, ft.MultiplicationFactor,
                 ft.TankRole, ft.GeneratorId, ft.Generator?.Name, ft.ParentTankId, ft.Shape,
                 ft.CalibrationMode, ft.LitresPerCm, ft.CapacityHeightCm, ft.MinAlertHeightCm, ft.ActualStockHeightCm,
-                ft.CapacityInputUnit, ft.MinAlertInputUnit, ft.ActualStockInputUnit, ft.ParentTank?.Name);
+                ft.CapacityInputUnit, ft.MinAlertInputUnit, ft.ActualStockInputUnit, ft.ParentTank?.Name, TankLevelConverter.MaxLevelCm(ft));
         }).ToList();
+    }
+
+    public async Task<TankLevelConversionDto> ConvertLevelToLitresAsync(int id, decimal cm)
+    {
+        var commercialScope = await GetCommercialScopeAsync();
+        if (commercialScope is null)
+            throw new InvalidOperationException("Level-to-litres conversion is available only in commercial mode.");
+
+        var tank = await _db.FuelTanks
+            .AsNoTracking()
+            .FirstOrDefaultAsync(ft => ft.Id == id && ft.DeletedAt == null)
+            ?? throw new KeyNotFoundException($"FuelTank {id} not found.");
+
+        if (tank.SubStationId != commercialScope.SubStationId)
+            throw new KeyNotFoundException($"FuelTank {id} not found.");
+
+        if (!_currentUser.HasAnyAdminRole && _currentUser.UserId.HasValue &&
+            !await _scopeFilter.HasAccessToSubStationAsync(_currentUser.UserId.Value, tank.SubStationId))
+        {
+            throw new KeyNotFoundException($"FuelTank {id} not found.");
+        }
+
+        if (!TankLevelConverter.IsConfigured(tank))
+            throw new InvalidOperationException("Tank must be calibrated before converting levels.");
+
+        var maxLevelCm = TankLevelConverter.MaxLevelCm(tank);
+        if (cm < 0m || (maxLevelCm.HasValue && cm > maxLevelCm.Value))
+        {
+            var message = maxLevelCm.HasValue
+                ? $"Liquid level must be between 0 and {maxLevelCm.Value} cm."
+                : "Liquid level must be 0 cm or greater.";
+            throw new ArgumentOutOfRangeException(nameof(cm), message);
+        }
+
+        var litres = TankLevelConverter.LitresFromLevel(tank, cm);
+        return new TankLevelConversionDto(
+            tank.Id,
+            cm,
+            litres,
+            maxLevelCm,
+            tank.CalibrationMode,
+            tank.CalibrationMode == TankCalibrationMode.LitresPerCm ? tank.LitresPerCm : null);
     }
 
     private static void RecomputeEnteredVolumes(FuelTank tank, decimal? capacityHeightCm, decimal? minAlertHeightCm, decimal? deadStockHeightCm, decimal? actualStockHeightCm)

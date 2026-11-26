@@ -12,9 +12,29 @@ public static class TankLevelConverter
         _ => tank.DiameterCm is > 0 && tank.CylinderHeightCm is >= 0 && tank.ConeHeightCm is > 0 && tank.MultiplicationFactor is > 0,
     };
 
+    public static decimal? MaxLevelCm(FuelTank tank)
+    {
+        if (tank.CalibrationMode == TankCalibrationMode.LitresPerCm)
+        {
+            if (tank.CapacityHeightCm is > 0m)
+                return Round(tank.CapacityHeightCm.Value);
+            if (tank.LitresPerCm is > 0m && tank.CapacityLiters > 0d)
+                return Round((decimal)tank.CapacityLiters / tank.LitresPerCm.Value);
+            return null;
+        }
+
+        if (tank.CylinderHeightCm is > 0m && tank.ConeHeightCm is >= 0m)
+            return Round(tank.CylinderHeightCm.Value + tank.ConeHeightCm.Value);
+
+        return null;
+    }
+
     public static decimal LitresFromLevel(FuelTank tank, decimal levelCm)
     {
         if (levelCm < 0) throw new ArgumentOutOfRangeException(nameof(levelCm));
+        var maxLevelCm = MaxLevelCm(tank);
+        if (maxLevelCm.HasValue && levelCm > maxLevelCm.Value)
+            throw new ArgumentOutOfRangeException(nameof(levelCm), $"Liquid level ({levelCm} cm) must be between 0 and {maxLevelCm.Value} cm.");
         return tank.CalibrationMode switch
         {
             TankCalibrationMode.LitresPerCm when tank.LitresPerCm is > 0 => Round(levelCm * tank.LitresPerCm.Value),

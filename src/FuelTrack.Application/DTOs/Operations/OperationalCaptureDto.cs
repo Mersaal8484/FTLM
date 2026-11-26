@@ -49,9 +49,25 @@ public sealed record OperationalSubmissionDto(
 public sealed record OperationalLineResultDto(Guid ClientLineId, string Outcome, string? Reason = null, int? EntityId = null);
 public sealed record VoidOperationalReadingDto(string Reason);
 
+public sealed record OperationalTankHistoryLineDto(
+    int Id,
+    int FuelTankId,
+    string FuelTankName,
+    decimal LiquidLevelCm,
+    decimal ComputedLitres,
+    string Status,
+    string EventType,
+    DateTime CapturedAtUtc);
+
+public sealed record TankDailyBalanceDto(
+    int FuelTankId,
+    decimal? OpeningLitres,
+    decimal TransferInLitres);
+
 public sealed record OperationalHistoryItemDto(
     int Id, int SubStationId, string SubStationName, DateTime ReceivedAtUtc, string Status,
-    int GeneratorReadingCount, int TankLevelReadingCount, int FeederLoadReadingCount, int MeterReadingCount);
+    int GeneratorReadingCount, int TankLevelReadingCount, int FeederLoadReadingCount, int MeterReadingCount,
+    IReadOnlyList<OperationalTankHistoryLineDto>? TankReadings = null);
 
 public sealed record OperationalCaptureReferenceDto(
     int SubStationId, string Name, string Code, string TimeZone,
@@ -68,7 +84,8 @@ public sealed record OperationalMeterReferenceDto(int Id, string Name, string? S
 /// <summary>Latest raw/official counters and the latest official daily tank levels for a capture site.</summary>
 public sealed record PreviousMeterReadingsDto(
     IReadOnlyList<PreviousMeterReadingDto> Readings,
-    IReadOnlyList<PreviousTankLevelReadingDto>? TankReadings = null);
+    IReadOnlyList<PreviousTankLevelReadingDto>? TankReadings = null,
+    IReadOnlyList<TankDailyBalanceDto>? TankBalances = null);
 
 public sealed record PreviousMeterReadingDto(
     MeterReadingSubjectType SubjectType,
@@ -89,4 +106,6 @@ public sealed record PreviousTankLevelReadingDto(
     int FuelTankId,
     decimal LiquidLevelCm,
     decimal ComputedLitres,
-    DateTime CapturedAtUtc);
+    DateTime CapturedAtUtc,
+    decimal? OpeningLitres = null,
+    decimal? TransferInLitres = null);

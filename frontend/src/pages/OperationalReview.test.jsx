@@ -130,4 +130,42 @@ describe('OperationalReview — detail / approve flow', () => {
 
     vi.unstubAllGlobals();
   });
+
+  test('renders daily tank reading level in cm alongside stored computed litres', async () => {
+    const tankDetail = {
+      ...detailResponse,
+      tankLines: [
+        {
+          id: 77,
+          lineType: 'tank',
+          status: 'Pending',
+          capturedAtUtc: '2026-11-07T20:00:00Z',
+          receivedAtUtc: '2026-11-07T20:01:00Z',
+          hasSkewWarning: false,
+          photoAttachmentIds: [],
+          warningsJson: null,
+          rejectionReason: null,
+          hasReuseWarning: false,
+          values: {
+            fuelTankId: 31,
+            fuelTankName: 'Daily Tank 1',
+            liquidLevelCm: 42,
+            computedLitres: 420,
+            eventType: 0,
+          },
+        },
+      ],
+    };
+
+    client.get
+      .mockResolvedValueOnce({ data: [pendingSubmission] })
+      .mockResolvedValueOnce({ data: tankDetail });
+
+    renderReview();
+    fireEvent.click(await screen.findByText('المحطة الرئيسية'));
+
+    expect(await screen.findByText(/Daily Tank 1/)).toBeInTheDocument();
+    expect(screen.getByText(/42 cm/)).toBeInTheDocument();
+    expect(screen.getByText(/420 L/)).toBeInTheDocument();
+  });
 });

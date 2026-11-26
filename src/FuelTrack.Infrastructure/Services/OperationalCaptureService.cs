@@ -51,10 +51,11 @@ public sealed class OperationalCaptureService(
                         (x.MeterTypeLookup.Code == "SolarProductionMeter" || x.MeterTypeLookup.Code == "SolarMeter"))
             .Select(x => x.Id)
             .ToListAsync(cancellationToken);
-        var tankIds = await db.FuelTanks.AsNoTracking()
-            .Where(x => x.SubStationId == subStationId)
-            .Select(x => x.Id)
+        var tanks = await db.FuelTanks.AsNoTracking()
+            .Where(x => x.SubStationId == subStationId && x.DeletedAt == null)
+            .Select(x => new { x.Id, x.ActualStockLiters })
             .ToListAsync(cancellationToken);
+        var tankIds = tanks.Select(x => x.Id).ToList();
 
         var candidates = await db.MeterReadings.AsNoTracking()
             .Where(x => x.Status != OperationalReadingStatus.Voided && x.Status != OperationalReadingStatus.Rejected &&
@@ -95,24 +96,76 @@ public sealed class OperationalCaptureService(
                 deltas.Count == 0 ? null : deltas.Average());
         }).ToList();
 
-        var tankReadings = await db.TankLevelReadings.AsNoTracking()
-            .Where(x => tankIds.Contains(x.FuelTankId) &&
-                        x.EventType == TankEventType.Level &&
-                        (x.Status == OperationalReadingStatus.Recorded || x.Status == OperationalReadingStatus.Approved))
-            .OrderByDescending(x => x.CapturedAtUtc)
-            .ThenByDescending(x => x.Id)
-            .Select(x => new PreviousTankLevelReadingDto(
-                x.FuelTankId,
-                x.LiquidLevelCm,
-                x.ComputedLitres,
-                x.CapturedAtUtc))
-            .ToListAsync(cancellationToken);
-        var latestTankReadings = tankReadings
-            .GroupBy(x => x.FuelTankId)
-            .Select(x => x.First())
-            .ToList();
+        var stationId = await db.SubStations.AsNoTracking()
+            .Where(x => x.Id == subStationId)
+            .Select(x => x.StationId)
+            .FirstOrDefaultAsync(cancellationToken);
+        var timeZone = stationId > 0 ? await GetStationTimeZoneAsync(stationId, cancellationToken) : TimeZoneInfo.Utc;
+        var todayLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timeZone).Date;
+        var todayStartUtc = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(todayLocal, DateTimeKind.Unspecified), timeZone);
 
-        return Result<PreviousMeterReadingsDto>.Success(new PreviousMeterReadingsDto(readings, latestTankReadings));
+        var allOfficialTankReadings = tankIds.Count == 0
+            ? []
+            : await db.TankLevelReadings.AsNoTracking()
+                .Where(x => tankIds.Contains(x.FuelTankId) &&
+                            (x.Status == OperationalReadingStatus.Recorded || x.Status == OperationalReadingStatus.Approved))
+                .OrderBy(x => x.CapturedAtUtc)
+                .ThenBy(x => x.Id)
+                .Select(x => new
+                {
+                    x.FuelTankId,
+                    x.LiquidLevelCm,
+                    x.ComputedLitres,
+                    x.BeforeComputedLitres,
+                    x.EventType,
+                    x.CapturedAtUtc
+                })
+                .ToListAsync(cancellationToken);
+
+        var readingsByTank = allOfficialTankReadings
+            .GroupBy(x => x.FuelTankId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var latestTankReadings = new List<PreviousTankLevelReadingDto>();
+        var tankBalances = new List<TankDailyBalanceDto>();
+
+        foreach (var tank in tanks)
+        {
+            var history = readingsByTank.GetValueOrDefault(tank.Id, []);
+            var todayReadings = history.Where(r => r.CapturedAtUtc >= todayStartUtc).ToList();
+            decimal? openingLitres = history
+                .Where(r => r.CapturedAtUtc < todayStartUtc)
+                .Select(r => (decimal?)r.ComputedLitres)
+                .LastOrDefault()
+                ?? todayReadings.FirstOrDefault()?.BeforeComputedLitres
+                ?? (tank.ActualStockLiters.HasValue ? (decimal)tank.ActualStockLiters.Value : null);
+
+            decimal transferInLitres = 0m;
+            decimal? prevLitres = openingLitres;
+            foreach (var r in todayReadings)
+            {
+                var before = r.BeforeComputedLitres ?? prevLitres ?? r.ComputedLitres;
+                if (r.EventType == TankEventType.TransferIn)
+                    transferInLitres += Math.Max(0m, r.ComputedLitres - before);
+                prevLitres = r.ComputedLitres;
+            }
+
+            tankBalances.Add(new TankDailyBalanceDto(tank.Id, openingLitres, transferInLitres));
+
+            var latestLevel = history.LastOrDefault(r => r.EventType == TankEventType.Level);
+            if (latestLevel is not null)
+            {
+                latestTankReadings.Add(new PreviousTankLevelReadingDto(
+                    latestLevel.FuelTankId,
+                    latestLevel.LiquidLevelCm,
+                    latestLevel.ComputedLitres,
+                    latestLevel.CapturedAtUtc,
+                    openingLitres,
+                    transferInLitres));
+            }
+        }
+
+        return Result<PreviousMeterReadingsDto>.Success(new PreviousMeterReadingsDto(readings, latestTankReadings, tankBalances));
     }
 
     public async Task<Result<OperationalSubmissionDto>> SubmitAsync(SubmitOperationalCaptureDto dto, int userId, CancellationToken cancellationToken = default)
@@ -349,8 +402,15 @@ public sealed class OperationalCaptureService(
     public async Task<IReadOnlyList<OperationalHistoryItemDto>> GetMyHistoryAsync(int userId, CancellationToken cancellationToken = default) =>
         await db.OperationalSubmissions.AsNoTracking().Where(x => x.CreatedBy == userId)
             .OrderByDescending(x => x.ReceivedAtUtc).Take(100)
-            .Select(x => new OperationalHistoryItemDto(x.Id, x.SubStationId, x.SubStation.Name, x.ReceivedAtUtc, x.Status.ToString(),
-                x.GeneratorReadings.Count, x.TankLevelReadings.Count, x.FeederLoadReadings.Count, x.MeterReadings.Count))
+            .Select(x => new OperationalHistoryItemDto(
+                x.Id, x.SubStationId, x.SubStation.Name, x.ReceivedAtUtc, x.Status.ToString(),
+                x.GeneratorReadings.Count, x.TankLevelReadings.Count, x.FeederLoadReadings.Count, x.MeterReadings.Count,
+                x.TankLevelReadings
+                    .OrderBy(t => t.CapturedAtUtc)
+                    .Select(t => new OperationalTankHistoryLineDto(
+                        t.Id, t.FuelTankId, t.FuelTank.Name, t.LiquidLevelCm, t.ComputedLitres,
+                        t.Status.ToString(), t.EventType.ToString(), t.CapturedAtUtc))
+                    .ToList()))
             .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<OperationalCaptureReferenceDto>> GetCaptureReferencesAsync(int userId, CancellationToken cancellationToken = default)
@@ -475,6 +535,24 @@ public sealed class OperationalCaptureService(
             return "Every feeder must belong to the selected site.";
         if (tanksById.Values.Any(x => !TankLevelConverter.IsConfigured(x)))
             return "Each selected tank must be calibrated before a level capture is submitted.";
+        foreach (var line in dto.TankLevelReadings)
+        {
+            var tank = tanksById[line.FuelTankId];
+            var maxLevelCm = TankLevelConverter.MaxLevelCm(tank);
+            if (line.LiquidLevelCm < 0m || (maxLevelCm.HasValue && line.LiquidLevelCm > maxLevelCm.Value))
+            {
+                return maxLevelCm.HasValue
+                    ? $"Tank level for '{tank.Name}' must be between 0 and {maxLevelCm.Value} cm."
+                    : $"Tank level for '{tank.Name}' must be 0 cm or greater.";
+            }
+            if (line.BeforeLiquidLevelCm.HasValue &&
+                (line.BeforeLiquidLevelCm.Value < 0m || (maxLevelCm.HasValue && line.BeforeLiquidLevelCm.Value > maxLevelCm.Value)))
+            {
+                return maxLevelCm.HasValue
+                    ? $"Previous tank level for '{tank.Name}' must be between 0 and {maxLevelCm.Value} cm."
+                    : $"Previous tank level for '{tank.Name}' must be 0 cm or greater.";
+            }
+        }
 
         var dailyTankCoverageError = await ValidateCommercialDailyTankCoverageAsync(
             dto,

@@ -158,8 +158,9 @@ public sealed class OperationalReviewService(
             .Select(r => new
             {
                 r.Id, r.Status, r.CapturedAtUtc, r.ReceivedAtUtc,
+                r.FuelTankId, FuelTankName = r.FuelTank.Name,
                 r.LiquidLevelCm, r.ComputedLitres, r.EventType,
-                r.BeforeLiquidLevelCm, r.DeliveryNoteLitres,
+                r.BeforeLiquidLevelCm, r.BeforeComputedLitres, r.DeliveryNoteLitres,
                 r.WarningsJson, r.RejectionReason,
             })
             .ToListAsync(cancellationToken);
@@ -175,7 +176,7 @@ public sealed class OperationalReviewService(
             tankPhotoIds.GetValueOrDefault(r.Id, []),
             r.WarningsJson, r.RejectionReason,
             tankPhotoIds.GetValueOrDefault(r.Id, []).Any(pid => tankReuseWarnings.Contains(pid)),
-            new { r.LiquidLevelCm, r.ComputedLitres, r.EventType, r.BeforeLiquidLevelCm, r.DeliveryNoteLitres }
+            new { r.FuelTankId, r.FuelTankName, r.LiquidLevelCm, r.ComputedLitres, r.EventType, r.BeforeLiquidLevelCm, r.BeforeComputedLitres, r.DeliveryNoteLitres }
         )).ToList();
 
         // Feeder lines

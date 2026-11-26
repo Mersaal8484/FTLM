@@ -13,8 +13,8 @@ vi.mock('../api/stockSummaryApi', () => ({
   useCommercialFuelTankStock: () => ({
     isLoading: false,
     data: {
-      mainTanks: [{ tankId: 1, tankName: 'الخزان الرئيسي', tankCode: 'MAIN-1', fuelLookupName: 'ديزل', capacityLitres: 5000, currentLitres: 4500, usableLitres: 4300, externalReceiptLitres: 0, transferredOutLitres: 600, alertLevel: 'normal' }],
-      dailyTanks: [{ tankId: 2, tankName: 'خزان مولد 1', tankCode: 'DAY-1', fuelLookupName: 'ديزل', generatorName: 'مولد 1', capacityLitres: 500, currentLitres: 220, usableLitres: 200, transferredInLitres: 250, consumedLitres: 30, alertLevel: 'normal' }],
+      mainTanks: [{ tankId: 1, tankName: 'الخزان الرئيسي', tankCode: 'MAIN-1', fuelLookupName: 'ديزل', capacityLitres: 5000, currentLitres: 4500, currentLevelCm: 90, usableLitres: 4300, externalReceiptLitres: 0, transferredOutLitres: 600, alertLevel: 'normal' }],
+      dailyTanks: [{ tankId: 2, tankName: 'خزان مولد 1', tankCode: 'DAY-1', fuelLookupName: 'ديزل', generatorName: 'مولد 1', capacityLitres: 500, currentLitres: 220, currentLevelCm: 22, usableLitres: 200, transferredInLitres: 250, consumedLitres: 30, alertLevel: 'normal' }],
     },
   }),
 }));
@@ -31,4 +31,6 @@ test('commercial fuel stock separates main-tank transfers from daily-tank genera
   expect(screen.getByText('لا يُحسب من الرئيسي')).toBeInTheDocument();
   expect(screen.getByText('مولد 1')).toBeInTheDocument();
   expect(screen.getByText('30 L')).toBeInTheDocument();
+  expect(screen.getByText('22.00 cm')).toBeInTheDocument();
+  expect(screen.getByText('90.00 cm')).toBeInTheDocument();
 });

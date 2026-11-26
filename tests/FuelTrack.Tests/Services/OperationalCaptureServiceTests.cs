@@ -323,6 +323,77 @@ public sealed class OperationalCaptureServiceTests
         Assert.Contains(result.Value.Lines!, x => x.Outcome == "rejected" && x.Reason!.Contains("daily tank of the outgoing main tank", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task SubmitAsync_RejectsOutOfRangeTankLevel_AndPreservesComputedLitresSnapshotAcrossCalibrationEdits()
+    {
+        await using var db = CreateDatabase();
+        var fixture = await SeedAsync(db);
+        var linearTank = new FuelTank
+        {
+            SubStationId = fixture.SiteId, FuelLookupId = 1, Name = "Linear Daily", Code = "DT-L",
+            CapacityLiters = 1000, TankRole = FuelTrack.Domain.Enums.TankRole.Daily, GeneratorId = fixture.GeneratorId,
+            CalibrationMode = FuelTrack.Domain.Enums.TankCalibrationMode.LitresPerCm, LitresPerCm = 10m, IsActive = true,
+        };
+        var geometryTank = new FuelTank
+        {
+            SubStationId = fixture.SiteId, FuelLookupId = 1, Name = "Geometry Daily", Code = "DT-G",
+            CapacityLiters = 10000, TankRole = FuelTrack.Domain.Enums.TankRole.Daily,
+            CalibrationMode = FuelTrack.Domain.Enums.TankCalibrationMode.Geometry,
+            DiameterCm = 200m, ConeHeightCm = 50m, CylinderHeightCm = 150m, MultiplicationFactor = 1m, IsActive = true,
+        };
+        db.FuelTanks.AddRange(linearTank, geometryTank);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var capturedAt = DateTime.UtcNow.AddMinutes(-5);
+
+        // Out-of-range rejected for LitresPerCm (> 100 cm) and Geometry (> 200 cm)
+        var overLinear = new SubmitOperationalCaptureDto(
+            Guid.NewGuid(), fixture.SiteId, [],
+            [new TankLevelCaptureLineDto(linearTank.Id, capturedAt, [fixture.AttachmentId], 101m, Guid.NewGuid())],
+            [], []);
+        var overLinearRes = await service.SubmitAsync(overLinear, fixture.UserId);
+        Assert.True(overLinearRes.IsSuccess);
+        Assert.Contains(overLinearRes.Value!.Lines!, l => l.Outcome == "rejected" && l.Reason!.Contains("between 0 and 100", StringComparison.OrdinalIgnoreCase));
+
+        var overGeom = new SubmitOperationalCaptureDto(
+            Guid.NewGuid(), fixture.SiteId, [],
+            [new TankLevelCaptureLineDto(geometryTank.Id, capturedAt, [fixture.AttachmentId], 201m, Guid.NewGuid())],
+            [], []);
+        var overGeomRes = await service.SubmitAsync(overGeom, fixture.UserId);
+        Assert.True(overGeomRes.IsSuccess);
+        Assert.Contains(overGeomRes.Value!.Lines!, l => l.Outcome == "rejected" && l.Reason!.Contains("between 0 and 200", StringComparison.OrdinalIgnoreCase));
+
+        // Valid submit stores ComputedLitres snapshot; subsequent calibration edit does not alter stored reading
+        var validDto = new SubmitOperationalCaptureDto(
+            Guid.NewGuid(), fixture.SiteId, [],
+            [new TankLevelCaptureLineDto(linearTank.Id, capturedAt, [fixture.AttachmentId], 42m, Guid.NewGuid())],
+            [], []);
+        var validRes = await service.SubmitAsync(validDto, fixture.UserId);
+        Assert.True(validRes.IsSuccess);
+        Assert.Equal(1, validRes.Value!.TankLevelReadingCount);
+
+        linearTank.LitresPerCm = 20m;
+        await db.SaveChangesAsync();
+
+        var saved = await db.TankLevelReadings.SingleAsync();
+        Assert.Equal(42m, saved.LiquidLevelCm);
+        Assert.Equal(420m, saved.ComputedLitres);
+
+        var prev = await service.GetPreviousReadingsAsync(fixture.SiteId, fixture.UserId);
+        Assert.True(prev.IsSuccess);
+        var prevTank = Assert.Single(prev.Value!.TankReadings!);
+        Assert.Equal(42m, prevTank.LiquidLevelCm);
+        Assert.Equal(420m, prevTank.ComputedLitres);
+
+        var history = await service.GetMyHistoryAsync(fixture.UserId);
+        var historyItem = Assert.Single(history);
+        var historyTank = Assert.Single(historyItem.TankReadings!);
+        Assert.Equal(42m, historyTank.LiquidLevelCm);
+        Assert.Equal(420m, historyTank.ComputedLitres);
+        Assert.Equal("Linear Daily", historyTank.FuelTankName);
+    }
+
     private static OperationalCaptureService CreateService(FuelTrackDbContext db) =>
         new(db, new SiteScope(), new CurrentUser(), new IdempotencyService(db), Mock.Of<IFuelLoadSafetyService>());
 

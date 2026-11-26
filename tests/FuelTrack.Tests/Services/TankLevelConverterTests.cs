@@ -32,4 +32,30 @@ public sealed class TankLevelConverterTests
         Assert.Equal(1012.5m, TankLevelConverter.LitresFromLevel(tank, 100m));
         Assert.Equal(100m, TankLevelConverter.LevelFromLitres(tank, 1012.5m));
     }
+
+    [Fact]
+    public void MaxLevelCm_And_RangeValidation_RejectAboveCapacityForLinearAndGeometryModes()
+    {
+        var linearTank = new FuelTank
+        {
+            CalibrationMode = TankCalibrationMode.LitresPerCm,
+            LitresPerCm = 10m,
+            CapacityLiters = 1000d,
+        };
+        var geometryTank = new FuelTank
+        {
+            CalibrationMode = TankCalibrationMode.Geometry,
+            DiameterCm = 200m,
+            ConeHeightCm = 50m,
+            CylinderHeightCm = 150m,
+            MultiplicationFactor = 1m,
+        };
+
+        Assert.Equal(100m, TankLevelConverter.MaxLevelCm(linearTank));
+        Assert.Equal(200m, TankLevelConverter.MaxLevelCm(geometryTank));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => TankLevelConverter.LitresFromLevel(linearTank, -1m));
+        Assert.Throws<ArgumentOutOfRangeException>(() => TankLevelConverter.LitresFromLevel(linearTank, 100.1m));
+        Assert.Throws<ArgumentOutOfRangeException>(() => TankLevelConverter.LitresFromLevel(geometryTank, 200.1m));
+    }
 }

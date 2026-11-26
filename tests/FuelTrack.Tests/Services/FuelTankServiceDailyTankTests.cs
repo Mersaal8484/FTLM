@@ -527,6 +527,67 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
         Assert.Equal("Main Reservoir", listedDaily.ParentTankName);
     }
 
+    [Fact]
+    public async Task ConvertLevelToLitresAsync_SupportsLinearAndGeometryModes_AndEnforcesBoundsAndScope()
+    {
+        await EnableCommercialModeAsync();
+        var linearTank = await _tankService.CreateAsync(new CreateFuelTankDto(
+            SubStationId: 0,
+            FuelLookupId: 1,
+            Name: "Linear Daily Tank",
+            Code: "DT-LIN",
+            CapacityLiters: 1000,
+            TankRole: TankRole.Daily,
+            GeneratorId: 1,
+            CalibrationMode: TankCalibrationMode.LitresPerCm,
+            LitresPerCm: 10m), 1);
+
+        var geomTank = await _tankService.CreateAsync(new CreateFuelTankDto(
+            SubStationId: 0,
+            FuelLookupId: 1,
+            Name: "Geometry Daily Tank",
+            Code: "DT-GEO",
+            CapacityLiters: 10000,
+            TankRole: TankRole.Daily,
+            GeneratorId: 4,
+            DiameterCm: 200m,
+            CylinderHeightCm: 150m,
+            ConeHeightCm: 50m,
+            MultiplicationFactor: 1m,
+            CalibrationMode: TankCalibrationMode.Geometry), 1);
+
+        var otherSiteTank = new FuelTank
+        {
+            SubStationId = 2,
+            FuelLookupId = 1,
+            Name: "Other Site Tank",
+            Code: "OT-1",
+            CapacityLiters = 1000,
+            CalibrationMode = TankCalibrationMode.LitresPerCm,
+            LitresPerCm = 10m,
+            IsActive = true,
+        };
+        _db.FuelTanks.Add(otherSiteTank);
+        await _db.SaveChangesAsync();
+
+        var linResult = await _tankService.ConvertLevelToLitresAsync(linearTank.Id, 42m);
+        Assert.Equal(420m, linResult.Litres);
+        Assert.Equal(100m, linResult.MaxLevelCm);
+        Assert.Equal(TankCalibrationMode.LitresPerCm, linResult.CalibrationMode);
+        Assert.Equal(10m, linResult.LitresPerCm);
+
+        var geoResult = await _tankService.ConvertLevelToLitresAsync(geomTank.Id, 100m);
+        Assert.Equal(2094.395m, geoResult.Litres);
+        Assert.Equal(200m, geoResult.MaxLevelCm);
+        Assert.Equal(TankCalibrationMode.Geometry, geoResult.CalibrationMode);
+        Assert.Null(geoResult.LitresPerCm);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _tankService.ConvertLevelToLitresAsync(linearTank.Id, -0.1m));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _tankService.ConvertLevelToLitresAsync(linearTank.Id, 100.1m));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _tankService.ConvertLevelToLitresAsync(geomTank.Id, 200.1m));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _tankService.ConvertLevelToLitresAsync(otherSiteTank.Id, 10m));
+    }
+
     public void Dispose()
     {
         _db.Dispose();

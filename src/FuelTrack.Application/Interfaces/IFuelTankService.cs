@@ -10,4 +10,5 @@ public interface IFuelTankService
     Task<FuelTankDetailDto?> GetByIdAsync(int id);
     Task<List<FuelTankListDto>> GetAllAsync();
     Task<List<FuelTankListDto>> GetBySubStationAsync(int subStationId);
+    Task<TankLevelConversionDto> ConvertLevelToLitresAsync(int id, decimal cm);
 }

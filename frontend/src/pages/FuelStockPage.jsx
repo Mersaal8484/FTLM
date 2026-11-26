@@ -54,6 +54,7 @@ function CommercialTankCard({ tank, daily, ar }) {
         <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '10px 12px' }}>
           <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>{ar ? 'الرصيد الفعلي' : 'Actual stock'}</div>
           <div style={{ fontWeight: 800, fontSize: 20, marginTop: 3 }}>{fmt(tank.currentLitres)} <small style={{ fontSize: 11 }}>L</small></div>
+          {tank.currentLevelCm != null && <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>{fmt(tank.currentLevelCm, 2)} cm</div>}
         </div>
         <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '10px 12px' }}>
           <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>{ar ? 'المتاح بعد الميت' : 'Usable after dead stock'}</div>

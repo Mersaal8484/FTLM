@@ -22,7 +22,8 @@ public sealed record CommercialFuelTankStockDto(
     decimal TransferredOutLitres,
     decimal TransferredInLitres,
     decimal ConsumedLitres,
-    string AlertLevel);
+    string AlertLevel,
+    decimal? CurrentLevelCm = null);
 
 public sealed record CommercialFuelStockOverviewDto(
     IReadOnlyList<CommercialFuelTankStockDto> MainTanks,

@@ -68,4 +68,11 @@ public class FuelTanksController : BaseApiController
         return Ok(result);
     }
 
+    [HttpGet("{id:int}/level-to-litres")]
+    public async Task<IActionResult> ConvertLevelToLitres(int id, [FromQuery] decimal cm)
+    {
+        var result = await _fuelTankService.ConvertLevelToLitresAsync(id, cm);
+        return Ok(result);
+    }
+
 }

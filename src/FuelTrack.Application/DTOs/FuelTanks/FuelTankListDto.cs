@@ -37,4 +37,13 @@ public record FuelTankListDto(
     string? CapacityInputUnit = null,
     string? MinAlertInputUnit = null,
     string? ActualStockInputUnit = null,
-    string? ParentTankName = null);
+    string? ParentTankName = null,
+    decimal? MaxLevelCm = null);
+
+public sealed record TankLevelConversionDto(
+    int TankId,
+    decimal LiquidLevelCm,
+    decimal Litres,
+    decimal? MaxLevelCm,
+    TankCalibrationMode CalibrationMode,
+    decimal? LitresPerCm);

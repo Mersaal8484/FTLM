@@ -247,6 +247,24 @@ function SubmissionDetail({ id, onBack }) {
               </div>
             )}
 
+            {/* Tank level reading (cm & stored computed litres) */}
+            {line._type === 'tank' && line.values && (
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
+                {line.values.fuelTankName && <strong>{line.values.fuelTankName}: </strong>}
+                {line.values.beforeLiquidLevelCm != null && (
+                  <>
+                    <span>{Number(line.values.beforeLiquidLevelCm).toLocaleString()} cm</span>
+                    {line.values.beforeComputedLitres != null && <> · <span>{Number(line.values.beforeComputedLitres).toLocaleString()} L</span></>}
+                    &nbsp;→&nbsp;
+                  </>
+                )}
+                <strong>{Number(line.values.liquidLevelCm).toLocaleString()} cm</strong>
+                {line.values.computedLitres != null && (
+                  <> · <strong>{Number(line.values.computedLitres).toLocaleString()} L</strong></>
+                )}
+              </div>
+            )}
+
             {/* Meter delta */}
             {line._type === 'meter' && line.deltaPreview != null && (
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>

@@ -287,4 +287,49 @@ public sealed class OperationalReviewServiceTests
         var sub = await db.OperationalSubmissions.FindAsync(submissionId);
         Assert.Equal(OperationalReadingStatus.Approved, sub!.Status);
     }
+
+    [Fact]
+    public async Task GetSubmissionDetail_IncludesTankLevelCmAndStoredComputedLitres()
+    {
+        await using var db = CreateDb();
+        var (submissionId, submitterId, _, subStationId, _) = await SeedPendingSubmissionAsync(db);
+        var tank = new FuelTank
+        {
+            SubStationId = subStationId, FuelLookupId = 1, Name = "Daily Tank A", Code = "DT-A",
+            CapacityLiters = 1000, CalibrationMode = TankCalibrationMode.LitresPerCm, LitresPerCm = 10m, IsActive = true
+        };
+        db.FuelTanks.Add(tank);
+        await db.SaveChangesAsync();
+
+        db.TankLevelReadings.Add(new TankLevelReading
+        {
+            OperationalSubmissionId = submissionId,
+            FuelTankId = tank.Id,
+            ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+            ReceivedAtUtc = DateTime.UtcNow,
+            BusinessDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            Status = OperationalReadingStatus.Pending,
+            EventType = TankEventType.Level,
+            LiquidLevelCm = 42m,
+            ComputedLitres = 420m,
+            CreatedBy = submitterId,
+            UpdatedBy = submitterId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
+        // Mutating tank calibration later must not affect review detail's stored ComputedLitres
+        tank.LitresPerCm = 25m;
+        await db.SaveChangesAsync();
+
+        var detail = await CreateService(db).GetSubmissionDetailAsync(submissionId, 999);
+        Assert.True(detail.IsSuccess);
+        var tankLine = Assert.Single(detail.Value!.TankLines);
+        var json = System.Text.Json.JsonSerializer.Serialize(tankLine.Values);
+        Assert.Contains("42", json);
+        Assert.Contains("420", json);
+        Assert.Contains("Daily Tank A", json);
+    }
 }
