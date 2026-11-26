@@ -1,3 +1,4 @@
+using FuelTrack.Application.DTOs.Operations;
 using FuelTrack.Application.Interfaces;
 using FuelTrack.Domain.Enums;
 using FuelTrack.Domain.Models;
