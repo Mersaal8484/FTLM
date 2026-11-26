@@ -3,11 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Droplet, ArrowRight, CheckCircle, AlertCircle, ClipboardList, ChevronLeft, Save } from 'lucide-react';
 import client from '../api/client';
 import { PageHeader, Button, FormField, Input } from '../components/ui';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 function AddOilToGenerator({ lang }) {
   const ar = lang === 'ar';
   const { generatorId } = useParams();
   const navigate = useNavigate();
+  const { isCommercial, isCommercialMode } = useCommercialMode();
 
   const [oils, setOils] = useState([]);
   const [generator, setGenerator] = useState(null);
@@ -100,7 +102,7 @@ function AddOilToGenerator({ lang }) {
       <PageHeader
         title={
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Button variant="ghost" size="sm" icon={ChevronLeft} onClick={() => navigate('/my-generators')} style={{ transform: ar ? 'rotate(180deg)' : 'none' }} />
+            <Button variant="ghost" size="sm" icon={ChevronLeft} onClick={() => navigate((isCommercial || isCommercialMode) ? '/operations/capture?tab=daily' : '/my-generators')} style={{ transform: ar ? 'rotate(180deg)' : 'none' }} />
             <Droplet size={22} style={{ color: 'var(--warning)' }} />
             {ar ? 'إضافة زيت للمولد' : 'Add Oil to Generator'}
           </span>

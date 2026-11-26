@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, expect, test, vi } from 'vitest';
 
 vi.mock('../api/client', () => ({ default: { get: vi.fn() } }));
@@ -72,4 +72,48 @@ test('end-of-day tab does not pair a main or unlinked tank with a generator', as
   expect(container.querySelector('a[href*="kind=daily-generator"]')).toBeNull();
   expect(container.querySelector('a[href="/commercial/daily-tanks"]')).toBeInTheDocument();
   expect(container.querySelector('button[disabled]')).toBeInTheDocument();
+});
+
+function SearchProbe() {
+  const location = useLocation();
+  return <div data-testid="hub-search">{location.search}</div>;
+}
+
+test('reads ?tab=daily from URL, falls back on unknown values, and updates URL query on tab click', async () => {
+  useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
+  mockRequests();
+
+  const { container } = render(
+    <MemoryRouter initialEntries={['/operations/capture?tab=daily']}>
+      <CommercialCaptureHub />
+      <SearchProbe />
+    </MemoryRouter>
+  );
+
+  expect(await screen.findByText('Generator 1')).toBeInTheDocument();
+  expect(container.querySelector('a[href="/generators/11/add-oil"]')).toBeInTheDocument();
+  expect(screen.getByTestId('hub-search')).toHaveTextContent('?tab=daily');
+
+  const tabs = screen.getAllByRole('button');
+  fireEvent.click(tabs[0]);
+  expect(screen.getByTestId('hub-search')).toHaveTextContent('?tab=hourly');
+  expect(container.querySelector('a[href*="kind=hourly-generator"]')).toBeInTheDocument();
+
+  fireEvent.click(tabs[1]);
+  expect(screen.getByTestId('hub-search')).toHaveTextContent('?tab=daily');
+});
+
+test('falls back to hourly tab when query param tab has an unknown value', async () => {
+  useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
+  mockRequests();
+
+  const { container } = render(
+    <MemoryRouter initialEntries={['/operations/capture?tab=unknown']}>
+      <CommercialCaptureHub />
+    </MemoryRouter>
+  );
+
+  expect(await screen.findByText('Generator 1')).toBeInTheDocument();
+  expect(container.querySelector('a[href*="kind=hourly-generator"]')).toBeInTheDocument();
+  expect(container.querySelector('a[href*="daily-feeders"]')).toBeNull();
 });

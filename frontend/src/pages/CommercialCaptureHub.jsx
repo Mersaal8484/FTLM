@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Activity, AlertCircle, Droplets, Gauge, Zap } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import client from '../api/client';
 import useCommercialMode from '../hooks/useCommercialMode';
@@ -72,7 +72,9 @@ export default function CommercialCaptureHub() {
   const [site, setSite] = useState(null);
   const [generatorDetails, setGeneratorDetails] = useState([]);
   const [fuelTanks, setFuelTanks] = useState([]);
-  const [activeTab, setActiveTab] = useState('hourly');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') === 'daily' ? 'daily' : 'hourly';
+  const setActiveTab = (tab) => setSearchParams({ tab: tab === 'daily' ? 'daily' : 'hourly' }, { replace: true });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 

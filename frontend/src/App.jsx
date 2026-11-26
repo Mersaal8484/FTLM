@@ -179,6 +179,12 @@ const CommercialOnly = ({ children }) => {
   return !isCommercialMode ? <Navigate to="/" replace /> : children;
 };
 
+export const MyGeneratorsRoute = ({ children }) => {
+  const { isCommercialMode, isCommercial, modeResolved } = useCommercialMode();
+  if (!modeResolved) return null;
+  return (isCommercial || isCommercialMode) ? <Navigate to="/operations/capture" replace /> : children;
+};
+
 function App() {
   const { user, login, setUser, setIsAuthenticated, setAuthChecked, logout } = useAuthStore();
   const { lang, theme, unreadCount, setUnreadCount, toggleTheme, sidebarCollapsed } = useUiStore();
@@ -357,7 +363,7 @@ function App() {
               <Route path="/reports/*" element={<Protected module="reports" anyOfModules={['warehouse']}><Reports lang={lang} currentUser={user} /></Protected>} />
 
               {/* Operators */}
-              <Route path="/my-generators" element={<Protected><MyGenerators lang={lang} currentUser={user} /></Protected>} />
+              <Route path="/my-generators" element={<Protected><MyGeneratorsRoute><MyGenerators lang={lang} currentUser={user} /></MyGeneratorsRoute></Protected>} />
               <Route path="/generators/:generatorId/add-reading" element={<Protected module="readings" action="add"><AddReading lang={lang} currentUser={user} /></Protected>} />
               <Route path="/generators/:generatorId/add-oil" element={<Protected module="oil" action="add"><AddOilToGenerator lang={lang} /></Protected>} />
               <Route path="/stations/:stationId/reading" element={<EnterpriseOnly><Protected module="readings" action="add"><SubStationReading lang={lang} currentUser={user} /></Protected></EnterpriseOnly>} />
