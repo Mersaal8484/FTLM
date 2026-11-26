@@ -560,8 +560,8 @@ public sealed class FuelTankServiceDailyTankTests : IDisposable
         {
             SubStationId = 2,
             FuelLookupId = 1,
-            Name: "Other Site Tank",
-            Code: "OT-1",
+            Name = "Other Site Tank",
+            Code = "OT-1",
             CapacityLiters = 1000,
             CalibrationMode = TankCalibrationMode.LitresPerCm,
             LitresPerCm = 10m,
