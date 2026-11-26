@@ -42,6 +42,29 @@ public sealed class OperationalReviewController(IOperationalReviewService review
             : StatusCode(result.StatusCode, new { error = result.Error });
     }
 
+    /// <summary>Approve one generator or feeder end-of-day bundle.</summary>
+    [HttpPost("{id:int}/bundles/{bundleType}/{subjectId:int}/approve")]
+    public async Task<IActionResult> ApproveBundle(
+        int id, string bundleType, int subjectId, CancellationToken cancellationToken)
+    {
+        var result = await reviewService.ApproveBundleAsync(id, bundleType, subjectId, GetUserId(), cancellationToken);
+        return result.IsSuccess
+            ? Ok(new { message = "Review bundle approved." })
+            : StatusCode(result.StatusCode, new { error = result.Error });
+    }
+
+    /// <summary>Reject one generator or feeder end-of-day bundle.</summary>
+    [HttpPost("{id:int}/bundles/{bundleType}/{subjectId:int}/reject")]
+    public async Task<IActionResult> RejectBundle(
+        int id, string bundleType, int subjectId, [FromBody] RejectLineDto dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await reviewService.RejectBundleAsync(id, bundleType, subjectId, dto, GetUserId(), cancellationToken);
+        return result.IsSuccess
+            ? Ok(new { message = "Review bundle rejected." })
+            : StatusCode(result.StatusCode, new { error = result.Error });
+    }
+
     /// <summary>Reject a single reading line; reason is mandatory.</summary>
     [HttpPost("lines/{lineType}/{lineId:int}/reject")]
     public async Task<IActionResult> RejectLine(

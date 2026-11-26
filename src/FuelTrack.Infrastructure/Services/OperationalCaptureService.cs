@@ -259,7 +259,11 @@ public sealed class OperationalCaptureService(
             {
                 var captured = ResolveCapturedAt(line.CapturedAtOverrideUtc ?? line.CapturedAtUtc, dto.SubmissionCapturedAtUtc, now);
                 var awaitingPhoto = dto.IsOfflineQueue && line.PhotoAttachmentIds.Count == 0;
-                var requiresApproval = ReadingApprovalPolicy.RequiresApproval(OperationalSubjectType.Generator, tier1RequiresApproval: tier1RequiresApproval);
+                // Commercial end-of-day cards are reviewed as one package: the
+                // generator telemetry, its counters, oil top-up and daily-tank
+                // level must all stay non-official until the reviewer decides.
+                var requiresApproval = (isCommercial && isDailyClosing)
+                    || ReadingApprovalPolicy.RequiresApproval(OperationalSubjectType.Generator, tier1RequiresApproval: tier1RequiresApproval);
                 var entity = new OperationalGeneratorReading
                 {
                     OperationalSubmission = submission, GeneratorId = line.GeneratorId, CapturedAtUtc = captured, ReceivedAtUtc = now,
@@ -312,7 +316,11 @@ public sealed class OperationalCaptureService(
                 var feeder = feederMap[line.FeederId];
                 var captured = ResolveCapturedAt(line.CapturedAtOverrideUtc ?? line.CapturedAtUtc, dto.SubmissionCapturedAtUtc, now);
                 var awaitingPhoto = dto.IsOfflineQueue && line.PhotoAttachmentIds.Count == 0;
-                var requiresApproval = ReadingApprovalPolicy.RequiresApproval(OperationalSubjectType.Feeder, tier1RequiresApproval: tier1RequiresApproval);
+                // A feeder load is part of its end-of-day counter package in
+                // commercial mode; do not make it official before that package
+                // is approved.
+                var requiresApproval = (isCommercial && isDailyClosing)
+                    || ReadingApprovalPolicy.RequiresApproval(OperationalSubjectType.Feeder, tier1RequiresApproval: tier1RequiresApproval);
                 var entity = new FeederLoadReading
                 {
                     OperationalSubmission = submission, FeederId = feeder.Id, CapturedAtUtc = captured, ReceivedAtUtc = now,
@@ -329,7 +337,12 @@ public sealed class OperationalCaptureService(
                 var captured = ResolveCapturedAt(line.CapturedAtOverrideUtc ?? line.CapturedAtUtc, dto.SubmissionCapturedAtUtc, now);
                 var multiplier = line.MultiplierSnapshot ?? 1m;
                 var awaitingPhoto = dto.IsOfflineQueue && line.PhotoAttachmentIds.Count == 0;
-                var requiresApproval = ReadingApprovalPolicy.RequiresApproval(OperationalSubjectType.Meter, line.Kind, tier1RequiresApproval: tier1RequiresApproval);
+                // Daily-closing meters belong to the same commercial review
+                // package as their generator or feeder. They must not become
+                // official (and overwrite the previous counter) before that
+                // package is approved.
+                var requiresApproval = (isCommercial && isDailyClosing)
+                    || ReadingApprovalPolicy.RequiresApproval(OperationalSubjectType.Meter, line.Kind, tier1RequiresApproval: tier1RequiresApproval);
                 var entity = new MeterReading
                 {
                     OperationalSubmission = submission, SubjectType = line.SubjectType, SubjectId = line.SubjectId, MeterId = line.MeterId,
@@ -418,21 +431,69 @@ public sealed class OperationalCaptureService(
         }
 
         var sites = db.SubStations.AsNoTracking().Where(x => siteIds == null || siteIds.Contains(x.Id));
-        return await sites.OrderBy(x => x.Name).Select(x => new OperationalCaptureReferenceDto(
-            x.Id, x.Name, x.Code, db.StationOperationalSettings.Where(s => s.StationId == x.StationId).Select(s => s.TimeZone).FirstOrDefault() ?? StationOperationalSettings.DefaultTimeZone,
-            x.Generators.OrderBy(g => g.Name).Select(g => new OperationalGeneratorReferenceDto(
+        var siteRows = await sites.OrderBy(x => x.Name).Select(x => new
+        {
+            x.Id,
+            x.Name,
+            x.Code,
+            TimeZone = db.StationOperationalSettings
+                .Where(s => s.StationId == x.StationId)
+                .Select(s => s.TimeZone)
+                .FirstOrDefault() ?? StationOperationalSettings.DefaultTimeZone,
+            Generators = x.Generators.OrderBy(g => g.Name).Select(g => new
+            {
                 g.Id,
                 g.Name,
                 g.Model,
-                db.Meters.Where(m => m.GeneratorId == g.Id).Select(m => (int?)m.Id).FirstOrDefault(),
-                db.GeneratorMaintenanceOilConfigurations
-                    .Where(c => c.GeneratorId == g.Id && c.Oil.SubStationId == x.Id)
-                    .Select(c => new OperationalGeneratorOilOptionDto(c.OilId, c.Oil.OilLookup.Name, c.Oil.CurrentStock))
-                    .ToList())).ToList(),
-            x.FuelTanks.OrderBy(t => t.Name).Select(t => new OperationalTankReferenceDto(t.Id, t.Name, t.Code, t.Shape != null && t.DiameterCm != null && t.CylinderHeightCm != null && t.ConeHeightCm != null && t.MultiplicationFactor != null)).ToList(),
-            x.Feeders.OrderBy(f => f.Name).Select(f => new OperationalFeederReferenceDto(f.Id, f.Name, f.Code, f.MeterMultiplier, f.MeterId)).ToList(),
-            x.Meters.OrderBy(m => m.Name).Select(m => new OperationalMeterReferenceDto(m.Id, m.Name, m.SerialNumber, m.GeneratorId, m.MeterTypeLookup != null ? m.MeterTypeLookup.Code : null)).ToList()))
-            .ToListAsync(cancellationToken);
+                MeterId = db.Meters.Where(m => m.GeneratorId == g.Id).Select(m => (int?)m.Id).FirstOrDefault()
+            }).ToList(),
+            Tanks = x.FuelTanks.OrderBy(t => t.Name)
+                .Select(t => new OperationalTankReferenceDto(t.Id, t.Name, t.Code,
+                    t.Shape != null && t.DiameterCm != null && t.CylinderHeightCm != null && t.ConeHeightCm != null && t.MultiplicationFactor != null))
+                .ToList(),
+            Feeders = x.Feeders.OrderBy(f => f.Name)
+                .Select(f => new OperationalFeederReferenceDto(f.Id, f.Name, f.Code, f.MeterMultiplier, f.MeterId))
+                .ToList(),
+            Meters = x.Meters.OrderBy(m => m.Name)
+                .Select(m => new OperationalMeterReferenceDto(m.Id, m.Name, m.SerialNumber, m.GeneratorId,
+                    m.MeterTypeLookup != null ? m.MeterTypeLookup.Code : null))
+                .ToList()
+        }).ToListAsync(cancellationToken);
+
+        // SQLite cannot translate the nested correlated oil-options collection used by
+        // the original single query. Fetch it separately, then join it in memory.
+        var generatorIds = siteRows.SelectMany(x => x.Generators).Select(x => x.Id).ToList();
+        var oilOptionsByGenerator = new Dictionary<(int GeneratorId, int SubStationId), IReadOnlyList<OperationalGeneratorOilOptionDto>>();
+        if (generatorIds.Count > 0)
+        {
+            var oilOptions = await db.GeneratorMaintenanceOilConfigurations.AsNoTracking()
+                .Where(c => generatorIds.Contains(c.GeneratorId))
+                .Select(c => new
+                {
+                    c.GeneratorId,
+                    c.Generator.SubStationId,
+                    Option = new OperationalGeneratorOilOptionDto(c.OilId, c.Oil.OilLookup.Name, c.Oil.CurrentStock)
+                })
+                .ToListAsync(cancellationToken);
+
+            foreach (var group in oilOptions.GroupBy(x => (x.GeneratorId, x.SubStationId)))
+                oilOptionsByGenerator[group.Key] = group.Select(x => x.Option).ToList();
+        }
+
+        return siteRows.Select(x => new OperationalCaptureReferenceDto(
+            x.Id,
+            x.Name,
+            x.Code,
+            x.TimeZone,
+            x.Generators.Select(g => new OperationalGeneratorReferenceDto(
+                g.Id,
+                g.Name,
+                g.Model,
+                g.MeterId,
+                oilOptionsByGenerator.TryGetValue((g.Id, x.Id), out var options) ? options : [])).ToList(),
+            x.Tanks,
+            x.Feeders,
+            x.Meters)).ToList();
     }
 
     public async Task<Result> VoidRecordedLineAsync(string lineType, int lineId, VoidOperationalReadingDto dto, int userId, CancellationToken cancellationToken = default)

@@ -36,6 +36,11 @@ public sealed class OperationalReviewService(
         int SubmittedBy,
         List<TankLevelReading> TankLines,
         List<MeterReading> MeterLines);
+    private sealed record BundleApprovalCommit(
+        OperationalSubmission Submission,
+        int SubmittedBy,
+        List<TankLevelReading> TankLines,
+        List<MeterReading> MeterLines);
     private static readonly TimeSpan SkewThreshold = TimeSpan.FromHours(12);
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> SubjectLocks = new();
 
@@ -132,8 +137,9 @@ public sealed class OperationalReviewService(
             {
                 r.Id, r.Status, r.CapturedAtUtc, r.ReceivedAtUtc, r.WarningsJson,
                 r.RejectionReason, r.IsRunning, r.GeneratorId, GeneratorName = r.Generator.Name,
-                r.ActiveLoadKw, r.ApparentLoadKva, r.FrequencyHz, r.PowerFactor,
-                r.OilPressure, r.WaterTemperatureCelsius, r.PeakLoadKw,
+                r.LineVoltageVolts, r.CurrentAmps, r.ActiveLoadKw, r.ApparentLoadKva,
+                r.FrequencyHz, r.PowerFactor, r.OilPressure, r.OilTemperatureCelsius,
+                r.WaterTemperatureCelsius, r.PeakLoadKw,
                 r.OilAddedLitres, r.OilId,
                 OilName = db.Oils.Where(o => o.Id == r.OilId).Select(o => o.OilLookup.Name).FirstOrDefault(),
             })
@@ -152,7 +158,7 @@ public sealed class OperationalReviewService(
             r.WarningsJson,
             r.RejectionReason,
             genPhotoIds.GetValueOrDefault(r.Id, []).Any(pid => genReuseWarnings.Contains(pid)),
-            new { r.GeneratorId, r.GeneratorName, r.IsRunning, r.ActiveLoadKw, r.ApparentLoadKva, r.FrequencyHz, r.PowerFactor, r.OilPressure, r.WaterTemperatureCelsius, r.PeakLoadKw, r.OilAddedLitres, r.OilId, r.OilName }
+            new { r.GeneratorId, r.GeneratorName, r.IsRunning, r.LineVoltageVolts, r.CurrentAmps, r.ActiveLoadKw, r.ApparentLoadKva, r.FrequencyHz, r.PowerFactor, r.OilPressure, r.OilTemperatureCelsius, r.WaterTemperatureCelsius, r.PeakLoadKw, r.OilAddedLitres, r.OilId, r.OilName }
         )).ToList();
 
         // Tank lines
@@ -162,7 +168,7 @@ public sealed class OperationalReviewService(
             .Select(r => new
             {
                 r.Id, r.Status, r.CapturedAtUtc, r.ReceivedAtUtc,
-                r.FuelTankId, FuelTankName = r.FuelTank.Name,
+                r.FuelTankId, FuelTankName = r.FuelTank.Name, GeneratorId = r.FuelTank.GeneratorId,
                 r.LiquidLevelCm, r.ComputedLitres, r.EventType,
                 r.BeforeLiquidLevelCm, r.BeforeComputedLitres, r.DeliveryNoteLitres,
                 r.WarningsJson, r.RejectionReason,
@@ -180,7 +186,7 @@ public sealed class OperationalReviewService(
             tankPhotoIds.GetValueOrDefault(r.Id, []),
             r.WarningsJson, r.RejectionReason,
             tankPhotoIds.GetValueOrDefault(r.Id, []).Any(pid => tankReuseWarnings.Contains(pid)),
-            new { r.FuelTankId, r.FuelTankName, r.LiquidLevelCm, r.ComputedLitres, r.EventType, r.BeforeLiquidLevelCm, r.BeforeComputedLitres, r.DeliveryNoteLitres }
+            new { r.FuelTankId, r.FuelTankName, r.GeneratorId, r.LiquidLevelCm, r.ComputedLitres, r.EventType, r.BeforeLiquidLevelCm, r.BeforeComputedLitres, r.DeliveryNoteLitres }
         )).ToList();
 
         // Feeder lines
@@ -190,7 +196,7 @@ public sealed class OperationalReviewService(
             .Select(r => new
             {
                 r.Id, r.Status, r.CapturedAtUtc, r.ReceivedAtUtc,
-                FeederName = r.Feeder.Name,
+                r.FeederId, FeederName = r.Feeder.Name,
                 r.ActiveLoadKw, r.ApparentLoadKva,
                 r.WarningsJson, r.RejectionReason,
             })
@@ -207,7 +213,7 @@ public sealed class OperationalReviewService(
             feederPhotoIds.GetValueOrDefault(r.Id, []),
             r.WarningsJson, r.RejectionReason,
             feederPhotoIds.GetValueOrDefault(r.Id, []).Any(pid => feederReuseWarnings.Contains(pid)),
-            new { r.FeederName, r.ActiveLoadKw, r.ApparentLoadKva }
+            new { r.FeederId, r.FeederName, r.ActiveLoadKw, r.ApparentLoadKva }
         )).ToList();
 
         // Meter lines with delta preview
@@ -239,9 +245,13 @@ public sealed class OperationalReviewService(
         var meterDtos = new List<ReviewMeterLineDto>();
         foreach (var r in meterLines)
         {
-            MeterDeltaDto? delta = null;
-            if (r.Kind == MeterReadingKind.DailyClosing)
-                delta = await meterDelta.GetDailyDeltaAsync(r.SubjectType, r.SubjectId, r.BusinessDate, cancellationToken);
+            // The submitted line is still Pending, so GetDailyDeltaAsync (which
+            // intentionally reads official daily closings only) cannot use it as
+            // the current value. Build a review-only preview from this line and
+            // its latest preceding official closing instead.
+            MeterDeltaDto? delta = r.Kind == MeterReadingKind.DailyClosing
+                ? await GetReviewMeterDeltaAsync(r, cancellationToken)
+                : null;
 
             meterDtos.Add(new ReviewMeterLineDto(
                 r.Id, r.Status.ToString(), r.SubjectType, r.SubjectId, r.Kind,
@@ -294,11 +304,53 @@ public sealed class OperationalReviewService(
             dailyConsumptions));
     }
 
+    private async Task<MeterDeltaDto> GetReviewMeterDeltaAsync(
+        MeterReading submittedReading,
+        CancellationToken cancellationToken)
+    {
+        if (submittedReading.IsMeterReset)
+        {
+            return new MeterDeltaDto(
+                submittedReading.BusinessDate, null, null, submittedReading.RawValue, null, true);
+        }
+
+        var previous = await db.MeterReadings
+            .AsNoTracking()
+            .Where(r => r.SubjectType == submittedReading.SubjectType
+                        && r.SubjectId == submittedReading.SubjectId
+                        && r.Kind == MeterReadingKind.DailyClosing
+                        && (r.CapturedAtUtc < submittedReading.CapturedAtUtc
+                            || (r.CapturedAtUtc == submittedReading.CapturedAtUtc && r.Id < submittedReading.Id))
+                        && ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
+            .OrderByDescending(r => r.CapturedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (previous is null)
+        {
+            return new MeterDeltaDto(
+                submittedReading.BusinessDate, null, null, submittedReading.RawValue, null, false);
+        }
+
+        var span = submittedReading.BusinessDate.DayNumber - previous.BusinessDate.DayNumber;
+        return new MeterDeltaDto(
+            submittedReading.BusinessDate,
+            (submittedReading.RawValue - previous.RawValue) * submittedReading.MultiplierSnapshot,
+            previous.RawValue,
+            submittedReading.RawValue,
+            span > 1 ? span : null,
+            false);
+    }
+
     // ── Approve ──────────────────────────────────────────────────────────────
 
     public async Task<Result> ApproveSubmissionAsync(
         int submissionId, int userId, CancellationToken cancellationToken = default)
     {
+        // Commercial end-of-day data must be reviewed per generator or feeder.
+        // Keep this legacy whole-submission endpoint for enterprise callers only.
+        if (commercialMode is not null && await commercialMode.IsCommercialModeAsync(cancellationToken))
+            return Result.Failure("Commercial submissions must be reviewed per generator or feeder.", 422);
+
         var accessibleSiteIds = await scopeFilter.GetAccessibleSubStationIdsAsync(userId);
 
         ApprovalCommit committed;
@@ -529,6 +581,186 @@ public sealed class OperationalReviewService(
 
     // ── Reject line ──────────────────────────────────────────────────────────
 
+    public async Task<Result> ApproveBundleAsync(
+        int submissionId, string bundleType, int subjectId, int userId,
+        CancellationToken cancellationToken = default)
+    {
+        if (subjectId <= 0)
+            return Result.Failure("A valid review subject is required.", 422);
+        if (commercialMode is null || !await commercialMode.IsCommercialModeAsync(cancellationToken))
+            return Result.NotFound("Bundle review is available only in commercial station mode.");
+
+        var accessibleSiteIds = await scopeFilter.GetAccessibleSubStationIdsAsync(userId);
+        BundleApprovalCommit committed;
+        try
+        {
+            committed = await DbTransactionRunner.RunAsync(db, async _ =>
+            {
+                var submission = await db.OperationalSubmissions
+                    .SingleOrDefaultAsync(s => s.Id == submissionId
+                        && accessibleSiteIds.Contains(s.SubStationId), cancellationToken);
+                if (submission is null)
+                    throw new ReviewTransactionResultException(Result.NotFound("Submission not found or outside your scope."));
+
+                var submittedBy = submission.SubmittedByUserId ?? submission.CreatedBy;
+                var settings = await GetSettingsAsync(submission.SubStationId, cancellationToken);
+                if ((settings?.RequiresDifferentReviewer ?? true) && submittedBy == userId)
+                    throw new ReviewTransactionResultException(Result.Failure("The reviewer must differ from the submitter (D18).", 403));
+
+                var now = DateTime.UtcNow;
+                var generatorLines = new List<OperationalGeneratorReading>();
+                var tankLines = new List<TankLevelReading>();
+                var feederLines = new List<FeederLoadReading>();
+                var meterLines = new List<MeterReading>();
+
+                switch (bundleType.Trim().ToLowerInvariant())
+                {
+                    case "generator":
+                        generatorLines = await db.OperationalGeneratorReadings
+                            .Where(r => r.OperationalSubmissionId == submissionId && r.GeneratorId == subjectId
+                                && r.Status == OperationalReadingStatus.Pending)
+                            .ToListAsync(cancellationToken);
+                        tankLines = await db.TankLevelReadings
+                            .Include(r => r.FuelTank)
+                            .Where(r => r.OperationalSubmissionId == submissionId
+                                && r.FuelTank.GeneratorId == subjectId
+                                && r.Status == OperationalReadingStatus.Pending)
+                            .ToListAsync(cancellationToken);
+                        meterLines = await db.MeterReadings
+                            .Where(r => r.OperationalSubmissionId == submissionId && r.SubjectId == subjectId
+                                && (r.SubjectType == MeterReadingSubjectType.GeneratorEnergyProduced
+                                    || r.SubjectType == MeterReadingSubjectType.GeneratorRunningHours)
+                                && r.Status == OperationalReadingStatus.Pending)
+                            .ToListAsync(cancellationToken);
+                        break;
+                    case "feeder":
+                        feederLines = await db.FeederLoadReadings
+                            .Where(r => r.OperationalSubmissionId == submissionId && r.FeederId == subjectId
+                                && r.Status == OperationalReadingStatus.Pending)
+                            .ToListAsync(cancellationToken);
+                        meterLines = await db.MeterReadings
+                            .Where(r => r.OperationalSubmissionId == submissionId && r.SubjectId == subjectId
+                                && r.SubjectType == MeterReadingSubjectType.FeederEnergySent
+                                && r.Status == OperationalReadingStatus.Pending)
+                            .ToListAsync(cancellationToken);
+                        break;
+                    default:
+                        throw new ReviewTransactionResultException(Result.Failure("Review bundle must be generator or feeder.", 422));
+                }
+
+                if (generatorLines.Count + tankLines.Count + feederLines.Count + meterLines.Count == 0)
+                    throw new ReviewTransactionResultException(Result.Success());
+
+                foreach (var meter in meterLines.Where(r => r.Kind == MeterReadingKind.DailyClosing))
+                    await EnsureMeterIsMonotonicAsync(meter, cancellationToken);
+
+                var oilTransactions = await ApplyCommercialOilTopUpsAsync(submission, generatorLines, userId, now, cancellationToken);
+                foreach (var line in generatorLines) Approve(line, now, userId);
+                foreach (var line in tankLines) Approve(line, now, userId);
+                foreach (var line in feederLines) Approve(line, now, userId);
+                foreach (var line in meterLines) Approve(line, now, userId);
+
+                await db.SaveChangesAsync(cancellationToken);
+                foreach (var (reading, transaction) in oilTransactions)
+                    reading.OilTransactionId = transaction.Id;
+                if (oilTransactions.Count > 0)
+                    await db.SaveChangesAsync(cancellationToken);
+
+                await UpdateSubmissionStatusIfReviewCompleteAsync(submission, now, userId, cancellationToken);
+                await db.SaveChangesAsync(cancellationToken);
+                return new BundleApprovalCommit(submission, submittedBy, tankLines, meterLines);
+            }, cancellationToken);
+        }
+        catch (ReviewTransactionResultException result)
+        {
+            return result.Result;
+        }
+
+        foreach (var line in committed.TankLines)
+        {
+            try { await fuelLoadSafety.EvaluateTankDeadStockAsync(line.Id, cancellationToken); }
+            catch (Exception ex) { logger?.LogError(ex, "Dead-stock evaluation failed after approving tank reading {TankReadingId}", line.Id); }
+        }
+        if (serviceDueEvaluation is not null)
+        {
+            foreach (var generatorId in committed.MeterLines
+                .Where(r => r.SubjectType == MeterReadingSubjectType.GeneratorRunningHours)
+                .Select(r => r.SubjectId).Distinct())
+            {
+                try { await serviceDueEvaluation.EvaluateGeneratorAsync(generatorId, cancellationToken); }
+                catch (Exception ex) { logger?.LogError(ex, "Service-due evaluation failed after approving running hours for generator {GeneratorId}", generatorId); }
+            }
+        }
+
+        await NotifySubmitterAsync(committed.Submission, committed.SubmittedBy, "approved", submissionId, cancellationToken);
+        return Result.Success();
+    }
+
+    public async Task<Result> RejectBundleAsync(
+        int submissionId, string bundleType, int subjectId, RejectLineDto dto, int userId,
+        CancellationToken cancellationToken = default)
+    {
+        if (subjectId <= 0 || string.IsNullOrWhiteSpace(dto.Reason))
+            return Result.Failure("A rejection reason and review subject are required.", 422);
+        if (commercialMode is null || !await commercialMode.IsCommercialModeAsync(cancellationToken))
+            return Result.NotFound("Bundle review is available only in commercial station mode.");
+
+        var accessibleSiteIds = await scopeFilter.GetAccessibleSubStationIdsAsync(userId);
+        try
+        {
+            await DbTransactionRunner.RunAsync(db, async _ =>
+            {
+                var submission = await db.OperationalSubmissions
+                    .SingleOrDefaultAsync(s => s.Id == submissionId
+                        && accessibleSiteIds.Contains(s.SubStationId), cancellationToken);
+                if (submission is null)
+                    throw new ReviewTransactionResultException(Result.NotFound("Submission not found or outside your scope."));
+
+                var submittedBy = submission.SubmittedByUserId ?? submission.CreatedBy;
+                var settings = await GetSettingsAsync(submission.SubStationId, cancellationToken);
+                if ((settings?.RequiresDifferentReviewer ?? true) && submittedBy == userId)
+                    throw new ReviewTransactionResultException(Result.Failure("The reviewer must differ from the submitter (D18).", 403));
+
+                var now = DateTime.UtcNow;
+                var generatorLines = new List<OperationalGeneratorReading>();
+                var tankLines = new List<TankLevelReading>();
+                var feederLines = new List<FeederLoadReading>();
+                var meterLines = new List<MeterReading>();
+                switch (bundleType.Trim().ToLowerInvariant())
+                {
+                    case "generator":
+                        generatorLines = await db.OperationalGeneratorReadings.Where(r => r.OperationalSubmissionId == submissionId && r.GeneratorId == subjectId && r.Status == OperationalReadingStatus.Pending).ToListAsync(cancellationToken);
+                        tankLines = await db.TankLevelReadings.Where(r => r.OperationalSubmissionId == submissionId && r.FuelTank.GeneratorId == subjectId && r.Status == OperationalReadingStatus.Pending).ToListAsync(cancellationToken);
+                        meterLines = await db.MeterReadings.Where(r => r.OperationalSubmissionId == submissionId && r.SubjectId == subjectId && (r.SubjectType == MeterReadingSubjectType.GeneratorEnergyProduced || r.SubjectType == MeterReadingSubjectType.GeneratorRunningHours) && r.Status == OperationalReadingStatus.Pending).ToListAsync(cancellationToken);
+                        break;
+                    case "feeder":
+                        feederLines = await db.FeederLoadReadings.Where(r => r.OperationalSubmissionId == submissionId && r.FeederId == subjectId && r.Status == OperationalReadingStatus.Pending).ToListAsync(cancellationToken);
+                        meterLines = await db.MeterReadings.Where(r => r.OperationalSubmissionId == submissionId && r.SubjectId == subjectId && r.SubjectType == MeterReadingSubjectType.FeederEnergySent && r.Status == OperationalReadingStatus.Pending).ToListAsync(cancellationToken);
+                        break;
+                    default:
+                        throw new ReviewTransactionResultException(Result.Failure("Review bundle must be generator or feeder.", 422));
+                }
+
+                if (generatorLines.Count + tankLines.Count + feederLines.Count + meterLines.Count == 0)
+                    throw new ReviewTransactionResultException(Result.Success());
+
+                foreach (var line in generatorLines) Reject(line, dto.Reason, now, userId);
+                foreach (var line in tankLines) Reject(line, dto.Reason, now, userId);
+                foreach (var line in feederLines) Reject(line, dto.Reason, now, userId);
+                foreach (var line in meterLines) Reject(line, dto.Reason, now, userId);
+                await db.SaveChangesAsync(cancellationToken);
+                await UpdateSubmissionStatusIfReviewCompleteAsync(submission, now, userId, cancellationToken);
+                await db.SaveChangesAsync(cancellationToken);
+            }, cancellationToken);
+        }
+        catch (ReviewTransactionResultException result)
+        {
+            return result.Result;
+        }
+
+        return Result.Success();
+    }
+
     public async Task<Result> RejectLineAsync(
         string lineType, int lineId, RejectLineDto dto, int userId,
         CancellationToken cancellationToken = default)
@@ -664,6 +896,168 @@ public sealed class OperationalReviewService(
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private async Task<List<(OperationalGeneratorReading Reading, OilTransaction Transaction)>> ApplyCommercialOilTopUpsAsync(
+        OperationalSubmission submission,
+        IReadOnlyCollection<OperationalGeneratorReading> generatorLines,
+        int userId,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        if (commercialMode is null || !await commercialMode.IsCommercialModeAsync(cancellationToken))
+            return [];
+
+        var oilTopUps = generatorLines.Where(r => r.OilAddedLitres.GetValueOrDefault() > 0m).ToList();
+        if (oilTopUps.Count == 0)
+            return [];
+        if (oilTopUps.Any(r => !r.OilId.HasValue))
+            throw new ReviewTransactionResultException(Result.Failure("An approved oil top-up requires a selected oil type.", 422));
+
+        var oilIds = oilTopUps.Select(r => r.OilId!.Value).Distinct().ToList();
+        var oils = await db.Oils
+            .Where(o => oilIds.Contains(o.Id) && o.SubStationId == submission.SubStationId)
+            .ToDictionaryAsync(o => o.Id, cancellationToken);
+        if (oils.Count != oilIds.Count)
+            throw new ReviewTransactionResultException(Result.Failure("One or more selected oils are unavailable at this station.", 422));
+
+        var consumptionTypeId = await db.Lookups
+            .Where(l => l.Code == OilTransactionTypeCodes.Consumption
+                && l.IsActive
+                && (l.Category.Name == "OilTransactionType" || l.CategoryId == 100))
+            .Select(l => (int?)l.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!consumptionTypeId.HasValue)
+            throw new ReviewTransactionResultException(Result.Failure("Oil consumption transaction type is not configured.", 422));
+
+        var transactions = new List<(OperationalGeneratorReading Reading, OilTransaction Transaction)>();
+        foreach (var reading in oilTopUps)
+        {
+            var quantity = reading.OilAddedLitres!.Value;
+            var oil = oils[reading.OilId!.Value];
+            if (oil.CurrentStock < quantity)
+                throw new ReviewTransactionResultException(Result.Failure($"Insufficient stock for oil '{oil.OilLookup?.Name ?? oil.Id.ToString()}'.", 422));
+
+            oil.CurrentStock -= quantity;
+            oil.UpdatedAt = now;
+            oil.UpdatedBy = userId;
+            var transaction = new OilTransaction
+            {
+                SubStationId = submission.SubStationId,
+                OilLookupId = oil.OilLookupId,
+                TransactionTypeLookupId = consumptionTypeId.Value,
+                TransactionDate = reading.CapturedAtUtc,
+                QuantityLiters = (double)quantity,
+                Reference = $"EOD-{submission.Id}-G{reading.GeneratorId}-{reading.ClientLineId:N}",
+                Notes = $"End-of-day generator oil top-up: {reading.GeneratorId}",
+                IsApproved = true,
+                ApprovedById = userId,
+                ApprovedAt = now,
+                CreatedAt = now,
+                UpdatedAt = now,
+                CreatedBy = userId,
+                UpdatedBy = userId
+            };
+            db.OilTransactions.Add(transaction);
+            transactions.Add((reading, transaction));
+        }
+        return transactions;
+    }
+
+    private async Task EnsureMeterIsMonotonicAsync(MeterReading meter, CancellationToken cancellationToken)
+    {
+        var sem = SubjectLocks.GetOrAdd($"meter:{meter.SubjectType}:{meter.SubjectId}", _ => new SemaphoreSlim(1, 1));
+        await sem.WaitAsync(cancellationToken);
+        try
+        {
+            var result = await meterDelta.ValidateMonotonicityAsync(meter.Id, cancellationToken);
+            if (!result.IsSuccess)
+                throw new ReviewTransactionResultException(Result.Failure(result.Error!, 422));
+        }
+        finally
+        {
+            sem.Release();
+        }
+    }
+
+    private static void Approve(OperationalGeneratorReading line, DateTime now, int userId)
+    {
+        line.Status = OperationalReadingStatus.Approved;
+        line.ApprovedAt = now;
+        line.ApprovedByUserId = userId;
+    }
+
+    private static void Approve(TankLevelReading line, DateTime now, int userId)
+    {
+        line.Status = OperationalReadingStatus.Approved;
+        line.ApprovedAt = now;
+        line.ApprovedByUserId = userId;
+    }
+
+    private static void Approve(FeederLoadReading line, DateTime now, int userId)
+    {
+        line.Status = OperationalReadingStatus.Approved;
+        line.ApprovedAt = now;
+        line.ApprovedByUserId = userId;
+    }
+
+    private static void Approve(MeterReading line, DateTime now, int userId)
+    {
+        line.Status = OperationalReadingStatus.Approved;
+        line.ApprovedAt = now;
+        line.ApprovedByUserId = userId;
+    }
+
+    private static void Reject(OperationalGeneratorReading line, string reason, DateTime now, int userId)
+    {
+        line.Status = OperationalReadingStatus.Rejected;
+        line.RejectedAt = now;
+        line.RejectedByUserId = userId;
+        line.RejectionReason = reason.Trim();
+    }
+
+    private static void Reject(TankLevelReading line, string reason, DateTime now, int userId)
+    {
+        line.Status = OperationalReadingStatus.Rejected;
+        line.RejectedAt = now;
+        line.RejectedByUserId = userId;
+        line.RejectionReason = reason.Trim();
+    }
+
+    private static void Reject(FeederLoadReading line, string reason, DateTime now, int userId)
+    {
+        line.Status = OperationalReadingStatus.Rejected;
+        line.RejectedAt = now;
+        line.RejectedByUserId = userId;
+        line.RejectionReason = reason.Trim();
+    }
+
+    private static void Reject(MeterReading line, string reason, DateTime now, int userId)
+    {
+        line.Status = OperationalReadingStatus.Rejected;
+        line.RejectedAt = now;
+        line.RejectedByUserId = userId;
+        line.RejectionReason = reason.Trim();
+    }
+
+    private async Task UpdateSubmissionStatusIfReviewCompleteAsync(
+        OperationalSubmission submission, DateTime now, int userId, CancellationToken ct)
+    {
+        var submissionId = submission.Id;
+        var pending = await db.OperationalGeneratorReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && (r.Status == OperationalReadingStatus.Pending || r.Status == OperationalReadingStatus.AwaitingPhoto), ct)
+            || await db.TankLevelReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && (r.Status == OperationalReadingStatus.Pending || r.Status == OperationalReadingStatus.AwaitingPhoto), ct)
+            || await db.FeederLoadReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && (r.Status == OperationalReadingStatus.Pending || r.Status == OperationalReadingStatus.AwaitingPhoto), ct)
+            || await db.MeterReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && (r.Status == OperationalReadingStatus.Pending || r.Status == OperationalReadingStatus.AwaitingPhoto), ct);
+        if (pending)
+            return;
+
+        var hasApproved = await db.OperationalGeneratorReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && r.Status == OperationalReadingStatus.Approved, ct)
+            || await db.TankLevelReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && r.Status == OperationalReadingStatus.Approved, ct)
+            || await db.FeederLoadReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && r.Status == OperationalReadingStatus.Approved, ct)
+            || await db.MeterReadings.AnyAsync(r => r.OperationalSubmissionId == submissionId && r.Status == OperationalReadingStatus.Approved, ct);
+        submission.Status = hasApproved ? OperationalReadingStatus.Approved : OperationalReadingStatus.Rejected;
+        submission.UpdatedAt = now;
+        submission.UpdatedBy = userId;
+    }
 
     private async Task UpdateSubmissionStatusIfAllRejectedAsync(
         int submissionId, DateTime now, int userId, CancellationToken ct)

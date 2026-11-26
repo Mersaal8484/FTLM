@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, ChevronLeft, Clock3, Droplet, Image, XCirc
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import OperationalBackLink from '../components/OperationalBackLink';
+import useCommercialMode from '../hooks/useCommercialMode';
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
@@ -17,9 +18,17 @@ const fetchDetail = (id) =>
 const approveSubmission = (id) =>
   client.post(`/api/operational-review/${id}/approve`).then((r) => r.data);
 
+const approveBundle = ({ submissionId, bundleType, subjectId }) =>
+  client.post(`/api/operational-review/${submissionId}/bundles/${bundleType}/${subjectId}/approve`).then((r) => r.data);
+
 const rejectLine = ({ lineType, lineId, reason }) =>
   client
     .post(`/api/operational-review/lines/${lineType}/${lineId}/reject`, { reason })
+    .then((r) => r.data);
+
+const rejectBundle = ({ submissionId, bundleType, subjectId, reason }) =>
+  client
+    .post(`/api/operational-review/${submissionId}/bundles/${bundleType}/${subjectId}/reject`, { reason })
     .then((r) => r.data);
 
 // ── Status chip ───────────────────────────────────────────────────────────────
@@ -46,12 +55,14 @@ function StatusChip({ status }) {
 
 // ── Reject modal ──────────────────────────────────────────────────────────────
 
-function RejectModal({ lineType, lineId, onClose, onDone }) {
+function RejectModal({ target, onClose, onDone }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [reason, setReason] = useState('');
   const mutation = useMutation({
-    mutationFn: () => rejectLine({ lineType, lineId, reason }),
+    mutationFn: () => target.kind === 'bundle'
+      ? rejectBundle({ submissionId: target.submissionId, bundleType: target.bundleType, subjectId: target.subjectId, reason })
+      : rejectLine({ lineType: target.lineType, lineId: target.lineId, reason }),
     onSuccess: () => { qc.invalidateQueries(['review']); onDone(); onClose(); },
   });
   return (
@@ -87,6 +98,7 @@ function RejectModal({ lineType, lineId, onClose, onDone }) {
 function SubmissionDetail({ id, onBack }) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
+  const { isCommercialMode, modeResolved } = useCommercialMode();
   const [rejectTarget, setRejectTarget] = useState(null);
 
   const { data, isLoading, error } = useQuery({
@@ -94,7 +106,15 @@ function SubmissionDetail({ id, onBack }) {
     queryFn: () => fetchDetail(id),
   });
 
-  const approveMutation = useMutation({
+  const approveBundleMutation = useMutation({
+    mutationFn: ({ bundleType, subjectId }) => approveBundle({ submissionId: id, bundleType, subjectId }),
+    onSuccess: () => {
+      qc.invalidateQueries(['review']);
+      qc.invalidateQueries(['review', 'detail', id]);
+    },
+  });
+
+  const approveSubmissionMutation = useMutation({
     mutationFn: () => approveSubmission(id),
     onSuccess: () => { qc.invalidateQueries(['review']); onBack(); },
   });
@@ -102,14 +122,65 @@ function SubmissionDetail({ id, onBack }) {
   if (isLoading) return <p style={{ padding: 24 }}>…</p>;
   if (error || !data) return <p style={{ padding: 24, color: 'var(--danger)' }}>{error?.response?.data?.error || error?.response?.data?.detail || error?.message}</p>;
 
-  const allLines = [
-    ...data.generatorLines.map((l) => ({ ...l, _type: 'generator' })),
-    ...data.tankLines.map((l) => ({ ...l, _type: 'tank' })),
-    ...data.feederLines.map((l) => ({ ...l, _type: 'feeder' })),
-    ...data.meterLines.map((l) => ({ ...l, _type: 'meter' })),
-  ];
-
   const dateStr = (s) => new Date(s).toLocaleString('en-US');
+  const isSubject = (line, numeric, name) => line.subjectType === numeric || line.subjectType === name;
+  const meterLabel = (line) => {
+    if (isSubject(line, 0, 'GeneratorEnergyProduced')) return t('operational.capture.energyCounter');
+    if (isSubject(line, 1, 'GeneratorRunningHours')) return t('operational.capture.runningHours');
+    if (isSubject(line, 2, 'FeederEnergySent')) return t('operational.commercialCapture.feedersTitle');
+    return t('operational.capture.rawValue');
+  };
+  const counterBySubject = (subjectType, subjectId) =>
+    data.meterLines.find((line) => isSubject(line, subjectType, subjectType === 0 ? 'GeneratorEnergyProduced' : subjectType === 1 ? 'GeneratorRunningHours' : 'FeederEnergySent') && line.subjectId === subjectId);
+  const photoIds = (...lines) => [...new Set(lines.filter(Boolean).flatMap((line) => line.photoAttachmentIds || []))];
+
+  // A daily feeder entry produces both a load line and a counter line.  They are
+  // one operational fact, so review them as one card and show their shared photo once.
+  const generatorCards = data.generatorLines.map((line) => {
+    const energy = counterBySubject(0, line.values?.generatorId);
+    const hours = counterBySubject(1, line.values?.generatorId);
+    const tank = data.tankLines.find((tankLine) => tankLine.values?.generatorId === line.values?.generatorId);
+    return {
+      ...line, _type: 'generator', _bundleType: 'generator', _bundleSubjectId: line.values?.generatorId,
+      _energy: energy, _hours: hours, _tank: tank, photoAttachmentIds: photoIds(line, energy, hours, tank)
+    };
+  });
+  const feederCards = data.feederLines.map((line) => {
+    const counter = counterBySubject(2, line.values?.feederId ?? line.subjectId);
+    return {
+      ...line, _type: 'feeder', _bundleType: 'feeder', _bundleSubjectId: line.values?.feederId,
+      _counter: counter, photoAttachmentIds: photoIds(line, counter)
+    };
+  });
+  const groupedMeterIds = new Set([
+    ...generatorCards.flatMap((line) => [line._energy?.id, line._hours?.id]),
+    ...feederCards.map((line) => line._counter?.id),
+  ].filter(Boolean));
+  const groupedTankIds = new Set(generatorCards.map((line) => line._tank?.id).filter(Boolean));
+  const allLines = [
+    ...generatorCards,
+    ...feederCards,
+    ...data.tankLines.filter((line) => !groupedTankIds.has(line.id)).map((line) => ({ ...line, _type: 'tank' })),
+    ...data.meterLines.filter((line) => !groupedMeterIds.has(line.id)).map((line) => ({ ...line, _type: 'meter' })),
+  ];
+  const counterSummary = (line) => line && (
+    <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <strong style={{ color: 'var(--text)' }}>{meterLabel(line)}</strong>
+      <span>{t('operational.capture.rawValue')}: <strong>{line.rawValue}</strong></span>
+      {line.previousApprovedValue != null && <span>{t('operational.review.previousValue')}: <strong>{line.previousApprovedValue}</strong></span>}
+      {line.deltaPreview != null && <span>Δ: <strong>{line.deltaPreview.toFixed(2)}</strong></span>}
+      <StatusChip status={line.status} />
+    </div>
+  );
+  const lineLabel = (line) => {
+    if (line._type === 'generator') return line.values?.generatorName || t('generators.table.name');
+    if (line._type === 'feeder') return line.values?.feederName || t('operational.commercialCapture.feedersTitle');
+    if (line._type === 'tank') return line.values?.fuelTankName || t('operational.capture.tank');
+    return line._type;
+  };
+  const bundleHasPendingLines = (line) => [line, line._energy, line._hours, line._tank, line._counter]
+    .filter(Boolean)
+    .some((entry) => entry.status === 'Pending');
 
   return (
     <section className="capture-page">
@@ -124,23 +195,25 @@ function SubmissionDetail({ id, onBack }) {
             {t('operational.review.receivedAt')}: {dateStr(data.receivedAtUtc)}
           </p>
         </div>
-        <button
-          onClick={() => { if (window.confirm(t('operational.review.confirmApprove'))) approveMutation.mutate(); }}
-          disabled={approveMutation.isPending || data.status === 'Approved'}
-          style={{ padding: '10px 20px', borderRadius: 'var(--radius-sm)', background: 'var(--success)', color: 'var(--on-accent)', border: 'none', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
-        >
-          <CheckCircle2 size={18} />
-          {approveMutation.isPending ? '…' : t('operational.review.approveSubmission')}
-        </button>
+        {modeResolved && !isCommercialMode && (
+          <button
+            onClick={() => { if (window.confirm(t('operational.review.confirmApprove'))) approveSubmissionMutation.mutate(); }}
+            disabled={approveSubmissionMutation.isPending || data.status === 'Approved'}
+            style={{ padding: '10px 20px', borderRadius: 'var(--radius-sm)', background: 'var(--success)', color: 'var(--on-accent)', border: 'none', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+          >
+            <CheckCircle2 size={18} />
+            {approveSubmissionMutation.isPending ? '…' : t('operational.review.approveSubmission')}
+          </button>
+        )}
       </div>
 
-      {approveMutation.isError && (
+      {(approveBundleMutation.isError || approveSubmissionMutation.isError) && (
         <div style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)', borderRadius: 'var(--radius-sm)', padding: 12, marginBottom: 16, color: 'var(--danger)' }}>
-          {approveMutation.error?.response?.data?.error}
+          {approveBundleMutation.error?.response?.data?.error || approveSubmissionMutation.error?.response?.data?.error}
         </div>
       )}
 
-      {data.dailyFuelConsumptions?.length > 0 && (
+      {data.status === 'Approved' && data.dailyFuelConsumptions?.length > 0 && (
         <div style={{
           background: 'var(--card-bg)', border: '1px solid var(--border)',
           borderRadius: 'var(--radius-lg)', padding: 16, marginBottom: 16
@@ -217,7 +290,7 @@ function SubmissionDetail({ id, onBack }) {
                               : (line.subjectType === 2 || line.subjectType === 'FeederEnergySent'
                                   ? (document.documentElement.lang === 'ar' ? '📡 فيدر' : '📡 Feeder')
                                   : 'meter'))))
-                  : line._type} · {dateStr(line.capturedAtUtc)}
+                  : lineLabel(line)} · {dateStr(line.capturedAtUtc)}
                 {line._type === 'meter' && line.subjectName ? ` — ${line.subjectName}` : ''}
               </span>
               {line.hasSkewWarning && (
@@ -253,10 +326,28 @@ function SubmissionDetail({ id, onBack }) {
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <strong style={{ color: 'var(--text)' }}>{line.values.generatorName}</strong>
                 <span>{line.values.isRunning ? '●' : '○'} {line.values.isRunning ? t('operational.capture.running') : '—'}</span>
+                {line.values.lineVoltageVolts != null && <span>{t('operational.capture.voltage')}: <strong>{line.values.lineVoltageVolts}</strong></span>}
+                {line.values.currentAmps != null && <span>{t('operational.capture.current')}: <strong>{line.values.currentAmps}</strong></span>}
+                {line.values.oilPressure != null && <span>{t('operational.capture.oilPressure')}: <strong>{line.values.oilPressure}</strong></span>}
+                {line.values.oilTemperatureCelsius != null && <span>{t('operational.capture.oilTemp')}: <strong>{line.values.oilTemperatureCelsius}</strong></span>}
+                {line.values.waterTemperatureCelsius != null && <span>{t('operational.capture.waterTemp')}: <strong>{line.values.waterTemperatureCelsius}</strong></span>}
                 {line.values.activeLoadKw != null && <span>{t('operational.capture.activeKw')}: <strong>{line.values.activeLoadKw}</strong></span>}
                 {line.values.oilAddedLitres > 0 && <span>{t('operational.commercialCapture.oilTopUpLitres')}: <strong>{line.values.oilAddedLitres} L</strong>{line.values.oilName ? ` — ${line.values.oilName}` : ''}</span>}
               </div>
             )}
+            {line._type === 'generator' && <>
+              {counterSummary(line._energy)}
+              {counterSummary(line._hours)}
+              {line._tank && (
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <strong style={{ color: 'var(--text)' }}>{line._tank.values?.fuelTankName}</strong>
+                  {line._tank.values?.beforeLiquidLevelCm != null && <span>{Number(line._tank.values.beforeLiquidLevelCm).toLocaleString('en-US')} cm →</span>}
+                  <strong>{Number(line._tank.values?.liquidLevelCm).toLocaleString('en-US')} cm</strong>
+                  {line._tank.values?.computedLitres != null && <span>· <strong>{Number(line._tank.values.computedLitres).toLocaleString('en-US')} L</strong></span>}
+                  <StatusChip status={line._tank.status} />
+                </div>
+              )}
+            </>}
             {line._type === 'tank' && line.values && (
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
                 {line.values.fuelTankName && <strong>{line.values.fuelTankName}: </strong>}
@@ -278,17 +369,23 @@ function SubmissionDetail({ id, onBack }) {
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
                 <strong style={{ color: 'var(--text)' }}>{line.values.feederName}</strong>
                 {line.values.activeLoadKw != null && <> · {t('operational.capture.activeKw')}: <strong>{line.values.activeLoadKw}</strong></>}
+                {line.values.apparentLoadKva != null && <> · {t('operational.capture.apparentKva')}: <strong>{line.values.apparentLoadKva}</strong></>}
               </div>
             )}
+            {line._type === 'feeder' && counterSummary(line._counter)}
 
-            {/* Meter delta */}
-            {line._type === 'meter' && line.deltaPreview != null && (
+            {/* Always show the submitted counter; previous/variance are only available after an official baseline exists. */}
+            {line._type === 'meter' && (
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
-                {t('operational.review.previousValue')}: <strong>{line.previousApprovedValue ?? '—'}</strong>
-                &nbsp;→&nbsp;
-                <strong>{line.rawValue}</strong>
-                &nbsp;·&nbsp; Δ = <strong>{line.deltaPreview?.toFixed(2)}</strong>
-                {line.deltaSpanDays > 1 && <span style={{ color: 'var(--warning)' }}> ({line.deltaSpanDays} days)</span>}
+                {t('operational.capture.rawValue')}: <strong>{line.rawValue}</strong>
+                {line.multiplierSnapshot != null && <> · {t('operational.capture.multiplier')}: <strong>{line.multiplierSnapshot}</strong></>}
+                {line.previousApprovedValue != null && <>
+                  &nbsp;·&nbsp;{t('operational.review.previousValue')}: <strong>{line.previousApprovedValue}</strong>
+                </>}
+                {line.deltaPreview != null && <>
+                  &nbsp;·&nbsp;Δ = <strong>{line.deltaPreview.toFixed(2)}</strong>
+                  {line.deltaSpanDays > 1 && <span style={{ color: 'var(--warning)' }}> ({line.deltaSpanDays} days)</span>}
+                </>}
               </div>
             )}
 
@@ -299,8 +396,38 @@ function SubmissionDetail({ id, onBack }) {
               </p>
             )}
 
+            {modeResolved && isCommercialMode && line._bundleType && line._bundleSubjectId && bundleHasPendingLines(line) && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => {
+                    if (window.confirm(t('operational.review.confirmApproveBundle'))) {
+                      approveBundleMutation.mutate({ bundleType: line._bundleType, subjectId: line._bundleSubjectId });
+                    }
+                  }}
+                  disabled={approveBundleMutation.isPending}
+                  style={{ padding: '7px 13px', borderRadius: 8, background: 'var(--success)', color: 'var(--on-accent)', border: 'none', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <CheckCircle2 size={16} />
+                  {approveBundleMutation.isPending ? '…' : t(
+                    line._bundleType === 'generator'
+                      ? 'operational.review.approveGeneratorBundle'
+                      : 'operational.review.approveFeederBundle'
+                  )}
+                </button>
+                <button
+                  onClick={() => setRejectTarget({
+                    kind: 'bundle', submissionId: id, bundleType: line._bundleType, subjectId: line._bundleSubjectId
+                  })}
+                  disabled={approveBundleMutation.isPending}
+                  style={{ padding: '7px 13px', borderRadius: 8, background: 'var(--danger-subtle)', color: 'var(--danger)', border: '1px solid var(--danger)', cursor: 'pointer', fontWeight: 700 }}
+                >
+                  {t('operational.review.rejectBundle')}
+                </button>
+              </div>
+            )}
+
             {/* Reject button */}
-            {line.status === 'Pending' && (
+            {line.status === 'Pending' && line._type !== 'generator' && line._type !== 'feeder' && (
               <button
                 onClick={() => setRejectTarget({ lineType: line._type, lineId: line.id })}
                 style={{ marginTop: 8, padding: '6px 14px', borderRadius: 8, background: 'var(--danger-subtle)', color: 'var(--danger)', border: '1px solid var(--danger)', cursor: 'pointer', fontSize: 13 }}
@@ -314,7 +441,7 @@ function SubmissionDetail({ id, onBack }) {
 
       {rejectTarget && (
         <RejectModal
-          {...rejectTarget}
+          target={rejectTarget}
           onClose={() => setRejectTarget(null)}
           onDone={() => {}}
         />

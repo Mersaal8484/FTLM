@@ -42,6 +42,42 @@ public static class SqliteFuelTankSchemaRepair
         await dbContext.Database.ExecuteSqlRawAsync(
             "CREATE INDEX IF NOT EXISTS \"IX_OperationalGeneratorReadings_OilTransactionId\" ON \"OperationalGeneratorReadings\" (\"OilTransactionId\");",
             cancellationToken);
+
+        // EnsureCreated does not apply new entities to an existing SQLite file. The
+        // commercial capture references include the optional generator/oil setup,
+        // so a database created before C6.1 must receive this additive table before
+        // that page can be opened. No data is replaced or seeded here.
+        await dbContext.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "GeneratorMaintenanceOilConfigurations" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_GeneratorMaintenanceOilConfigurations" PRIMARY KEY AUTOINCREMENT,
+                "GeneratorId" INTEGER NOT NULL,
+                "ServiceItemId" INTEGER NOT NULL,
+                "OilId" INTEGER NOT NULL,
+                "QuantityLiters" TEXT NOT NULL,
+                "IsActive" INTEGER NOT NULL,
+                "CreatedAt" TEXT NOT NULL,
+                "CreatedBy" INTEGER NOT NULL,
+                "UpdatedAt" TEXT NOT NULL,
+                "UpdatedBy" INTEGER NOT NULL,
+                "DeletedAt" TEXT NULL,
+                CONSTRAINT "FK_GeneratorMaintenanceOilConfigurations_Generators_GeneratorId"
+                    FOREIGN KEY ("GeneratorId") REFERENCES "Generators" ("Id") ON DELETE RESTRICT,
+                CONSTRAINT "FK_GeneratorMaintenanceOilConfigurations_ServiceItems_ServiceItemId"
+                    FOREIGN KEY ("ServiceItemId") REFERENCES "ServiceItems" ("Id") ON DELETE RESTRICT,
+                CONSTRAINT "FK_GeneratorMaintenanceOilConfigurations_Oils_OilId"
+                    FOREIGN KEY ("OilId") REFERENCES "Oils" ("Id") ON DELETE RESTRICT
+            );
+            """,
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "CREATE UNIQUE INDEX IF NOT EXISTS \"UX_GeneratorMaintenanceOilConfigurations_Generator_Item\" " +
+            "ON \"GeneratorMaintenanceOilConfigurations\" (\"GeneratorId\", \"ServiceItemId\") WHERE \"DeletedAt\" IS NULL;",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS \"IX_GeneratorMaintenanceOilConfigurations_Oil\" " +
+            "ON \"GeneratorMaintenanceOilConfigurations\" (\"OilId\") WHERE \"DeletedAt\" IS NULL;",
+            cancellationToken);
     }
 
     private static async Task<bool> HasColumnAsync(

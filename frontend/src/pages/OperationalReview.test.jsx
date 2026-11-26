@@ -9,10 +9,12 @@ import { MemoryRouter } from 'react-router-dom';
 vi.mock('../api/client', () => ({
   default: { get: vi.fn(), post: vi.fn() },
 }));
+vi.mock('../hooks/useCommercialMode', () => ({ default: vi.fn() }));
 
 // ── Imports (after mocks) ────────────────────────────────────────────────────
 
 import client from '../api/client';
+import useCommercialMode from '../hooks/useCommercialMode';
 import OperationalReview from './OperationalReview';
 
 // ── Test wrapper ─────────────────────────────────────────────────────────────
@@ -49,6 +51,9 @@ const pendingSubmission = {
 };
 
 afterEach(() => vi.resetAllMocks());
+beforeEach(() => {
+  useCommercialMode.mockReturnValue({ isCommercialMode: true, isCommercial: true, modeResolved: true });
+});
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -101,16 +106,25 @@ describe('OperationalReview — detail / approve flow', () => {
     meterLines: [],
   };
 
-  test('calls approve endpoint and invalidates queue on approve click', async () => {
+  test('approves one generator bundle without approving the whole submission', async () => {
     // Auto-accept the window.confirm dialog
     vi.stubGlobal('confirm', vi.fn(() => true));
+
+    const generatorBundleDetail = {
+      ...detailResponse,
+      generatorLines: [{
+        id: 81, status: 'Pending', capturedAtUtc: '2026-11-07T20:00:00Z', receivedAtUtc: '2026-11-07T20:01:00Z',
+        hasSkewWarning: false, photoAttachmentIds: [], warningsJson: null, rejectionReason: null, hasReuseWarning: false,
+        values: { generatorId: 44, generatorName: 'Generator bundle', isRunning: true },
+      }],
+    };
 
     // First GET → queue list; second GET → submission detail
     client.get
       .mockResolvedValueOnce({ data: [pendingSubmission] })
-      .mockResolvedValueOnce({ data: detailResponse });
+      .mockResolvedValueOnce({ data: generatorBundleDetail });
 
-    client.post.mockResolvedValueOnce({ data: { message: 'Submission approved.' } });
+    client.post.mockResolvedValueOnce({ data: { message: 'Review bundle approved.' } });
 
     renderReview();
 
@@ -125,7 +139,7 @@ describe('OperationalReview — detail / approve flow', () => {
     fireEvent.click(approveBtn);
 
     await waitFor(() => {
-      expect(client.post).toHaveBeenCalledWith('/api/operational-review/1/approve');
+      expect(client.post).toHaveBeenCalledWith('/api/operational-review/1/bundles/generator/44/approve');
     });
 
     vi.unstubAllGlobals();
@@ -164,8 +178,68 @@ describe('OperationalReview — detail / approve flow', () => {
     renderReview();
     fireEvent.click(await screen.findByText('المحطة الرئيسية'));
 
-    expect(await screen.findByText(/Daily Tank 1/)).toBeInTheDocument();
+    expect((await screen.findAllByText(/Daily Tank 1/)).length).toBeGreaterThan(0);
     expect(screen.getByText(/42 cm/)).toBeInTheDocument();
     expect(screen.getByText(/420 L/)).toBeInTheDocument();
+  });
+
+  test('shows submitted current meter values even when no previous official value exists', async () => {
+    const reviewDetail = {
+      ...detailResponse,
+      generatorLines: [{
+        id: 41, status: 'Pending', capturedAtUtc: '2026-11-07T20:00:00Z', receivedAtUtc: '2026-11-07T20:01:00Z',
+        hasSkewWarning: false, photoAttachmentIds: [], warningsJson: null, rejectionReason: null, hasReuseWarning: false,
+        values: { generatorName: 'Generator A', isRunning: true, lineVoltageVolts: 400, currentAmps: 120, oilPressure: 5, oilTemperatureCelsius: 82, waterTemperatureCelsius: 76, activeLoadKw: 90 },
+      }],
+      meterLines: [{
+        id: 42, status: 'Pending', subjectType: 'GeneratorEnergyProduced', subjectId: 1, kind: 'DailyClosing',
+        capturedAtUtc: '2026-11-07T20:00:00Z', receivedAtUtc: '2026-11-07T20:01:00Z', businessDate: '2026-11-07',
+        hasSkewWarning: false, photoAttachmentIds: [], rawValue: 1250, multiplierSnapshot: 1,
+        isMeterReset: false, resetNote: null, warningsJson: null, rejectionReason: null,
+        previousApprovedValue: null, deltaPreview: null, deltaSpanDays: null, subjectName: 'Generator A',
+      }],
+    };
+
+    client.get
+      .mockResolvedValueOnce({ data: [pendingSubmission] })
+      .mockResolvedValueOnce({ data: reviewDetail });
+
+    renderReview();
+    fireEvent.click(await screen.findByText('المحطة الرئيسية'));
+
+    expect(await screen.findByText('Generator A')).toBeInTheDocument();
+    expect(screen.getByText('1250')).toBeInTheDocument();
+    expect(screen.getByText('400')).toBeInTheDocument();
+    expect(screen.getByText('120')).toBeInTheDocument();
+  });
+
+  test('groups a feeder load, its counter, and their shared photo into one review card', async () => {
+    const feederDetail = {
+      ...detailResponse,
+      feederLines: [{
+        id: 61, status: 'Recorded', capturedAtUtc: '2026-11-07T20:00:00Z', receivedAtUtc: '2026-11-07T20:01:00Z',
+        hasSkewWarning: false, photoAttachmentIds: [301], warningsJson: null, rejectionReason: null, hasReuseWarning: false,
+        values: { feederId: 91, feederName: 'Feeder A', activeLoadKw: null, apparentLoadKva: null },
+      }],
+      meterLines: [{
+        id: 62, status: 'Pending', subjectType: 2, subjectId: 91, kind: 1,
+        capturedAtUtc: '2026-11-07T20:00:00Z', receivedAtUtc: '2026-11-07T20:01:00Z', businessDate: '2026-11-07',
+        hasSkewWarning: false, photoAttachmentIds: [301], rawValue: 10600, multiplierSnapshot: 1,
+        isMeterReset: false, resetNote: null, warningsJson: null, rejectionReason: null,
+        previousApprovedValue: 8000, deltaPreview: 2600, deltaSpanDays: 1, subjectName: 'Feeder A',
+      }],
+    };
+
+    client.get
+      .mockResolvedValueOnce({ data: [pendingSubmission] })
+      .mockResolvedValueOnce({ data: feederDetail });
+
+    const view = renderReview();
+    fireEvent.click(await screen.findByText('المحطة الرئيسية'));
+
+    expect(await screen.findByText('Feeder A')).toBeInTheDocument();
+    expect(screen.getByText('10600')).toBeInTheDocument();
+    expect(screen.getByText('8000')).toBeInTheDocument();
+    expect(view.container.querySelectorAll('img')).toHaveLength(1);
   });
 });

@@ -53,7 +53,7 @@ public sealed class MeterDeltaService(FuelTrackDbContext db) : IMeterDeltaServic
                         && r.SubjectId == subjectId
                         && r.Kind == MeterReadingKind.DailyClosing
                         && r.BusinessDate == businessDate
-                        && ReadingApprovalPolicy.IsOfficial(r.Status))
+                        && ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
             .OrderByDescending(r => r.CapturedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -69,7 +69,7 @@ public sealed class MeterDeltaService(FuelTrackDbContext db) : IMeterDeltaServic
                         && r.SubjectId == subjectId
                         && r.Kind == MeterReadingKind.DailyClosing
                         && r.CapturedAtUtc < today.CapturedAtUtc
-                        && ReadingApprovalPolicy.IsOfficial(r.Status))
+                        && ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
             .OrderByDescending(r => r.CapturedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -102,7 +102,7 @@ public sealed class MeterDeltaService(FuelTrackDbContext db) : IMeterDeltaServic
             .Where(r => r.SubjectType == reading.SubjectType
                         && r.SubjectId == reading.SubjectId
                         && r.CapturedAtUtc < reading.CapturedAtUtc
-                        && ReadingApprovalPolicy.IsOfficial(r.Status))
+                        && ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
             .OrderByDescending(r => r.CapturedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -117,7 +117,7 @@ public sealed class MeterDeltaService(FuelTrackDbContext db) : IMeterDeltaServic
             .Where(r => r.SubjectType == reading.SubjectType
                         && r.SubjectId == reading.SubjectId
                         && r.CapturedAtUtc > reading.CapturedAtUtc
-                        && ReadingApprovalPolicy.IsOfficial(r.Status))
+                        && ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status))
             .OrderBy(r => r.CapturedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 

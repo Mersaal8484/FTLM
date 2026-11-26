@@ -113,7 +113,7 @@ public sealed class OperationalReviewServiceTests
     }
 
     [Fact]
-    public async Task ApproveSubmission_CommercialOilTopUp_DeductsSelectedOilAndWritesApprovedConsumption()
+    public async Task ApproveGeneratorBundle_CommercialOilTopUp_DeductsOnlyWhenItsGeneratorIsApproved()
     {
         await using var db = CreateDb();
         var (submissionId, _, reviewerId, subStationId, _) = await SeedPendingSubmissionAsync(db);
@@ -142,7 +142,10 @@ public sealed class OperationalReviewServiceTests
         reading.OilAddedLitres = 2.5m;
         await db.SaveChangesAsync();
 
-        var result = await CreateService(db, commercialMode: true).ApproveSubmissionAsync(submissionId, reviewerId);
+        Assert.Equal(10m, (await db.Oils.SingleAsync(x => x.Id == oil.Id)).CurrentStock);
+        Assert.Empty(await db.OilTransactions.ToListAsync());
+
+        var result = await CreateService(db, commercialMode: true).ApproveBundleAsync(submissionId, "generator", 1, reviewerId);
 
         Assert.True(result.IsSuccess, result.Error);
         Assert.Equal(7.5m, (await db.Oils.SingleAsync(x => x.Id == oil.Id)).CurrentStock);
@@ -152,6 +155,29 @@ public sealed class OperationalReviewServiceTests
         Assert.Equal(2.5d, transaction.QuantityLiters);
         Assert.True(transaction.IsApproved);
         Assert.NotNull((await db.OperationalGeneratorReadings.SingleAsync()).OilTransactionId);
+    }
+
+    [Fact]
+    public async Task ApproveSubmission_CommercialMode_RequiresPerSubjectReview()
+    {
+        await using var db = CreateDb();
+        var (submissionId, _, reviewerId, _, _) = await SeedPendingSubmissionAsync(db);
+        db.Add(new CustomerFeatureSetting
+        {
+            Key = CommercialStationModeService.FeatureKey,
+            IsEnabled = true,
+            Value = CommercialStationModeService.CommercialModeValue,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db, commercialMode: true).ApproveSubmissionAsync(submissionId, reviewerId);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(422, result.StatusCode);
+        Assert.All(await db.OperationalGeneratorReadings.ToListAsync(), line =>
+            Assert.Equal(OperationalReadingStatus.Pending, line.Status));
     }
 
     [Fact]
@@ -222,6 +248,61 @@ public sealed class OperationalReviewServiceTests
 
         Assert.True(first.IsSuccess);
         Assert.True(second.IsSuccess); // idempotent
+    }
+
+    [Fact]
+    public async Task ApproveBundle_ApprovesOnlyTheSelectedGeneratorAndItsCounter()
+    {
+        await using var db = CreateDb();
+        var (submissionId, _, reviewerId, subStationId, _) = await SeedPendingSubmissionAsync(db);
+        var now = DateTime.UtcNow;
+        var secondGenerator = new Generator
+        {
+            Id = 2, SubStationId = subStationId, Name = "G2", SerialNumber = "G2",
+            CreatedAt = now, UpdatedAt = now
+        };
+        db.Add(secondGenerator);
+        db.AddRange(
+            new OperationalGeneratorReading
+            {
+                OperationalSubmissionId = submissionId, GeneratorId = secondGenerator.Id,
+                ClientLineId = Guid.NewGuid(), CapturedAtUtc = now, ReceivedAtUtc = now,
+                BusinessDate = DateOnly.FromDateTime(now), Status = OperationalReadingStatus.Pending,
+                CreatedAt = now, UpdatedAt = now
+            },
+            new MeterReading
+            {
+                OperationalSubmissionId = submissionId, ClientLineId = Guid.NewGuid(),
+                SubjectType = MeterReadingSubjectType.GeneratorEnergyProduced, SubjectId = secondGenerator.Id,
+                Kind = MeterReadingKind.DailyClosing, CapturedAtUtc = now, ReceivedAtUtc = now,
+                BusinessDate = DateOnly.FromDateTime(now), Status = OperationalReadingStatus.Pending,
+                RawValue = 900m, MultiplierSnapshot = 1m, CreatedAt = now, UpdatedAt = now
+            });
+        await db.SaveChangesAsync();
+
+        db.Add(new CustomerFeatureSetting
+        {
+            Key = CommercialStationModeService.FeatureKey,
+            IsEnabled = true,
+            Value = CommercialStationModeService.CommercialModeValue,
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db, commercialMode: true).ApproveBundleAsync(submissionId, "generator", 1, reviewerId);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(OperationalReadingStatus.Approved,
+            (await db.OperationalGeneratorReadings.SingleAsync(x => x.GeneratorId == 1)).Status);
+        Assert.Equal(OperationalReadingStatus.Approved,
+            (await db.MeterReadings.SingleAsync(x => x.SubjectId == 1)).Status);
+        Assert.Equal(OperationalReadingStatus.Pending,
+            (await db.OperationalGeneratorReadings.SingleAsync(x => x.GeneratorId == 2)).Status);
+        Assert.Equal(OperationalReadingStatus.Pending,
+            (await db.MeterReadings.SingleAsync(x => x.SubjectId == 2)).Status);
+        Assert.Equal(OperationalReadingStatus.Pending,
+            (await db.OperationalSubmissions.SingleAsync(x => x.Id == submissionId)).Status);
     }
 
     // ── Reject ────────────────────────────────────────────────────────────────
@@ -375,5 +456,56 @@ public sealed class OperationalReviewServiceTests
         Assert.Contains("42", json);
         Assert.Contains("420", json);
         Assert.Contains("Daily Tank A", json);
+    }
+
+    [Fact]
+    public async Task GetSubmissionDetail_PendingDailyMeterShowsCurrentValueAndPreviousOfficialDelta()
+    {
+        await using var db = CreateDb();
+        var (submissionId, submitterId, _, subStationId, meterReadingId) = await SeedPendingSubmissionAsync(db);
+        var pendingMeter = await db.MeterReadings.SingleAsync(x => x.Id == meterReadingId);
+
+        var priorSubmission = new OperationalSubmission
+        {
+            SubStationId = subStationId,
+            ClientRequestId = Guid.NewGuid(),
+            ReceivedAtUtc = pendingMeter.CapturedAtUtc.AddDays(-1),
+            Status = OperationalReadingStatus.Approved,
+            SubmittedByUserId = submitterId,
+            CreatedAt = pendingMeter.CapturedAtUtc.AddDays(-1),
+            UpdatedAt = pendingMeter.CapturedAtUtc.AddDays(-1),
+            CreatedBy = submitterId,
+            UpdatedBy = submitterId
+        };
+        db.OperationalSubmissions.Add(priorSubmission);
+        await db.SaveChangesAsync();
+
+        db.MeterReadings.Add(new MeterReading
+        {
+            OperationalSubmissionId = priorSubmission.Id,
+            ClientLineId = Guid.NewGuid(),
+            SubjectType = pendingMeter.SubjectType,
+            SubjectId = pendingMeter.SubjectId,
+            Kind = MeterReadingKind.DailyClosing,
+            CapturedAtUtc = pendingMeter.CapturedAtUtc.AddDays(-1),
+            ReceivedAtUtc = pendingMeter.ReceivedAtUtc.AddDays(-1),
+            BusinessDate = pendingMeter.BusinessDate.AddDays(-1),
+            Status = OperationalReadingStatus.Approved,
+            RawValue = 100m,
+            MultiplierSnapshot = 1m,
+            CreatedAt = pendingMeter.CapturedAtUtc.AddDays(-1),
+            UpdatedAt = pendingMeter.CapturedAtUtc.AddDays(-1),
+            CreatedBy = submitterId,
+            UpdatedBy = submitterId
+        });
+        await db.SaveChangesAsync();
+
+        var detail = await CreateService(db).GetSubmissionDetailAsync(submissionId, 999);
+
+        Assert.True(detail.IsSuccess);
+        var meterLine = Assert.Single(detail.Value!.MeterLines);
+        Assert.Equal(500m, meterLine.RawValue);
+        Assert.Equal(100m, meterLine.PreviousApprovedValue);
+        Assert.Equal(400m, meterLine.DeltaPreview);
     }
 }

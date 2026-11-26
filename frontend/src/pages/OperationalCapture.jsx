@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, CheckCircle2, ClipboardList, Droplets, Gauge, Plus, Send, Trash2, Zap, Sun } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -105,6 +105,9 @@ export default function OperationalCapture() {
   const [submissionTime, setSubmissionTime] = useState(isoNow());
   const [clientSentAt] = useState(() => new Date().toISOString());
   const [submitting, setSubmitting] = useState(false);
+  // Keep one idempotency key for the current draft. A retry after a lost network
+  // response therefore replays the same submission instead of creating a second one.
+  const clientRequestIdRef = useRef(null);
 
   useEffect(() => {
     client.get('/api/operational-captures/references').then((r) => {
@@ -403,7 +406,9 @@ export default function OperationalCapture() {
       window.alert(t('operational.commercialCapture.oilSelectionRequired'));
       return;
     }
-    const payload = { clientRequestId: crypto.randomUUID(), subStationId: site.subStationId, submissionCapturedAtUtc: new Date(submissionTime).toISOString(), clientSentAtUtc: clientSentAt, isOfflineQueue: false, generatorReadings: [], tankLevelReadings: [], feederLoadReadings: [], meterReadings: [] };
+    const clientRequestId = clientRequestIdRef.current || crypto.randomUUID();
+    clientRequestIdRef.current = clientRequestId;
+    const payload = { clientRequestId, subStationId: site.subStationId, submissionCapturedAtUtc: new Date(submissionTime).toISOString(), clientSentAtUtc: clientSentAt, isOfflineQueue: false, generatorReadings: [], tankLevelReadings: [], feederLoadReadings: [], meterReadings: [] };
     for (const line of lines) {
       const capturedAtUtc = line.capturedAt ? new Date(line.capturedAt).toISOString() : new Date(submissionTime).toISOString();
       if (line.kind === 'generator') {
@@ -439,11 +444,18 @@ export default function OperationalCapture() {
     setSubmitting(true);
     try {
       await client.post('/api/operational-captures', payload);
+      clientRequestIdRef.current = null;
       setLines([]);
       window.alert(t('operational.capture.success'));
       if (isFocusedCommercial) navigate('/operations/capture');
     }
-    catch (error) { window.alert(readApiError(error, t('operational.capture.failed'))); }
+    catch (error) {
+      // A response proves the server processed the request (including a validation
+      // failure), so the corrected draft needs a new key. Keep the key only when
+      // the response may have been lost and a replay is required.
+      if (error?.response) clientRequestIdRef.current = null;
+      window.alert(readApiError(error, t('operational.capture.failed')));
+    }
     finally { setSubmitting(false); }
   };
   const sourceName = (line) => {

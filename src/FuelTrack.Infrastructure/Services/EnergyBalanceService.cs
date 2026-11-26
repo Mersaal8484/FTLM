@@ -53,7 +53,7 @@ public sealed class EnergyBalanceService(
             .AsNoTracking()
             .Where(r => r.Kind == MeterReadingKind.DailyClosing
                         && r.BusinessDate == date
-                        && ReadingApprovalPolicy.IsOfficial(r.Status)
+                        && ReadingApprovalPolicy.OfficialStatuses.Contains(r.Status)
                         && db.OperationalSubmissions
                             .Where(s => s.Id == r.OperationalSubmissionId)
                             .Any(s => subStationIds.Contains(s.SubStationId)))

@@ -65,6 +65,35 @@ describe('Generators Commercial Daily Tank', () => {
     expect(screen.queryByText(/Taken DT \(DT-202\)/i)).not.toBeInTheDocument();
   });
 
+  test('shows cumulative operating hours from the linked controller as read-only', async () => {
+    client.get.mockImplementation(async (url) => {
+      if (url === '/api/generators') return { data: [] };
+      if (url === '/api/fuel-tanks') {
+        return { data: [{ id: 201, name: 'DT-01', code: 'DT-01', tankRole: 2, isActive: true, generatorId: null }] };
+      }
+      if (url === '/api/controllers') {
+        return { data: [{ id: 301, name: 'CTRL-01', code: 'CTRL-01', controllerType: 'DSE', operatingHours: 123.5, energyReading: 4500 }] };
+      }
+      return { data: [] };
+    });
+
+    render(
+      <MemoryRouter>
+        <Generators lang="en" t={{ generators: 'Generators', manageGenerators: 'Manage', addGenerator: 'Add Generator', noData: 'No data' }} currentUser={{ role: 'admin' }} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /Add Generator/i }));
+    const dialog = await screen.findByRole('dialog');
+    const controllerField = within(dialog).getByText('Linked Controller').closest('.form-group');
+    const controllerSelect = within(controllerField).getByRole('combobox');
+    fireEvent.change(controllerSelect, { target: { value: '301' } });
+
+    const hoursInput = within(dialog).getByDisplayValue('123.5');
+    expect(hoursInput).toHaveAttribute('readonly');
+    expect(hoursInput).toHaveValue('123.5');
+  });
+
   test('shows empty state warning and blocks submit when no daily tank is available', async () => {
     client.get.mockImplementation(async (url) => {
       if (url === '/api/generators') return { data: [] };

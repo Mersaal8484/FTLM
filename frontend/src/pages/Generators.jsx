@@ -30,7 +30,6 @@ const initialForm = {
   subStation: '',
   ownershipType: '',
   controller: '',
-  cumulativeRunningHours: '',
   isActive: true,
   dailyTankId: '',
 };
@@ -187,7 +186,6 @@ function Generators({ t, lang, currentUser }) {
       station: stationId ? String(stationId) : '',
       subStation: subStationId ? String(subStationId) : '',
       controller: linkedCtrl?.id ? String(linkedCtrl.id) : (gen.controllerName ? controllers.find(c => c.name === gen.controllerName)?.id || '' : ''),
-      cumulativeRunningHours: linkedCtrl?.operatingHours != null ? String(linkedCtrl.operatingHours) : '',
       isActive: gen.isActive !== false,
       dailyTankId: gen.dailyTankId != null
         ? String(gen.dailyTankId)
@@ -213,14 +211,6 @@ function Generators({ t, lang, currentUser }) {
       ? fieldError('name') || (form.isActive !== false && !form.dailyTankId ? (ar ? '\u0627\u0644\u062e\u0632\u0627\u0646 \u0627\u0644\u064a\u0648\u0645\u064a \u0645\u0637\u0644\u0648\u0628.' : 'Daily tank is required.') : '')
       : fieldError('name') || fieldError('subStation') || fieldError('ratedCapacityKw') || fieldError('fuelConsumptionRatePerHour');
     if (err) { setError(err); return; }
-    if (isCommercialMode && form.cumulativeRunningHours !== '' && form.cumulativeRunningHours !== null) {
-      const hrs = Number(form.cumulativeRunningHours);
-      if (isNaN(hrs) || hrs < 0) {
-        setError(ar ? 'ساعات التشغيل التراكمية يجب أن تكون صفراً أو أكثر' : 'Cumulative running hours must be zero or positive');
-        return;
-      }
-    }
-
     setSaving(true); setError(null);
     try {
       let generatorId;
@@ -284,19 +274,6 @@ function Generators({ t, lang, currentUser }) {
         }
         if (selectedCtrlId) {
           await client.patch(`/api/controllers/${selectedCtrlId}/assign-generator`, { generatorId });
-          if (isCommercialMode && form.cumulativeRunningHours !== '' && form.cumulativeRunningHours !== null) {
-            const hrs = Number(form.cumulativeRunningHours);
-            if (!isNaN(hrs) && hrs >= 0) {
-              const ctrlObj = controllers.find(c => c.id === selectedCtrlId);
-              if (ctrlObj) {
-                await client.put(`/api/controllers/${selectedCtrlId}`, {
-                  ...ctrlObj,
-                  generatorId,
-                  operatingHours: hrs,
-                }).catch(() => {});
-              }
-            }
-          }
         }
       }
 
@@ -670,22 +647,9 @@ function Generators({ t, lang, currentUser }) {
             <FormField label={ar ? 'قراءة عداد الطاقة الحالية' : 'Current Energy Reading'}>
               <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.energyReading || 0} style={{ background: 'var(--card-2)' }} />
             </FormField>
-            {isCommercialMode ? (
-              <FormField label={ar ? 'ساعات التشغيل التراكمية' : 'Cumulative Running Hours'}>
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={form.cumulativeRunningHours}
-                  onChange={e => fld('cumulativeRunningHours', e.target.value)}
-                  placeholder="0"
-                />
-              </FormField>
-            ) : (
-              <FormField label={ar ? 'قراءة ساعات التشغيل الحالية' : 'Current Operating Hours'}>
-                <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.operatingHours || 0} style={{ background: 'var(--card-2)' }} />
-              </FormField>
-            )}
+            <FormField label={ar ? 'ساعات التشغيل التراكمية' : 'Cumulative Running Hours'}>
+              <Input readOnly value={controllers.find(c => c.id === Number(form.controller))?.operatingHours || 0} style={{ background: 'var(--card-2)' }} />
+            </FormField>
           </div>
           <div className="form-row">
             {!isCommercialMode && (
