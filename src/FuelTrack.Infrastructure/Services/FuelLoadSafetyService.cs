@@ -137,7 +137,7 @@ public sealed class FuelLoadSafetyService(
 
         var dailyTank = await db.FuelTanks.AsNoTracking()
             .Where(t => t.GeneratorId == generatorId && (t.TankRole == TankRole.Daily || t.ParentTankId != null))
-            .Select(t => new { t.Id, t.Name, t.DeadStockLiters })
+            .Select(t => new { t.Id, t.Name, t.DeadStockLiters, t.ActualStockLiters })
             .FirstOrDefaultAsync(ct);
 
         if (dailyTank is null)
@@ -146,7 +146,7 @@ public sealed class FuelLoadSafetyService(
                 // Legacy generator-linked tanks had no role. Do not fall back to an
                 // explicitly main tank: it is a supply source, never a consumption tank.
                 .Where(t => t.GeneratorId == generatorId && t.TankRole == null)
-                .Select(t => new { t.Id, t.Name, t.DeadStockLiters })
+                .Select(t => new { t.Id, t.Name, t.DeadStockLiters, t.ActualStockLiters })
                 .FirstOrDefaultAsync(ct);
         }
 
@@ -175,10 +175,17 @@ public sealed class FuelLoadSafetyService(
         {
             openingBalance = priorReadings.Last().ComputedLitres;
         }
+        else if (dateReadings.Count > 0 && dateReadings.First().BeforeComputedLitres.HasValue)
+        {
+            openingBalance = dateReadings.First().BeforeComputedLitres!.Value;
+        }
+        else if (dailyTank.ActualStockLiters.HasValue)
+        {
+            openingBalance = (decimal)dailyTank.ActualStockLiters.Value;
+        }
         else if (dateReadings.Count > 0)
         {
-            var first = dateReadings.First();
-            openingBalance = first.BeforeComputedLitres ?? first.ComputedLitres;
+            openingBalance = dateReadings.First().ComputedLitres;
         }
 
         decimal inboundRefills = 0;

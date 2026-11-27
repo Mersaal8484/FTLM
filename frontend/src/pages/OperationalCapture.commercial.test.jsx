@@ -331,3 +331,50 @@ test('shows meter setup source label on feeder baseline and fallback when no bas
   expect(await screen.findByText(/400 \((من تهيئة العداد|from meter setup)\)/)).toBeInTheDocument();
   expect(screen.getAllByText(/لا توجد قراءة سابقة|No previous reading/i).length).toBeGreaterThanOrEqual(1);
 });
+
+test('daily-generator shares card photo with daily tank, sets isRunning false, and surfaces rejected lines', async () => {
+  useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
+  mockRequests();
+  const alertMock = vi.fn();
+  vi.stubGlobal('alert', alertMock);
+  vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 100, height: 100 })));
+  const origCreateObjectUrl = URL.createObjectURL;
+  URL.createObjectURL = vi.fn(() => 'blob:mock');
+  const ctxSpy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    drawImage: vi.fn(),
+    fillRect: vi.fn(),
+    fillText: vi.fn(),
+    measureText: () => ({ width: 10 }),
+  });
+  const blobSpy = vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((cb) => cb(new Blob(['img'], { type: 'image/jpeg' })));
+  client.post.mockImplementation(async (url) => {
+    if (url === '/api/attachments') return { data: { id: 77 } };
+    return {
+      data: {
+        lines: [{ outcome: 'rejected', reason: 'Sample server rejection' }],
+      },
+    };
+  });
+
+  const { container } = render(
+    <MemoryRouter initialEntries={['/operations/capture?kind=daily-generator&generatorId=11&tankId=31']}>
+      <OperationalCapture />
+    </MemoryRouter>,
+  );
+
+  fireEvent.change(await screen.findByLabelText(/Daily tank level \(cm\)|مستوى الخزان اليومي \(سم\)/i), { target: { value: '30' } });
+  const fileInput = container.querySelector('input[type="file"]');
+  fireEvent.change(fileInput, { target: { files: [new File(['img'], 'meter.jpg', { type: 'image/jpeg' })] } });
+  await screen.findByText(/Photo ready|الصورة جاهزة/i);
+
+  fireEvent.click(screen.getByRole('button', { name: /Submit|إرسال/i }));
+
+  await waitFor(() => expect(client.post).toHaveBeenCalledWith('/api/operational-captures', expect.objectContaining({
+    generatorReadings: [expect.objectContaining({ generatorId: 11, isRunning: false, photoAttachmentIds: [77] })],
+    tankLevelReadings: [expect.objectContaining({ fuelTankId: 31, liquidLevelCm: 30, photoAttachmentIds: [77] })],
+  })));
+  await waitFor(() => expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Sample server rejection')));
+  ctxSpy.mockRestore();
+  blobSpy.mockRestore();
+  URL.createObjectURL = origCreateObjectUrl;
+});

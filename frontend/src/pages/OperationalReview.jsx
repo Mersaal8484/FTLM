@@ -305,6 +305,10 @@ function SubmissionDetail({ ids, reviewGroup, onBack }) {
     };
   });
   const displayNumber = (value) => value == null ? '—' : Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const meterDifference = (line) => line?.deltaPreview
+    ?? (!line?.isMeterReset && line?.rawValue != null && line?.previousApprovedValue != null
+      ? Number(line.rawValue) - Number(line.previousApprovedValue)
+      : null);
   const renderPhotos = (attachmentIds) => attachmentIds?.length ? (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
       {attachmentIds.map((photoId) => (
@@ -406,6 +410,7 @@ function SubmissionDetail({ ids, reviewGroup, onBack }) {
                       <th>{t('operational.review.oilAdded')}</th>
                       <th>{t('operational.review.energyPrevious')}</th>
                       <th>{t('operational.review.energyCurrent')}</th>
+                      <th>{t('operational.review.producedKwh')}</th>
                       <th>{t('operational.review.hoursPrevious')}</th>
                       <th>{t('operational.review.hoursCurrent')}</th>
                       <th>{t('operational.review.hoursDifference')}</th>
@@ -430,9 +435,10 @@ function SubmissionDetail({ ids, reviewGroup, onBack }) {
                         <td>{row.oil.litres != null ? `${displayNumber(row.oil.litres)} L` : '—'}</td>
                         <td>{displayNumber(row.energy?.previousApprovedValue)}</td>
                         <td style={{ fontWeight: 700 }}>{displayNumber(row.energy?.rawValue)}</td>
+                        <td style={{ fontWeight: 800 }}>{displayNumber(meterDifference(row.energy))}</td>
                         <td>{displayNumber(row.hours?.previousApprovedValue)}</td>
                         <td style={{ fontWeight: 700 }}>{displayNumber(row.hours?.rawValue)}</td>
-                        <td style={{ fontWeight: 800 }}>{displayNumber(row.hours?.deltaPreview)}</td>
+                        <td style={{ fontWeight: 800 }}>{displayNumber(meterDifference(row.hours))}</td>
                         <td>{renderPhotos(row.photoAttachmentIds)}</td>
                         <td>{renderBundleActions('generator', row.generatorId, row.sourceSubmissionIds, row.hasPending)}</td>
                       </tr>

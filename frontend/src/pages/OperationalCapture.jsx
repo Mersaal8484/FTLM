@@ -264,7 +264,8 @@ export default function OperationalCapture() {
     const createLine = (kind, source) => ({
       id: crypto.randomUUID(), clientLineId: crypto.randomUUID(), kind,
       subjectId: source.id, meterId: kind === 'solar' ? source.id : null,
-      capturedAt: '', photoAttachmentIds: [], beforePhotoAttachmentIds: [], isRunning: true,
+      capturedAt: '', photoAttachmentIds: [], beforePhotoAttachmentIds: [],
+      isRunning: !(isDailyGeneratorCommercial && kind === 'generator'),
       values: kind === 'feeder' ? { multiplier: String(source.meterMultiplier || 1) } : {},
     });
     if (isHourlyCommercial) {
@@ -420,6 +421,9 @@ export default function OperationalCapture() {
     }
     const clientRequestId = clientRequestIdRef.current || crypto.randomUUID();
     clientRequestIdRef.current = clientRequestId;
+    const pairedDailyTankPhotoIds = isDailyGeneratorCommercial
+      ? (lines.find((item) => item.kind === 'generator')?.photoAttachmentIds || [])
+      : [];
     const payload = { clientRequestId, subStationId: site.subStationId, submissionCapturedAtUtc: new Date(submissionTime).toISOString(), clientSentAtUtc: clientSentAt, isOfflineQueue: false, generatorReadings: [], tankLevelReadings: [], feederLoadReadings: [], meterReadings: [] };
     for (const line of lines) {
       const capturedAtUtc = line.capturedAt ? new Date(line.capturedAt).toISOString() : new Date(submissionTime).toISOString();
@@ -429,7 +433,10 @@ export default function OperationalCapture() {
           if (line.values[counter.key] !== '' && line.values[counter.key] != null) payload.meterReadings.push({ subjectType: counter.subjectType, subjectId: line.subjectId, meterId: site.generators.find(generator => generator.id === line.subjectId)?.meterId || null, kind: captureKind === 'dailyClosing' ? 1 : 0, clientLineId: crypto.randomUUID(), businessDate: captureKind === 'dailyClosing' ? businessDate : null, capturedAtUtc, photoAttachmentIds: line.photoAttachmentIds, rawValue: decimal(line.values[counter.key]), multiplierSnapshot: 1, isMeterReset: Boolean(line.values[`${counter.key}Reset`]), resetNote: line.values[`${counter.key}ResetNote`] || null });
         }
       }
-      if (line.kind === 'tank') payload.tankLevelReadings.push({ fuelTankId: line.subjectId, clientLineId: line.clientLineId, capturedAtUtc, photoAttachmentIds: line.photoAttachmentIds, liquidLevelCm: decimal(line.values.level), eventType: Number(line.values.eventType || 0), linkedClientLineId: line.values.linkedClientLineId || null, beforeLiquidLevelCm: decimal(line.values.beforeLevel), beforePhotoAttachmentIds: line.beforePhotoAttachmentIds || [], deliveryNoteLitres: decimal(line.values.deliveryNoteLitres) });
+      if (line.kind === 'tank') {
+        const tankPhotoIds = line.photoAttachmentIds?.length ? line.photoAttachmentIds : pairedDailyTankPhotoIds;
+        payload.tankLevelReadings.push({ fuelTankId: line.subjectId, clientLineId: line.clientLineId, capturedAtUtc, photoAttachmentIds: tankPhotoIds, liquidLevelCm: decimal(line.values.level), eventType: Number(line.values.eventType || 0), linkedClientLineId: line.values.linkedClientLineId || null, beforeLiquidLevelCm: decimal(line.values.beforeLevel), beforePhotoAttachmentIds: line.beforePhotoAttachmentIds || [], deliveryNoteLitres: decimal(line.values.deliveryNoteLitres) });
+      }
       if (line.kind === 'feeder') {
         payload.feederLoadReadings.push({ feederId: line.subjectId, clientLineId: line.clientLineId, capturedAtUtc, photoAttachmentIds: line.photoAttachmentIds, activeLoadKw: decimal(line.values.activeKw), apparentLoadKva: decimal(line.values.apparentKva) });
         if (line.values.energyRaw !== '' && line.values.energyRaw != null) payload.meterReadings.push({ subjectType: 2, subjectId: line.subjectId, meterId: site.feeders.find(feeder => feeder.id === line.subjectId)?.meterId || null, kind: captureKind === 'dailyClosing' ? 1 : 0, clientLineId: crypto.randomUUID(), businessDate: captureKind === 'dailyClosing' ? businessDate : null, capturedAtUtc, photoAttachmentIds: line.photoAttachmentIds, rawValue: decimal(line.values.energyRaw), multiplierSnapshot: decimal(line.values.multiplier) || 1, isMeterReset: Boolean(line.values.energyRawReset), resetNote: line.values.energyRawResetNote || null });
@@ -455,11 +462,16 @@ export default function OperationalCapture() {
     }
     setSubmitting(true);
     try {
-      await client.post('/api/operational-captures', payload);
+      const response = await client.post('/api/operational-captures', payload);
+      const rejectedReasons = [...new Set(
+        (response?.data?.lines || [])
+          .filter((item) => item.outcome === 'rejected' && item.reason)
+          .map((item) => item.reason)
+      )];
       clientRequestIdRef.current = null;
       setLines([]);
-      window.alert(t('operational.capture.success'));
-      if (isFocusedCommercial) navigate('/operations/capture');
+      window.alert(rejectedReasons.length > 0 ? `${t('operational.capture.failed')}\n${rejectedReasons.join('\n')}` : t('operational.capture.success'));
+      if (isFocusedCommercial && rejectedReasons.length === 0) navigate('/operations/capture');
     }
     catch (error) {
       // A response proves the server processed the request (including a validation
@@ -537,7 +549,7 @@ export default function OperationalCapture() {
     </div>}
       <div className="capture-lines">{lines.filter((line) => !isDailyGeneratorCommercial || line.kind !== 'tank').map((line) => <BaseLine key={line.id} title={sourceName(line)} code={sourceCode(line)} icon={line.kind === 'tank' ? Droplets : line.kind === 'feeder' ? Gauge : line.kind === 'solar' ? Sun : Zap} capturedAt={line.capturedAt || submissionTime} onCapturedAt={(capturedAt) => update(line.id, { capturedAt })} photoIds={line.photoAttachmentIds} onUploaded={(photoId) => update(line.id, { photoAttachmentIds: [photoId] })} onRemove={() => setLines((current) => isDailyGeneratorCommercial ? [] : current.filter((x) => x.id !== line.id))} disabled={submitting} timeZone={site.timeZone || 'Asia/Aden'}>
         {line.kind === 'generator' && <>
-          {!isHourlyCommercial && <label className="capture-switch"><input type="checkbox" checked={line.isRunning} onChange={(e) => update(line.id, { isRunning: e.target.checked })}/>{t('operational.capture.running')}</label>}
+          {!isHourlyCommercial && !isDailyGeneratorCommercial && <label className="capture-switch"><input type="checkbox" checked={line.isRunning} onChange={(e) => update(line.id, { isRunning: e.target.checked })}/>{t('operational.capture.running')}</label>}
           {!isDailyGeneratorCommercial && (isHourlyCommercial || line.isRunning) && <div className="capture-grid">{number(line, 'voltage', t('operational.capture.voltage'), true)}{number(line, 'current', t('operational.capture.current'), true)}{number(line, 'waterTemp', t('operational.capture.waterTemp'), true)}{number(line, 'oilPressure', t('operational.capture.oilPressure'), true)}{number(line, 'oilTemp', t('operational.capture.oilTemp'), true)}{number(line, 'activeKw', t('operational.capture.activeKw'), true)}{!isHourlyCommercial && <>{number(line, 'peakKw', t('operational.capture.peakKw'))}{number(line, 'airPressure', t('operational.capture.airPressure'))}{number(line, 'apparentKva', t('operational.capture.apparentKva'))}{number(line, 'frequency', t('operational.capture.frequency'))}</>}</div>}
           {!isHourlyCommercial && <div className="capture-grid">
             <label>{t('operational.capture.energyCounter')}<input type="number" step="any" value={line.values.energyRaw ?? ''} onChange={(event) => updateValues(line.id, { energyRaw: event.target.value })} /><small>{counterHint(0, line.subjectId, captureKind === 'dailyClosing')}</small>{captureKind === 'dailyClosing' && <small>{closingDifference(0, line.subjectId, line.values.energyRaw)}</small>}{counterWarning(0, line.subjectId, line.values.energyRaw, captureKind === 'dailyClosing') && <><span className="form-error">{counterWarning(0, line.subjectId, line.values.energyRaw, captureKind === 'dailyClosing')}</span><label className="capture-switch"><input type="checkbox" checked={Boolean(line.values.energyRawReset)} onChange={(event) => updateValues(line.id, { energyRawReset: event.target.checked })}/>{t('operational.capture.meterReset')}</label>{line.values.energyRawReset && <input value={line.values.energyRawResetNote || ''} placeholder={t('operational.capture.resetNote')} onChange={(event) => updateValues(line.id, { energyRawResetNote: event.target.value })}/>}</>}</label>

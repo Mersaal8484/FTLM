@@ -262,8 +262,12 @@ describe('OperationalReview — detail / approve flow', () => {
     expect(await screen.findByText('Generator 7')).toBeInTheDocument();
     expect(screen.getByText('Engine Oil')).toBeInTheDocument();
     expect(screen.getByText(/1[,\u066C]?250/)).toBeInTheDocument();
+    expect(screen.getByText('250')).toBeInTheDocument();
     expect(screen.getByText('520')).toBeInTheDocument();
+    expect(screen.getByText(/الطاقة المنتجة \(kWh\)|Produced Energy \(kWh\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/^ساعات التشغيل$|^Running hours$/i)).toBeInTheDocument();
     expect(screen.queryByText(/فرق الطاقة \(kWh\)|Energy difference \(kWh\)/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/فرق ساعات التشغيل|Hours difference/i)).not.toBeInTheDocument();
     expect(view.container.querySelectorAll('img')).toHaveLength(1);
     expect(screen.getByRole('button', { name: /approve generator data|اعتماد بيانات المولد/i })).toBeInTheDocument();
   });

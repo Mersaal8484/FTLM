@@ -1107,4 +1107,58 @@ public sealed class FuelLoadSafetyServiceTests
         Assert.True(result.IsSuccess);
         Assert.Contains("operational.warnings.dailyTankAtDeadStock", result.Value!.Warnings);
     }
+
+    [Fact]
+    public async Task GetDailyConsumptionAsync_UsesTankActualStockAsOpeningBalance_WhenNoPriorReadingsExist()
+    {
+        await using var db = CreateDb();
+        var (_, subStationId, generatorId, _, submissionId) = await SeedBaseAsync(db);
+        var date = new DateOnly(2026, 11, 26);
+        var time = date.ToDateTime(new TimeOnly(18, 0), DateTimeKind.Utc);
+
+        var dailyTank = new FuelTank
+        {
+            SubStationId = subStationId,
+            FuelLookupId = 1,
+            Name = "PER-01 Daily Tank",
+            Code = "DT-01",
+            CapacityLiters = 1000,
+            ActualStockLiters = 850,
+            DeadStockLiters = 70,
+            GeneratorId = generatorId,
+            TankRole = TankRole.Daily,
+            CalibrationMode = TankCalibrationMode.LitresPerCm,
+            LitresPerCm = 10m
+        };
+        db.FuelTanks.Add(dailyTank);
+        await db.SaveChangesAsync();
+
+        var service = new FuelLoadSafetyService(db, new SiteScope(), new TrackingNotificationService());
+        var beforeReading = await service.GetDailyConsumptionAsync(generatorId, date, 1);
+        Assert.True(beforeReading.IsSuccess);
+        Assert.Equal(850m, beforeReading.Value!.OpeningBalanceLitres);
+
+        db.TankLevelReadings.Add(new TankLevelReading
+        {
+            OperationalSubmissionId = submissionId,
+            FuelTankId = dailyTank.Id,
+            ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = time,
+            ReceivedAtUtc = time,
+            BusinessDate = date,
+            Status = OperationalReadingStatus.Approved,
+            EventType = TankEventType.Level,
+            LiquidLevelCm = 30m,
+            ComputedLitres = 300m,
+            CreatedAt = time,
+            UpdatedAt = time
+        });
+        await db.SaveChangesAsync();
+
+        var afterReading = await service.GetDailyConsumptionAsync(generatorId, date, 1);
+        Assert.True(afterReading.IsSuccess);
+        Assert.Equal(850m, afterReading.Value!.OpeningBalanceLitres);
+        Assert.Equal(300m, afterReading.Value.ClosingBalanceLitres);
+        Assert.Equal(550m, afterReading.Value.ConsumptionLitres);
+    }
 }
