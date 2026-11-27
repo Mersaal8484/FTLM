@@ -680,21 +680,36 @@ public sealed class OperationalCaptureService(
         if (dailyGeneratorIds.Count == 0)
             return null;
 
-        var covered = await db.FuelTanks.AsNoTracking()
+        var dailyTanks = await db.FuelTanks.AsNoTracking()
             .Where(x => x.IsActive && x.DeletedAt == null && x.TankRole == TankRole.Daily &&
                         x.GeneratorId.HasValue && dailyGeneratorIds.Contains(x.GeneratorId.Value))
-            .Select(x => x.GeneratorId!.Value)
-            .Distinct()
+            .Select(x => new { x.Id, GeneratorId = x.GeneratorId!.Value })
             .ToListAsync(cancellationToken);
-        var missing = dailyGeneratorIds.Except(covered).ToList();
-        if (missing.Count == 0)
+
+        var missingConfigured = dailyGeneratorIds
+            .Where(generatorId => !dailyTanks.Any(tank => tank.GeneratorId == generatorId))
+            .ToList();
+        if (missingConfigured.Count > 0)
+        {
+            var names = await db.Generators.AsNoTracking()
+                .Where(x => missingConfigured.Contains(x.Id))
+                .Select(x => x.Name)
+                .ToListAsync(cancellationToken);
+            return $"GENERATOR_NO_DAILY_TANK: {string.Join(", ", names)}";
+        }
+
+        var submittedTankIds = dto.TankLevelReadings.Select(x => x.FuelTankId).ToHashSet();
+        var missingReading = dailyGeneratorIds
+            .Where(generatorId => !dailyTanks.Any(tank => tank.GeneratorId == generatorId && submittedTankIds.Contains(tank.Id)))
+            .ToList();
+        if (missingReading.Count == 0)
             return null;
 
-        var names = await db.Generators.AsNoTracking()
-            .Where(x => missing.Contains(x.Id))
+        var missingNames = await db.Generators.AsNoTracking()
+            .Where(x => missingReading.Contains(x.Id))
             .Select(x => x.Name)
             .ToListAsync(cancellationToken);
-        return $"GENERATOR_NO_DAILY_TANK: {string.Join(", ", names)}";
+        return $"GENERATOR_DAILY_TANK_READING_REQUIRED: {string.Join(", ", missingNames)}";
     }
 
     private async Task<(SubmitOperationalCaptureDto Dto, IReadOnlyList<OperationalLineResultDto> Duplicates)> ExcludeKnownClientLinesAsync(SubmitOperationalCaptureDto dto, CancellationToken cancellationToken)

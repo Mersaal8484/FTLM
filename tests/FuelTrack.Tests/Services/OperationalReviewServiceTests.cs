@@ -459,6 +459,56 @@ public sealed class OperationalReviewServiceTests
     }
 
     [Fact]
+    public async Task GetSubmissionDetail_PreviewsPendingDailyTankConsumptionWithoutChangingOfficialStock()
+    {
+        await using var db = CreateDb();
+        var (submissionId, submitterId, _, subStationId, _) = await SeedPendingSubmissionAsync(db);
+        var now = DateTime.UtcNow;
+        var tank = new FuelTank
+        {
+            SubStationId = subStationId,
+            GeneratorId = 1,
+            TankRole = TankRole.Daily,
+            FuelLookupId = 1,
+            Name = "Daily Tank A",
+            Code = "DT-A",
+            CapacityLiters = 1000d,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        db.FuelTanks.Add(tank);
+        await db.SaveChangesAsync();
+        db.TankLevelReadings.Add(new TankLevelReading
+        {
+            OperationalSubmissionId = submissionId,
+            FuelTankId = tank.Id,
+            ClientLineId = Guid.NewGuid(),
+            CapturedAtUtc = now,
+            ReceivedAtUtc = now,
+            BusinessDate = DateOnly.FromDateTime(now),
+            Status = OperationalReadingStatus.Pending,
+            EventType = TankEventType.Level,
+            BeforeComputedLitres = 600m,
+            ComputedLitres = 300m,
+            CreatedBy = submitterId,
+            UpdatedBy = submitterId,
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+        await db.SaveChangesAsync();
+
+        var detail = await CreateService(db).GetSubmissionDetailAsync(submissionId, 999);
+
+        Assert.True(detail.IsSuccess);
+        var preview = Assert.Single(detail.Value!.DailyFuelConsumptions!);
+        Assert.Equal(600m, preview.OpeningBalanceLitres);
+        Assert.Equal(300m, preview.ClosingBalanceLitres);
+        Assert.Equal(300m, preview.ConsumptionLitres);
+        Assert.Equal(OperationalReadingStatus.Pending, (await db.TankLevelReadings.SingleAsync()).Status);
+    }
+
+    [Fact]
     public async Task GetSubmissionDetail_PendingDailyMeterShowsCurrentValueAndPreviousOfficialDelta()
     {
         await using var db = CreateDb();

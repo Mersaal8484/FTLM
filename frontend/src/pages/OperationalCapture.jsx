@@ -363,6 +363,16 @@ export default function OperationalCapture() {
   }, [captureKind, lines, previousReadings, previousTankBalances, previousTankReadings, tankConversions, isCommercial, fuelTanks, site]);
   const submit = async () => {
     if (!site || lines.length === 0) return;
+    // This control is rendered inside the generator card, not a native form.
+    // Enforce it before building the payload so a daily closing can never be
+    // saved without the tank level that determines fuel consumption.
+    if (isDailyGeneratorCommercial) {
+      const dailyTankLine = lines.find((line) => line.kind === 'tank');
+      if (!dailyTankLine || dailyTankLine.values.level === '' || dailyTankLine.values.level == null) {
+        window.alert(t('operational.commercialCapture.dailyTankLevelRequired'));
+        return;
+      }
+    }
     const invalidReset = lines.some((line) => {
       const counters = line.kind === 'generator'
         ? [{ key: 'energyRaw', subjectType: 0 }, { key: 'hoursRaw', subjectType: 1 }]
@@ -399,8 +409,10 @@ export default function OperationalCapture() {
     const invalidOilTopUp = lines.find((line) => {
       if (line.kind !== 'generator') return false;
       const hasQuantity = line.values.oilAdded !== '' && line.values.oilAdded != null;
+      const quantity = hasQuantity ? Number(line.values.oilAdded) : 0;
+      const hasPositiveQuantity = quantity > 0;
       const hasOil = line.values.oilId !== '' && line.values.oilId != null;
-      return (hasQuantity !== hasOil) || (hasQuantity && Number(line.values.oilAdded) <= 0);
+      return (hasQuantity && quantity < 0) || (hasPositiveQuantity && !hasOil) || (hasOil && !hasPositiveQuantity);
     });
     if (invalidOilTopUp) {
       window.alert(t('operational.commercialCapture.oilSelectionRequired'));
@@ -412,7 +424,7 @@ export default function OperationalCapture() {
     for (const line of lines) {
       const capturedAtUtc = line.capturedAt ? new Date(line.capturedAt).toISOString() : new Date(submissionTime).toISOString();
       if (line.kind === 'generator') {
-        payload.generatorReadings.push({ generatorId: line.subjectId, clientLineId: line.clientLineId, capturedAtUtc, photoAttachmentIds: line.photoAttachmentIds, isRunning: line.isRunning, lineVoltageVolts: decimal(line.values.voltage), currentAmps: decimal(line.values.current), waterTemperatureCelsius: decimal(line.values.waterTemp), oilPressure: decimal(line.values.oilPressure), oilTemperatureCelsius: decimal(line.values.oilTemp), activeLoadKw: decimal(line.values.activeKw), apparentLoadKva: decimal(line.values.apparentKva), reactiveLoadKvar: decimal(line.values.reactiveKvar), frequencyHz: decimal(line.values.frequency), oilAddedLitres: decimal(line.values.oilAdded), oilId: line.values.oilId ? Number(line.values.oilId) : null, powerFactor: decimal(line.values.powerFactor), peakLoadKw: decimal(line.values.peakKw), airPressureBar: decimal(line.values.airPressure) });
+        payload.generatorReadings.push({ generatorId: line.subjectId, clientLineId: line.clientLineId, capturedAtUtc, photoAttachmentIds: line.photoAttachmentIds, isRunning: line.isRunning, lineVoltageVolts: decimal(line.values.voltage), currentAmps: decimal(line.values.current), waterTemperatureCelsius: decimal(line.values.waterTemp), oilPressure: decimal(line.values.oilPressure), oilTemperatureCelsius: decimal(line.values.oilTemp), activeLoadKw: decimal(line.values.activeKw), apparentLoadKva: decimal(line.values.apparentKva), reactiveLoadKvar: decimal(line.values.reactiveKvar), frequencyHz: decimal(line.values.frequency), oilAddedLitres: isCommercial ? (decimal(line.values.oilAdded) ?? 0) : decimal(line.values.oilAdded), oilId: line.values.oilId ? Number(line.values.oilId) : null, powerFactor: decimal(line.values.powerFactor), peakLoadKw: decimal(line.values.peakKw), airPressureBar: decimal(line.values.airPressure) });
         for (const counter of [{ key: 'energyRaw', subjectType: 0 }, { key: 'hoursRaw', subjectType: 1 }]) {
           if (line.values[counter.key] !== '' && line.values[counter.key] != null) payload.meterReadings.push({ subjectType: counter.subjectType, subjectId: line.subjectId, meterId: site.generators.find(generator => generator.id === line.subjectId)?.meterId || null, kind: captureKind === 'dailyClosing' ? 1 : 0, clientLineId: crypto.randomUUID(), businessDate: captureKind === 'dailyClosing' ? businessDate : null, capturedAtUtc, photoAttachmentIds: line.photoAttachmentIds, rawValue: decimal(line.values[counter.key]), multiplierSnapshot: 1, isMeterReset: Boolean(line.values[`${counter.key}Reset`]), resetNote: line.values[`${counter.key}ResetNote`] || null });
         }

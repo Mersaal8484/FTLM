@@ -67,6 +67,18 @@ public sealed class OperationalReviewService(
                 s.Id,
                 s.SubStationId,
                 SiteName = s.SubStation.Name,
+                // A single end-of-day submission always belongs to one business
+                // day.  Prefer meter dates, then fall back to the other captured
+                // reading types so the review queue can group a station's work by
+                // its actual business day rather than the upload time.
+                BusinessDate = s.MeterReadings.Where(r => r.DeletedAt == null)
+                    .Select(r => (DateOnly?)r.BusinessDate).FirstOrDefault()
+                    ?? s.GeneratorReadings.Where(r => r.DeletedAt == null)
+                        .Select(r => (DateOnly?)r.BusinessDate).FirstOrDefault()
+                    ?? s.TankLevelReadings.Where(r => r.DeletedAt == null)
+                        .Select(r => (DateOnly?)r.BusinessDate).FirstOrDefault()
+                    ?? s.FeederLoadReadings.Where(r => r.DeletedAt == null)
+                        .Select(r => (DateOnly?)r.BusinessDate).FirstOrDefault(),
                 s.ReceivedAtUtc,
                 s.SubmittedByUserId,
                 SubmitterName = db.Users
@@ -94,7 +106,8 @@ public sealed class OperationalReviewService(
                        || r.MeterTimestamps.Any(t => (t.ReceivedAtUtc - t.CapturedAtUtc).Duration() > SkewThreshold);
 
             return new PendingSubmissionDto(
-                r.Id, r.SubStationId, r.SiteName, r.ReceivedAtUtc,
+                r.Id, r.SubStationId, r.SiteName,
+                r.BusinessDate ?? DateOnly.FromDateTime(r.ReceivedAtUtc), r.ReceivedAtUtc,
                 r.SubmittedByUserId ?? 0, r.SubmitterName,
                 r.GenCount, r.TankCount, r.FeedCount, r.MeterCount,
                 hasSkew);
@@ -250,7 +263,7 @@ public sealed class OperationalReviewService(
             // the current value. Build a review-only preview from this line and
             // its latest preceding official closing instead.
             MeterDeltaDto? delta = r.Kind == MeterReadingKind.DailyClosing
-                ? await GetReviewMeterDeltaAsync(r, cancellationToken)
+                ? await GetReviewMeterDeltaAsync(r, submission.SubStationId, cancellationToken)
                 : null;
 
             meterDtos.Add(new ReviewMeterLineDto(
@@ -290,7 +303,67 @@ public sealed class OperationalReviewService(
                 var consRes = await fuelLoadSafety.GetDailyConsumptionAsync(gId, businessDate, userId, cancellationToken);
                 if (consRes.IsSuccess && consRes.Value != null)
                 {
-                    dailyConsumptions.Add(consRes.Value);
+                    // The safety service intentionally reads only official records.  A reviewer,
+                    // however, must see the submitted end-of-day tank level and energy before
+                    // approving it, without allowing that pending value to affect stock yet.
+                    var official = consRes.Value;
+                    var submittedTankLines = tankLines
+                        .Where(line => line.GeneratorId == gId)
+                        .OrderBy(line => line.CapturedAtUtc)
+                        .ThenBy(line => line.Id)
+                        .ToList();
+                    var submittedEnergy = meterDtos
+                        .Where(line => line.SubjectType == MeterReadingSubjectType.GeneratorEnergyProduced
+                            && line.SubjectId == gId
+                            && line.Kind == MeterReadingKind.DailyClosing)
+                        .OrderBy(line => line.CapturedAtUtc)
+                        .ThenBy(line => line.Id)
+                        .LastOrDefault();
+
+                    if (submittedTankLines.Count == 0)
+                    {
+                        dailyConsumptions.Add(official with
+                        {
+                            ProducedKwh = submittedEnergy?.DeltaPreview ?? official.ProducedKwh,
+                            KwhPerLiter = official.ConsumptionLitres > 0 && (submittedEnergy?.DeltaPreview ?? official.ProducedKwh) is decimal officialProduced
+                                ? Math.Round(officialProduced / official.ConsumptionLitres, 2)
+                                : official.KwhPerLiter
+                        });
+                        continue;
+                    }
+
+                    var firstTankLine = submittedTankLines[0];
+                    var lastTankLine = submittedTankLines[^1];
+                    var opening = official.OpeningBalanceLitres != 0m
+                        ? official.OpeningBalanceLitres
+                        : firstTankLine.BeforeComputedLitres ?? firstTankLine.ComputedLitres;
+                    var inbound = official.InboundRefillsLitres;
+                    foreach (var tankLine in submittedTankLines.Where(line => line.EventType is TankEventType.Receipt or TankEventType.TransferIn))
+                    {
+                        var added = tankLine.ComputedLitres - (tankLine.BeforeComputedLitres ?? tankLine.ComputedLitres);
+                        inbound += added > 0m
+                            ? added
+                            : tankLine.DeliveryNoteLitres.GetValueOrDefault() > 0m
+                                ? tankLine.DeliveryNoteLitres.Value
+                                : 0m;
+                    }
+
+                    var closing = lastTankLine.ComputedLitres;
+                    var consumption = Math.Max(0m, opening + inbound - closing);
+                    var produced = submittedEnergy?.DeltaPreview ?? official.ProducedKwh;
+                    dailyConsumptions.Add(official with
+                    {
+                        DailyTankId = lastTankLine.FuelTankId,
+                        DailyTankName = lastTankLine.FuelTankName,
+                        OpeningBalanceLitres = opening,
+                        InboundRefillsLitres = inbound,
+                        ClosingBalanceLitres = closing,
+                        ConsumptionLitres = consumption,
+                        ProducedKwh = produced,
+                        KwhPerLiter = consumption > 0m && produced.HasValue && produced.Value > 0m
+                            ? Math.Round(produced.Value / consumption, 2)
+                            : null
+                    });
                 }
             }
         }
@@ -306,6 +379,7 @@ public sealed class OperationalReviewService(
 
     private async Task<MeterDeltaDto> GetReviewMeterDeltaAsync(
         MeterReading submittedReading,
+        int subStationId,
         CancellationToken cancellationToken)
     {
         if (submittedReading.IsMeterReset)
@@ -327,8 +401,38 @@ public sealed class OperationalReviewService(
 
         if (previous is null)
         {
+            var generatorIds = submittedReading.SubjectType is MeterReadingSubjectType.GeneratorEnergyProduced
+                or MeterReadingSubjectType.GeneratorRunningHours
+                ? new[] { submittedReading.SubjectId }
+                : Array.Empty<int>();
+            var feeders = submittedReading.SubjectType == MeterReadingSubjectType.FeederEnergySent
+                ? await db.Feeders.AsNoTracking()
+                    .Where(f => f.Id == submittedReading.SubjectId && f.SubStationId == subStationId)
+                    .Select(f => new PreviousReadingBaselineResolver.FeederBaselineInfo(f.Id, f.MeterId, f.MeterMultiplier))
+                    .ToListAsync(cancellationToken)
+                : [];
+            var solarMeterIds = submittedReading.SubjectType == MeterReadingSubjectType.SolarEnergyProduced
+                ? new[] { submittedReading.SubjectId }
+                : Array.Empty<int>();
+            var resolver = new PreviousReadingBaselineResolver();
+            var baselines = await resolver.LoadAsync(db, subStationId, generatorIds, feeders, solarMeterIds, cancellationToken);
+            var baseline = resolver.ResolveSubject(
+                submittedReading.SubjectType,
+                submittedReading.SubjectId,
+                Array.Empty<MeterReading>(),
+                baselines).LatestOfficialDailyClosing;
+
+            if (baseline is null)
+                return new MeterDeltaDto(
+                    submittedReading.BusinessDate, null, null, submittedReading.RawValue, null, false);
+
             return new MeterDeltaDto(
-                submittedReading.BusinessDate, null, null, submittedReading.RawValue, null, false);
+                submittedReading.BusinessDate,
+                (submittedReading.RawValue - baseline.RawValue) * submittedReading.MultiplierSnapshot,
+                baseline.RawValue,
+                submittedReading.RawValue,
+                null,
+                false);
         }
 
         var span = submittedReading.BusinessDate.DayNumber - previous.BusinessDate.DayNumber;

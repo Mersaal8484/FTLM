@@ -141,6 +141,45 @@ public sealed class OperationalCaptureServiceTests
     }
 
     [Fact]
+    public async Task SubmitAsync_CommercialDailyClosingWithoutSubmittedDailyTankLevel_ReturnsRequiredReadingError()
+    {
+        await using var db = CreateDatabase();
+        var fixture = await SeedAsync(db);
+        db.FuelTanks.Add(new FuelTank
+        {
+            SubStationId = fixture.SiteId,
+            FuelLookupId = 1,
+            Name = "Daily generator tank",
+            Code = "DT-G-1",
+            CapacityLiters = 1000,
+            TankRole = FuelTrack.Domain.Enums.TankRole.Daily,
+            GeneratorId = fixture.GeneratorId,
+            CalibrationMode = FuelTrack.Domain.Enums.TankCalibrationMode.LitresPerCm,
+            LitresPerCm = 10m,
+            IsActive = true,
+        });
+        await db.SaveChangesAsync();
+
+        var commercial = new Mock<ICommercialStationModeService>();
+        commercial.Setup(x => x.IsCommercialModeAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        commercial.Setup(x => x.GetScopeAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CommercialStationScope(1, 10, fixture.SiteId));
+        var service = new OperationalCaptureService(db, new SiteScope(), new CurrentUser(), new IdempotencyService(db), Mock.Of<IFuelLoadSafetyService>(), commercial.Object);
+        var dto = new SubmitOperationalCaptureDto(
+            Guid.NewGuid(), 0, [], [], [],
+            [new MeterCaptureLineDto(
+                FuelTrack.Domain.Enums.MeterReadingSubjectType.GeneratorEnergyProduced,
+                fixture.GeneratorId, null, FuelTrack.Domain.Enums.MeterReadingKind.DailyClosing,
+                DateTime.UtcNow.AddMinutes(-1), [], 10m, 1m, false, null, Guid.NewGuid())],
+            IsOfflineQueue: true);
+
+        var result = await service.SubmitAsync(dto, fixture.UserId);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("GENERATOR_DAILY_TANK_READING_REQUIRED", result.Error!);
+    }
+
+    [Fact]
     public async Task GetPreviousReadingsAsync_ReturnsOnlyTheSiteCounterHistory()
     {
         await using var db = CreateDatabase();

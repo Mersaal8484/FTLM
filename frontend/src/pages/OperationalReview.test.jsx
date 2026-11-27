@@ -40,6 +40,7 @@ const pendingSubmission = {
   id: 1,
   subStationId: 10,
   siteName: 'المحطة الرئيسية',
+  businessDate: '2026-11-07',
   receivedAtUtc: '2026-11-07T20:00:00Z',
   submittedByUserId: 3,
   submitterName: 'أحمد علي',
@@ -88,6 +89,23 @@ describe('OperationalReview — queue view', () => {
     await waitFor(() => {
       expect(client.get).toHaveBeenCalledWith('/api/operational-review');
     });
+  });
+
+  test('groups same-station submissions for one business date into one review page', async () => {
+    client.get.mockResolvedValueOnce({
+      data: [
+        pendingSubmission,
+        { ...pendingSubmission, id: 2, meterLineCount: 2, receivedAtUtc: '2026-11-07T20:10:00Z' },
+        { ...pendingSubmission, id: 3, subStationId: 11, siteName: 'Other Station' },
+      ],
+    });
+
+    renderReview();
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('article')).toHaveLength(2);
+    });
+    expect(screen.getByText('Other Station')).toBeInTheDocument();
   });
 });
 
@@ -163,6 +181,7 @@ describe('OperationalReview — detail / approve flow', () => {
           values: {
             fuelTankId: 31,
             fuelTankName: 'Daily Tank 1',
+            generatorId: 1,
             liquidLevelCm: 42,
             computedLitres: 420,
             eventType: 0,
@@ -180,7 +199,7 @@ describe('OperationalReview — detail / approve flow', () => {
 
     expect((await screen.findAllByText(/Daily Tank 1/)).length).toBeGreaterThan(0);
     expect(screen.getByText(/42 cm/)).toBeInTheDocument();
-    expect(screen.getByText(/420 L/)).toBeInTheDocument();
+    expect(screen.getByText('420')).toBeInTheDocument();
   });
 
   test('shows submitted current meter values even when no previous official value exists', async () => {
@@ -189,7 +208,7 @@ describe('OperationalReview — detail / approve flow', () => {
       generatorLines: [{
         id: 41, status: 'Pending', capturedAtUtc: '2026-11-07T20:00:00Z', receivedAtUtc: '2026-11-07T20:01:00Z',
         hasSkewWarning: false, photoAttachmentIds: [], warningsJson: null, rejectionReason: null, hasReuseWarning: false,
-        values: { generatorName: 'Generator A', isRunning: true, lineVoltageVolts: 400, currentAmps: 120, oilPressure: 5, oilTemperatureCelsius: 82, waterTemperatureCelsius: 76, activeLoadKw: 90 },
+        values: { generatorId: 1, generatorName: 'Generator A', isRunning: true, lineVoltageVolts: 400, currentAmps: 120, oilPressure: 5, oilTemperatureCelsius: 82, waterTemperatureCelsius: 76, activeLoadKw: 90 },
       }],
       meterLines: [{
         id: 42, status: 'Pending', subjectType: 'GeneratorEnergyProduced', subjectId: 1, kind: 'DailyClosing',
@@ -208,12 +227,90 @@ describe('OperationalReview — detail / approve flow', () => {
     fireEvent.click(await screen.findByText('المحطة الرئيسية'));
 
     expect(await screen.findByText('Generator A')).toBeInTheDocument();
-    expect(screen.getByText('1250')).toBeInTheDocument();
-    expect(screen.getByText('400')).toBeInTheDocument();
-    expect(screen.getByText('120')).toBeInTheDocument();
+    expect(screen.getByText(/1[,\u066C]?250/)).toBeInTheDocument();
+    expect(screen.getByText(/End-of-day generator review|مراجعة قراءات نهاية اليوم للمولدات/i)).toBeInTheDocument();
+    expect(screen.getByText(/Energy current|قراءة الطاقة الحالية/i)).toBeInTheDocument();
   });
 
-  test('groups a feeder load, its counter, and their shared photo into one review card', async () => {
+  test('renders one generator row with fuel, oil, meter differences, photo, and a per-generator decision', async () => {
+    const generatorDetail = {
+      ...detailResponse,
+      generatorLines: [{
+        id: 71, status: 'Pending', capturedAtUtc: '2026-11-07T20:00:00Z', receivedAtUtc: '2026-11-07T20:01:00Z',
+        hasSkewWarning: false, photoAttachmentIds: [401], warningsJson: null, rejectionReason: null, hasReuseWarning: false,
+        values: { generatorId: 7, generatorName: 'Generator 7', oilId: 9, oilName: 'Engine Oil', oilAddedLitres: 20 },
+      }],
+      tankLines: [{
+        id: 72, status: 'Pending', capturedAtUtc: '2026-11-07T20:00:00Z', receivedAtUtc: '2026-11-07T20:01:00Z',
+        hasSkewWarning: false, photoAttachmentIds: [401], warningsJson: null, rejectionReason: null, hasReuseWarning: false,
+        values: { generatorId: 7, fuelTankName: 'Tank 7', liquidLevelCm: 30, computedLitres: 300 },
+      }],
+      meterLines: [
+        { id: 73, status: 'Pending', subjectType: 0, subjectId: 7, kind: 'DailyClosing', capturedAtUtc: '2026-11-07T20:00:00Z', receivedAtUtc: '2026-11-07T20:01:00Z', businessDate: '2026-11-07', hasSkewWarning: false, photoAttachmentIds: [401], rawValue: 1250, multiplierSnapshot: 1, isMeterReset: false, resetNote: null, warningsJson: null, rejectionReason: null, previousApprovedValue: 1000, deltaPreview: 250, deltaSpanDays: 1, subjectName: 'Generator 7' },
+        { id: 74, status: 'Pending', subjectType: 1, subjectId: 7, kind: 'DailyClosing', capturedAtUtc: '2026-11-07T20:00:00Z', receivedAtUtc: '2026-11-07T20:01:00Z', businessDate: '2026-11-07', hasSkewWarning: false, photoAttachmentIds: [401], rawValue: 520, multiplierSnapshot: 1, isMeterReset: false, resetNote: null, warningsJson: null, rejectionReason: null, previousApprovedValue: 500, deltaPreview: 20, deltaSpanDays: 1, subjectName: 'Generator 7' },
+      ],
+      dailyFuelConsumptions: [{ generatorId: 7, generatorName: 'Generator 7', dailyTankId: 17, dailyTankName: 'Tank 7', businessDate: '2026-11-07', openingBalanceLitres: 600, inboundRefillsLitres: 0, closingBalanceLitres: 300, consumptionLitres: 300, producedKwh: 250, kwhPerLiter: 0.83, warnings: [] }],
+    };
+
+    client.get
+      .mockResolvedValueOnce({ data: [pendingSubmission] })
+      .mockResolvedValueOnce({ data: generatorDetail });
+
+    const view = renderReview();
+    fireEvent.click(await screen.findByText('المحطة الرئيسية'));
+
+    expect(await screen.findByText('Generator 7')).toBeInTheDocument();
+    expect(screen.getByText('Engine Oil')).toBeInTheDocument();
+    expect(screen.getByText(/1[,\u066C]?250/)).toBeInTheDocument();
+    expect(screen.getByText('250')).toBeInTheDocument();
+    expect(screen.getByText('520')).toBeInTheDocument();
+    expect(screen.queryByText(/فرق الطاقة \(kWh\)|Energy difference \(kWh\)/i)).not.toBeInTheDocument();
+    expect(view.container.querySelectorAll('img')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /approve generator data|اعتماد بيانات المولد/i })).toBeInTheDocument();
+  });
+
+  test('combines generator oil, meter, and daily-tank submissions into one complete generator row', async () => {
+    const oilAndMeterDetail = {
+      ...detailResponse,
+      id: 1,
+      generatorLines: [{
+        id: 91, status: 'Pending', capturedAtUtc: '2026-11-07T20:00:00Z', receivedAtUtc: '2026-11-07T20:01:00Z',
+        hasSkewWarning: false, photoAttachmentIds: [], warningsJson: null, rejectionReason: null, hasReuseWarning: false,
+        values: { generatorId: 12, generatorName: 'Generator 12', oilId: 4, oilName: 'Engine Oil', oilAddedLitres: 20 },
+      }],
+      meterLines: [{
+        id: 92, status: 'Pending', subjectType: 0, subjectId: 12, kind: 'DailyClosing', capturedAtUtc: '2026-11-07T20:00:00Z', receivedAtUtc: '2026-11-07T20:01:00Z', businessDate: '2026-11-07',
+        hasSkewWarning: false, photoAttachmentIds: [], rawValue: 1250, multiplierSnapshot: 1, isMeterReset: false, resetNote: null, warningsJson: null, rejectionReason: null,
+        previousApprovedValue: 1000, deltaPreview: 250, deltaSpanDays: 1, subjectName: 'Generator 12',
+      }],
+      dailyFuelConsumptions: [{ generatorId: 12, generatorName: 'Generator 12', dailyTankId: 25, dailyTankName: 'Tank 12', businessDate: '2026-11-07', openingBalanceLitres: 600, inboundRefillsLitres: 0, closingBalanceLitres: 0, consumptionLitres: 0, producedKwh: 250, kwhPerLiter: 0.42, warnings: [] }],
+    };
+    const tankDetail = {
+      ...detailResponse,
+      id: 2,
+      tankLines: [{
+        id: 93, status: 'Pending', capturedAtUtc: '2026-11-07T20:05:00Z', receivedAtUtc: '2026-11-07T20:06:00Z',
+        hasSkewWarning: false, photoAttachmentIds: [], warningsJson: null, rejectionReason: null, hasReuseWarning: false,
+        values: { fuelTankId: 25, fuelTankName: 'Tank 12', generatorId: 12, liquidLevelCm: 30, computedLitres: 300, beforeComputedLitres: 600, eventType: 0 },
+      }],
+    };
+
+    client.get
+      .mockResolvedValueOnce({ data: [pendingSubmission, { ...pendingSubmission, id: 2, receivedAtUtc: '2026-11-07T20:05:00Z' }] })
+      .mockResolvedValueOnce({ data: oilAndMeterDetail })
+      .mockResolvedValueOnce({ data: tankDetail });
+
+    renderReview();
+    fireEvent.click(await screen.findByText('المحطة الرئيسية'));
+
+    expect(await screen.findByText('Generator 12')).toBeInTheDocument();
+    expect(screen.getByText('Engine Oil')).toBeInTheDocument();
+    expect(screen.getByText('30 cm')).toBeInTheDocument();
+    expect(screen.getByText('20 L')).toBeInTheDocument();
+    expect(screen.getAllByText('300').length).toBeGreaterThan(0);
+  });
+
+  test('uses the feeder counter difference as the active kW load and hides separate load columns', async () => {
     const feederDetail = {
       ...detailResponse,
       feederLines: [{
@@ -238,8 +335,12 @@ describe('OperationalReview — detail / approve flow', () => {
     fireEvent.click(await screen.findByText('المحطة الرئيسية'));
 
     expect(await screen.findByText('Feeder A')).toBeInTheDocument();
-    expect(screen.getByText('10600')).toBeInTheDocument();
-    expect(screen.getByText('8000')).toBeInTheDocument();
+    expect(screen.getByText(/10[,\u066C]?600/)).toBeInTheDocument();
+    expect(screen.getByText(/8[,\u066C]?000/)).toBeInTheDocument();
+    expect(screen.getByText(/الحمل الفعلي \(kW\)|Active load \(kW\)/i)).toBeInTheDocument();
+    expect(screen.queryByText(/فرق الطاقة \(kWh\)|Energy difference \(kWh\)/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/الحمل الظاهري \(kVA\)|Apparent load \(kVA\)/i)).not.toBeInTheDocument();
     expect(view.container.querySelectorAll('img')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /approve feeder data|اعتماد بيانات الفيدر/i })).toBeInTheDocument();
   });
 });

@@ -40,7 +40,10 @@ function mockRequests() {
   });
 }
 
-afterEach(() => vi.resetAllMocks());
+afterEach(() => {
+  vi.resetAllMocks();
+  vi.unstubAllGlobals();
+});
 
 test('hourly generator capture includes only operational inputs and hides the add strip', async () => {
   useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
@@ -91,6 +94,75 @@ test('offers only the oils configured for the selected generator on end-of-day c
   expect(screen.getByRole('option', { name: /20W-50/ })).toBeInTheDocument();
   fireEvent.change(oilType, { target: { value: '42' } });
   expect(oilType).toHaveValue('42');
+});
+
+test('submits the generator, its daily tank, counters, and pending oil top-up together', async () => {
+  useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
+  const references = {
+    ...site,
+    generators: [{
+      ...site.generators[0],
+      oilOptions: [{ oilId: 42, oilName: '20W-50', currentStock: 500 }],
+    }, site.generators[1]],
+  };
+  client.get.mockImplementation(async (url, config) => {
+    if (url === '/api/operational-captures/references') return { data: [references] };
+    if (url === '/api/operational-captures/previous-readings') return { data: { readings: [], tankReadings: [], tankBalances: [] } };
+    if (url === '/api/fuel-tanks') return { data: [{ id: 31, name: 'Daily tank', tankRole: 2, generatorId: 11, maxLevelCm: 100, calibrationMode: 1, litresPerCm: 10 }] };
+    if (url === '/api/fuel-tanks/31/level-to-litres') return { data: { tankId: 31, liquidLevelCm: Number(config?.params?.cm), litres: Number(config?.params?.cm) * 10, maxLevelCm: 100, calibrationMode: 1, litresPerCm: 10 } };
+    return { data: [] };
+  });
+  client.post.mockResolvedValue({ data: {} });
+
+  render(<MemoryRouter initialEntries={['/operations/capture?kind=daily-generator&generatorId=11&tankId=31']}><OperationalCapture /></MemoryRouter>);
+
+  fireEvent.change(await screen.findByLabelText(/Energy counter|عداد الطاقة/i), { target: { value: '6000' } });
+  fireEvent.change(screen.getByLabelText(/Running-hours counter|عداد ساعات التشغيل/i), { target: { value: '520' } });
+  fireEvent.change(screen.getByLabelText(/Daily tank level \(cm\)|مستوى الخزان اليومي \(سم\)/i), { target: { value: '30' } });
+  fireEvent.change(screen.getByLabelText(/Oil type|نوع الزيت/i), { target: { value: '42' } });
+  fireEvent.change(screen.getByLabelText(/Oil top-up|Oil added|إضافة زيت للمولد/i), { target: { value: '20' } });
+
+  fireEvent.click(screen.getByRole('button', { name: /Submit|إرسال/i }));
+
+  await waitFor(() => expect(client.post).toHaveBeenCalledWith('/api/operational-captures', expect.objectContaining({
+    generatorReadings: [expect.objectContaining({ generatorId: 11, oilId: 42, oilAddedLitres: 20 })],
+    tankLevelReadings: [expect.objectContaining({ fuelTankId: 31, liquidLevelCm: 30 })],
+    meterReadings: expect.arrayContaining([
+      expect.objectContaining({ subjectType: 0, subjectId: 11, rawValue: 6000, kind: 1 }),
+      expect.objectContaining({ subjectType: 1, subjectId: 11, rawValue: 520, kind: 1 }),
+    ]),
+  })));
+});
+
+test('blocks a commercial end-of-day submission until the daily tank level is entered', async () => {
+  useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
+  mockRequests();
+  vi.stubGlobal('alert', vi.fn());
+
+  render(<MemoryRouter initialEntries={['/operations/capture?kind=daily-generator&generatorId=11&tankId=31']}><OperationalCapture /></MemoryRouter>);
+
+  fireEvent.change(await screen.findByLabelText(/Energy counter|عداد الطاقة/i), { target: { value: '6000' } });
+  fireEvent.change(screen.getByLabelText(/Running-hours counter|عداد ساعات التشغيل/i), { target: { value: '520' } });
+  fireEvent.click(screen.getByRole('button', { name: /Submit|إرسال/i }));
+
+  expect(client.post).not.toHaveBeenCalledWith('/api/operational-captures', expect.anything());
+});
+
+test('submits zero oil addition without requiring an oil type', async () => {
+  useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
+  mockRequests();
+  client.post.mockResolvedValue({ data: {} });
+
+  render(<MemoryRouter initialEntries={['/operations/capture?kind=daily-generator&generatorId=11&tankId=31']}><OperationalCapture /></MemoryRouter>);
+
+  fireEvent.change(await screen.findByLabelText(/Energy counter|عداد الطاقة/i), { target: { value: '6000' } });
+  fireEvent.change(screen.getByLabelText(/Running-hours counter|عداد ساعات التشغيل/i), { target: { value: '520' } });
+  fireEvent.change(screen.getByLabelText(/Daily tank level \(cm\)|مستوى الخزان اليومي \(سم\)/i), { target: { value: '30' } });
+  fireEvent.click(screen.getByRole('button', { name: /Submit|إرسال/i }));
+
+  await waitFor(() => expect(client.post).toHaveBeenCalledWith('/api/operational-captures', expect.objectContaining({
+    generatorReadings: [expect.objectContaining({ generatorId: 11, oilId: null, oilAddedLitres: 0 })],
+  })));
 });
 
 test('shows clear message and back link when hourly generatorId is unknown or non-numeric', async () => {

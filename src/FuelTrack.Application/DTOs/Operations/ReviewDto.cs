@@ -8,6 +8,7 @@ public sealed record PendingSubmissionDto(
     int Id,
     int SubStationId,
     string SiteName,
+    DateOnly BusinessDate,
     DateTime ReceivedAtUtc,
     int SubmittedByUserId,
     string SubmitterName,
