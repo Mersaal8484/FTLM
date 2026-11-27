@@ -87,7 +87,7 @@ export const appTranslations = {
           generatorEndOfDayTitle: 'End-of-day generator review', generatorEndOfDayNote: 'Each row is reviewed independently; only its approved readings affect official stock and counters.',
           feederEndOfDayTitle: 'End-of-day feeder review', noGeneratorEndOfDayData: 'No generator end-of-day readings were submitted.', noFeederEndOfDayData: 'No feeder end-of-day readings were submitted.',
           oilType: 'Oil type', oilAdded: 'Oil added (L)', energyPrevious: 'Energy previous (kWh)', energyCurrent: 'Energy current (kWh)', energyDifference: 'Energy difference (kWh)',
-          hoursPrevious: 'Hours previous', hoursCurrent: 'Hours current', hoursDifference: 'Running hours', tankLevel: 'Tank level (cm)', feeder: 'Feeder', activeLoad: 'Active load (kW)', apparentLoad: 'Apparent load (kVA)', submittedPhoto: 'Submitted photo', actions: 'Actions',
+          hoursPrevious: 'Hours previous', hoursCurrent: 'Hours current', hoursDifference: 'Running hours', tankLevel: 'Tank level (cm)', feeder: 'Feeder', activeLoad: 'Active load (kW)', apparentLoad: 'Apparent load (kVA)', submittedPhoto: 'Submitted photo', generatorScreenPhoto: 'Generator screen', tankLevelPhoto: 'Tank level', actions: 'Actions',
           unnamedGenerator: 'Generator', unnamedFeeder: 'Feeder',
           skewWarning: 'Time skew warning: device clock differs by more than 12 hours.',
           previousValue: 'Previous approved value', deltaPreview: 'Delta preview',
@@ -461,7 +461,7 @@ export const appTranslations = {
           generatorEndOfDayTitle: 'مراجعة قراءات نهاية اليوم للمولدات', generatorEndOfDayNote: 'كل صف يُراجع ويُعتمد أو يُرفض بشكل مستقل، ولا تؤثر إلا البيانات المعتمدة في المخزون والعدادات الرسمية.',
           feederEndOfDayTitle: 'مراجعة قراءات نهاية اليوم للفيدرات', noGeneratorEndOfDayData: 'لا توجد قراءات نهاية يوم للمولدات في هذا الإرسال.', noFeederEndOfDayData: 'لا توجد قراءات نهاية يوم للفيدرات في هذا الإرسال.',
           oilType: 'نوع الزيت', oilAdded: 'الزيت المضاف (لتر)', energyPrevious: 'قراءة الطاقة السابقة (kWh)', energyCurrent: 'قراءة الطاقة الحالية (kWh)', energyDifference: 'فرق الطاقة (kWh)',
-          hoursPrevious: 'ساعات التشغيل السابقة', hoursCurrent: 'ساعات التشغيل الحالية', hoursDifference: 'ساعات التشغيل', tankLevel: 'مستوى الخزان (سم)', feeder: 'الفيدر', activeLoad: 'الحمل الفعلي (kW)', apparentLoad: 'الحمل الظاهري (kVA)', submittedPhoto: 'الصورة المرفقة', actions: 'الإجراءات',
+          hoursPrevious: 'ساعات التشغيل السابقة', hoursCurrent: 'ساعات التشغيل الحالية', hoursDifference: 'ساعات التشغيل', tankLevel: 'مستوى الخزان (سم)', feeder: 'الفيدر', activeLoad: 'الحمل الفعلي (kW)', apparentLoad: 'الحمل الظاهري (kVA)', submittedPhoto: 'الصورة المرفقة', generatorScreenPhoto: 'شاشة المولد', tankLevelPhoto: 'مستوى الخزان', actions: 'الإجراءات',
           unnamedGenerator: 'مولد', unnamedFeeder: 'فيدر',
           skewWarning: '\u062a\u062d\u0630\u064a\u0631 \u0627\u0646\u062d\u0631\u0627\u0641 \u0627\u0644\u062a\u0648\u0642\u064a\u062a: \u0633\u0627\u0639\u0629 \u0627\u0644\u062c\u0647\u0627\u0632 \u062a\u062e\u062a\u0644\u0641 \u0628\u0623\u0643\u062b\u0631 \u0645\u0646 12 \u0633\u0627\u0639\u0629.',
           previousValue: '\u0627\u0644\u0642\u064a\u0645\u0629 \u0627\u0644\u0645\u0639\u062a\u0645\u062f\u0629 \u0627\u0644\u0633\u0627\u0628\u0642\u0629', deltaPreview: '\u0645\u0639\u0627\u064a\u0646\u0629 \u0627\u0644\u0641\u0627\u0631\u0642',
@@ -855,7 +855,9 @@ Object.assign(appTranslations.en.translation.operational.commercialCapture, {
   selectAssignedOil: 'Select configured oil',
   oilSelectionRequired: 'Select a configured oil type and enter a positive oil quantity together.',
   oilTopUpApprovalNote: 'This optional top-up is deducted from oil stock only after approval.',
-  dailyTankLevelRequired: 'Enter the daily tank level before submitting the end-of-day reading.'
+  dailyTankLevelRequired: 'Enter the daily tank level before submitting the end-of-day reading.',
+  addGeneratorScreenPhoto: 'Add generator screen photo',
+  addDailyTankPhoto: 'Add daily tank level photo',
 });
 Object.assign(appTranslations.ar.translation, {
   generatorMaintenance: {
@@ -915,7 +917,9 @@ Object.assign(appTranslations.ar.translation.operational.commercialCapture, {
   selectAssignedOil: 'اختر نوع الزيت المضبوط للمولد',
   oilSelectionRequired: 'اختر نوع زيت مضبوطاً للمولد وأدخل كمية زيت موجبة معاً.',
   oilTopUpApprovalNote: 'هذه الإضافة اختيارية، ويُخصم مخزون الزيت فقط بعد الاعتماد.',
-  dailyTankLevelRequired: 'أدخل مستوى الخزان اليومي قبل إرسال قراءة نهاية اليوم.'
+  dailyTankLevelRequired: 'أدخل مستوى الخزان اليومي قبل إرسال قراءة نهاية اليوم.',
+  addGeneratorScreenPhoto: 'إضافة صورة شاشة المولد',
+  addDailyTankPhoto: 'إضافة صورة مستوى الخزان',
 });
 
 i18n

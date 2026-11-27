@@ -278,12 +278,12 @@ describe('OperationalReview — detail / approve flow', () => {
       id: 1,
       generatorLines: [{
         id: 91, status: 'Pending', capturedAtUtc: '2026-11-07T20:00:00Z', receivedAtUtc: '2026-11-07T20:01:00Z',
-        hasSkewWarning: false, photoAttachmentIds: [], warningsJson: null, rejectionReason: null, hasReuseWarning: false,
+        hasSkewWarning: false, photoAttachmentIds: [501], warningsJson: null, rejectionReason: null, hasReuseWarning: false,
         values: { generatorId: 12, generatorName: 'Generator 12', oilId: 4, oilName: 'Engine Oil', oilAddedLitres: 20 },
       }],
       meterLines: [{
         id: 92, status: 'Pending', subjectType: 0, subjectId: 12, kind: 'DailyClosing', capturedAtUtc: '2026-11-07T20:00:00Z', receivedAtUtc: '2026-11-07T20:01:00Z', businessDate: '2026-11-07',
-        hasSkewWarning: false, photoAttachmentIds: [], rawValue: 1250, multiplierSnapshot: 1, isMeterReset: false, resetNote: null, warningsJson: null, rejectionReason: null,
+        hasSkewWarning: false, photoAttachmentIds: [501], rawValue: 1250, multiplierSnapshot: 1, isMeterReset: false, resetNote: null, warningsJson: null, rejectionReason: null,
         previousApprovedValue: 1000, deltaPreview: 250, deltaSpanDays: 1, subjectName: 'Generator 12',
       }],
       dailyFuelConsumptions: [{ generatorId: 12, generatorName: 'Generator 12', dailyTankId: 25, dailyTankName: 'Tank 12', businessDate: '2026-11-07', openingBalanceLitres: 600, inboundRefillsLitres: 0, closingBalanceLitres: 0, consumptionLitres: 0, producedKwh: 250, kwhPerLiter: 0.42, warnings: [] }],
@@ -293,7 +293,7 @@ describe('OperationalReview — detail / approve flow', () => {
       id: 2,
       tankLines: [{
         id: 93, status: 'Pending', capturedAtUtc: '2026-11-07T20:05:00Z', receivedAtUtc: '2026-11-07T20:06:00Z',
-        hasSkewWarning: false, photoAttachmentIds: [], warningsJson: null, rejectionReason: null, hasReuseWarning: false,
+        hasSkewWarning: false, photoAttachmentIds: [502], warningsJson: null, rejectionReason: null, hasReuseWarning: false,
         values: { fuelTankId: 25, fuelTankName: 'Tank 12', generatorId: 12, liquidLevelCm: 30, computedLitres: 300, beforeComputedLitres: 600, eventType: 0 },
       }],
     };
@@ -303,7 +303,7 @@ describe('OperationalReview — detail / approve flow', () => {
       .mockResolvedValueOnce({ data: oilAndMeterDetail })
       .mockResolvedValueOnce({ data: tankDetail });
 
-    renderReview();
+    const view = renderReview();
     fireEvent.click(await screen.findByText('المحطة الرئيسية'));
 
     expect(await screen.findByText('Generator 12')).toBeInTheDocument();
@@ -311,6 +311,9 @@ describe('OperationalReview — detail / approve flow', () => {
     expect(screen.getByText('30 cm')).toBeInTheDocument();
     expect(screen.getByText('20 L')).toBeInTheDocument();
     expect(screen.getAllByText('300').length).toBeGreaterThan(0);
+    expect(view.container.querySelectorAll('img')).toHaveLength(2);
+    expect(screen.getByText(/^شاشة المولد$|^Generator screen$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^مستوى الخزان$|^Tank level$/i)).toBeInTheDocument();
   });
 
   test('uses the feeder counter difference as the active kW load and hides separate load columns', async () => {

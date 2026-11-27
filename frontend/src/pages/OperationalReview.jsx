@@ -277,6 +277,16 @@ function SubmissionDetail({ ids, reviewGroup, onBack }) {
       },
       name: generator?.values?.generatorName || energy?.subjectName || hours?.subjectName || t('operational.review.unnamedGenerator'),
       photoAttachmentIds: photoIds(...entries),
+      photos: (() => {
+        const generatorPhotoIds = photoIds(...generatorLines, energy, hours);
+        const generatorSet = new Set(generatorPhotoIds);
+        return [
+          ...generatorPhotoIds.map((photoId) => ({ id: photoId, label: t('operational.review.generatorScreenPhoto') })),
+          ...photoIds(...tankLines)
+            .filter((photoId) => !generatorSet.has(photoId))
+            .map((photoId) => ({ id: photoId, label: t('operational.review.tankLevelPhoto') })),
+        ];
+      })(),
       sourceSubmissionIds: distinctPositiveIds(entries.map((entry) => entry._submissionId)),
       hasSkewWarning: entries.some((entry) => entry.hasSkewWarning),
       hasReuseWarning: entries.some((entry) => entry.hasReuseWarning),
@@ -309,18 +319,25 @@ function SubmissionDetail({ ids, reviewGroup, onBack }) {
     ?? (!line?.isMeterReset && line?.rawValue != null && line?.previousApprovedValue != null
       ? Number(line.rawValue) - Number(line.previousApprovedValue)
       : null);
-  const renderPhotos = (attachmentIds) => attachmentIds?.length ? (
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
-      {attachmentIds.map((photoId) => (
-        <a key={photoId} href={`/api/operational-photos/${photoId}`} target="_blank" rel="noreferrer">
-          <img
-            src={`/api/operational-photos/${photoId}`}
-            alt={t('operational.review.submittedPhoto')}
-            style={{ width: 54, height: 42, objectFit: 'cover', borderRadius: 5, border: '1px solid var(--border)' }}
-            onError={(event) => { event.currentTarget.style.display = 'none'; }}
-          />
-        </a>
-      ))}
+  const renderPhotos = (items) => items?.length ? (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', minWidth: 120 }}>
+      {items.map((item) => {
+        const photoId = typeof item === 'object' ? item.id : item;
+        const label = typeof item === 'object' ? item.label : null;
+        return (
+          <div key={photoId} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <a href={`/api/operational-photos/${photoId}`} target="_blank" rel="noreferrer">
+              <img
+                src={`/api/operational-photos/${photoId}`}
+                alt={label || t('operational.review.submittedPhoto')}
+                style={{ width: 54, height: 42, objectFit: 'cover', borderRadius: 5, border: '1px solid var(--border)' }}
+                onError={(event) => { event.currentTarget.style.display = 'none'; }}
+              />
+            </a>
+            {label && <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{label}</span>}
+          </div>
+        );
+      })}
     </div>
   ) : <span>—</span>;
   const renderBundleActions = (bundleType, subjectId, sourceSubmissionIds, hasPending) => {
@@ -439,7 +456,7 @@ function SubmissionDetail({ ids, reviewGroup, onBack }) {
                         <td>{displayNumber(row.hours?.previousApprovedValue)}</td>
                         <td style={{ fontWeight: 700 }}>{displayNumber(row.hours?.rawValue)}</td>
                         <td style={{ fontWeight: 800 }}>{displayNumber(meterDifference(row.hours))}</td>
-                        <td>{renderPhotos(row.photoAttachmentIds)}</td>
+                        <td>{renderPhotos(row.photos)}</td>
                         <td>{renderBundleActions('generator', row.generatorId, row.sourceSubmissionIds, row.hasPending)}</td>
                       </tr>
                     ))}

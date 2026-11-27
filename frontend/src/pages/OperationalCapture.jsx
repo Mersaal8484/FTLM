@@ -46,7 +46,7 @@ export async function compressPhoto(file, stamp) {
   return new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'reading'}.jpg`, { type: 'image/jpeg' });
 }
 
-function PhotoInput({ onUploaded, disabled, stamp }) {
+function PhotoInput({ onUploaded, disabled, stamp, label }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -65,18 +65,18 @@ function PhotoInput({ onUploaded, disabled, stamp }) {
   return <label className="capture-photo">
     <input type="file" accept="image/jpeg,image/webp" capture="environment" onChange={change} disabled={busy || disabled} />
     {preview ? <img src={preview} alt="" /> : <Camera size={22} />}
-    <span>{busy ? t('operational.capture.compressing') : t('operational.capture.addPhoto')}</span>
+    <span>{busy ? t('operational.capture.compressing') : (label || t('operational.capture.addPhoto'))}</span>
   </label>;
 }
 
-function BaseLine({ title, code, icon: Icon, capturedAt, onCapturedAt, photoIds, onUploaded, onRemove, children, disabled, timeZone }) {
+function BaseLine({ title, code, icon: Icon, capturedAt, onCapturedAt, photoIds, onUploaded, onRemove, children, disabled, timeZone, photoLabel }) {
   const { t } = useTranslation();
   return <article className="capture-line">
     <header><span className="capture-line-icon"><Icon size={20} /></span><strong>{title}</strong><button type="button" className="capture-remove" onClick={onRemove} aria-label={t('operational.capture.remove')}><Trash2 size={18} /></button></header>
     {/* A line may override the round time; leaving it empty inherits the submission time. */}
     <label>{t('operational.capture.capturedAt')}<input type="datetime-local" value={capturedAt} onChange={(e) => onCapturedAt(e.target.value)} /></label>
     {children}
-    <div className="capture-photo-row"><PhotoInput disabled={disabled || photoIds.length > 0} onUploaded={onUploaded} stamp={{ capturedAt, subjectCode: code, locale: document.documentElement.lang, timeZone }} />{photoIds.length > 0 && <span className="capture-photo-ok"><CheckCircle2 size={17} /> {t('operational.capture.photoReady')}</span>}</div>
+    <div className="capture-photo-row"><PhotoInput disabled={disabled || photoIds.length > 0} onUploaded={onUploaded} stamp={{ capturedAt, subjectCode: code, locale: document.documentElement.lang, timeZone }} label={photoLabel} />{photoIds.length > 0 && <span className="capture-photo-ok"><CheckCircle2 size={17} /> {t('operational.capture.photoReady')}</span>}</div>
   </article>;
 }
 
@@ -421,9 +421,6 @@ export default function OperationalCapture() {
     }
     const clientRequestId = clientRequestIdRef.current || crypto.randomUUID();
     clientRequestIdRef.current = clientRequestId;
-    const pairedDailyTankPhotoIds = isDailyGeneratorCommercial
-      ? (lines.find((item) => item.kind === 'generator')?.photoAttachmentIds || [])
-      : [];
     const payload = { clientRequestId, subStationId: site.subStationId, submissionCapturedAtUtc: new Date(submissionTime).toISOString(), clientSentAtUtc: clientSentAt, isOfflineQueue: false, generatorReadings: [], tankLevelReadings: [], feederLoadReadings: [], meterReadings: [] };
     for (const line of lines) {
       const capturedAtUtc = line.capturedAt ? new Date(line.capturedAt).toISOString() : new Date(submissionTime).toISOString();
@@ -434,8 +431,7 @@ export default function OperationalCapture() {
         }
       }
       if (line.kind === 'tank') {
-        const tankPhotoIds = line.photoAttachmentIds?.length ? line.photoAttachmentIds : pairedDailyTankPhotoIds;
-        payload.tankLevelReadings.push({ fuelTankId: line.subjectId, clientLineId: line.clientLineId, capturedAtUtc, photoAttachmentIds: tankPhotoIds, liquidLevelCm: decimal(line.values.level), eventType: Number(line.values.eventType || 0), linkedClientLineId: line.values.linkedClientLineId || null, beforeLiquidLevelCm: decimal(line.values.beforeLevel), beforePhotoAttachmentIds: line.beforePhotoAttachmentIds || [], deliveryNoteLitres: decimal(line.values.deliveryNoteLitres) });
+        payload.tankLevelReadings.push({ fuelTankId: line.subjectId, clientLineId: line.clientLineId, capturedAtUtc, photoAttachmentIds: line.photoAttachmentIds, liquidLevelCm: decimal(line.values.level), eventType: Number(line.values.eventType || 0), linkedClientLineId: line.values.linkedClientLineId || null, beforeLiquidLevelCm: decimal(line.values.beforeLevel), beforePhotoAttachmentIds: line.beforePhotoAttachmentIds || [], deliveryNoteLitres: decimal(line.values.deliveryNoteLitres) });
       }
       if (line.kind === 'feeder') {
         payload.feederLoadReadings.push({ feederId: line.subjectId, clientLineId: line.clientLineId, capturedAtUtc, photoAttachmentIds: line.photoAttachmentIds, activeLoadKw: decimal(line.values.activeKw), apparentLoadKva: decimal(line.values.apparentKva) });
@@ -547,7 +543,7 @@ export default function OperationalCapture() {
         <button onClick={() => add('solar')} type="button"><Sun />{t('operational.capture.solarProduction')}</button>
       )}
     </div>}
-      <div className="capture-lines">{lines.filter((line) => !isDailyGeneratorCommercial || line.kind !== 'tank').map((line) => <BaseLine key={line.id} title={sourceName(line)} code={sourceCode(line)} icon={line.kind === 'tank' ? Droplets : line.kind === 'feeder' ? Gauge : line.kind === 'solar' ? Sun : Zap} capturedAt={line.capturedAt || submissionTime} onCapturedAt={(capturedAt) => update(line.id, { capturedAt })} photoIds={line.photoAttachmentIds} onUploaded={(photoId) => update(line.id, { photoAttachmentIds: [photoId] })} onRemove={() => setLines((current) => isDailyGeneratorCommercial ? [] : current.filter((x) => x.id !== line.id))} disabled={submitting} timeZone={site.timeZone || 'Asia/Aden'}>
+      <div className="capture-lines">{lines.filter((line) => !isDailyGeneratorCommercial || line.kind !== 'tank').map((line) => <BaseLine key={line.id} title={sourceName(line)} code={sourceCode(line)} icon={line.kind === 'tank' ? Droplets : line.kind === 'feeder' ? Gauge : line.kind === 'solar' ? Sun : Zap} capturedAt={line.capturedAt || submissionTime} onCapturedAt={(capturedAt) => update(line.id, { capturedAt })} photoIds={line.photoAttachmentIds} onUploaded={(photoId) => update(line.id, { photoAttachmentIds: [photoId] })} onRemove={() => setLines((current) => isDailyGeneratorCommercial ? [] : current.filter((x) => x.id !== line.id))} disabled={submitting} timeZone={site.timeZone || 'Asia/Aden'} photoLabel={isDailyGeneratorCommercial && line.kind === 'generator' ? t('operational.commercialCapture.addGeneratorScreenPhoto') : undefined}>
         {line.kind === 'generator' && <>
           {!isHourlyCommercial && !isDailyGeneratorCommercial && <label className="capture-switch"><input type="checkbox" checked={line.isRunning} onChange={(e) => update(line.id, { isRunning: e.target.checked })}/>{t('operational.capture.running')}</label>}
           {!isDailyGeneratorCommercial && (isHourlyCommercial || line.isRunning) && <div className="capture-grid">{number(line, 'voltage', t('operational.capture.voltage'), true)}{number(line, 'current', t('operational.capture.current'), true)}{number(line, 'waterTemp', t('operational.capture.waterTemp'), true)}{number(line, 'oilPressure', t('operational.capture.oilPressure'), true)}{number(line, 'oilTemp', t('operational.capture.oilTemp'), true)}{number(line, 'activeKw', t('operational.capture.activeKw'), true)}{!isHourlyCommercial && <>{number(line, 'peakKw', t('operational.capture.peakKw'))}{number(line, 'airPressure', t('operational.capture.airPressure'))}{number(line, 'apparentKva', t('operational.capture.apparentKva'))}{number(line, 'frequency', t('operational.capture.frequency'))}</>}</div>}
@@ -603,6 +599,17 @@ export default function OperationalCapture() {
                   <small>{tankLevelHint(tid)}</small>
                   <small>{tankLevelDifference(tid, dailyTankLine.values.level)}</small>
                 </label>
+                <div className="capture-photo-row">
+                  <PhotoInput
+                    label={t('operational.commercialCapture.addDailyTankPhoto')}
+                    disabled={submitting || (dailyTankLine.photoAttachmentIds?.length || 0) > 0}
+                    onUploaded={(photoId) => update(dailyTankLine.id, { photoAttachmentIds: [photoId] })}
+                    stamp={{ capturedAt: dailyTankLine.capturedAt || submissionTime, subjectCode: sourceCode(dailyTankLine), locale: document.documentElement.lang, timeZone: site.timeZone || 'Asia/Aden' }}
+                  />
+                  {(dailyTankLine.photoAttachmentIds?.length || 0) > 0 && (
+                    <span className="capture-photo-ok"><CheckCircle2 size={17} /> {t('operational.capture.photoReady')}</span>
+                  )}
+                </div>
               </div>
             );
           })()}

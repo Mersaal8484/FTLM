@@ -332,7 +332,7 @@ test('shows meter setup source label on feeder baseline and fallback when no bas
   expect(screen.getAllByText(/لا توجد قراءة سابقة|No previous reading/i).length).toBeGreaterThanOrEqual(1);
 });
 
-test('daily-generator shares card photo with daily tank, sets isRunning false, and surfaces rejected lines', async () => {
+test('daily-generator uploads separate photos for generator screen and daily tank level, sets isRunning false, and surfaces rejected lines', async () => {
   useCommercialMode.mockReturnValue({ isCommercial: true, isCommercialMode: true, modeResolved: true });
   mockRequests();
   const alertMock = vi.fn();
@@ -347,8 +347,12 @@ test('daily-generator shares card photo with daily tank, sets isRunning false, a
     measureText: () => ({ width: 10 }),
   });
   const blobSpy = vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((cb) => cb(new Blob(['img'], { type: 'image/jpeg' })));
+  let uploadCount = 0;
   client.post.mockImplementation(async (url) => {
-    if (url === '/api/attachments') return { data: { id: 77 } };
+    if (url === '/api/attachments') {
+      uploadCount += 1;
+      return { data: { id: uploadCount === 1 ? 88 : 77 } };
+    }
     return {
       data: {
         lines: [{ outcome: 'rejected', reason: 'Sample server rejection' }],
@@ -363,15 +367,18 @@ test('daily-generator shares card photo with daily tank, sets isRunning false, a
   );
 
   fireEvent.change(await screen.findByLabelText(/Daily tank level \(cm\)|مستوى الخزان اليومي \(سم\)/i), { target: { value: '30' } });
-  const fileInput = container.querySelector('input[type="file"]');
-  fireEvent.change(fileInput, { target: { files: [new File(['img'], 'meter.jpg', { type: 'image/jpeg' })] } });
+  const fileInputs = container.querySelectorAll('input[type="file"]');
+  expect(fileInputs).toHaveLength(2);
+  fireEvent.change(fileInputs[0], { target: { files: [new File(['img1'], 'tank.jpg', { type: 'image/jpeg' })] } });
   await screen.findByText(/Photo ready|الصورة جاهزة/i);
+  fireEvent.change(fileInputs[1], { target: { files: [new File(['img2'], 'gen.jpg', { type: 'image/jpeg' })] } });
+  await waitFor(() => expect(screen.getAllByText(/Photo ready|الصورة جاهزة/i)).toHaveLength(2));
 
   fireEvent.click(screen.getByRole('button', { name: /Submit|إرسال/i }));
 
   await waitFor(() => expect(client.post).toHaveBeenCalledWith('/api/operational-captures', expect.objectContaining({
     generatorReadings: [expect.objectContaining({ generatorId: 11, isRunning: false, photoAttachmentIds: [77] })],
-    tankLevelReadings: [expect.objectContaining({ fuelTankId: 31, liquidLevelCm: 30, photoAttachmentIds: [77] })],
+    tankLevelReadings: [expect.objectContaining({ fuelTankId: 31, liquidLevelCm: 30, photoAttachmentIds: [88] })],
   })));
   await waitFor(() => expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Sample server rejection')));
   ctxSpy.mockRestore();
